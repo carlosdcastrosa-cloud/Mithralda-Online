@@ -63,6 +63,13 @@ export function buildWorld(rng){
   npcs.push({x:tcx+3*TS,y:tcy-1*TS,sprite:"npcBram",name:STR.npcBram,role:"shop",lines:STR.bramLines});
   npcs.push({x:tcx-2*TS,y:tcy+2*TS,sprite:"npcRolf",name:STR.npcRolf,role:"quest",lines:STR.rolfLines});
   npcs.push({x:tcx-4*TS,y:tcy-2*TS,sprite:"npcLina",name:STR.npcLina,role:"heal",lines:STR.linaLines});
+  // CAS-60: market-square dressing — stalls, crates & street lanterns for city variety.
+  for(const [sx,sy] of [[tcx-3*TS,tcy-3*TS],[tcx+3*TS,tcy-3*TS],[tcx,tcy+5*TS]]){
+    prop("stall",sx,sy,true,12); prop("crate",sx-TS,sy+TS,true,8); }
+  for(let i=0;i<6;i++){ const x=(town.x+rr(2,town.w-2))*TS, y=(town.y+rr(2,town.h-2))*TS;
+    if(Math.hypot(x-tcx,y-tcy)<3*TS) continue; prop("crate",x,y,true,8); }
+  for(let i=0;i<4;i++){ prop("lantern",(town.x+2)*TS,(town.y+3+i*4)*TS,false);
+    prop("lantern",(town.x+town.w-2)*TS,(town.y+3+i*4)*TS,false); }
   // neutral adventurers in arena
   for(let i=0;i<5;i++){ const x=(arena.x+rr(3,arena.w-3))*TS, y=(arena.y+rr(3,arena.h-3))*TS;
     npcs.push({x,y,sprite:"adv",name:STR.npcAdventurer,role:"neutral",lines:STR.adventurerLines,neutral:true}); }
@@ -75,8 +82,8 @@ export function buildWorld(rng){
   fragments.push({x:(caves.x+caves.w/2)*TS,y:(caves.y+2)*TS,taken:false,kind:"mp"});
   fragments.push({x:(arena.x+2)*TS,y:(arena.y+arena.h-3)*TS,taken:false,kind:"hp"});
   // spawners
-  spawners.push({rect:forest,types:["wolf","wolf","rat"],max:10,cool:3,t:0,zone:"forest"});
-  spawners.push({rect:caves,types:["skeleton","spearman","orc","skeleton","mage","spearman"],max:11,cool:4,t:0,zone:"caves"});
+  spawners.push({rect:forest,types:["wolf","wolf","rat","bat","bat"],max:12,cool:3,t:0,zone:"forest"});
+  spawners.push({rect:caves,types:["skeleton","spearman","orc","skeleton","mage","wraith","spearman"],max:12,cool:4,t:0,zone:"caves"});
   // ---- dungeon walls in the caves (perimeter ring + interior alcoves) ----
   const wallSet=new Set();
   const cx0=caves.x, cy0=caves.y, cx1=caves.x+caves.w-1, cy1=caves.y+caves.h-1;
@@ -103,7 +110,7 @@ export function buildWorld(rng){
   for(let i=0;i<6;i++){ prop("prop_torch",(cxc-3)*TS,(caves.y+6+i*4)*TS,false); prop("prop_torch",(cxc+3)*TS,(caves.y+6+i*4)*TS,false); }
   for(let i=0;i<6;i++){ const x=(arena.x+rr(2,arena.w-2))*TS, y=(arena.y+rr(3,arena.h-2))*TS; prop(srand()<0.5?"prop_bones":"prop_rock",x,y,false); }
   // ---- Ruinas de Eldath (outdoor ruins zone, west of town) ----
-  spawners.push({rect:ruins,types:["orc","mage","spearman","skeleton","orc"],max:10,cool:4,t:0,zone:"ruins"});
+  spawners.push({rect:ruins,types:["orc","mage","spearman","skeleton","bandit","bandit","orc"],max:12,cool:4,t:0,zone:"ruins"});
   const rcyp=town.y+town.h/2;
   for(let i=0;i<34;i++){ const tx=ruins.x+rr(1,ruins.w-2), ty=ruins.y+rr(1,ruins.h-2);
     if(tx>=ruins.x+ruins.w-4 && Math.abs(ty-rcyp)<2) continue; // keep east entrance clear
