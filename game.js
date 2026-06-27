@@ -36,7 +36,12 @@ export function createGame(canvas, ctx, getView){
   // boot
   loadAllAssets();
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
-    window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty) };
+    window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
+      // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)
+      scene:()=>G.scene,
+      hero:()=>G.hero?{cls:G.hero.cls,x:G.hero.x,y:G.hero.y}:null,
+      enemyCount:()=>G.enemies.length,
+      worldFingerprint:(seed)=>simDev.worldFingerprint(seed) };
   }
   syncMenuDom(); positionNameInput();
 

@@ -377,4 +377,18 @@ function updateFloaters(dt){ for(const f of G.floaters){ f.t+=dt; f.y-=24*dt; } 
 export const dev = {
   spawn(type,dx,dy){ const e=spawnEnemy(type, G.hero.x+(dx||0), G.hero.y+(dy||0)); if(type==="golem"&&e) e.isBoss=true; return type; },
   tp(tx,ty){ G.hero.x=tx*TS; G.hero.y=ty*TS; return [G.hero.x,G.hero.y]; },
+  // Determinism probe (tools/determinism.mjs). Rebuilds the world from a FRESH
+  // RNG each call so independent runs must agree byte-for-byte. seed is accepted
+  // but buildWorld() still hard-seeds internally (tracked Stage-2 seam).
+  worldFingerprint(/*seed*/){
+    const w = buildWorld(createRNG());
+    let hh = 0x811c9dc5 >>> 0;                      // FNV-1a over terrain bytes
+    for(let i=0;i<w.terr.length;i++){ hh ^= w.terr[i]; hh = Math.imul(hh, 0x01000193) >>> 0; }
+    return {
+      terrHash: hh, terrLen: w.terr.length, wallCount: w.wallSet.size,
+      solids: w.solids.map(s=>[s.x,s.y,s.r,s.kind]),
+      npcs: w.npcs.map(n=>[Math.round(n.x),Math.round(n.y),n.sprite]),
+      spawnCoords: w.spawners.map(s=>[s.rect.x,s.rect.y,s.rect.w,s.rect.h]),
+    };
+  },
 };
