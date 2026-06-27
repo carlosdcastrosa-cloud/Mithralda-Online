@@ -110,7 +110,10 @@ export function buildWorld(rng){
   for(let i=0;i<6;i++){ prop("prop_torch",(cxc-3)*TS,(caves.y+6+i*4)*TS,false); prop("prop_torch",(cxc+3)*TS,(caves.y+6+i*4)*TS,false); }
   for(let i=0;i<6;i++){ const x=(arena.x+rr(2,arena.w-2))*TS, y=(arena.y+rr(3,arena.h-2))*TS; prop(srand()<0.5?"prop_bones":"prop_rock",x,y,false); }
   // ---- Ruinas de Eldath (outdoor ruins zone, west of town) ----
-  spawners.push({rect:ruins,types:["orc","mage","spearman","skeleton","bandit","bandit","orc"],max:12,cool:4,t:0,zone:"ruins"});
+  // CAS-76: the animated Moose bruiser joins the ruins pool (replaces the trailing
+  // bandit/orc dup slots → ~2/7 spawn weight; existing variety preserved, RNG sequence
+  // unchanged so spawns stay deterministic).
+  spawners.push({rect:ruins,types:["orc","mage","spearman","skeleton","bandit","moose","moose"],max:12,cool:4,t:0,zone:"ruins"});
   const rcyp=town.y+town.h/2;
   for(let i=0;i<34;i++){ const tx=ruins.x+rr(1,ruins.w-2), ty=ruins.y+rr(1,ruins.h-2);
     if(tx>=ruins.x+ruins.w-4 && Math.abs(ty-rcyp)<2) continue; // keep east entrance clear

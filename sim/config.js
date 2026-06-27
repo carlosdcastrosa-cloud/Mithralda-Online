@@ -77,6 +77,12 @@ export const ETPL = {
   bandit:  {hp:60, dmg:18, spd:100, aggro:250, range:48, windup:0.55, recover:0.55, xp:28, gold:[10,20],sprite:"bandit", size:19, knock:110, boss:false, gearChance:0.26},
   wraith:  {hp:48, dmg:15, spd:64,  aggro:320, range:230, windup:0.85,recover:0.8,  xp:30, gold:[8,15], sprite:"wraith", size:20, knock:60,  boss:false, ranged:true, projspd:260, proj:"bolt", gearChance:0.24},
   golem:   {hp:640,dmg:30, spd:46,  aggro:360, range:64, windup:0.95, recover:0.8,  xp:220,gold:[60,90],sprite:"golem",size:36, knock:60, boss:true},
+  // CAS-76: animated "Moose" bruiser (Ancient Ruins pack). A heavy charger — long
+  // antler-rear telegraph (windup 0.85 → matches the 30-frame attack strip), big
+  // hooved knockback, slots into the tier-2 ruins pool. Melee, deterministic.
+  // sprite "orc" is only the procedural fallback for the sub-second asset-load window
+  // (same convention as mage→"skel"); ENEMY_ANIM.moose drives the real animated strips.
+  moose:   {hp:110,dmg:24, spd:94,  aggro:260, range:54, windup:0.85, recover:0.7,  xp:38, gold:[10,18],sprite:"orc",  size:26, knock:170, boss:false, gearChance:0.30},
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
 };
 
