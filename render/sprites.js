@@ -257,6 +257,8 @@ export function loadAllAssets(){
   for(const cl in CLS) for(const dir of CLASS_DIRS) for(const st in CLS[cl].fc) loadImg("cls_"+cl+"_"+st+"_"+dir, "./assets/class/"+cl+"_"+st+"_"+dir+".png");
   loadImg("cave_floor","./assets/tiles/cave_floor.png");
   loadImg("cave_floor2","./assets/tiles/cave_floor2.png");
+  loadImg("town_floor","./assets/tiles/town_floor.png");   // CAS-60: Higgsfield city cobble
+  loadImg("town_floor2","./assets/tiles/town_floor2.png");
   loadImg("wall","./assets/tiles/wall.png");
   loadImg("wall2","./assets/tiles/wall2.png");
   for(const p of ["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"]) loadImg("prop_"+p,"./assets/props/"+p+".png");

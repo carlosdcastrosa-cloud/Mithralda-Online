@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, CFG, CLASS_LIST, SPELLS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, SPELLS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef } from "../sim/gear.js";
@@ -72,6 +72,8 @@ export function createRenderer(ctx){
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
+      if(t===T_COBBLE){ const img = (hash2(x,y)<0.5?IMG.town_floor:IMG.town_floor2);  // CAS-60: Higgsfield city cobble
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS); continue; } }
       ctx.fillStyle=tileBase[t]; ctx.fillRect(px,py,TS,TS);
       const hv=hash2(x,y);
       // texture flecks (deterministic)
