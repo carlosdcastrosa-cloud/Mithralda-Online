@@ -46,7 +46,7 @@ export { world, rng };
 
 export const G = {
   scene:"menu", // menu, play, dialogue, shop, inventory, pause, dead
-  t:0, hero:null, enemies:[], projectiles:[], fx:[], floaters:[], drops:[],
+  t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
   cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false},
   quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0,
   toast:"", toastT:0, music:"town", arenaWarned:false, bossDead:false,
@@ -80,7 +80,7 @@ function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
 function initHunts(){ const o={}; for(const z in HUNTS) o[z]={kills:0, champ:null, cleared:false}; return o; }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
-export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.scene="play"; G.started=true; }
+export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.scene="play"; G.started=true; }
 
 // ----------------------------- helpers ---------------------------------
 export function toast(msg,dur){ G.toast=msg; G.toastT=dur||2.6; }
@@ -293,7 +293,44 @@ function resolveSpell(h,sp){
       for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>sp.range+e.tpl.size) continue;
         const ang=Math.atan2(e.y-h.y,e.x-h.x); if(Math.abs(angDiff(ang,a))<0.9){ hitEnemy(e,sp.dmg,a); } }
       addFx(sp.fx||"charge",h.x,h.y,{ang:a,col:sp.col,life:0.3}); shakeAdd(5); break;
+    case "blink": {
+      // caster mobility: instantly reposition up to `range` px toward facing, clamped
+      // by collision (step-march so we stop AT a wall, never tunnel through it), and
+      // grant brief i-frames. No damage — a pure escape/gap tool. Deterministic: no RNG.
+      const steps=12, dpx=sp.range/steps; let nx=h.x, ny=h.y;
+      for(let s=0;s<steps;s++){ const tx=nx+ca*dpx, ty=ny+sa*dpx; let moved=false;
+        if(!solidBlocked(tx,ny,12)){ nx=tx; moved=true; }
+        if(!solidBlocked(nx,ty,12)){ ny=ty; moved=true; }
+        if(!moved) break; }
+      addFx(sp.fx||"blink",h.x,h.y,{ang:a,col:sp.col,life:0.3});          // departure wisp at origin
+      h.x=nx; h.y=ny; h.iframe=Math.max(h.iframe,sp.iframe||0.4); h.rollCD=Math.max(h.rollCD,0.25);
+      addFx(sp.fx||"blink",h.x,h.y,{ang:a,col:sp.col,life:0.3,arrive:1}); shakeAdd(3); break; }
+    case "field": {
+      // area denial: plant a persistent zone in front of the hero that ticks `dmg`
+      // every `tick` seconds to enemies inside `range` for `dur` seconds (optional
+      // slow). One immediate plant tick makes the cast read instantly; then it lingers.
+      const cx=h.x+ca*(sp.offset||40), cy=h.y+sa*(sp.offset||40);
+      const f={x:cx,y:cy,r:sp.range,dmg:sp.dmg,tick:sp.tick||0.5,acc:0,life:sp.dur,maxLife:sp.dur,
+               col:sp.col,style:sp.style,slow:sp.slow||0,slowDur:sp.slowDur||0};
+      G.fields.push(f); fieldTick(f);                                     // plant + immediate first tick
+      addFx(sp.fx||"novacast",cx,cy,{r:sp.range,col:sp.col,style:sp.style||"spike",life:0.5}); shakeAdd(4); break; }
   }
+}
+// Apply ONE damage tick from a persistent field. Unlike hitEnemy this is intentionally
+// light — no knockback, no hitstop, no per-tick sfx — so a DoT zone reads as a hazard,
+// not a stun-lock. Deterministic; runs on the sim tick clock only.
+function fieldTick(f){
+  for(const e of G.enemies){ if(e.dead) continue;
+    const rr2=(f.r+e.tpl.size); if(dist2(e.x,e.y,f.x,f.y) > rr2*rr2) continue;
+    e.hp-=f.dmg; e.hurtFlash=0.12; floater(e.x,e.y-e.tpl.size,"-"+Math.round(f.dmg),"#9fe06a");
+    if(f.slow){ e.slow=f.slow; e.slowT=Math.max(e.slowT||0,f.slowDur); }
+    if(e.tpl.neutral && !e.hostile){ makeHostile(e); registerSkull(); }
+    if(e.hp<=0) killEnemy(e); }
+}
+function updateFields(dt){
+  for(const f of G.fields){ f.life-=dt; f.acc+=dt;
+    while(f.acc>=f.tick){ f.acc-=f.tick; fieldTick(f); } }
+  G.fields=G.fields.filter(f=>f.life>0);
 }
 // Timed stat buff: dmgBonus/defBonus are the sinks read by equippedDmg/Def, so a
 // buff changes real combat numbers. Recasting refreshes (removes the old amount
@@ -467,6 +504,7 @@ export function update(dtMs){
   // enemies
   updateEnemies(dt);
   updateProjectiles(dt);
+  updateFields(dt);
   updateDrops(dt);
   updateFx(dt); updateFloaters(dt);
   // spawners
@@ -622,23 +660,41 @@ export const dev = {
       h.cls=cls; h.maxMp=200; h.mp=200; h.maxHp=400; h.hp=1; h.facing=0; h.rolling=false;
       h.dmgBonus=0; h.defBonus=0; h.dmgBuffT=0; h.dmgBuffAmt=0; h.defBuffT=0; h.defBuffAmt=0; h.hotT=0; h.hotRate=0;
       h.spellCD=[0,0,0,0]; h.spellCDmax=[0,0,0,0];
-      G.enemies.length=0; G.projectiles.length=0; G.fx.length=0;
+      G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
       const e=spawnEnemy("orc", h.x+40, h.y); e.maxHp=e.hp=600;
-      const e0=e.hp, h0=h.hp;
+      const e0=e.hp, h0=h.hp, hx0=h.x, hy0=h.y;
       castSpell(slot);
       const sp=SPELLS[cls][slot-1]; const pr=G.projectiles[G.projectiles.length-1];
       out.push({ slot, id:sp.id, type:sp.type, cost:sp.cost,
         mpSpent: 200-Math.round(h.mp),
         enemyDmg: Math.round(e0-e.hp),
         heroHeal: Math.round(h.hp-h0),
+        heroMoved: Math.round(Math.hypot(h.x-hx0, h.y-hy0)),
+        fieldSpawned: G.fields.length,
         projSpawned: G.projectiles.length,
         projKind: pr?pr.kind:null, projAoe: pr?(pr.aoe||0):0, projSpd: pr?Math.round(Math.hypot(pr.vx,pr.vy)):0, projDmg: pr?pr.dmg:0,
         dmgBuff: h.dmgBonus, defBuff: h.defBonus,
         enemyStun: +(e.stun||0).toFixed(2), enemySlowT: +(e.slowT||0).toFixed(2),
         hotActive: h.hotT>0?1:0 });
     }
-    G.enemies.length=0; G.projectiles.length=0; G.fx.length=0;
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
     return out;
+  },
+  // Field DoT-over-time probe (CAS-70): plant the druid thornstorm field on a stunned
+  // dummy, then advance the REAL update() loop ~2s and confirm the zone keeps ticking
+  // damage after the plant tick and then expires. Exercises updateFields() — the one
+  // new sim path the per-cast spellProbe can't see. Deterministic; restores state.
+  dotProbe(){
+    const h=G.hero; h.cls="druid"; h.maxMp=200; h.mp=200; h.maxHp=400; h.hp=400; h.facing=0; h.rolling=false;
+    h.spellCD=[0,0,0,0]; h.spellCDmax=[0,0,0,0];
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const e=spawnEnemy("orc", h.x+40, h.y); e.maxHp=e.hp=2000; e.stun=999; // root so it stays in the zone
+    const hp0=e.hp; castSpell(3); const afterPlant=e.hp;                   // slot4 = druid thornstorm (field)
+    let ticks=0; const steps=76;                                          // ~3.8s at 50ms (past the 3s field life)
+    for(let s=0;s<steps;s++){ const before=e.hp; e.stun=999; update(50); if(e.hp<before-0.001) ticks++; }
+    const afterTime=e.hp, fieldsLeft=G.fields.length;
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    return { plantDmg:Math.round(hp0-afterPlant), overTimeDmg:Math.round(afterPlant-afterTime), ticks, fieldsLeft };
   },
   bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b) })); },
   equipBag(i){ return equipBag(i); },

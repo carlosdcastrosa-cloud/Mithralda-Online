@@ -32,6 +32,8 @@ export const ATK = {
 // effects run on the sim RNG only — determinism / Stage-2 server-authority ready.
 //   types: proj(spd,kind,aoe?) | cone(range,arc,knock?,stun?) | nova(range,heal?,stun?,slow?,slowDur?)
 //          | heal(heal) | hot(heal/s,dur) | buff(stat:"dmg"|"def",amt,dur) | dash(range,dmg)
+//          | blink(range,iframe)  — instant collision-clamped reposition + i-frames (no dmg; pure mobility)
+//          | field(range,dmg,tick,dur,slow?,slowDur?,offset?) — persistent ground zone that ticks dmg (area denial)
 export const SPELLS = {
   warrior: [
     {id:"shieldbash", type:"cone", cost:8,  cd:3.0, dmg:20, range:74, arc:Math.PI*0.70, stun:0.9, knock:1.7, col:"#dfe6f0", fx:"conecast", sfx:"sword"},
@@ -46,12 +48,12 @@ export const SPELLS = {
   mage: [
     {id:"fireball", type:"proj", cost:10, cd:1.4, dmg:24, spd:320, kind:"fire", aoe:48, col:"#ff7a3a", fx:"flame", sfx:"fire"},
     {id:"frost",    type:"nova", cost:14, cd:3.5, dmg:16, range:110, slow:0.45, slowDur:2.5, col:"#7fd6ff", fx:"novacast", style:"crystal", sfx:"rune"},
-    {id:"voltbolt", type:"proj", cost:18, cd:2.2, dmg:40, spd:620, kind:"voltbolt", col:"#9be7ff", fx:"spellburst", sfx:"fire"},
+    {id:"blink",    type:"blink", cost:14, cd:5.5, range:158, iframe:0.42, col:"#9be7ff", fx:"blink", sfx:"roll"},
   ],
   druid: [
     {id:"vines",      type:"nova", cost:12, cd:4.0, dmg:14, range:92,  stun:1.4, col:"#8fd47a", fx:"novacast", style:"spike", sfx:"rune"},
     {id:"regen",      type:"hot",  cost:12, cd:8.0, heal:11, dur:5.0, col:"#7bd44a", fx:"buffaura", sfx:"heal"},
-    {id:"thornstorm", type:"nova", cost:20, cd:5.0, dmg:34, range:104, col:"#5fae4a", fx:"novacast", style:"spike", sfx:"rune"},
+    {id:"thornstorm", type:"field", cost:20, cd:6.0, dmg:11, tick:0.5, dur:3.0, range:74, offset:46, slow:0.6, slowDur:1.1, col:"#5fae4a", fx:"thornfield", style:"spike", sfx:"rune"},
   ],
   priest: [
     {id:"greaterheal", type:"heal", cost:16, cd:5.0, heal:60, col:"#7fffa8", fx:"healburst", sfx:"heal"},

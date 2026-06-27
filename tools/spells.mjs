@@ -42,12 +42,15 @@ function effectKey(s) {
     s.defBuff > 0 ? "def" : "",
     s.enemyStun > 0 ? "stun" : "",
     s.enemySlowT > 0 ? "slow" : "",
+    s.heroMoved > 8 ? "move" : "",     // blink / mobility — repositions the caster
+    s.fieldSpawned > 0 ? "field" : "", // persistent ground zone (area denial)
   ].filter(Boolean).join("|");
 }
 // did the spell observably DO anything at all?
 function didSomething(s) {
   return s.enemyDmg > 0 || s.heroHeal > 0 || s.hotActive || s.projSpawned > 0 ||
-         s.dmgBuff > 0 || s.defBuff > 0 || s.enemyStun > 0 || s.enemySlowT > 0;
+         s.dmgBuff > 0 || s.defBuff > 0 || s.enemyStun > 0 || s.enemySlowT > 0 ||
+         s.heroMoved > 8 || s.fieldSpawned > 0;
 }
 
 try {
@@ -76,7 +79,7 @@ try {
     for (const s of probe) {
       total++;
       const k = effectKey(s);
-      const detail = `dmg=${s.enemyDmg} heal=${s.heroHeal} hot=${s.hotActive} proj=${s.projSpawned} atk=${s.dmgBuff} def=${s.defBuff} stun=${s.enemyStun} slow=${s.enemySlowT} mp=${s.mpSpent}`;
+      const detail = `dmg=${s.enemyDmg} heal=${s.heroHeal} hot=${s.hotActive} proj=${s.projSpawned} atk=${s.dmgBuff} def=${s.defBuff} stun=${s.enemyStun} slow=${s.enemySlowT} move=${s.heroMoved} field=${s.fieldSpawned} mp=${s.mpSpent}`;
       if (!didSomething(s)) fail(`${cls}.${s.id} (slot ${s.slot + 1}) had NO observable effect — ${detail}`);
       if (s.mpSpent !== s.cost) fail(`${cls}.${s.id} spent ${s.mpSpent} MP, expected cost ${s.cost}`);
       keys.add(k);

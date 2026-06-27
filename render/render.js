@@ -127,6 +127,7 @@ export function createRenderer(ctx){
     list.sort((a,b)=>a.y-b.y);
     for(const o of list) o.draw();
     // projectiles + fx on top
+    for(const f of G.fields) drawField(f);
     for(const p of G.projectiles) drawProjectile(p);
     for(const f of G.fx) drawFx(f);
     for(const f of G.floaters){ ctx.globalAlpha=clamp(1-f.t/f.life,0,1); ctx.font="bold 13px 'Courier New',monospace"; ctx.textAlign="center"; ctx.fillStyle=COL.out; ctx.fillText(f.txt,f.x+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(f.txt,f.x,f.y); ctx.globalAlpha=1; }
@@ -237,6 +238,17 @@ export function createRenderer(ctx){
       ctx.globalAlpha=0.28; ctx.fillStyle="#fff0b0"; ctx.beginPath(); ctx.arc(p.x,p.y,11+pu*2,0,6.28); ctx.fill(); ctx.globalAlpha=1;
       ctx.fillStyle="#fff6d8"; ctx.beginPath(); ctx.arc(p.x,p.y,5.5,0,6.28); ctx.fill();
       ctx.fillStyle="#ffd24d"; ctx.fillRect(p.x-1,p.y-5,2,10); ctx.fillRect(p.x-5,p.y-1,10,2); } }
+  // Persistent ground zone (druid thornstorm). Pulses with the tick clock, fades as
+  // it expires. Cosmetic-only: reads field state, jitter from the isolated render RNG.
+  function drawField(f){ const col=f.col||"#5fae4a", life=clamp(f.life/(f.maxLife||f.life),0,1);
+    const pulse=0.5+0.5*Math.sin(G.t*9), a=0.16*life+0.10*pulse*life;
+    ctx.globalAlpha=a; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,6.28); ctx.fill();
+    ctx.globalAlpha=0.5*life; ctx.strokeStyle=col; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,6.28); ctx.stroke();
+    // thorn spikes around the rim (deterministic angles; render-side flicker only)
+    ctx.globalAlpha=(0.45+0.4*pulse)*life; ctx.fillStyle=col;
+    for(let i=0;i<14;i++){ const ang=i/14*6.28 + G.t*0.4, r=f.r*(0.62+0.3*((i*5)%4)/3);
+      ctx.fillRect(f.x+Math.cos(ang)*r-2, f.y+Math.sin(ang)*r-2, 4,4); }
+    ctx.globalAlpha=1; }
   function drawFx(f){ const k=clamp(1-f.t/f.life,0,1), sw=1-k;
     if(f.kind==="spark"){ ctx.globalAlpha=k; ctx.fillStyle=COL.spark; for(let i=0;i<9;i++){ const a=i/9*6.28+f.t*7; const r=sw*24; ctx.fillRect(f.x+Math.cos(a)*r-1.5,f.y+Math.sin(a)*r-1.5,4,4);} ctx.globalAlpha=k*0.8; ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*11,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
     else if(f.kind==="blood"){ ctx.globalAlpha=k*0.92; ctx.fillStyle=COL.blood; for(let i=0;i<9;i++){ const a=(f.ang||0)+rr(-1.0,1.0); const r=sw*26; const s=2+((i*7)%3); ctx.fillRect(f.x+Math.cos(a)*r,f.y+Math.sin(a)*r,s,s);} ctx.globalAlpha=1; }
@@ -282,6 +294,18 @@ export function createRenderer(ctx){
       ctx.globalAlpha=k; ctx.fillStyle="#ffffff"; ctx.fillRect(f.x+Math.cos(a)*6-2,f.y+Math.sin(a)*6-2,4,4); ctx.globalAlpha=1; }
     else if(f.kind==="spellburst"){ const col=f.col||"#ffffff"; ctx.globalAlpha=k; ctx.strokeStyle=col; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y,sw*26,0,6.28); ctx.stroke();
       ctx.fillStyle=col; for(let i=0;i<8;i++){ const a=i/8*6.28; const r=sw*22; ctx.fillRect(f.x+Math.cos(a)*r-1.5,f.y+Math.sin(a)*r-1.5,3,3);} ctx.globalAlpha=k*0.6; ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*9,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
+    else if(f.kind==="blink"){ const col=f.col||"#9be7ff", a=f.ang||0;
+      // arrival flares outward (sw small→large), departure collapses inward — a clear teleport read
+      const r=f.arrive? sw*30 : (1-sw)*30; ctx.globalAlpha=k*0.85; ctx.strokeStyle=col; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.arc(f.x,f.y,r+6,0,6.28); ctx.stroke();
+      ctx.fillStyle="#eaffff"; for(let i=0;i<8;i++){ const aa=i/8*6.28 + (f.arrive?0:1.4); ctx.fillRect(f.x+Math.cos(aa)*r-1.5,f.y+Math.sin(aa)*r-1.5,3,3); }
+      ctx.globalAlpha=k*0.5; ctx.strokeStyle=col; ctx.lineWidth=4; ctx.lineCap="round"; ctx.beginPath();
+      ctx.moveTo(f.x,f.y); ctx.lineTo(f.x-Math.cos(a)*sw*18,f.y-Math.sin(a)*sw*18); ctx.stroke(); ctx.lineCap="butt"; ctx.globalAlpha=1; }
+    else if(f.kind==="thornfield"){ const col=f.col||"#5fae4a", R=f.r||72, r2=sw*R;
+      ctx.globalAlpha=k*0.8; ctx.strokeStyle=col; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(f.x,f.y,r2,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k; ctx.fillStyle=col; for(let i=0;i<14;i++){ const a=i/14*6.28; const r3=r2*0.9;
+        ctx.beginPath(); ctx.moveTo(f.x+Math.cos(a)*r3,f.y+Math.sin(a)*r3); ctx.lineTo(f.x+Math.cos(a)*(r2+10),f.y+Math.sin(a)*(r2+10)); ctx.lineWidth=3; ctx.stroke(); }
+      ctx.globalAlpha=1; }
   }
   function drawAtkFx(cls,x,y,ang,p){ const a=Math.sin(Math.min(1,p)*Math.PI); if(a<=0.04) return;
     const dx=Math.cos(ang),dy=Math.sin(ang); ctx.save(); ctx.globalAlpha=a;

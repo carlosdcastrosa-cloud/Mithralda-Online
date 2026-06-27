@@ -61,7 +61,8 @@ export function createGame(canvas, ctx, getView){
       // spell-identity contract consumed by tools/spells.mjs (CAS-52) — additive
       setClass:(cls)=>simDev.setClass(cls),
       cast:(i)=>simDev.cast(i),
-      spellProbe:(cls)=>simDev.spellProbe(cls) };
+      spellProbe:(cls)=>simDev.spellProbe(cls),
+      dotProbe:()=>simDev.dotProbe() };
   }
   syncMenuDom(); positionNameInput();
 

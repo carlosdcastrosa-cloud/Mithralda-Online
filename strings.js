@@ -33,7 +33,7 @@ export const STR = {
   spellNames: {
     warrior: ["GOLPE ESCUDO", "GRITO", "EMBESTIDA"],
     paladin: ["CONSAGRAR", "ESC. DIVINO", "JUICIO"],
-    mage:    ["BOLA FUEGO", "ESCARCHA", "RAYO"],
+    mage:    ["BOLA FUEGO", "ESCARCHA", "PARPADEO"],
     druid:   ["ENREDADERAS", "REGENERAR", "T. ESPINAS"],
     priest:  ["SANACIÓN", "PAL. PODER", "CASTIGO"],
   },
