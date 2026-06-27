@@ -1,0 +1,51 @@
+<!doctype html><html><head><meta charset="utf-8"><title>combat-smoke</title>
+<style>html,body{margin:0;background:#0c0e13}#c{image-rendering:pixelated}#nameWrap{display:none}</style>
+</head><body>
+<canvas id="c"></canvas>
+<div id="nameWrap"><input id="nameInput"></div>
+<script type="module">
+// CAS-20 browser smoke: boot real modules, drive combat so hitstop + strikeflash +
+// dodgering render paths execute, then render a frame with the fx still alive.
+import { configure, G, update, createHero, dev, castSpell, doRoll } from "../sim/sim.js";
+import { io, initInput } from "../input.js";
+import { audio } from "../audio.js";
+import { view } from "../view.js";
+import { createRenderer } from "../render/render.js";
+import { loadAllAssets } from "../render/sprites.js";
+
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d", { alpha:false });
+canvas.width = view.VW = 900; canvas.height = view.VH = 600;
+ctx.imageSmoothingEnabled = false;
+
+configure({ io, audio, view });
+initInput(canvas);
+const renderer = createRenderer(ctx);
+loadAllAssets();
+
+createHero("Smoke", "warrior");
+const h = G.hero; h.facing = 0;
+const seen = new Set();
+const note = () => G.fx.forEach(f => seen.add(f.kind));
+
+// drive ~5s of combat, swinging + rolling near spawned enemies
+dev.spawn("wolf", 28, 0);
+dev.spawn("skeleton", -90, -40);
+let maxHitstop = 0;
+for (let i = 0; i < 300; i++){
+  if (h.atkCD <= 0 && (i % 18) === 0) castSpell(0);            // periodic swings
+  if (!h.rolling && h.rollCD <= 0 && G.enemies.some(e=>e.state==="strike"||e.state==="windup")) doRoll();
+  update(1000/60);
+  maxHitstop = Math.max(maxHitstop, G.hitstop);
+  note();
+  if (G.enemies.length === 0) dev.spawn("wolf", 26, 0);        // keep combat alive
+}
+// render a final frame with a fresh hit so impact/strikeflash fx are on screen
+h.facing = 0; if (h.atkCD<=0) castSpell(0); update(1000/60); update(1000/60); note();
+renderer.render(0);
+
+window.__smoke = { scene: G.scene, enemies: G.enemies.length, heroHp: Math.round(G.hero.hp),
+  maxHitstop, fxSeen: [...seen].sort() };
+document.title = "smoke-ok scene=" + G.scene + " hitstop=" + maxHitstop;
+</script>
+</body></html>

@@ -42,6 +42,7 @@ export const G = {
   quest:{wolves:0, done:false, rewarded:false}, dialog:null, shopSel:0,
   toast:"", toastT:0, music:"town", arenaWarned:false, bossDead:false,
   skull:{level:0, t:0, kills:0, killT:0}, started:false,
+  hitstop:0, // client-feel impact freeze (frames @60fps); never gates authoritative state beyond pausing local sim
 };
 
 function newHero(name,cls){
@@ -64,6 +65,7 @@ export function toast(msg,dur){ G.toast=msg; G.toastT=dur||2.6; }
 function floater(x,y,txt,col){ G.floaters.push({x,y,txt,col:col||C_CREAM,t:0,life:0.9}); }
 function addFx(kind,x,y,opt){ G.fx.push(Object.assign({kind,x,y,t:0,life:0.4},opt)); }
 function shakeAdd(a){ G.shake=Math.min(14, G.shake + a*(G.settings.shake)); }
+function freeze(n){ if(n>G.hitstop) G.hitstop=n; } // request a hitstop of n frames (longest wins)
 function solidBlocked(x,y,r){
   if(x<r||y<r||x>MAP_W*TS-r||y>MAP_H*TS-r) return true;
   const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
@@ -116,6 +118,7 @@ function hitEnemy(e,dmg,ang){
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
   floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d");
   addFx("spark",e.x,e.y); addFx("blood",e.x,e.y,{ang}); addFx("impact",e.x,e.y,{ang,life:0.26});
+  freeze(Math.min(5, 2+Math.floor(dmg/14))); // hit pops harder the bigger the blow
   if(e.tpl.neutral && !e.hostile){ makeHostile(e); registerSkull(); }
   if(e.hp<=0) killEnemy(e);
   else if(e.tpl.neutral) { /* stays hostile */ }
@@ -123,6 +126,7 @@ function hitEnemy(e,dmg,ang){
 function makeHostile(e){ e.hostile=true; e.tpl=Object.assign({},e.tpl,{aggro:300}); }
 function killEnemy(e){
   if(e.dead) return; e.dead=true;
+  freeze(e.isBoss?9:5); // kill confirm — boss death lands heaviest
   const tpl=e.tpl;
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
@@ -259,6 +263,7 @@ export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let 
 //  UPDATE  — advances the simulation one fixed step. No ctx, no DOM.
 // ====================================================================
 export function update(dtMs){
+  if(G.hitstop>0){ G.hitstop--; if(G.scene==="play"){ io.pollPad(); return; } } // impact freeze: pause sim, keep pad live
   const dt=dtMs/1000; G.t+=dt;
   if(G.toastT>0) G.toastT-=dt;
   if(G.scene==="menu"){ return; } // menu DOM is owned by the controller, not the sim
@@ -273,11 +278,13 @@ export function update(dtMs){
 
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
+  h._pdCD=Math.max(0,(h._pdCD||0)-dt); // perfect-dodge reward cooldown
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
   if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12);
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
-  else { const mv=io.moveVec(); h.vx=mv[0]*CFG.heroSpeed; h.vy=mv[1]*CFG.heroSpeed;
+  else { const mv=io.moveVec(); const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
+    h.vx=mv[0]*CFG.heroSpeed*atkSlow; h.vy=mv[1]*CFG.heroSpeed*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
       h.dustT=(h.dustT||0)+dt; if(h.dustT>0.15){ h.dustT=0; addFx("dust", h.x-h.vx*0.03, h.y+15-h.vy*0.02); }
@@ -334,6 +341,7 @@ function updateEnemies(dt){ const h=G.hero;
     } else if(e.state==="windup"){
       e.st-=dt; e.facing=Math.atan2(h.y-e.y,h.x-e.x);
       if(e.st<=0){ e.state="strike"; e.st=0.12;
+        addFx("strikeflash",e.x,e.y,{ang:e.facing,range:e.tpl.ranged?0:e.tpl.range,life:0.18}); // the "now!" instant
         // boss extra: ground wave on alternate strikes
         if(e.isBoss){ e.phase++; if(e.phase%2===0){ for(let k=0;k<10;k++){ const a=k/10*6.28; G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*180,vy:Math.sin(a)*180,life:1.2,dmg:18,kind:"rune",enemy:true}); } } }
       }
@@ -352,9 +360,14 @@ function updateEnemies(dt){ const h=G.hero;
     } else if(e.state==="recover"){ e.st-=dt; if(e.st<=0) e.state=d<aggro?"chase":"idle"; }
   }
 }
-function damageHero(dmg,ang){ const h=G.hero; if(h.iframe>0||h.dead) return;
+// reward reading the telegraph: a hit negated mid-roll refunds MP + pops, not the post-hit mercy i-frame
+function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0.5;
+  freeze(6); h.iframe=Math.max(h.iframe,0.12); h.mp=Math.min(h.maxMp,h.mp+8);
+  floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.34}); audio.sfx.roll(); }
+function damageHero(dmg,ang){ const h=G.hero; if(h.dead) return;
+  if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return; } // only an active roll earns the dodge, not mercy i-frames
   const def=h.armor.def+h.shield.def+h.defBonus; const real=Math.max(1,dmg-def*0.6);
-  h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
+  h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   h.iframe=0.25; // brief mercy invuln
 }
 function updateProjectiles(dt){ const h=G.hero;
