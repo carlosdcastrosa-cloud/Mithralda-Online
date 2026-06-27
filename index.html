@@ -21,13 +21,62 @@
 <canvas id="c"></canvas>
 <div id="dev"></div>
 <div id="nameWrap"><input id="nameInput" maxlength="14" autocomplete="off" spellcheck="false"></div>
-<script type="module">
-  import { createGame } from "./game.js";
+
+<!--
+  CACHE-BUSTING BOOTSTRAP (CAS-58)
+  ================================
+  Higgsfield serves our fixed-name ES modules with NO cache headers (no
+  cache-control / etag / last-modified). A returning player who loaded the game
+  yesterday keeps executing yesterday's CACHED modules — the deploy looked
+  identical to the board even though master had moved on.
+
+  Fix without server-header control and without renaming any file:
+   1) Fetch a tiny version.json with cache:'no-store' — this ALWAYS hits the
+      network, even when index.html itself is served from cache. Its `build`
+      field is a content hash that changes whenever any shipped file changes.
+   2) Inject an import map that routes EVERY module specifier (including the
+      internal static imports inside game.js / sim/* / render/*) to a
+      `?v=<build>` URL. One build id busts the entire module graph at once.
+   3) Expose window.__BUILD so render/sprites.js can append the same `?v=` to
+      image asset URLs.
+
+  This is a CLASSIC script on purpose: a classic inline script does not trigger
+  a module-graph load on parse, so we can register the import map and only THEN
+  dynamic-import the entry — the order the import-map spec requires.
+
+  Because filenames never change, the deploy-verify byte-identity gate (CAS-37)
+  stays valid: live bytes still equal master bytes for every file.
+-->
+<script>
+(async function boot(){
+  let build = "";
+  try {
+    const r = await fetch("./version.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) build = String((await r.json()).build || "");
+  } catch (e) { /* offline / very first deploy: fall through with no id */ }
+  if (!build) build = "0";
+  window.__BUILD = build; // consumed by render/sprites.js for asset URLs
+
+  // Every shipped ES module, keyed by its root-absolute path. The import map
+  // remaps the RESOLVED specifier, so internal `./sim/sim.js` imports (resolved
+  // to /sim/sim.js) are caught too — not just the entry.
+  const MODS = ["/game.js","/audio.js","/view.js","/input.js","/strings.js",
+    "/sim/sim.js","/sim/config.js","/sim/math.js","/sim/rng.js","/sim/world.js","/sim/gear.js",
+    "/render/render.js","/render/sprites.js","/render/palette.js"];
+  const imports = {};
+  for (const m of MODS) imports[m] = m + "?v=" + build;
+  const im = document.createElement("script");
+  im.type = "importmap";
+  im.textContent = JSON.stringify({ imports });
+  document.head.appendChild(im);
+
+  const { createGame } = await import("./game.js"); // -> /game.js?v=<build> via the map
 
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d", { alpha: false });
   const DPR_CAP = 1.5;
   let viewW = 0, viewH = 0, dpr = 1;
+  let game = null;
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
@@ -41,7 +90,7 @@
     if (game) game.onResize(viewW, viewH);
   }
 
-  const game = createGame(canvas, ctx, () => ({ w: viewW, h: viewH }));
+  game = createGame(canvas, ctx, () => ({ w: viewW, h: viewH }));
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", () => setTimeout(resize, 100));
   resize();
@@ -79,6 +128,7 @@
     }
   }
   requestAnimationFrame(frame);
+})();
 </script>
 </body>
 </html>

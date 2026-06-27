@@ -109,7 +109,19 @@ python3 palette.py       # genera la lámina de paleta de clases
 | Sacerdote | Nova de luz: daña alrededor y se cura |
 
 ## Despliegue (Higgsfield)
-Se empaqueta un zip **solo de runtime** (`index.html` + `logic.js` en la raíz + `game.js`, `audio.js`, `input.js`, `view.js`, `strings.js`, `sim/`, `render/`, `assets/`) y se sube vía el pipeline de Higgsfield (`media_upload` → PUT → `media_confirm` → `deploy_game`).
+Se empaqueta un zip **solo de runtime** (`index.html` + `logic.js` en la raíz + `game.js`, `audio.js`, `input.js`, `view.js`, `strings.js`, `version.json`, `sim/`, `render/`, `assets/`) y se sube vía el pipeline de Higgsfield (`media_upload` → PUT → `media_confirm` → `deploy_game`).
+
+### Paso PREVIO obligatorio: romper cache (CAS-58)
+Higgsfield sirve nuestros módulos ES con **nombre fijo y sin cabeceras de cache** (no hay `cache-control`/`etag`/`last-modified`), así que un jugador que volvió al día siguiente seguía ejecutando los módulos **cacheados** — el deploy se veía idéntico aunque `master` había avanzado. Solución, sin renombrar archivos ni controlar cabeceras del server:
+
+```
+npm run stamp            # reescribe version.json con un build id = hash de contenido
+git add version.json && git commit ...   # va en el bundle
+# ...luego empaquetar y deploy_game como siempre...
+npm run cache-bust       # verifica e2e que un navegador con cache previa toma el build nuevo sin hard-refresh
+```
+
+Cómo funciona: el bootstrap de `index.html` (script **clásico**) hace `fetch('./version.json', {cache:'no-store'})` — siempre pega a la red aunque el HTML esté cacheado —, lee `build`, e inyecta un **import map** que enruta TODO el grafo de módulos (incluidos los `import` internos de `game.js`/`sim/`/`render/`) a `?v=<build>`. Un solo id rompe el cache de todo el grafo + los assets (`render/sprites.js` les agrega el mismo `?v=`). Como los nombres de archivo no cambian, el gate de byte-identidad (CAS-37) sigue siendo válido. **Regla:** si cambió cualquier archivo del runtime, corré `npm run stamp` y commiteá `version.json` ANTES de empaquetar; si no, los recurrentes no verán el cambio.
 
 **Invariante de URL fija:** para actualizar el MISMO juego/URL hay que pasar **siempre** el `game_id` existente a `deploy_game`. Omitirlo crea un juego nuevo con otra URL. URL fija: `https://tender-bridge-504.higgsfield.gg/`. El `game_id` no se versiona en el repo (artefactos de deploy están en `.gitignore`); está registrado en la memoria del CTO.
 

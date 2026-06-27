@@ -168,8 +168,12 @@ export function drawFragment(ctx,x,y,px,t){ const g=0.6+0.4*Math.sin(t*5); ctx.g
 
 // ---------------- loaded image assets (purchased packs) + animation ----------------
 export const IMG={}; let imgPending=0;
+// Cache-bust image assets with the same build id the module graph uses (CAS-58).
+// window.__BUILD is set by the index.html bootstrap before this module loads;
+// fall back to no query when absent (e.g. unit tooling) so paths stay valid.
+const ASSET_V=(typeof globalThis!=="undefined"&&globalThis.__BUILD)?("?v="+globalThis.__BUILD):"";
 export function loadImg(key,src){ imgPending++; const im=new Image();
-  im.onload=()=>{ imgPending--; }; im.onerror=()=>{ console.warn("asset fail",src); imgPending--; }; im.src=src; IMG[key]=im; }
+  im.onload=()=>{ imgPending--; }; im.onerror=()=>{ console.warn("asset fail",src); imgPending--; }; im.src=src+ASSET_V; IMG[key]=im; }
 // enemy animation strips (EPIC mage skeleton). Viking sprites removed.
 export const ANIM={
   mage:    {fc:{idle:8,walk:8,attack:7}, fw:{idle:88,walk:88,attack:88}, fh:{idle:72,walk:72,attack:72}},

@@ -50,7 +50,9 @@ const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 // rules module the platform consumes server-side) — it is NOT served over HTTP
 // (GET /logic.js -> 404), so it can't be byte-compared live. Its content is an
 // unchanging solo no-op stub; excluded from the served-bundle comparison.
-const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js"];
+// version.json carries the cache-bust build id (CAS-58); it ships in the bundle
+// and must be byte-identical live==master so returning players get a fresh id.
+const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "version.json"];
 function walk(dir) {
   const out = [];
   for (const name of readdirSync(join(ROOT, dir))) {
