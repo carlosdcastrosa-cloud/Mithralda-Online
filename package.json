@@ -12,6 +12,7 @@
     "gear": "node tools/gear.mjs",
     "spells": "node tools/spells.mjs",
     "hunt": "node tools/hunt.mjs",
+    "hero-live": "node tools/hero-sprite-live.mjs",
     "stamp": "node tools/stamp-version.mjs",
     "cache-bust": "node tools/cache-bust.mjs",
     "deploy-verify": "node tools/deploy-verify.mjs",
