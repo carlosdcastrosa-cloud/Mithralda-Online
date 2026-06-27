@@ -114,6 +114,7 @@ export const STR = {
   npcRolf: "Guardia Rolf",
   npcLina: "Curandera Lina",
   npcAdventurer: "Aventurero",
+  npcMerchant: "Mercader Ambulante",
 
   bramLines: [
     "Bienvenido a mi tienda, viajero. ¿Buscas acero o frascos?",
@@ -135,6 +136,10 @@ export const STR = {
   adventurerLines: [
     "Esta es la Arena de Sangre. Pelea con honor, forastero.",
     "Atacar sin razón mancha tu nombre con calaveras.",
+  ],
+  merchantLines: [
+    "Reliquias de las Ruinas Antiguas, recién traídas. Echa un ojo.",
+    "Vuelve con oro, forastero. Siempre tengo algo nuevo en el carro.",
   ],
 
   fountainRest: "Descansaste en la Fuente. Vida y maná restaurados.",

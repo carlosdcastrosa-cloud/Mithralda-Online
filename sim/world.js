@@ -66,6 +66,9 @@ export function buildWorld(rng){
   // CAS-60: market-square dressing — stalls, crates & street lanterns for city variety.
   for(const [sx,sy] of [[tcx-3*TS,tcy-3*TS],[tcx+3*TS,tcy-3*TS],[tcx,tcy+5*TS]]){
     prop("stall",sx,sy,true,12); prop("crate",sx-TS,sy+TS,true,8); }
+  // CAS-84: animated NPC merchant tending the southern market stall (real Ancient
+  // Ruins art, idle loop via NPC_ANIM). Neutral/non-hostile — no aggro, no combat.
+  npcs.push({x:tcx+1.5*TS,y:tcy+5*TS,sprite:"merchant",name:STR.npcMerchant,role:"neutral",lines:STR.merchantLines,neutral:true});
   for(let i=0;i<6;i++){ const x=(town.x+rr(2,town.w-2))*TS, y=(town.y+rr(2,town.h-2))*TS;
     if(Math.hypot(x-tcx,y-tcy)<3*TS) continue; prop("crate",x,y,true,8); }
   for(let i=0;i<4;i++){ prop("lantern",(town.x+2)*TS,(town.y+3+i*4)*TS,false);

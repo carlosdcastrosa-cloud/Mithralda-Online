@@ -15,7 +15,7 @@
 // Run: node tools/buildid-gate-test.mjs   (npm run buildid-gate-test)
 // ---------------------------------------------------------------------------
 import http from "node:http";
-import { createReadStream, existsSync, statSync, readFileSync, writeFileSync } from "node:fs";
+import { createReadStream, existsSync, statSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { join, normalize, extname } from "node:path";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
@@ -72,6 +72,21 @@ const POISON = "deadbeefcafe";
 const stampDisk = (id) => writeFileSync(VJSON, JSON.stringify({ build: id, files: 0 }) + "\n");
 const FRESH = JSON.stringify({ build: trueId, files: computeBuildId().files }) + "\n";
 
+// CAS-83 — drop an UNTRACKED file under assets/ for the whole run, simulating a
+// concurrent agent's uncommitted asset landing mid-deploy. The gate must be
+// immune: the tracked tree == live, so it must stay GREEN regardless of this
+// stray file (the build-id hashes git-tracked files only, and treeClean ignores
+// untracked entries). We assert that immunity in the CONTROL phase below.
+const STRAY_REL = "assets/__cas83_untracked_probe.bin";
+const STRAY = join(ROOT, STRAY_REL);
+writeFileSync(STRAY, "concurrent-agent untracked asset — must not affect the gate\n");
+
+// Focused unit check: the build-id is byte-for-byte stable across the untracked
+// drop (computed once before STRAY existed via trueId, once now with it present).
+const withStray = computeBuildId();
+if (withStray.build !== trueId) fail(`CAS-83: untracked assets/ file changed the build-id (clean=${trueId}, withUntracked=${withStray.build})`);
+else pass(`CAS-83: untracked assets/ file does not change the build-id (stable=${trueId}, files=${withStray.files})`);
+
 try {
   // ---- CONTROL: correctly stamped on disk AND served -> gate's build-id passes
   writeFileSync(VJSON, FRESH);
@@ -80,6 +95,17 @@ try {
   await srvGood.close();
   if (g.report?.buildId?.pass !== true) fail(`CONTROL: build-id check failed on a correctly-stamped tree (committed=${g.report?.buildId?.committed}, live=${g.report?.buildId?.live}, expected=${g.report?.buildId?.expected})`);
   else pass(`CONTROL: correctly-stamped tree passes the build-id check (id=${trueId})`);
+  // CAS-83 — STRAY (an untracked assets/ file) must NOT change the gate verdict:
+  // it can't dirty the tree (treeClean ignores untracked) and it's never fetched
+  // (the bundle is tracked-only, so no 404/asset-drift). The shared working tree
+  // may legitimately carry OTHER agents' modified TRACKED files, so we assert the
+  // probe's specific absence — not blanket cleanliness. This is the false-fail
+  // CAS-73 hit: untracked work polluting the tree hash + 404ing on phantom files.
+  const dirty = g.report?.master?.dirtyBundleFiles ?? [];
+  const mism = (g.report?.mismatches ?? []).map((m) => m.rel);
+  if (dirty.some((l) => l.includes(STRAY_REL))) fail(`CAS-83: untracked probe ${STRAY_REL} leaked into dirtyBundleFiles (${JSON.stringify(dirty)})`);
+  else if (mism.includes(STRAY_REL)) fail(`CAS-83: untracked probe ${STRAY_REL} was fetched as a bundle file (404/drift) — bundle is not tracked-only`);
+  else pass(`CAS-83: untracked probe ${STRAY_REL} did not enter the gate verdict (not dirty, not fetched)`);
 
   // ---- MODE B: committed id CORRECT, but the LIVE url serves a reused/stale id
   // (the CAS-54 failure: version.json was excluded from the deploy zip).
@@ -108,6 +134,7 @@ try {
   fail(`unexpected: ${e.message}`);
 } finally {
   writeFileSync(VJSON, real); // restore the real version.json no matter what
+  if (existsSync(STRAY)) unlinkSync(STRAY); // CAS-83 — never leave the probe behind
 }
 
 if (!ok) { console.error("\n✖ BUILD-ID GATE TEST FAILED.\n"); process.exit(1); }

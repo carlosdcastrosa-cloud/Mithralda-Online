@@ -30,12 +30,12 @@
 //          --no-behavior   skip the gear-live.mjs behavioral assert (faster)
 //          --base=<url>    override the live base url
 // ---------------------------------------------------------------------------
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { join, relative } from "node:path";
 import { ROOT } from "./harness.mjs";
-import { computeBuildId, parseVersion } from "./build-id.mjs";
+import { computeBuildId, parseVersion, gitTracked } from "./build-id.mjs";
 
 const args = process.argv.slice(2);
 const CODE_ONLY = args.includes("--code-only");
@@ -46,7 +46,10 @@ const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
 // The shipped bundle == exactly what the Higgsfield zip contains (README
 // "Despliegue"): root runtime files + sim/ + render/ + assets/. Enumerated from
-// disk so a newly added file is covered automatically.
+// GIT (tracked files only, CAS-83) so a newly committed file is covered
+// automatically while a CONCURRENT agent's UNTRACKED files in our shared working
+// tree never enter the bundle (they're not in the zip; walking the filesystem
+// would FALSE-fail the gate with 404s + a polluted tree hash).
 // NB: logic.js IS in the deploy zip but is a Higgsfield platform-manifest (the
 // rules module the platform consumes server-side) — it is NOT served over HTTP
 // (GET /logic.js -> 404), so it can't be byte-compared live. Its content is an
@@ -54,18 +57,8 @@ const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 // version.json carries the cache-bust build id (CAS-58); it ships in the bundle
 // and must be byte-identical live==master so returning players get a fresh id.
 const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "version.json"];
-function walk(dir) {
-  const out = [];
-  for (const name of readdirSync(join(ROOT, dir))) {
-    const rel = `${dir}/${name}`;
-    const st = statSync(join(ROOT, rel));
-    if (st.isDirectory()) out.push(...walk(rel));
-    else out.push(rel);
-  }
-  return out;
-}
-const CODE = [...ROOT_FILES, ...walk("sim"), ...walk("render")];
-const ASSETS = CODE_ONLY ? [] : walk("assets");
+const CODE = [...ROOT_FILES, ...gitTracked("sim", "render")];
+const ASSETS = CODE_ONLY ? [] : gitTracked("assets");
 const BUNDLE = [...CODE, ...ASSETS];
 
 // Higgsfield injects a self-contained iframe-redirect bootstrap into index.html
@@ -113,7 +106,13 @@ function gitContext() {
   const git = (a) => execFileSync("git", a, { cwd: ROOT }).toString().trim();
   try {
     const head = git(["rev-parse", "HEAD"]);
-    const dirty = git(["status", "--porcelain", "--", ...BUNDLE]).split("\n").filter(Boolean);
+    // CAS-83 — only TRACKED shipped files that are staged/modified/deleted count
+    // as "dirty" (the zip would ship content != HEAD). Untracked entries ("??",
+    // a concurrent agent's uncommitted files) never enter the bundle, so they
+    // must NOT fail the gate. BUNDLE is already tracked-only; the ?? filter
+    // documents and hard-guards that intent.
+    const dirty = git(["status", "--porcelain", "--", ...BUNDLE])
+      .split("\n").filter(Boolean).filter((l) => !l.startsWith("??"));
     return { head, headShort: head.slice(0, 7), dirtyBundleFiles: dirty };
   } catch (e) { return { error: e.message }; }
 }

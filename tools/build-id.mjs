@@ -14,18 +14,22 @@
 // so the two can never drift on WHAT gets hashed (CAS-68: the build-id must
 // correspond to the served content, not just be byte-equal master==live).
 // ---------------------------------------------------------------------------
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { ROOT } from "./harness.mjs";
 
-export function walk(dir) {
-  const out = [];
-  for (const name of readdirSync(join(ROOT, dir))) {
-    const rel = `${dir}/${name}`;
-    out.push(...(statSync(join(ROOT, rel)).isDirectory() ? walk(rel) : [rel]));
-  }
-  return out;
+// CAS-83 — list the GIT-TRACKED files under the given scopes (NUL-split so
+// paths with spaces survive). We deliberately walk git's index, NOT the
+// filesystem: under our shared working tree, a CONCURRENT agent's UNTRACKED
+// files (e.g. an asset pack landing mid-deploy) would otherwise pollute the
+// tree hash and make deploy-verify FALSE-fail with a build-id mismatch + 404s
+// for files that were never in the shipped zip. The Higgsfield zip ships
+// exactly the tracked content, so the build id must hash exactly that.
+export function gitTracked(...paths) {
+  return execFileSync("git", ["ls-files", "-z", "--", ...paths], { cwd: ROOT })
+    .toString("utf8").split("\0").filter(Boolean);
 }
 
 // Every shipped file EXCEPT version.json itself. logic.js is a platform
@@ -33,9 +37,9 @@ export function walk(dir) {
 // not part of the cache-bustable graph and is excluded from the id.
 const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js"];
 
-// The exact, sorted set of files whose bytes define the build id.
+// The exact, sorted set of files whose bytes define the build id — tracked only.
 export function buildFileList() {
-  return [...ROOT_FILES, ...walk("sim"), ...walk("render"), ...walk("assets")].sort();
+  return [...ROOT_FILES, ...gitTracked("sim", "render", "assets")].sort();
 }
 
 // Recompute the build id from the working tree. Returns { build, files }.

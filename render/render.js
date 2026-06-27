@@ -20,7 +20,7 @@ import { view, zoom } from "../view.js";
 import { COL } from "./palette.js";
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
-  ANIM, ENEMY_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
+  ANIM, ENEMY_ANIM, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
   dir4FromAngle, drawClassFrame, drawAnim, frameIndex,
 } from "./sprites.js";
 
@@ -252,12 +252,22 @@ export function createRenderer(ctx){
     else if(e.champion){ ctx.fillStyle=champCol; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
       ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.enraged?" ¡ENFURECIDO!":""),e.x,yy-4); }
   }
-  function drawNPC(n){ const spr=SP[n.sprite]; blit(ctx,spr.rows,spr.pal,n.x,n.y,3,false);
+  function drawNPC(n){
+    // CAS-84: animated town NPCs (e.g. the merchant) reuse the enemy drawAnim helper
+    // with an idle-only loop. Purely cosmetic (driven by render time G.t, no RNG), so
+    // it stays Stage-2 sim-determinism safe. Falls back to the procedural sprite while
+    // the strip loads or for non-animated NPCs. topY = head height for the E/! marker.
+    const ach=NPC_ANIM[n.sprite]; let topY;
+    if(ach && IMG[ach+"_idle"] && IMG[ach+"_idle"].complete && IMG[ach+"_idle"].naturalWidth){
+      const S=1.0, feet=n.y+14, fi=frameIndex(ach,"idle",G.t,6,true);
+      drawAnim(ctx,ach,"idle",fi,n.x,feet,S,false,null);
+      topY=feet-ANIM[ach].fh.idle*S;
+    } else { const spr=SP[n.sprite]; blit(ctx,spr.rows,spr.pal,n.x,n.y,3,false); topY=n.y-spr.rows.length*3/2; }
     // marker
-    const z=zoneOf(world,G.hero.x,G.hero.y); const near=dist2(G.hero.x,G.hero.y,n.x,n.y)<CFG.talkRange*CFG.talkRange;
+    const near=dist2(G.hero.x,G.hero.y,n.x,n.y)<CFG.talkRange*CFG.talkRange;
     let mk = n.role==="quest" && !G.quest.rewarded ? "!" : (near?"E":"");
     if(n.role==="quest" && G.quest.done && !G.quest.rewarded) mk="!";
-    if(mk){ ctx.fillStyle=mk==="!"?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(mk,n.x,n.y-spr.rows.length*3/2-6+Math.sin(G.t*4)*2); }
+    if(mk){ ctx.fillStyle=mk==="!"?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(mk,n.x,topY-6+Math.sin(G.t*4)*2); }
   }
   function drawProjectile(p){ if(p.kind==="fire"){ ctx.fillStyle=COL.flameL; ctx.beginPath(); ctx.arc(p.x,p.y,6,0,6.28); ctx.fill(); ctx.fillStyle=COL.flame; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,6.28); ctx.fill(); }
     else if(p.kind==="rune"){ ctx.fillStyle=COL.rune; ctx.fillRect(p.x-4,p.y-4,8,8); ctx.fillStyle="#aac4ff"; ctx.fillRect(p.x-2,p.y-2,4,4); }

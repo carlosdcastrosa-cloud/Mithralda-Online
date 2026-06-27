@@ -246,8 +246,18 @@ export const ANIM={
   // bottom-anchor. attack rears up (30-frame antler charge → a long, readable telegraph).
   // Body is ~78px; ds≈1.1 (×0.82 trash mult) renders it ~70px — a ~2-tile bruiser.
   moose:   {fc:{idle:8,walk:8,attack:30}, fw:{idle:347,walk:347,attack:347}, fh:{idle:112,walk:112,attack:112}, ds:1.1},
+  // CAS-84: real "NPC merchant" from the EPIC RPG World — Ancient Ruins pack. A town
+  // NPC (not a combat mob), so it carries only an idle loop and renders via the
+  // drawNPC path (NPC_ANIM below), never ENEMY_ANIM. Native 110×110 frames cropped by
+  // tools/slice-pack-strip.mjs to 110×64 so the feet bottom-anchor; body is ~59px, so
+  // scale ≈1.0 renders it ~2 tiles tall — in line with the hero and other townsfolk.
+  merchant:{fc:{idle:8}, fw:{idle:110}, fh:{idle:64}},
 };
+// enemy strips driven by drawEnemy (combat AI states). Town NPCs are kept OUT of this
+// map so they never aggro/attack — they animate via NPC_ANIM + drawNPC instead.
 export const ENEMY_ANIM={ mage:"mage", golem:"golem", moose:"moose" };
+// animated, non-hostile town NPCs. Keyed by npc.sprite → ANIM strip; idle loop only.
+export const NPC_ANIM={ merchant:"merchant" };
 // player class sprites: directional (down/up/side, left=side mirrored), states idle/walk/attack
 export const CLS={
   warrior: {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
