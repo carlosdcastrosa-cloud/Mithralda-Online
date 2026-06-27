@@ -311,7 +311,7 @@ export function update(dtMs){
   if(G.toastT>0) G.toastT-=dt;
   if(G.scene==="menu"){ return; } // menu DOM is owned by the controller, not the sim
   io.pollPad();
-  if(G.scene!=="play"){ updateFloaters(dt); return; } // freeze world in menus
+  if(G.scene!=="play"){ updateFloaters(dt); updateFx(dt); return; } // freeze world in menus but let transient fx expire
   const h=G.hero;
   // music switch by zone danger
   const z=zoneOf(world,h.x,h.y); const wantCombat=(z==="caves"||z==="forest"||z==="arena"||z==="ruins") && G.enemies.some(e=>e.state==="chase"||e.state==="windup");
@@ -405,7 +405,7 @@ function updateEnemies(dt){ const h=G.hero;
 }
 // reward reading the telegraph: a hit negated mid-roll refunds MP + pops, not the post-hit mercy i-frame
 function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0.5;
-  freeze(6); h.iframe=Math.max(h.iframe,0.12); h.mp=Math.min(h.maxMp,h.mp+8);
+  freeze(6); h.iframe=Math.max(h.iframe,0.20); h.mp=Math.min(h.maxMp,h.mp+8);
   floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.34}); audio.sfx.roll(); }
 function damageHero(dmg,ang){ const h=G.hero; if(h.dead) return;
   if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return; } // only an active roll earns the dodge, not mercy i-frames

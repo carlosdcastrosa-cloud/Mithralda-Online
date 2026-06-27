@@ -279,7 +279,8 @@ export function createRenderer(ctx){
       ctx.fillStyle=h.mp>=costs[i]?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
       ctx.fillStyle=["#cfd6de",COL.flame,COL.heal,COL.rune][i]; ctx.fillRect(x+6,y+6,s-12,s-12);
       ctx.fillStyle=COL.out; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText((i+1),x+3,y+13);
-      ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.spells[i],x+s/2,y+s-4);
+      const label=(i===0 && STR.spellSlot0 && STR.spellSlot0[h.cls]) ? STR.spellSlot0[h.cls] : STR.spells[i];
+      ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
       if(costs[i]>0){ ctx.fillStyle="#8ab8ff"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
   function renderMiniMap(){ const mw=120, mh=120; const x=VW-mw-12, y=VH-mh-12; if(isTouch) return;

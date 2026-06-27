@@ -15,6 +15,8 @@ export const STR = {
   questDone: "Misión completada: ¡Bosque limpio!",
 
   spells: ["GOLPE", "LLAMARADA", "SANAR", "ONDA RÚNICA"],
+  // per-class name for the basic-attack slot (slot 0) — surfaces class identity on the HUD
+  spellSlot0: { warrior: "CORTE", paladin: "FLECHA", mage: "ORBE", druid: "ESPINAS", priest: "NOVA" },
 
   // Class-selection screen. Class identity (names, roles, attack flavour) is data,
   // not code — designers edit it here without touching game logic.
