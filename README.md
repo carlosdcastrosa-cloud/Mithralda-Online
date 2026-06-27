@@ -111,15 +111,22 @@ python3 palette.py       # genera la lámina de paleta de clases
 ## Despliegue (Higgsfield)
 Se empaqueta un zip **solo de runtime** (`index.html` + `logic.js` en la raíz + `game.js`, `audio.js`, `input.js`, `view.js`, `strings.js`, `version.json`, `sim/`, `render/`, `assets/`) y se sube vía el pipeline de Higgsfield (`media_upload` → PUT → `media_confirm` → `deploy_game`).
 
-### Paso PREVIO obligatorio: romper cache (CAS-58)
-Higgsfield sirve nuestros módulos ES con **nombre fijo y sin cabeceras de cache** (no hay `cache-control`/`etag`/`last-modified`), así que un jugador que volvió al día siguiente seguía ejecutando los módulos **cacheados** — el deploy se veía idéntico aunque `master` había avanzado. Solución, sin renombrar archivos ni controlar cabeceras del server:
+### Paso PREVIO obligatorio: romper cache (CAS-58 / CAS-68)
+Higgsfield sirve nuestros módulos ES con **nombre fijo y sin cabeceras de cache** (no hay `cache-control`/`etag`/`last-modified`), así que un jugador que volvió al día siguiente seguía ejecutando los módulos **cacheados** — el deploy se veía idéntico aunque `master` había avanzado. Solución, sin renombrar archivos ni controlar cabeceras del server.
+
+**Receta de deploy — en este orden exacto (CAS-68):**
 
 ```
-npm run stamp            # reescribe version.json con un build id = hash de contenido
-git add version.json && git commit ...   # va en el bundle
-# ...luego empaquetar y deploy_game como siempre...
-npm run cache-bust       # verifica e2e que un navegador con cache previa toma el build nuevo sin hard-refresh
+1. npm run stamp                          # reescribe version.json con build id = hash de contenido del árbol
+2. git add version.json && git commit ... # version.json VA en el bundle
+3. node tools/stamp-version.mjs --check   # FALLA si version.json quedó stale vs. el árbol (guard "olvidé stampear")
+4. # empaquetar el zip — DEBE incluir version.json en la lista de archivos (ver §bundle arriba)
+5. # deploy_game con el game_id existente (URL fija)
+6. npm run deploy-verify                  # FALLA si el build-id vivo ≠ hash del árbol servido, o si live ≠ master
+7. npm run cache-bust                     # (opcional) e2e: un navegador con cache previa toma el build nuevo sin hard-refresh
 ```
+
+**El error de CAS-54** fue saltarse el paso 4: el zip **excluyó `version.json`**, así que el sitio vivo siguió sirviendo un `build-id` viejo (`?v=ceb53143ab91`) mientras los módulos cambiaban → los recurrentes nunca rompieron cache. Ahora `deploy-verify` (paso 6) **re-deriva el hash de contenido del árbol y exige que el `build-id` vivo Y el commiteado sean exactamente ese hash** — un id reusado/stale falla ruidosamente en vez de quedar verde. Cobertura de regresión: `node tools/buildid-gate-test.mjs` prueba que el gate efectivamente FALLA en ambos modos (olvidé-stampear y id-reusado-vivo).
 
 Cómo funciona: el bootstrap de `index.html` (script **clásico**) hace `fetch('./version.json', {cache:'no-store'})` — siempre pega a la red aunque el HTML esté cacheado —, lee `build`, e inyecta un **import map** que enruta TODO el grafo de módulos (incluidos los `import` internos de `game.js`/`sim/`/`render/`) a `?v=<build>`. Un solo id rompe el cache de todo el grafo + los assets (`render/sprites.js` les agrega el mismo `?v=`). Como los nombres de archivo no cambian, el gate de byte-identidad (CAS-37) sigue siendo válido. **Regla:** si cambió cualquier archivo del runtime, corré `npm run stamp` y commiteá `version.json` ANTES de empaquetar; si no, los recurrentes no verán el cambio.
 
@@ -133,6 +140,7 @@ npm run deploy-verify    # tras cada deploy_game; sale ≠0 si el build vivo no 
 ```
 
 El gate descarga **cada archivo del bundle servido** desde la URL viva y lo compara byte-a-byte (sha256) contra el árbol local, más el assert de comportamiento `tools/gear-live.mjs` (los 7 hooks de gear). Si el build vivo quedó **stale** (un bundle anterior a `master`, como detectó [CAS-27](/CAS/issues/CAS-27)) → falla **ruidosamente** con la lista de archivos desfasados, en vez de quedar verde. Prueba conjunta: `live == árbol local` y (árbol limpio + `HEAD`) `== master` ⇒ `live == master`.
+**Consistencia de build-id (CAS-68):** además del byte-compare, el gate re-deriva el hash de contenido del árbol (misma lógica que `npm run stamp`, compartida en `tools/build-id.mjs`) y exige que el `build` del `version.json` **vivo** Y del **commiteado** sean exactamente ese hash. Esto atrapa lo que el byte-compare no puede: (a) olvidar `npm run stamp` (id stale e idéntico en ambos lados), y (b) un zip que excluyó `version.json` (id reusado solo en vivo — el modo de falla de [CAS-54](/CAS/issues/CAS-54)).
 Flags: `--code-only` (omite los 70 assets, solo código), `--no-behavior` (omite el assert puppeteer, más rápido), `--base=<url>`.
 Nota: `logic.js` (manifiesto de reglas que exige Higgsfield) va en el zip pero el server **no lo expone** por HTTP, así que el gate no lo compara.
 

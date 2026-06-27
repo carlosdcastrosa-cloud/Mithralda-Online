@@ -35,6 +35,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { join, relative } from "node:path";
 import { ROOT } from "./harness.mjs";
+import { computeBuildId, parseVersion } from "./build-id.mjs";
 
 const args = process.argv.slice(2);
 const CODE_ONLY = args.includes("--code-only");
@@ -127,8 +128,31 @@ function runBehavior() {
   }
 }
 
+// CAS-68 — build-id ⇄ content self-consistency. Byte-comparing version.json
+// live==master only proves they're EQUAL, not that the id corresponds to the
+// served code: a forgotten `npm run stamp` ships a stale id on BOTH sides, and a
+// zip that excluded version.json leaves a reused id live. So re-derive the id
+// from the served tree and assert the COMMITTED and the LIVE version.json both
+// carry exactly that id. Any reuse/staleness => the gate fails loudly.
+async function checkBuildId() {
+  const tree = computeBuildId();                       // id the deployed code MUST carry
+  const localV = parseVersion(readFileSync(join(ROOT, "version.json")));
+  let liveV = null, liveErr = null;
+  try { liveV = parseVersion(await fetchBytes(`${BASE}/version.json`)); }
+  catch (e) { liveErr = e.message; }
+  const committedFresh = !!localV && localV.build === tree.build;   // not "forgot to stamp"
+  const liveFresh = !!liveV && liveV.build === tree.build;          // live serves the right id
+  return {
+    expected: tree.build, files: tree.files,
+    committed: localV?.build ?? null, committedFresh,
+    live: liveV?.build ?? null, liveFresh, liveErr,
+    pass: committedFresh && liveFresh,
+  };
+}
+
 // ---- run ----
 const git = gitContext();
+const buildId = await checkBuildId();
 const results = await pmap(BUNDLE, 12, compareFile);
 const codeSet = new Set(CODE);
 const mismatches = results.filter((r) => !r.ok);
@@ -138,13 +162,14 @@ const codeDrift = mismatches.filter((m) => codeSet.has(m.rel));
 const bundlePass = mismatches.length === 0;
 const treeClean = git.dirtyBundleFiles && git.dirtyBundleFiles.length === 0;
 const behaviorPass = NO_BEHAVIOR || behavior.pass === true;
-const pass = bundlePass && treeClean && behaviorPass && !git.error;
+const pass = bundlePass && treeClean && behaviorPass && buildId.pass && !git.error;
 
 const report = {
   gate: "deploy-verify (live bundle == master HEAD)",
   base: BASE,
   master: git,
   bundle: { total: BUNDLE.length, codeFiles: CODE.length, assetFiles: ASSETS.length, codeOnly: CODE_ONLY },
+  buildId,
   mismatches,
   behavior,
   treeClean,
@@ -159,6 +184,11 @@ if (!pass) {
   console.error("\n✖ DEPLOY GATE FAILED — live build is NOT master HEAD.");
   if (git.error) console.error(`  • git context unavailable: ${git.error}`);
   if (!treeClean) console.error(`  • working tree has uncommitted bundle files (can't equal master): ${git.dirtyBundleFiles?.join(", ")}`);
+  if (!buildId.pass) {
+    if (!buildId.committedFresh) console.error(`  • STALE build-id: version.json says build=${buildId.committed} but the tree hashes to ${buildId.expected} → run \`npm run stamp\` and commit version.json before deploying.`);
+    if (buildId.liveErr) console.error(`  • could not read live version.json: ${buildId.liveErr}`);
+    else if (!buildId.liveFresh) console.error(`  • REUSED build-id live: ${BASE}/version.json serves build=${buildId.live} but the deployed content hashes to ${buildId.expected} → the zip shipped a stale version.json; re-stamp, INCLUDE version.json in the zip, re-deploy. (This is the CAS-54 failure mode.)`);
+  }
   if (codeDrift.length) console.error(`  • CODE drift (${codeDrift.length}): ${codeDrift.map((m) => m.rel).join(", ")}`);
   const assetDrift = mismatches.filter((m) => !codeSet.has(m.rel));
   if (assetDrift.length) console.error(`  • ASSET drift (${assetDrift.length}): ${assetDrift.map((m) => m.rel).join(", ")}`);
@@ -167,5 +197,5 @@ if (!pass) {
   process.exit(1);
 }
 
-console.log(`\n✔ DEPLOY GATE PASSED — live bundle == master @ ${git.headShort} (${BUNDLE.length} files byte-identical${NO_BEHAVIOR ? "" : " + gear-live behavioral assert"}).\n`);
+console.log(`\n✔ DEPLOY GATE PASSED — live bundle == master @ ${git.headShort} (${BUNDLE.length} files byte-identical + build-id ${buildId.expected} matches served content${NO_BEHAVIOR ? "" : " + gear-live behavioral assert"}).\n`);
 process.exit(0);
