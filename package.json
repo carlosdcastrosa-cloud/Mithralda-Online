@@ -10,6 +10,7 @@
     "scale-compare": "node tools/scale-compare.mjs",
     "determinism": "node tools/determinism.mjs",
     "gear": "node tools/gear.mjs",
+    "deploy-verify": "node tools/deploy-verify.mjs",
     "verify": "node tools/determinism.mjs && node tools/smoke.mjs",
     "test": "node tools/determinism.mjs && node tools/smoke.mjs"
   },

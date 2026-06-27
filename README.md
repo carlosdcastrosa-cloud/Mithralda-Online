@@ -113,5 +113,16 @@ Se empaqueta un zip **solo de runtime** (`index.html` + `logic.js` en la raíz +
 
 **Invariante de URL fija:** para actualizar el MISMO juego/URL hay que pasar **siempre** el `game_id` existente a `deploy_game`. Omitirlo crea un juego nuevo con otra URL. URL fija: `https://tender-bridge-504.higgsfield.gg/`. El `game_id` no se versiona en el repo (artefactos de deploy están en `.gitignore`); está registrado en la memoria del CTO.
 
+### Gate post-deploy OBLIGATORIO (CAS-37)
+Todo deploy DEBE terminar con el gate de verificación, o se considera no completado:
+
+```
+npm run deploy-verify    # tras cada deploy_game; sale ≠0 si el build vivo no es master
+```
+
+El gate descarga **cada archivo del bundle servido** desde la URL viva y lo compara byte-a-byte (sha256) contra el árbol local, más el assert de comportamiento `tools/gear-live.mjs` (los 7 hooks de gear). Si el build vivo quedó **stale** (un bundle anterior a `master`, como detectó [CAS-27](/CAS/issues/CAS-27)) → falla **ruidosamente** con la lista de archivos desfasados, en vez de quedar verde. Prueba conjunta: `live == árbol local` y (árbol limpio + `HEAD`) `== master` ⇒ `live == master`.
+Flags: `--code-only` (omite los 70 assets, solo código), `--no-behavior` (omite el assert puppeteer, más rápido), `--base=<url>`.
+Nota: `logic.js` (manifiesto de reglas que exige Higgsfield) va en el zip pero el server **no lo expone** por HTTP, así que el gate no lo compara.
+
 ## Nota sobre los sprites
 Los personajes son diseños **originales** en un estilo genérico de aventurero encapuchado. No se incluye ni reproduce ningún personaje con derechos de autor.
