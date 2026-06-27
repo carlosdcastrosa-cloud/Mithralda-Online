@@ -1,0 +1,59 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  html,body{margin:0;background:#10131a;font:13px/1.4 'Courier New',monospace;color:#cdd4dc}
+  canvas{display:block;margin:0 auto;image-rendering:pixelated}
+</style></head><body>
+<canvas id="c" width="760" height="460"></canvas>
+<script type="module">
+import { drawClassFrame, CLS, loadImg, IMG, CLASS_DIRS } from "../render/sprites.js";
+const TS=32, HERO_R=12;                 // mirror sim constants
+const CUR=1.05, PROP=1.85;              // current vs proposed hero render scale
+const cls="warrior", state="idle", dir="down", fidx=0;
+
+// load the frames this page draws, then render once everything is ready.
+const need=["cls_warrior_idle_down","cls_warrior_attack_side"];
+loadImg("cls_warrior_idle_down","../assets/class/warrior_idle_down.png");
+loadImg("cls_warrior_attack_side","../assets/class/warrior_attack_side.png");
+
+function ready(){ return need.every(k=>IMG[k]&&IMG[k].complete&&IMG[k].naturalWidth); }
+
+function tileGrid(ctx,w,h){
+  ctx.strokeStyle="#222a36"; ctx.lineWidth=1;
+  for(let x=0;x<=w;x+=TS){ ctx.beginPath(); ctx.moveTo(x+.5,0); ctx.lineTo(x+.5,h); ctx.stroke(); }
+  for(let y=0;y<=h;y+=TS){ ctx.beginPath(); ctx.moveTo(0,y+.5); ctx.lineTo(w,y+.5); ctx.stroke(); }
+}
+
+function panel(ctx,ox,scale,label){
+  const w=380,h=460, cx=ox+w/2, feet=64+TS*7;     // feet sit on a tile line
+  ctx.save(); ctx.beginPath(); ctx.rect(ox,0,w,h); ctx.clip();
+  tileGrid(ctx,ox+w,h);
+  // 2-tile reference band behind the feet (shows the documented ~64px target)
+  ctx.fillStyle="rgba(201,138,58,0.10)"; ctx.fillRect(ox+w/2-40, feet-2*TS, 80, 2*TS);
+  ctx.strokeStyle="rgba(201,138,58,0.55)"; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(ox+20,feet-2*TS); ctx.lineTo(ox+w-20,feet-2*TS); ctx.stroke(); ctx.setLineDash([]);
+  // hero
+  const ok=drawClassFrame(ctx,cls,state,dir,fidx,cx,feet,scale,null);
+  // hitbox circle (HERO_R=12 -> 24px) at feet
+  ctx.strokeStyle="#5bd0ff"; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(cx,feet-4,HERO_R,HERO_R*0.55,0,0,6.283); ctx.stroke();
+  // measured sprite height
+  const px=Math.round(CLS[cls].fh*scale);
+  ctx.fillStyle="#ecd0a6"; ctx.font="bold 14px 'Courier New',monospace"; ctx.textAlign="center";
+  ctx.fillText(label, cx, 26);
+  ctx.fillStyle="#cdd4dc"; ctx.font="12px 'Courier New',monospace";
+  ctx.fillText(`scale ${scale}  →  ${px}px  (${(px/TS).toFixed(1)} tiles)`, cx, 44);
+  ctx.fillStyle="rgba(201,138,58,0.9)"; ctx.fillText("◀ 2-tile / ~64px target", cx, feet-2*TS-6);
+  if(!ok){ ctx.fillStyle="#ff6b6b"; ctx.fillText("asset not loaded", cx, feet); }
+  ctx.restore();
+}
+
+function draw(){
+  const ctx=document.getElementById("c").getContext("2d");
+  ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle="#10131a"; ctx.fillRect(0,0,760,460);
+  panel(ctx,0,  CUR,  "CURRENT");
+  panel(ctx,380,PROP, "PROPOSED");
+  ctx.strokeStyle="#2a323e"; ctx.beginPath(); ctx.moveTo(380.5,0); ctx.lineTo(380.5,460); ctx.stroke();
+  window.__rendered=true;
+}
+(function wait(){ if(ready()) draw(); else setTimeout(wait,30); })();
+</script></body></html>
