@@ -7,8 +7,31 @@
 import { STR } from "./strings.js";
 
 // ----------------------------- config & math ------------------------------
-const TS = 32;                 // world pixels per tile
+// === TILE-GRID & COLLISION INVARIANTS (E1.3) ==============================
+// Single source of truth for the whole sim. Combat/world-build epics rely on
+// these — do not duplicate the numbers or re-implement the solid test.
+//   * TS = 32px is THE tile size. Everything (world gen, movement, collision,
+//     rendering, minimap) derives from TS; no other 32 literals for tiles.
+//   * Solid-tile test: isSolidTile(tx,ty) — water tiles + wallSet. This is the
+//     ONLY place a tile is judged walkable; solidBlocked() and spawn logic
+//     both route through it.
+//   * Circle solids (props/fountains) block via solidBlocked()'s radius test
+//     (entity_r + solid_r). Tile test is center-point (an entity may visually
+//     overlap a wall edge by up to its radius; corridors are authored ≥1 tile).
+//   * Entity collision radii: hero HERO_R, enemies tpl.size*ENEMY_R_MUL,
+//     projectiles PROJ_R. Pass these to moveEnt/solidBlocked, never magic nums.
+//   * No tunneling: moveEnt() and projectile motion are SUBSTEPPED so a single
+//     move never advances more than SWEEP_STEP px between solid samples. Combined
+//     with the fixed-timestep loop (index.html, STEP=1/60), the fastest movers
+//     (roll 430≈7.2px/step, arrow 440≈7.3px/step) cannot pass a 32px wall.
+// Sanity checks live in runCollisionTests() — run with ?test or ?dev.
+// =========================================================================
+const TS = 32;                 // world pixels per tile (THE grid unit)
 const MAP_W = 110, MAP_H = 110;
+const SWEEP_STEP = TS / 4;     // 8px: max distance between collision samples
+const HERO_R = 12;             // hero collision radius
+const PROJ_R = 4;              // projectile collision radius
+const ENEMY_R_MUL = 0.6;       // enemy collision radius = tpl.size * this
 const CFG = {
   heroSpeed: 152, rollSpeed: 430, rollTime: 0.20, rollIFrame: 0.34, rollCD: 0.62,
   atkRange: 50, atkArc: Math.PI * 0.62, atkCD: 0.42, atkActive: 0.16,
@@ -21,6 +44,17 @@ const ATK = {
   priest: {type:"nova",  range:84, cd:0.52, dmgMul:0.8,  heal:8, fx:"holy"},
   paladin:{type:"proj",  cd:0.40, dmgMul:1.05, kind:"arrow", spd:440, fx:"arrow"},
   mage:   {type:"proj",  cd:0.50, dmgMul:1.15, kind:"orb",   spd:300, fx:"orb"},
+};
+// per-class identity: starting stats + theme colour. Display text (name/role/attack)
+// lives in strings.js (STR.classes). Together with ATK above this is the single
+// data-driven source for a class — designers add a class by adding one row here,
+// one in ATK, one in STR.classes, and the matching sprites. No combat-code changes.
+const CLASS_PROFILE = {
+  warrior:{ color:"#8d3636", maxHp:124, maxMp:30, baseDmg:13 }, // tanky bruiser
+  paladin:{ color:"#e6e0cf", maxHp:108, maxMp:42, baseDmg:11 }, // sturdy ranged
+  druid:  { color:"#41693c", maxHp:100, maxMp:50, baseDmg:11 }, // balanced
+  mage:   { color:"#2f6e6e", maxHp:78,  maxMp:72, baseDmg:10 }, // glass cannon
+  priest: { color:"#e2ddcd", maxHp:90,  maxMp:64, baseDmg:9  }, // support / self-heal
 };
 const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
 const lerp = (a,b,t)=> a+(b-a)*t;
@@ -283,14 +317,47 @@ const CLS={
 };
 const CLASS_DIRS=["down","up","side"];
 const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58 };
-function loadAllAssets(){
+const PROP_KEYS=["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"];
+// Per-file loader (fallback path). Keys here are the single source of truth that
+// tools/build-atlas.mjs mirrors when packing the atlas — keep the two in sync.
+function loadAllAssetsIndividually(){
   for(const ch in ANIM) for(const st in ANIM[ch].fc) loadImg(ch+"_"+st, "./assets/char/"+ch+"_"+st+".png");
   for(const cl in CLS) for(const dir of CLASS_DIRS) for(const st in CLS[cl].fc) loadImg("cls_"+cl+"_"+st+"_"+dir, "./assets/class/"+cl+"_"+st+"_"+dir+".png");
   loadImg("cave_floor","./assets/tiles/cave_floor.png");
   loadImg("cave_floor2","./assets/tiles/cave_floor2.png");
   loadImg("wall","./assets/tiles/wall.png");
   loadImg("wall2","./assets/tiles/wall2.png");
-  for(const p of ["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"]) loadImg("prop_"+p,"./assets/props/"+p+".png");
+  for(const p of PROP_KEYS) loadImg("prop_"+p,"./assets/props/"+p+".png");
+}
+// Atlas fast-path: ONE request for the whole sprite kit. Each sheet is sliced
+// back into an offscreen canvas at its original dimensions and stored in IMG[],
+// so every existing draw call (which reads img.naturalWidth and blits sub-rects)
+// works unchanged. Any failure (missing/old atlas, fetch error) degrades cleanly
+// to the per-file loader, so the game never depends on the atlas being present.
+function loadAllAssets(){
+  if(typeof fetch!=="function"){ loadAllAssetsIndividually(); return; }
+  imgPending++;
+  fetch("./assets/atlas/atlas.json")
+    .then(r=>{ if(!r.ok) throw new Error("atlas manifest "+r.status); return r.json(); })
+    .then(manifest=>new Promise((resolve,reject)=>{
+      const sheet=new Image();
+      sheet.onload=()=>resolve({manifest,sheet});
+      sheet.onerror=()=>reject(new Error("atlas image failed"));
+      sheet.src="./assets/atlas/"+(manifest.image||"atlas.png");
+    }))
+    .then(({manifest,sheet})=>{
+      for(const key in manifest.frames){
+        const f=manifest.frames[key];
+        const cv=document.createElement("canvas"); cv.width=f.w; cv.height=f.h;
+        const cx=cv.getContext("2d"); cx.imageSmoothingEnabled=false;
+        cx.drawImage(sheet, f.x,f.y,f.w,f.h, 0,0,f.w,f.h);
+        // shim the <img> guards used throughout the renderer onto the canvas slice
+        cv.complete=true; cv.naturalWidth=f.w; cv.naturalHeight=f.h;
+        IMG[key]=cv;
+      }
+      imgPending--;
+    })
+    .catch(err=>{ imgPending--; console.warn("atlas unavailable, loading per-file:", err&&err.message); loadAllAssetsIndividually(); });
 }
 function dir4FromAngle(a){ const p=Math.PI;
   if(a>p/4 && a<=3*p/4) return "down";
@@ -491,11 +558,13 @@ export function createGame(canvas, ctx, getView){
   };
 
   function newHero(name,cls){
+    cls = cls||"warrior";
+    const cp = CLASS_PROFILE[cls] || CLASS_PROFILE.warrior; // data-driven per-class stats
     return { name:name||"Héroe", x:world.tcx, y:world.tcy+TS*2, vx:0,vy:0, facing:Math.PI/2,
-      hp:100, maxHp:100, mp:50, maxMp:50, lvl:1, xp:0, xpNext:60, gold:30,
-      baseDmg:12, dmgBonus:0, defBonus:0,
+      hp:cp.maxHp, maxHp:cp.maxHp, mp:cp.maxMp, maxMp:cp.maxMp, lvl:1, xp:0, xpNext:60, gold:30,
+      baseDmg:cp.baseDmg, dmgBonus:0, defBonus:0,
       rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
-      animState:"idle", animT:0, cls:cls||"warrior",
+      animState:"idle", animT:0, cls:cls,
       weapon:{name:"Espada de hierro",dmg:6,price:40}, armor:{name:"Coraza de cuero",def:4,price:35}, shield:{name:"Escudo de madera",def:2,price:25},
       potHP:2, potMP:1, blessings:0,
       respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
@@ -507,17 +576,38 @@ export function createGame(canvas, ctx, getView){
   function floater(x,y,txt,col){ G.floaters.push({x,y,txt,col:col||COL.cream,t:0,life:0.9}); }
   function addFx(kind,x,y,opt){ G.fx.push(Object.assign({kind,x,y,t:0,life:0.4},opt)); }
   function shakeAdd(a){ G.shake=Math.min(14, G.shake + a*(G.settings.shake)); }
+  // The ONE solid-tile test (water + walls). Out-of-range tiles read as solid.
+  function isSolidTile(tx,ty){
+    if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H) return true;
+    const i=ty*MAP_W+tx;
+    if(world.terr[i]===T_WATER) return true;
+    return !!(world.wallSet && world.wallSet.has(i));
+  }
   function solidBlocked(x,y,r){
     if(x<r||y<r||x>MAP_W*TS-r||y>MAP_H*TS-r) return true;
-    const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
-    if(world.terr[ty*MAP_W+tx]===T_WATER) return true;
-    if(world.wallSet && world.wallSet.has(ty*MAP_W+tx)) return true;
+    if(isSolidTile(Math.floor(x/TS), Math.floor(y/TS))) return true;
     for(const s of world.solids){ if(dist2(x,y,s.x,s.y) < (r+s.r)*(r+s.r)) return true; }
     return false;
   }
+  // Substepped axis-separated move: slides along walls and never tunnels —
+  // each axis advances in chunks of at most SWEEP_STEP px before re-testing.
   function moveEnt(e,dx,dy,r){
-    if(!solidBlocked(e.x+dx,e.y,r)) e.x+=dx; 
-    if(!solidBlocked(e.x,e.y+dy,r)) e.y+=dy;
+    const n=Math.max(1, Math.ceil(Math.max(Math.abs(dx),Math.abs(dy))/SWEEP_STEP));
+    const sx=dx/n, sy=dy/n;
+    for(let i=0;i<n;i++){
+      if(!solidBlocked(e.x+sx,e.y,r)) e.x+=sx; else break;
+    }
+    for(let i=0;i<n;i++){
+      if(!solidBlocked(e.x,e.y+sy,r)) e.y+=sy; else break;
+    }
+  }
+  // Swept point test for fast point-like movers (projectiles): true if the
+  // segment p0->p1 crosses any solid, sampling every SWEEP_STEP px.
+  function sweptBlocked(x0,y0,x1,y1,r){
+    const dx=x1-x0, dy=y1-y0, d=Math.hypot(dx,dy);
+    const n=Math.max(1, Math.ceil(d/SWEEP_STEP));
+    for(let i=1;i<=n;i++){ const t=i/n; if(solidBlocked(x0+dx*t,y0+dy*t,r)) return true; }
+    return false;
   }
 
   // ----------------------------- spawning --------------------------------
@@ -873,11 +963,11 @@ export function createGame(canvas, ctx, getView){
     h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
     if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
     // movement
-    if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12);
+    if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,HERO_R);
       if(h.rollT<=0) h.rolling=false; h.moved=false; }
     else { const mv=moveVec(); h.vx=mv[0]*CFG.heroSpeed; h.vy=mv[1]*CFG.heroSpeed;
       h.moved=!!(mv[0]||mv[1]);
-      if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
+      if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,HERO_R); h.walkT+=dt*8;
         h.dustT=(h.dustT||0)+dt; if(h.dustT>0.15){ h.dustT=0; addFx("dust", h.x-h.vx*0.03, h.y+15-h.vy*0.02); }
         if(!aimActive && isTouch) h.facing=Math.atan2(mv[1],mv[0]); }
       else h.walkT=0;
@@ -899,8 +989,8 @@ export function createGame(canvas, ctx, getView){
     for(const sp of world.spawners){ sp.t-=dt; const count=G.enemies.filter(e=>e.tpl && sp.types.includes(e.type)&&!e.isBoss).length;
       if(sp.t<=0 && count<sp.max){ sp.t=sp.cool; const tp=sp.types[ri(0,sp.types.length-1)];
         let tx,ty,tries=0; do{ tx=(sp.rect.x+rr(2,sp.rect.w-2))*TS; ty=(sp.rect.y+rr(2,sp.rect.h-2))*TS; tries++; }
-          while((dist2(tx,ty,h.x,h.y)<300*300 || (world.wallSet&&world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS)))) && tries<10);
-        const wallHere = world.wallSet && world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS));
+          while((dist2(tx,ty,h.x,h.y)<300*300 || isSolidTile(Math.floor(tx/TS),Math.floor(ty/TS))) && tries<10);
+        const wallHere = isSolidTile(Math.floor(tx/TS),Math.floor(ty/TS));
         if(!wallHere && dist2(tx,ty,h.x,h.y)>240*240) spawnEnemy(tp,tx,ty); } }
 
     if(h.hp<=0) heroDie();
@@ -916,19 +1006,19 @@ export function createGame(canvas, ctx, getView){
       { let ns=(e.state==="windup"||e.state==="strike")?"attack":(e.state==="chase")?"walk":"idle";
         if(ns!==e.animState){ e.animState=ns; e.animT=0; } else e.animT=(e.animT||0)+dt; }
       // knockback decay
-      if(Math.abs(e.knockX)>1||Math.abs(e.knockY)>1){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*0.6); e.knockX*=0.82; e.knockY*=0.82; }
+      if(Math.abs(e.knockX)>1||Math.abs(e.knockY)>1){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*ENEMY_R_MUL); e.knockX*=0.82; e.knockY*=0.82; }
       const d=Math.hypot(h.x-e.x,h.y-e.y);
       const aggro=e.hostile?300:e.tpl.aggro;
       if(e.tpl.neutral && !e.hostile){ // wander only
         e.wanderT-=dt; if(e.wanderT<=0){ e.wanderT=rr(1.5,3.5); e.wx=rr(-1,1); e.wy=rr(-1,1); const n=norm(e.wx,e.wy); e.wx=n[0]; e.wy=n[1]; }
-        moveEnt(e, (e.wx||0)*40*dt, (e.wy||0)*40*dt, e.tpl.size*0.6); continue; }
+        moveEnt(e, (e.wx||0)*40*dt, (e.wy||0)*40*dt, e.tpl.size*ENEMY_R_MUL); continue; }
       if(e.state==="idle"||e.state==="wander"){
         if(d<aggro){ e.state="chase"; }
-        else { e.wanderT-=dt; if(e.wanderT<=0){ e.wanderT=rr(1.5,3.5); const a=rr(0,6.28); e.wx=Math.cos(a); e.wy=Math.sin(a);} moveEnt(e,(e.wx||0)*30*dt,(e.wy||0)*30*dt,e.tpl.size*0.6); }
+        else { e.wanderT-=dt; if(e.wanderT<=0){ e.wanderT=rr(1.5,3.5); const a=rr(0,6.28); e.wx=Math.cos(a); e.wy=Math.sin(a);} moveEnt(e,(e.wx||0)*30*dt,(e.wy||0)*30*dt,e.tpl.size*ENEMY_R_MUL); }
       } else if(e.state==="chase"){
         if(d>aggro*1.4 && !e.hostile){ e.state="idle"; }
         else if(d<=e.tpl.range){ e.state="windup"; e.st=e.tpl.windup; e.hitDone=false; }
-        else { const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a; moveEnt(e,Math.cos(a)*e.tpl.spd*dt,Math.sin(a)*e.tpl.spd*dt,e.tpl.size*0.6); }
+        else { const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a; moveEnt(e,Math.cos(a)*e.tpl.spd*dt,Math.sin(a)*e.tpl.spd*dt,e.tpl.size*ENEMY_R_MUL); }
       } else if(e.state==="windup"){
         e.st-=dt; e.facing=Math.atan2(h.y-e.y,h.x-e.x);
         if(e.st<=0){ e.state="strike"; e.st=0.12;
@@ -956,8 +1046,8 @@ export function createGame(canvas, ctx, getView){
     h.iframe=0.25; // brief mercy invuln
   }
   function updateProjectiles(dt){ const h=G.hero;
-    for(const p of G.projectiles){ p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
-      if(solidBlocked(p.x,p.y,4)){ p.life=0; }
+    for(const p of G.projectiles){ p.life-=dt; const px0=p.x,py0=p.y; p.x+=p.vx*dt; p.y+=p.vy*dt;
+      if(sweptBlocked(px0,py0,p.x,p.y,PROJ_R)){ p.life=0; }
       if(p.enemy){ if(dist2(p.x,p.y,h.x,h.y)<18*18){ damageHero(p.dmg,Math.atan2(p.vy,p.vx)); p.life=0; } }
       else { for(const e of G.enemies){ if(e.dead) continue; if(dist2(p.x,p.y,e.x,e.y)<(e.tpl.size+7)*(e.tpl.size+7)){ const ha=Math.atan2(p.vy,p.vx); hitEnemy(e,p.dmg,ha);
         if(p.kind==="fire"||p.kind==="orb"){ addFx(p.kind==="orb"?"orbburst":"flame",p.x,p.y,{life:0.45}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<46*46) hitEnemy(e2,p.dmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); } }
@@ -1339,13 +1429,14 @@ export function createGame(canvas, ctx, getView){
     ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.version,VW/2,VH-18);
   }
   function renderClassSel(){
-    const META={warrior:["Guerrero","Espada y escudo","#8d3636"], paladin:["Paladín","Arco sagrado","#e6e0cf"],
-      mage:["Mago","Orbes arcanos","#2f6e6e"], druid:["Druida","Naturaleza","#41693c"], priest:["Sacerdote","Luz sagrada","#e2ddcd"]};
+    // card data is sourced from STR.classes (text) + CLASS_PROFILE (theme) — no
+    // class names or colours are hardcoded here.
+    const META={}; for(const k of CLASS_LIST){ const c=STR.classes[k]||{name:k,role:""}; META[k]=[c.name,c.role,(CLASS_PROFILE[k]||{}).color||COL.textGold]; }
     ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
     seed(7); for(let i=0;i<50;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
-    ctx.fillStyle=COL.textGold; ctx.font="bold 26px 'Courier New'"; ctx.fillText("Elige tu clase",VW/2,VH*0.15);
-    ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Toca una clase  ·  o usa 1-5 / ←→ + Enter",VW/2,VH*0.15+24);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 26px 'Courier New'"; ctx.fillText(STR.classSelTitle,VW/2,VH*0.15);
+    ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(STR.classSelHint,VW/2,VH*0.15+24);
     classRects.length=0;
     const n=CLASS_LIST.length, gap=10, cw=Math.min(150,(VW-30)/n-gap), ch=Math.min(210,VH*0.52);
     const totalW=n*cw+(n-1)*gap, x0=(VW-totalW)/2, cy=VH*0.55;
@@ -1372,12 +1463,74 @@ export function createGame(canvas, ctx, getView){
   function onFocusLost(){ if(G.scene==="play") G.scene="pause"; }
   function devInfo(){ return "ent:"+G.enemies.length+" fx:"+G.fx.length+" scene:"+G.scene; }
 
+  // --------------------- collision sanity tests (E1.3) -------------------
+  // Dependency-free. Exercises the REAL solidBlocked/moveEnt/sweptBlocked
+  // against the real deterministic world. Run with ?test or ?dev.
+  function runCollisionTests(){
+    const R=[]; const ok=(n,c)=>R.push((c?"PASS":"FAIL")+" — "+n);
+    const ctr=(tx,ty)=>[(tx+0.5)*TS,(ty+0.5)*TS];
+    // find a wall tile whose left & below-left neighbours are fully walkable
+    let wx=-1,wy=-1;
+    for(const i of world.wallSet){ const tx=i%MAP_W, ty=(i/MAP_W)|0;
+      const [lx,ly]=ctr(tx-1,ty), [bx,by]=ctr(tx-1,ty+1);
+      if(!solidBlocked(lx,ly,HERO_R) && !solidBlocked(bx,by,HERO_R)){ wx=tx; wy=ty; break; }
+    }
+    if(wx<0){ R.push("SKIP — no isolated wall tile found in world"); return R; }
+    const wallLeft=wx*TS;                       // x of the wall tile's left edge
+    const [sx,sy]=ctr(wx-1,wy);                 // start: centre of the free tile
+    // 1) walk straight into the wall -> blocked before entering the wall tile
+    let e={x:sx,y:sy}; moveEnt(e,TS*3,0,HERO_R);
+    ok("walk into wall is blocked (no penetration)", e.x>sx && e.x<wallLeft);
+    // 2) roll into wall in ONE huge step (160px) -> must NOT tunnel through
+    e={x:sx,y:sy}; moveEnt(e,TS*5,0,HERO_R);
+    ok("roll/lunge into wall does not tunnel", e.x<wallLeft);
+    // 3) slide: push diagonally into wall -> x blocked, y still advances
+    e={x:sx,y:sy}; const y0=e.y; moveEnt(e,TS*3,TS*0.5,HERO_R);
+    ok("slides along wall (x blocked, y free)", e.x<wallLeft && e.y>y0+1);
+    // 4) swept projectile crossing the wall is caught
+    ok("swept projectile stops at wall", sweptBlocked(sx,sy,sx+TS*4,sy,PROJ_R)===true);
+    // 5) projectile moving through open space is not falsely blocked
+    ok("swept projectile in open space passes", sweptBlocked(sx,sy,sx-0.1,sy,PROJ_R)===false);
+    return R;
+  }
+
   // boot world
   world = buildWorld();
   loadAllAssets();
+  if(typeof location!=="undefined" && /[?&](test|dev)/.test(location.search)){
+    const res=runCollisionTests(); const fails=res.filter(s=>s.startsWith("FAIL")).length;
+    console.log("%c[E1.3 collision tests]","font-weight:bold", fails?("❌ "+fails+" FAILED"):"✅ all pass");
+    res.forEach(s=>console.log("  "+s));
+    toast((fails?("⚠ colisión: "+fails+" fallos"):"✓ colisión OK ("+res.length+" checks)"), 5);
+    if(typeof window!=="undefined") window.__collisionTests=()=>{ const r=runCollisionTests(); r.forEach(s=>console.log(s)); return r; };
+  }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
     window.__dev={ spawn:(type,dx,dy)=>{ const e=spawnEnemy(type, G.hero.x+(dx||0), G.hero.y+(dy||0)); if(type==="golem"&&e) e.isBoss=true; return type; },
-      tp:(tx,ty)=>{ G.hero.x=tx*TS; G.hero.y=ty*TS; return [G.hero.x,G.hero.y]; } };
+      tp:(tx,ty)=>{ G.hero.x=tx*TS; G.hero.y=ty*TS; return [G.hero.x,G.hero.y]; },
+      // --- read-only test hooks (used by tools/smoke.mjs; no gameplay impact) ---
+      scene:()=>G.scene,
+      enemyCount:()=>G.enemies.length,
+      fxCount:()=>G.fx.length,
+      hero:()=>G.hero?{x:G.hero.x,y:G.hero.y,hp:G.hero.hp,maxHp:G.hero.maxHp,cls:G.hero.cls}:null,
+      // --- determinism harness hook (used by tools/determinism.mjs) ---
+      // Re-runs world generation with a caller-supplied seed and returns a
+      // compact fingerprint of terrain/solids/spawn coords. Pure: it does not
+      // touch the live `world`, only the shared RNG, which buildWorld() always
+      // re-seeds on entry — so calling this never perturbs the running game.
+      worldFingerprint:(n)=>{ seed(n>>>0); const w=buildWorld();
+        let th=2166136261>>>0; for(let i=0;i<w.terr.length;i++){ th^=w.terr[i]; th=Math.imul(th,16777619)>>>0; }
+        const r2=(v)=>Math.round(v*1000)/1000;
+        return { seed:n>>>0,
+          terrHash:th>>>0, terrLen:w.terr.length,
+          solids:w.solids.map(s=>[r2(s.x),r2(s.y),r2(s.r),s.kind]),
+          decoLen:w.deco.length,
+          spawnCoords:w.spawners.map(s=>[s.rect.x,s.rect.y,s.rect.w,s.rect.h,s.zone,s.max]),
+          chests:w.chests.map(c=>[c.x,c.y,c.loot]),
+          fragments:w.fragments.map(f=>[f.x,f.y,f.kind]),
+          fountains:w.fountains.map(f=>[f.x,f.y,!!f.temple]),
+          npcs:w.npcs.map(p=>[r2(p.x),r2(p.y),p.role]),
+          wallCount:w.wallSet.size }; }
+    };
   }
   nameWrap.style.display="block"; positionNameInput();
 

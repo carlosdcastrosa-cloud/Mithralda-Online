@@ -20,6 +20,16 @@ npx serve .
 
 Modo desarrollo: agrega `?dev` a la URL (`http://localhost:8000/index.html?dev`) para ver FPS y usar `window.__dev.spawn(tipo,dx,dy)` y `window.__dev.tp(tx,ty)` desde la consola.
 
+Pruebas de colisión: agrega `?test` (o `?dev`) y abre la consola — al cargar corre `runCollisionTests()`, que ejercita contra el mundo real: caminar contra un muro (bloqueado), deslizarse por un muro, rodar/embestir contra un muro (sin atravesarlo) y proyectiles barridos. Vuelve a correrlas con `window.__collisionTests()`. Sin dependencias.
+
+## Invariantes de rejilla y colisión (E1.3)
+Una sola fuente de verdad en `game.js`; las épicas de combate y construcción de mundo dependen de esto:
+- **Tamaño de tile:** `TS = 32` px. Todo (generación, movimiento, colisión, render, minimapa) se deriva de `TS`; no hay otros literales `32` para tiles.
+- **Test de tile sólido:** `isSolidTile(tx,ty)` = agua + `wallSet`. Es el ÚNICO lugar que decide si un tile es transitable; `solidBlocked()` y el spawneo lo usan.
+- **Sólidos circulares** (props/fuentes) bloquean por radio en `solidBlocked()` (`radio_ent + radio_sólido`). El test de tile es por punto central (una entidad puede solaparse visualmente con el borde de un muro hasta su radio; los pasillos se diseñan ≥1 tile).
+- **Radios de colisión:** héroe `HERO_R = 12`, enemigos `tpl.size * ENEMY_R_MUL (0.6)`, proyectiles `PROJ_R = 4`.
+- **Sin tunneling:** `moveEnt()` y el movimiento de proyectiles están **substeppeados** (`SWEEP_STEP = TS/4 = 8` px máx. entre muestras). Junto con el bucle de timestep fijo (`index.html`, `STEP = 1/60`), los móviles más rápidos (rodar `430 ≈ 7.2` px/paso, flecha `440 ≈ 7.3` px/paso) no pueden atravesar un muro de 32 px.
+
 ## Estructura
 ```
 mithralda/
