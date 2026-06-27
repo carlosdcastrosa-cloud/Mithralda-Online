@@ -72,8 +72,9 @@ export function createRenderer(ctx){
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
-      if(t===T_COBBLE){ const img = (hash2(x,y)<0.5?IMG.town_floor:IMG.town_floor2);  // CAS-60: Higgsfield city cobble
-        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS); continue; } }
+      // CAS-71: town floor renders with the Drive package's authentic procedural cobble
+      // (COL.cobble #34464a) — reverted the CAS-60 Higgsfield town_floor PNG substitution
+      // so the live build is 100% the real Drive package, no parallel Higgsfield assets.
       ctx.fillStyle=tileBase[t]; ctx.fillRect(px,py,TS,TS);
       const hv=hash2(x,y);
       // texture flecks (deterministic)
