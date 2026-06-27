@@ -1,0 +1,20 @@
+{
+  "name": "_default",
+  "version": "1.0.0",
+  "description": "ARPG top-down de fantasía oscura en pixel art. HTML5 Canvas + JavaScript puro (sin build, sin dependencias en runtime). UI en español.",
+  "main": "game.js",
+  "type": "module",
+  "scripts": {
+    "smoke": "node tools/smoke.mjs",
+    "atlas-qa": "node tools/atlas-qa.mjs",
+    "determinism": "node tools/determinism.mjs",
+    "verify": "node tools/determinism.mjs && node tools/smoke.mjs",
+    "test": "node tools/determinism.mjs && node tools/smoke.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "puppeteer-core": "^23.11.1"
+  }
+}

@@ -529,15 +529,81 @@ function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
 //  ENEMY TEMPLATES
 // =========================================================================
 const ETPL = {
-  wolf:    {hp:34, dmg:10, spd:120, aggro:240, range:42, windup:0.45, recover:0.45, xp:12, gold:[2,6], sprite:"wolf", size:18, knock:140, boss:false},
-  rat:     {hp:20, dmg:6,  spd:132, aggro:170, range:36, windup:0.35, recover:0.4,  xp:8,  gold:[1,4], sprite:"rat", size:15, knock:110, boss:false},
-  skeleton:{hp:52, dmg:14, spd:86,  aggro:230, range:46, windup:0.6,  recover:0.55, xp:20, gold:[4,9], sprite:"skel", size:20, knock:120, boss:false},
-  orc:     {hp:84, dmg:22, spd:70,  aggro:220, range:50, windup:0.78, recover:0.7,  xp:32, gold:[8,16],sprite:"orc", size:22, knock:90,  boss:false},
-  spearman:{hp:42, dmg:13, spd:74,  aggro:300, range:210, windup:0.7, recover:0.75, xp:26, gold:[6,12],sprite:"skel", size:19, knock:80, boss:false, ranged:true, projspd:300, proj:"spear"},
-  mage:    {hp:56, dmg:16, spd:58,  aggro:340, range:250, windup:0.9, recover:0.85, xp:34, gold:[10,18],sprite:"skel", size:21, knock:60, boss:false, ranged:true, projspd:240, proj:"bolt"},
+  wolf:    {hp:34, dmg:10, spd:120, aggro:240, range:42, windup:0.45, recover:0.45, xp:12, gold:[2,6], sprite:"wolf", size:18, knock:140, boss:false, gearChance:0.07},
+  rat:     {hp:20, dmg:6,  spd:132, aggro:170, range:36, windup:0.35, recover:0.4,  xp:8,  gold:[1,4], sprite:"rat", size:15, knock:110, boss:false, gearChance:0.05},
+  skeleton:{hp:52, dmg:14, spd:86,  aggro:230, range:46, windup:0.6,  recover:0.55, xp:20, gold:[4,9], sprite:"skel", size:20, knock:120, boss:false, gearChance:0.09},
+  orc:     {hp:84, dmg:22, spd:70,  aggro:220, range:50, windup:0.78, recover:0.7,  xp:32, gold:[8,16],sprite:"orc", size:22, knock:90,  boss:false, gearChance:0.12},
+  spearman:{hp:42, dmg:13, spd:74,  aggro:300, range:210, windup:0.7, recover:0.75, xp:26, gold:[6,12],sprite:"skel", size:19, knock:80, boss:false, ranged:true, projspd:300, proj:"spear", gearChance:0.09},
+  mage:    {hp:56, dmg:16, spd:58,  aggro:340, range:250, windup:0.9, recover:0.85, xp:34, gold:[10,18],sprite:"skel", size:21, knock:60, boss:false, ranged:true, projspd:240, proj:"bolt", gearChance:0.11},
   golem:   {hp:640,dmg:30, spd:46,  aggro:360, range:64, windup:0.95, recover:0.8,  xp:220,gold:[60,90],sprite:"golem",size:36, knock:60, boss:true},
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
 };
+
+// =========================================================================
+//  GEAR & RARITY (data-driven items)
+// =========================================================================
+// Single source of truth for every piece of gear. Adding a sword = adding one
+// row to GEAR.weapon; NO code path may switch on a gear name/id. Item display
+// names live here as content data; UI-chrome strings (rarity labels, hints) are
+// in strings.js. A gear *instance* is {slot, defId, rarity} — stats are resolved
+// (never stored) via gearStat() so one def scales by rarity.
+const RARITY = {
+  common:   { col:"#c8c8c8", mult:1.00, weight:60, rank:0 },
+  uncommon: { col:"#5fd66a", mult:1.18, weight:27, rank:1 },
+  rare:     { col:"#4aa3ff", mult:1.40, weight:11, rank:2 },
+  epic:     { col:"#c77dff", mult:1.70, weight:2,  rank:3 },
+};
+const RARITY_ORDER = ["common","uncommon","rare","epic"];
+const GEAR = {
+  weapon: [
+    {id:"w_rusty", name:"Espada oxidada",   tier:1, dmg:3},
+    {id:"w_iron",  name:"Espada de hierro", tier:2, dmg:6},
+    {id:"w_steel", name:"Espada de acero",  tier:3, dmg:12},
+    {id:"w_rune",  name:"Hoja rúnica",      tier:4, dmg:20},
+  ],
+  body: [
+    {id:"a_cloth",  name:"Túnica raída",     tier:1, def:1},
+    {id:"a_leather",name:"Coraza de cuero",  tier:2, def:4},
+    {id:"a_plate",  name:"Coraza de placas", tier:3, def:10},
+    {id:"a_wyrm",   name:"Égida de sierpe",  tier:4, def:16},
+  ],
+  shield: [
+    {id:"s_wood",  name:"Escudo de madera", tier:1, def:2},
+    {id:"s_iron",  name:"Escudo de hierro", tier:2, def:6},
+    {id:"s_tower", name:"Escudo torre",     tier:3, def:11},
+  ],
+};
+// Drop tier window per zone (difficulty). Per-enemy gearChance lives on ETPL.
+const ZONE_LOOT = {
+  town:{tier:[1,1]}, field:{tier:[1,2]}, forest:{tier:[1,2]},
+  caves:{tier:[2,3]}, ruins:{tier:[2,3]}, arena:{tier:[2,3]},
+};
+// ---- pure gear helpers (no game state; callable from update or render) ----
+function gearDef(slot,defId){ const arr=GEAR[slot]; if(!arr) return null; for(let i=0;i<arr.length;i++) if(arr[i].id===defId) return arr[i]; return null; }
+function gearStat(inst){ if(!inst) return 0; const d=gearDef(inst.slot,inst.defId); if(!d) return 0; const base=(d.dmg!=null?d.dmg:d.def)||0; const r=RARITY[inst.rarity]||RARITY.common; return Math.round(base*r.mult); }
+function gearName(inst){ if(!inst) return "—"; const d=gearDef(inst.slot,inst.defId); return d?d.name:"?"; }
+function gearCol(inst){ const r=inst&&RARITY[inst.rarity]; return r?r.col:RARITY.common.col; }
+function rarityRank(k){ const r=RARITY[k]; return r?r.rank:0; }
+// Weighted rarity roll using ONLY srand() (determinism / Stage-2 server-ready).
+// minR clamps to rarity >= minR (used for the golem's guaranteed rare+).
+function rollRarity(minR){ const floorRank=minR?rarityRank(minR):0; let total=0;
+  for(const k of RARITY_ORDER){ if(RARITY[k].rank<floorRank) continue; total+=RARITY[k].weight; }
+  let r=srand()*total;
+  for(const k of RARITY_ORDER){ if(RARITY[k].rank<floorRank) continue; r-=RARITY[k].weight; if(r<0) return k; }
+  return minR||"common"; }
+// Roll a fresh gear instance whose def tier is within [tmin,tmax]. Slot is chosen
+// uniformly among slots that actually have a def in range (shields cap at tier 3,
+// so they drop out of higher windows). Returns null if nothing fits.
+function rollGearInst(tmin,tmax,minR){ const slots=["weapon","body","shield"]; const avail=[];
+  for(const s of slots){ for(const d of GEAR[s]){ if(d.tier>=tmin&&d.tier<=tmax){ avail.push(s); break; } } }
+  if(!avail.length) return null;
+  const slot=avail[Math.floor(srand()*avail.length)];
+  const pool=GEAR[slot].filter(d=>d.tier>=tmin&&d.tier<=tmax);
+  const def=pool[Math.floor(srand()*pool.length)];
+  return { slot, defId:def.id, rarity:rollRarity(minR) }; }
+// Equipped totals — the ONLY readers of hero gear (combat + UI route through these).
+function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus; }
+function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip.shield) + h.defBonus; }
 
 // =========================================================================
 //  GAME
@@ -561,11 +627,13 @@ export function createGame(canvas, ctx, getView){
     cls = cls||"warrior";
     const cp = CLASS_PROFILE[cls] || CLASS_PROFILE.warrior; // data-driven per-class stats
     return { name:name||"Héroe", x:world.tcx, y:world.tcy+TS*2, vx:0,vy:0, facing:Math.PI/2,
-      hp:cp.maxHp, maxHp:cp.maxHp, mp:cp.maxMp, maxMp:cp.maxMp, lvl:1, xp:0, xpNext:60, gold:30,
+      hp:cp.maxHp, maxHp:cp.maxHp, mp:cp.maxMp, maxMp:cp.maxMp, lvl:1, xp:0, xpNext:xpForLevel(1), gold:30,
       baseDmg:cp.baseDmg, dmgBonus:0, defBonus:0,
       rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
       animState:"idle", animT:0, cls:cls,
-      weapon:{name:"Espada de hierro",dmg:6,price:40}, armor:{name:"Coraza de cuero",def:4,price:35}, shield:{name:"Escudo de madera",def:2,price:25},
+      // gear: equipped by slot (3 slots, instances by id) + bag of loose instances.
+      equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
+      bag:[],
       potHP:2, potMP:1, blessings:0,
       respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
   }
@@ -622,7 +690,7 @@ export function createGame(canvas, ctx, getView){
   function heroAttack(){
     const h=G.hero; if(h.atkCD>0||h.rolling) return;
     const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
-    const dmg=(h.baseDmg+h.weapon.dmg+h.dmgBonus)*cfg.dmgMul;
+    const dmg=equippedDmg(h)*cfg.dmgMul;
     h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd; h._atkHits=new Set();
     if(cfg.type==="proj"){ h.atkT=0; Audio2.sfx.fire();
       G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
@@ -634,7 +702,7 @@ export function createGame(canvas, ctx, getView){
       addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.26}); }
   }
   function applyHeroMelee(){
-    const h=G.hero; const cfg=h._mcfg||ATK.warrior; const dmg=(h.baseDmg+h.weapon.dmg+h.dmgBonus)*cfg.dmgMul;
+    const h=G.hero; const cfg=h._mcfg||ATK.warrior; const dmg=equippedDmg(h)*cfg.dmgMul;
     for(const e of G.enemies){
       if(e.dead||h._atkHits.has(e)) continue;
       const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range+e.tpl.size) continue;
@@ -1041,7 +1109,7 @@ export function createGame(canvas, ctx, getView){
     }
   }
   function damageHero(dmg,ang){ const h=G.hero; if(h.iframe>0||h.dead) return;
-    const def=h.armor.def+h.shield.def+h.defBonus; const real=Math.max(1,dmg-def*0.6);
+    const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
     h.hp-=real; h.hurtFlash=0.18; Audio2.sfx.hurt(); shakeAdd(6); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
     h.iframe=0.25; // brief mercy invuln
   }
@@ -1511,6 +1579,15 @@ export function createGame(canvas, ctx, getView){
       scene:()=>G.scene,
       enemyCount:()=>G.enemies.length,
       fxCount:()=>G.fx.length,
+      // Atlas QA hook (read-only): reports how IMG[] was populated. Atlas
+      // fast-path stores canvas slices; per-file fallback stores <img>. Used by
+      // tools/atlas-qa.mjs to assert the wiring + fallback without guessing.
+      assets:()=>{ const ks=Object.keys(IMG); let canvases=0,images=0,ready=0;
+        for(const k of ks){ const o=IMG[k];
+          if(typeof HTMLCanvasElement!=="undefined" && o instanceof HTMLCanvasElement) canvases++; else images++;
+          if(o.complete && o.naturalWidth) ready++; }
+        const sample=ks.slice(0,4).map(k=>({k, w:IMG[k].naturalWidth, h:IMG[k].naturalHeight}));
+        return { count:ks.length, canvases, images, ready, pending:imgPending, sample }; },
       hero:()=>G.hero?{x:G.hero.x,y:G.hero.y,hp:G.hero.hp,maxHp:G.hero.maxHp,cls:G.hero.cls}:null,
       // --- determinism harness hook (used by tools/determinism.mjs) ---
       // Re-runs world generation with a caller-supplied seed and returns a

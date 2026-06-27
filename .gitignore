@@ -23,3 +23,6 @@ deploy/
 
 # Local dev server logs
 *.log
+
+# Headless QA screenshot artifacts (regenerable via npm run smoke / atlas-qa)
+tools/*.png

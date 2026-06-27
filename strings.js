@@ -16,6 +16,18 @@ export const STR = {
 
   spells: ["GOLPE", "LLAMARADA", "SANAR", "ONDA RÚNICA"],
 
+  // Class-selection screen. Class identity (names, roles, attack flavour) is data,
+  // not code — designers edit it here without touching game logic.
+  classSelTitle: "Elige tu clase",
+  classSelHint: "Toca una clase  ·  o usa 1-5 / ←→ + Enter",
+  classes: {
+    warrior:  { name: "Guerrero",  role: "Espada y escudo", attack: "Corte en arco cuerpo a cuerpo" },
+    paladin:  { name: "Paladín",   role: "Arco sagrado",    attack: "Flechas benditas a distancia" },
+    mage:     { name: "Mago",      role: "Orbes arcanos",   attack: "Orbe arcano con daño en área" },
+    druid:    { name: "Druida",    role: "Furia natural",   attack: "Espinas en cono frontal" },
+    priest:   { name: "Sacerdote", role: "Luz sagrada",     attack: "Nova de luz: daña y se cura" },
+  },
+
   zoneTown: "Puerto Solana",
   zoneForest: "Bosque del Este",
   zoneCaves: "Cuevas del Norte",
@@ -54,6 +66,7 @@ export const STR = {
   rollTowardMove: "Hacia el movimiento",
   rollTowardAim: "Hacia la mira",
 
+  perfectDodge: "¡ESQUIVA!",
   levelUp: (n) => "¡Subiste al nivel " + n + "!",
   redSkull: "¡Calavera roja! Penalización de muerte aumentada.",
   pickedUp: (t) => "Recogiste: " + t,
