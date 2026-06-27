@@ -2,7 +2,7 @@
 
 ARPG top-down de fantasía oscura en pixel art. HTML5 Canvas + JavaScript puro (sin build, sin dependencias). UI en español.
 
-Juego en vivo: https://happy-poppy-523.higgsfield.gg/
+Juego en vivo (URL pública FIJA — no cambia entre deploys): https://tender-bridge-504.higgsfield.gg/
 
 ## Cómo correrlo en local
 No necesita compilar nada. Solo sírvelo con cualquier servidor estático (no abras index.html con doble clic; los assets se cargan por HTTP):
@@ -109,7 +109,9 @@ python3 palette.py       # genera la lámina de paleta de clases
 | Sacerdote | Nova de luz: daña alrededor y se cura |
 
 ## Despliegue (Higgsfield)
-Se empaqueta en zip (index.html, game.js, logic.js, strings.js, design, assets) y se sube vía el pipeline de Higgsfield. Para actualizar el MISMO juego/URL hay que reutilizar el game_id existente.
+Se empaqueta un zip **solo de runtime** (`index.html` + `logic.js` en la raíz + `game.js`, `audio.js`, `input.js`, `view.js`, `strings.js`, `sim/`, `render/`, `assets/`) y se sube vía el pipeline de Higgsfield (`media_upload` → PUT → `media_confirm` → `deploy_game`).
+
+**Invariante de URL fija:** para actualizar el MISMO juego/URL hay que pasar **siempre** el `game_id` existente a `deploy_game`. Omitirlo crea un juego nuevo con otra URL. URL fija: `https://tender-bridge-504.higgsfield.gg/`. El `game_id` no se versiona en el repo (artefactos de deploy están en `.gitignore`); está registrado en la memoria del CTO.
 
 ## Nota sobre los sprites
 Los personajes son diseños **originales** en un estilo genérico de aventurero encapuchado. No se incluye ni reproduce ningún personaje con derechos de autor.
