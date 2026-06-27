@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, HUNTS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -48,7 +48,7 @@ export const G = {
   scene:"menu", // menu, play, dialogue, shop, inventory, pause, dead
   t:0, hero:null, enemies:[], projectiles:[], fx:[], floaters:[], drops:[],
   cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false},
-  quest:{wolves:0, done:false, rewarded:false}, dialog:null, shopSel:0,
+  quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0,
   toast:"", toastT:0, music:"town", arenaWarned:false, bossDead:false,
   skull:{level:0, t:0, kills:0, killT:0}, started:false,
   hitstop:0, // client-feel impact freeze (frames @60fps); never gates authoritative state beyond pausing local sim
@@ -73,8 +73,14 @@ function newHero(name,cls){
 }
 function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
 
+// Per-zone hunt-contract progress, built fresh from HUNTS data each run.
+//   kills   — enemies culled toward the quota
+//   champ   — the live Champion entity while it is summoned (null otherwise)
+//   cleared — zone payoff already claimed (stops further tracking)
+function initHunts(){ const o={}; for(const z in HUNTS) o[z]={kills:0, champ:null, cleared:false}; return o; }
+
 // creates the hero and enters play (audio/music wiring stays in the controller)
-export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.scene="play"; G.started=true; }
+export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.scene="play"; G.started=true; }
 
 // ----------------------------- helpers ---------------------------------
 export function toast(msg,dur){ G.toast=msg; G.toastT=dur||2.6; }
@@ -146,22 +152,70 @@ function makeHostile(e){ e.hostile=true; e.tpl=Object.assign({},e.tpl,{aggro:300
 function dropGear(x,y,inst){ if(!inst) return; G.drops.push({x,y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst)}); }
 function killEnemy(e){
   if(e.dead) return; e.dead=true;
-  freeze(e.isBoss?9:5); // kill confirm — boss death lands heaviest
-  const tpl=e.tpl;
+  freeze(e.isBoss?9:(e.champion?8:5)); // kill confirm — boss/champion deaths land heaviest
+  const tpl=e.tpl; const zone=zoneOf(world,e.x,e.y);
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
     gainXP(tpl.xp); for(let i=0;i<8;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
+  else if(e.champion){ onChampionKill(e); } // hunt climax — clears the zone, guaranteed payoff
   else { gainXP(tpl.xp);
     const g=ri(tpl.gold[0],tpl.gold[1]); if(g>0){ G.drops.push({x:e.x,y:e.y,kind:"gold",amt:g}); }
     if(srand()<0.22) G.drops.push({x:e.x+frr(-8,8),y:e.y,kind:srand()<0.6?"potionhp":"potionmp"});
-    if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zoneOf(world,e.x,e.y)]||ZONE_LOOT.field).tier;
+    if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
       dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1])); }
+    huntKill(zone); // a normal kill in a hunt zone advances that zone's contract
   }
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
   addFx("poof",e.x,e.y);
   G.enemies.splice(G.enemies.indexOf(e),1);
+}
+
+// ------------------------------ hunt contracts (CAS-63) ----------------
+// Generic resolver over the HUNTS data table — gives each farm zone a beginning
+// (cull quota) → escalation (Champion summon) → payoff (guaranteed gear + bonus).
+// No per-zone branching: a new hunt zone is a data row in config.js.
+function huntKill(zone){ const H=G.hunts&&G.hunts[zone]; const cfgH=HUNTS[zone];
+  if(!H||!cfgH||H.cleared||H.champ) return;            // ignore once a champ is up / zone cleared
+  H.kills++;
+  if(H.kills>=cfgH.need) spawnChampion(zone);
+}
+// Find a valid open tile inside the zone, a ring-distance from the hero, so the
+// Champion arrives near the player (immediate, readable confrontation) but not on
+// top of them. Falls back to the hero's position if no clear tile is found.
+function huntSpawnPos(zone){ const r=world[zone]; const h=G.hero;
+  for(let i=0;i<24;i++){ const a=rr(0,6.28), dpx=rr(150,230);
+    const x=h.x+Math.cos(a)*dpx, y=h.y+Math.sin(a)*dpx;
+    const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
+    if(tx<r.x+1||tx>r.x+r.w-2||ty<r.y+1||ty>r.y+r.h-2) continue;
+    if(!solidBlocked(x,y,16)) return {x,y}; }
+  return {x:h.x, y:h.y};
+}
+function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone];
+  const p=huntSpawnPos(zone); const e=spawnEnemy(cfgH.base,p.x,p.y); const base=e.tpl;
+  // Elite stat block layered on the base mob — reuses its sprite + telegraphed AI,
+  // so the fight stays readable; only HP/damage/size/reward scale up.
+  e.tpl=Object.assign({},base,{ hp:Math.round(base.hp*cfgH.hpMul), dmg:Math.round(base.dmg*cfgH.dmgMul),
+    size:Math.round(base.size*cfgH.sizeMul), xp:cfgH.xp, knock:Math.max(60,Math.round(base.knock*0.6)),
+    aggro:Math.max(base.aggro,320), champName:cfgH.name });
+  e.hp=e.maxHp=e.tpl.hp; e.champion=true; e.zone=zone; e.state="chase";
+  H.champ=e;
+  audio.sfx.boss(); toast(STR.huntChampion(cfgH.name),3.2); shakeAdd(8);
+  for(let i=0;i<8;i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
+}
+// Champion death = zone cleared. Guaranteed gear (zone tier, rarity floor) + bonus
+// xp/gold so the hunt's payoff feeds the existing gear/progression systems.
+function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH=HUNTS[zone];
+  if(H){ H.cleared=true; H.champ=null; }
+  audio.sfx.boss(); shakeAdd(10);
+  const win=cfgH.tier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier; // champion reward tier (meaningful loot)
+  dropGear(e.x,e.y, rollGearInst(srand,win[0],win[1],cfgH.minR));
+  G.drops.push({x:e.x+18,y:e.y,kind:"gold",amt:cfgH.gold});
+  if(srand()<0.5) G.drops.push({x:e.x-18,y:e.y,kind:"potionhp"});
+  gainXP(cfgH.xp);
+  toast(STR.huntCleared(zone),3.6);
+  for(let i=0;i<10;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
 }
 function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; h.maxHp+=18; h.maxMp+=8; h.baseDmg+=3; h.hp=h.maxHp; h.mp=h.maxMp;
@@ -502,6 +556,15 @@ export const dev = {
     if(type==="golem"&&e) e.isBoss=true; e.hp=0; killEnemy(e);
     return G.drops.slice(before).map(d=>({ kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat })); },
   pickup(){ tryPickup(); return G.hero.bag.length; },
+  // --- hunt-contract harness hooks (tools/hunt.mjs, CAS-63); additive ---
+  // Read a zone's contract progress; champ reports the live elite's hp if summoned.
+  huntState(zone){ const H=G.hunts&&G.hunts[zone]; const cfgH=HUNTS[zone]; if(!H||!cfgH) return null;
+    return { kills:H.kills, need:cfgH.need, champ: H.champ?{hp:Math.round(H.champ.hp),max:H.champ.maxHp,name:H.champ.tpl.champName}:null, cleared:H.cleared }; },
+  // Kill the zone's live Champion through the REAL killEnemy and return its drops —
+  // the genuine clear path (guaranteed gear + bonus), not a shortcut.
+  huntKillChampion(zone){ const H=G.hunts&&G.hunts[zone]; if(!H||!H.champ) return null;
+    const e=H.champ; const before=G.drops.length; e.hp=0; killEnemy(e);
+    return { cleared:H.cleared, drops:G.drops.slice(before).map(d=>({kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat, amt:d.amt})) }; },
   // --- spell-identity harness hooks (tools/spells.mjs, CAS-52); additive ---
   setClass(cls){ if(SPELLS[cls]){ G.hero.cls=cls; } return G.hero.cls; },
   cast(i){ castSpell(i); return { mp:Math.round(G.hero.mp), cd:G.hero.spellCD.slice() }; },

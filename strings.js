@@ -14,6 +14,14 @@ export const STR = {
   questLabel: (n) => "Misión: Limpia el Bosque (lobos " + n + "/8)",
   questDone: "Misión completada: ¡Bosque limpio!",
 
+  // Hunt contracts (CAS-63): per-zone cull objective → Champion → zone cleared.
+  zoneNames: { forest:"Bosque del Este", ruins:"Ruinas de Eldath", arena:"Arena de Sangre" },
+  huntLabel: (n, need) => "Cacería: " + n + "/" + need,
+  huntChampApproaches: "¡CAMPEÓN!",
+  huntZoneCleared: "ZONA DESPEJADA",
+  huntChampion: (name) => "¡Aparece " + name + "! Derrótalo para despejar la zona.",
+  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", arena:"Arena de Sangre" }[zone] || "la zona") + "! Recompensa garantizada.",
+
   spells: ["GOLPE", "LLAMARADA", "SANAR", "ONDA RÚNICA"], // generic fallback labels
   // per-class name for the basic-attack slot (slot 0) — surfaces class identity on the HUD
   spellSlot0: { warrior: "CORTE", paladin: "FLECHA", mage: "ORBE", druid: "ESPINAS", priest: "NOVA" },

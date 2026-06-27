@@ -78,4 +78,19 @@ export const ETPL = {
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
 };
 
+// Hunt contracts (CAS-63): the per-hunt OBJECTIVE that gives a farm zone a point.
+// Cull `need` enemies in the zone -> a Champion is summoned (an ELITE of a zone mob,
+// so it reuses that mob's sprite — no new art). Defeating the Champion CLEARS the
+// zone: a guaranteed gear drop (rarity floor `minR`, tier from ZONE_LOOT) + bonus
+// xp/gold + a payoff toast. Pure data: the generic hunt resolver in sim.js reads
+// these rows, so adding a hunt zone is a one-line edit, never a code branch.
+// `base` must be a melee ETPL row (telegraphed windup → readable elite fight).
+// `tier` is the Champion REWARD tier window — always meaningful loot (2-3) so the
+// climax drop is an upgrade, never scaled down to the zone's trash-mob tier.
+export const HUNTS = {
+  forest: { need:10, base:"wolf",   name:"Lobo Alfa",       hpMul:8,  dmgMul:1.8, sizeMul:1.55, tier:[2,3], minR:"uncommon", xp:90,  gold:45 },
+  ruins:  { need:12, base:"bandit", name:"Capitán Bandido", hpMul:8,  dmgMul:1.7, sizeMul:1.45, tier:[2,3], minR:"rare",     xp:140, gold:70 },
+  arena:  { need:14, base:"orc",    name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75 },
+};
+
 export const CLASS_LIST = ["warrior", "paladin", "mage", "druid", "priest"];

@@ -51,6 +51,9 @@ export function createGame(canvas, ctx, getView){
       bag:()=>simDev.bag(),
       equipBag:(i)=>simDev.equipBag(i),
       openInv:()=>simDev.openInv(),
+      // hunt-contract contract consumed by tools/hunt.mjs (CAS-63) — additive
+      huntState:(zone)=>simDev.huntState(zone),
+      huntKillChampion:(zone)=>simDev.huntKillChampion(zone),
       // spell-identity contract consumed by tools/spells.mjs (CAS-52) — additive
       setClass:(cls)=>simDev.setClass(cls),
       cast:(i)=>simDev.cast(i),

@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, SPELLS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, SPELLS, HUNTS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef } from "../sim/gear.js";
@@ -150,8 +150,12 @@ export function createRenderer(ctx){
   function whiten(pal){ const o={}; for(const k in pal) o[k]="#ffffff"; return o; }
 
   function drawEnemy(e){
-    const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.tpl.size>20?4:3);
+    const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.champion?5:(e.tpl.size>20?4:3));
     const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false;
+    // champion aura — a pulsing gold ground ring marks the elite as the hunt climax
+    if(e.champion){ const pr=e.tpl.size*1.3 + Math.sin(G.t*4)*2; ctx.save();
+      ctx.globalAlpha=0.5; ctx.strokeStyle="#ffcf4d"; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke(); ctx.restore(); }
     // windup telegraph: flashing warning + slight grow
     if(e.state==="windup"){ const fl2=Math.floor(G.t*16)%2===0;
       if(e.tpl.ranged){ const a=e.facing; const col=e.tpl.proj==="bolt"?"#9bef5a":"#ffd24d";
@@ -176,11 +180,12 @@ export function createRenderer(ctx){
     }
     if(!drew){ if(e.hurtFlash>0) blit(ctx,spr.rows,whiten(spr.pal),e.x,e.y,px,fl); else blit(ctx,spr.rows,spr.pal,e.x,e.y,px,fl); }
     // health bar
-    const w=e.isBoss?64:Math.max(22,e.tpl.size*1.6); const hh=e.isBoss?6:4; const yy=e.y-e.tpl.size-(e.isBoss?14:8);
+    const w=e.isBoss?64:(e.champion?58:Math.max(22,e.tpl.size*1.6)); const hh=(e.isBoss||e.champion)?6:4; const yy=e.y-e.tpl.size-((e.isBoss||e.champion)?14:8);
     ctx.fillStyle=COL.out; ctx.fillRect(e.x-w/2-1,yy-1,w+2,hh+2);
     ctx.fillStyle=COL.hpb; ctx.fillRect(e.x-w/2,yy,w,hh);
-    ctx.fillStyle=e.hostile?"#ff5a4a":COL.hpf; ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
+    ctx.fillStyle=e.champion?"#ffcf4d":(e.hostile?"#ff5a4a":COL.hpf); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
     if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("GÓLEM ANCESTRAL",e.x,yy-4); }
+    else if(e.champion){ ctx.fillStyle="#ffcf4d"; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("★ "+e.tpl.champName,e.x,yy-4); }
   }
   function drawNPC(n){ const spr=SP[n.sprite]; blit(ctx,spr.rows,spr.pal,n.x,n.y,3,false);
     // marker
@@ -300,6 +305,13 @@ export function createRenderer(ctx){
     const qx=VW-12, qy=isTouch?64:18;
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
     const qw=ctx.measureText(qt).width+12; ctx.fillRect(qx-qw,qy-2,qw,20); ctx.fillStyle=G.quest.done?COL.heal:COL.textGold; ctx.fillText(qt,qx-6,qy+13);
+    // hunt-contract tracker (under the quest tracker) — only shows inside a hunt zone
+    const hz=zoneOf(world,h.x,h.y); const HC=HUNTS[hz]; const HS=G.hunts&&G.hunts[hz];
+    if(HC && HS){ let ht, hc; if(HS.cleared){ ht=STR.huntZoneCleared; hc=COL.heal; }
+      else if(HS.champ){ ht=STR.huntChampApproaches; hc=COL.skullR; }
+      else { ht=STR.huntLabel(HS.kills,HC.need); hc=COL.textGold; }
+      const hy=qy+22; ctx.fillStyle=COL.out; const hw=ctx.measureText(ht).width+12;
+      ctx.fillRect(qx-hw,hy-2,hw,20); ctx.fillStyle=hc; ctx.fillText(ht,qx-6,hy+13); }
     // zone name
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
     const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
