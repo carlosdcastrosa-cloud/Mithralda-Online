@@ -1,0 +1,13 @@
+{
+  "frameW": 105,
+  "frameH": 164,
+  "anchorX": 43,
+  "foot": 162,
+  "figureH": 160,
+  "classes": [
+    "warrior",
+    "mage",
+    "archer",
+    "rogue"
+  ]
+}
