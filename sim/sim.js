@@ -18,6 +18,7 @@ import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
+import { ZONE_LOOT, gearStat, gearName, rollGearInst, equippedDmg, equippedDef } from "./gear.js";
 
 // feedback floater palette (presentation hints carried by sim events)
 const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
@@ -25,6 +26,14 @@ const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
 // private simulation RNG stream — isolated from render randomness
 const rng = createRNG();
 const { srand, seed, rr, ri } = rng;
+
+// cosmetic particle-scatter RNG — a SECOND isolated stream for FX jitter only
+// (flame/heal scatter, ground-drop x-offset). Keeping these off the authoritative
+// stream means cosmetic particles never perturb gameplay RNG, so loot/spawn
+// sequences stay byte-identical for a seed (Stage-2 server authority). Mirrors
+// the render-side isolation established in CAS-15.
+const fxRng = createRNG();
+const frr = (a,b)=>fxRng.rr(a,b);
 
 // the authoritative world (deterministic for the fixed seed)
 const world = buildWorld(rng);
@@ -51,7 +60,10 @@ function newHero(name,cls){
     baseDmg:12, dmgBonus:0, defBonus:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     animState:"idle", animT:0, cls:cls||"warrior",
-    weapon:{name:"Espada de hierro",dmg:6,price:40}, armor:{name:"Coraza de cuero",def:4,price:35}, shield:{name:"Escudo de madera",def:2,price:25},
+    // gear: 3 equipped slots (instances by id) + a bag of loose instances. Stats
+    // are resolved from data (sim/gear.js), never stored — see equippedDmg/Def.
+    equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
+    bag:[],
     potHP:2, potMP:1, blessings:0,
     respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
 }
@@ -91,7 +103,7 @@ function spawnBoss(){ const e=spawnEnemy("golem",(world.caves.x+world.caves.w/2)
 function heroAttack(){
   const h=G.hero; if(h.atkCD>0||h.rolling) return;
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
-  const dmg=(h.baseDmg+h.weapon.dmg+h.dmgBonus)*cfg.dmgMul;
+  const dmg=equippedDmg(h)*cfg.dmgMul;
   h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd; h._atkHits=new Set();
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
@@ -103,7 +115,7 @@ function heroAttack(){
     addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.26}); }
 }
 function applyHeroMelee(){
-  const h=G.hero; const cfg=h._mcfg||ATK.warrior; const dmg=(h.baseDmg+h.weapon.dmg+h.dmgBonus)*cfg.dmgMul;
+  const h=G.hero; const cfg=h._mcfg||ATK.warrior; const dmg=equippedDmg(h)*cfg.dmgMul;
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
     const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range+e.tpl.size) continue;
@@ -124,16 +136,22 @@ function hitEnemy(e,dmg,ang){
   else if(e.tpl.neutral) { /* stays hostile */ }
 }
 function makeHostile(e){ e.hostile=true; e.tpl=Object.assign({},e.tpl,{aggro:300}); }
+// Push a gear ground-drop. The instance carries resolved stat/slot/rarity so the
+// renderer + pickup never re-roll; all randomness already happened on the sim RNG.
+function dropGear(x,y,inst){ if(!inst) return; G.drops.push({x,y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst)}); }
 function killEnemy(e){
   if(e.dead) return; e.dead=true;
   freeze(e.isBoss?9:5); // kill confirm — boss death lands heaviest
   const tpl=e.tpl;
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
-    gainXP(tpl.xp); for(let i=0;i<8;i++) addFx("flame",e.x+rr(-30,30),e.y+rr(-30,30)); }
+    dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
+    gainXP(tpl.xp); for(let i=0;i<8;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
   else { gainXP(tpl.xp);
     const g=ri(tpl.gold[0],tpl.gold[1]); if(g>0){ G.drops.push({x:e.x,y:e.y,kind:"gold",amt:g}); }
-    if(srand()<0.22) G.drops.push({x:e.x+rr(-8,8),y:e.y,kind:srand()<0.6?"potionhp":"potionmp"});
+    if(srand()<0.22) G.drops.push({x:e.x+frr(-8,8),y:e.y,kind:srand()<0.6?"potionhp":"potionmp"});
+    if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zoneOf(world,e.x,e.y)]||ZONE_LOOT.field).tier;
+      dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1])); }
   }
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
@@ -142,7 +160,7 @@ function killEnemy(e){
 }
 function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; h.maxHp+=18; h.maxMp+=8; h.baseDmg+=3; h.hp=h.maxHp; h.mp=h.maxMp;
-    h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup(); for(let i=0;i<6;i++) addFx("heal",h.x+rr(-16,16),h.y+rr(-20,6)); } }
+    h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup(); for(let i=0;i<6;i++) addFx("heal",h.x+frr(-16,16),h.y+frr(-20,6)); } }
 
 function registerSkull(){ const s=G.skull;
   if(s.level===0){ s.level=1; s.t=60; }            // white
@@ -160,7 +178,7 @@ export function castSpell(i){
   if(h.atkCD>0) return; h.atkCD=0.5;
   if(i===1){ h.mp-=cost; audio.sfx.fire(); const[a,b]=[Math.cos(h.facing),Math.sin(h.facing)];
     G.projectiles.push({x:h.x+a*20,y:h.y+b*20,vx:a*320,vy:b*320,life:1.4,dmg:22,kind:"fire"}); }
-  else if(i===2){ h.mp-=cost; audio.sfx.heal(); h.hp=Math.min(h.maxHp,h.hp+44); floater(h.x,h.y-30,"+44","#5fd66a"); for(let k=0;k<6;k++) addFx("heal",h.x+rr(-14,14),h.y+rr(-18,6)); }
+  else if(i===2){ h.mp-=cost; audio.sfx.heal(); h.hp=Math.min(h.maxHp,h.hp+44); floater(h.x,h.y-30,"+44","#5fd66a"); for(let k=0;k<6;k++) addFx("heal",h.x+frr(-14,14),h.y+frr(-18,6)); }
   else if(i===3){ h.mp-=cost; audio.sfx.rune(); h.atkCD=0.7; shakeAdd(4);
     const range=96, dmg=38;
     for(const e of G.enemies){ const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>range+e.tpl.size) continue;
@@ -169,12 +187,25 @@ export function castSpell(i){
 }
 
 // ----------------------------- pickups ---------------------------------
+const BAG_CAP=16;
+// No-filler gate: a COMMON gear is filler iff it can't beat what's already on
+// that slot — auto-melt it to a little gold instead of bagging it. Higher
+// rarities (and any common that IS an upgrade) always go to the bag.
+function takeGear(inst){ const h=G.hero; const st=gearStat(inst);
+  if(inst.rarity==="common" && st<=gearStat(h.equip[inst.slot])){
+    const melt=Math.max(1,Math.round(st/2)); h.gold+=melt; audio.sfx.coin(); floater(h.x,h.y-26,"+"+melt+" oro",C_GOLD); return; }
+  if(h.bag.length>=BAG_CAP){ // bag full: convert the weakest held to gold to make room
+    let wi=0,wv=Infinity; h.bag.forEach((b,i)=>{ const v=gearStat(b); if(v<wv){ wv=v; wi=i; } });
+    h.gold+=Math.max(1,Math.round(wv/2)); h.bag.splice(wi,1); toast(STR.bagFull); }
+  h.bag.push(inst); audio.sfx.pickup(); toast(STR.loot(gearName(inst)));
+}
 export function tryPickup(){
   const h=G.hero;
   for(const d of G.drops){ if(d.taken) continue; if(dist2(h.x,h.y,d.x,d.y)<CFG.pickRange*CFG.pickRange){
     if(d.kind==="gold"){ const g=d.amt||ri(3,8); h.gold+=g; audio.sfx.coin(); floater(h.x,h.y-26,"+"+g+" oro",C_GOLD); }
     else if(d.kind==="potionhp"){ h.potHP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de vida")); }
     else if(d.kind==="potionmp"){ h.potMP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de maná")); }
+    else if(d.kind==="gear"){ takeGear(d.inst); }
     d.taken=true;
   }}
   G.drops=G.drops.filter(d=>!d.taken);
@@ -238,13 +269,25 @@ export function shopItems(){
     {name:"Bendición",price:60,act:h=>{h.blessings++; toast(STR.blessingOn);}},
     {name:"Curación completa",price:20,act:h=>{h.hp=h.maxHp;h.mp=h.maxMp;}},
   ];
+  // Shop upgrades grant gear INSTANCES (same data model as drops). `once` guards
+  // by resolved stat so you can't buy a downgrade once you've looted better.
+  const STEEL={slot:"weapon",defId:"w_steel",rarity:"common"}, PLATE={slot:"body",defId:"a_plate",rarity:"common"}, IRONSH={slot:"shield",defId:"s_iron",rarity:"common"};
   return [
     {name:"Poción de vida",price:15,act:h=>h.potHP++},
     {name:"Poción de maná",price:12,act:h=>h.potMP++},
-    {name:"Espada de acero (+6 daño)",price:90,act:h=>{h.weapon={name:"Espada de acero",dmg:12,price:90};},once:h=>h.weapon.dmg>=12},
-    {name:"Coraza de placas (+6 def)",price:80,act:h=>{h.armor={name:"Coraza de placas",def:10,price:80};},once:h=>h.armor.def>=10},
-    {name:"Escudo de hierro (+4 def)",price:70,act:h=>{h.shield={name:"Escudo de hierro",def:6,price:70};},once:h=>h.shield.def>=6},
+    {name:"Espada de acero (+6 daño)",price:90,act:h=>{h.equip.weapon={...STEEL};},once:h=>gearStat(h.equip.weapon)>=gearStat(STEEL)},
+    {name:"Coraza de placas (+6 def)",price:80,act:h=>{h.equip.body={...PLATE};},once:h=>gearStat(h.equip.body)>=gearStat(PLATE)},
+    {name:"Escudo de hierro (+4 def)",price:70,act:h=>{h.equip.shield={...IRONSH};},once:h=>gearStat(h.equip.shield)>=gearStat(IRONSH)},
   ];
+}
+// Equip bag item i into its slot, swapping the previously-equipped piece back
+// into the SAME bag index (indices stay stable so callers can equip several in a
+// row from one snapshot). Combat/UI totals recompute via equippedDmg/Def.
+export function equipBag(i){ const h=G.hero; const inst=h.bag[i];
+  if(!inst) return {dmg:equippedDmg(h),def:equippedDef(h)};
+  const slot=inst.slot; const old=h.equip[slot];
+  h.equip[slot]=inst; h.bag[i]=old; audio.sfx.buy();
+  return {slot, dmg:equippedDmg(h), def:equippedDef(h)};
 }
 export function buyItem(idx){ const h=G.hero; const it=shopItems()[idx]; if(!it) return;
   if(it.once && it.once(h)){ audio.sfx.deny(); toast("Ya tienes algo igual o mejor"); return; }
@@ -366,7 +409,7 @@ function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0
   floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.34}); audio.sfx.roll(); }
 function damageHero(dmg,ang){ const h=G.hero; if(h.dead) return;
   if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return; } // only an active roll earns the dodge, not mercy i-frames
-  const def=h.armor.def+h.shield.def+h.defBonus; const real=Math.max(1,dmg-def*0.6);
+  const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   h.iframe=0.25; // brief mercy invuln
 }
@@ -390,6 +433,19 @@ function updateFloaters(dt){ for(const f of G.floaters){ f.t+=dt; f.y-=24*dt; } 
 export const dev = {
   spawn(type,dx,dy){ const e=spawnEnemy(type, G.hero.x+(dx||0), G.hero.y+(dy||0)); if(type==="golem"&&e) e.isBoss=true; return type; },
   tp(tx,ty){ G.hero.x=tx*TS; G.hero.y=ty*TS; return [G.hero.x,G.hero.y]; },
+  // --- gear/progression harness hooks (tools/gear.mjs); additive, see CAS-29 ---
+  tpZone(zone){ const r=world[zone]; if(!r) return null; G.hero.x=(r.x+r.w/2)*TS; G.hero.y=(r.y+r.h/2)*TS; return zone; },
+  seed(n){ seed(n>>>0); return n>>>0; },                       // reseed the sim RNG (deterministic drops)
+  gear(){ const h=G.hero; return { dmg:equippedDmg(h), def:equippedDef(h), weapon:gearName(h.equip.weapon) }; },
+  // Spawn one enemy at the hero and kill it THIS instant via the real killEnemy,
+  // returning only the drops that kill produced (the loot loop, not a shortcut).
+  spawnKill(type){ const before=G.drops.length; const e=spawnEnemy(type, G.hero.x, G.hero.y);
+    if(type==="golem"&&e) e.isBoss=true; e.hp=0; killEnemy(e);
+    return G.drops.slice(before).map(d=>({ kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat })); },
+  pickup(){ tryPickup(); return G.hero.bag.length; },
+  bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b) })); },
+  equipBag(i){ return equipBag(i); },
+  openInv(){ G.scene="inventory"; return G.scene; },
   // Determinism probe (tools/determinism.mjs). Rebuilds the world from a FRESH
   // RNG each call so independent runs must agree byte-for-byte. seed is accepted
   // but buildWorld() still hard-seeds internally (tracked Stage-2 seam).

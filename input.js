@@ -56,7 +56,14 @@ function edge(code){
     else if(code==="ArrowUp"){G.shopSel=(G.shopSel+sim.shopItems().length-1)%sim.shopItems().length;}
     else if(code==="ArrowDown"){G.shopSel=(G.shopSel+1)%sim.shopItems().length;}
     else if(code==="Enter"||code==="Space"){sim.buyItem(G.shopSel);} return; }
-  if(G.scene==="inventory"){ if(code==="KeyI"||code==="Escape") G.scene="play"; return; }
+  if(G.scene==="inventory"){ const n=G.hero.bag.length;
+    if(code==="KeyI"||code==="Escape") G.scene="play";
+    else if(code==="ArrowUp"&&n){ G.invSel=(((G.invSel||0)-1)+n)%n; }
+    else if(code==="ArrowDown"&&n){ G.invSel=(((G.invSel||0)+1))%n; }
+    else if((code==="Enter"||code==="Space")&&n){ sim.equipBag(G.invSel||0); }
+    else if(code==="KeyP"){ sim.doPotionHP(); }
+    else if(code==="KeyO"){ sim.doPotionMP(); }
+    return; }
   if(G.scene==="pause"){ if(code==="Escape") G.scene="play";
     else if(code==="Digit1"){G.settings.shake=G.settings.shake>0?0:1;}
     else if(code==="Digit2"){G.settings.crt=!G.settings.crt;}
@@ -141,7 +148,7 @@ function handleUITap(x,y){
   if(G.scene==="dead"){ sim.respawn(); return true; }
   if(G.scene==="dialogue"){ sim.advanceDialogue(); return true; }
   if(G.scene==="pause"){ return pauseTap(x,y); }
-  if(G.scene==="inventory"){ G.scene="play"; return true; }
+  if(G.scene==="inventory"){ return invTap(x,y); }
   if(G.scene==="shop"){ return shopTap(x,y); }
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -152,6 +159,8 @@ function handleUITap(x,y){
 function dist2tap(ax,ay,bx,by){ const dx=ax-bx,dy=ay-by; return dx*dx+dy*dy; }
 function pauseTap(x,y){ for(const r of ui.pauseRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
+// tap a backpack row to select+equip it; tap elsewhere in the panel closes.
+function invTap(x,y){ for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; sim.equipBag(r.idx); return true; } } G.scene="play"; return true; }
 function menuPlayHit(x,y){ const r=ui.menuPlayRect; return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
 
 // ----------------------------- menu flow -------------------------------

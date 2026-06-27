@@ -13,6 +13,7 @@ import { zoneOf } from "../sim/world.js";
 import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, CFG, CLASS_LIST } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
+import { gearStat, gearName, gearCol, equippedDmg, equippedDef } from "../sim/gear.js";
 import { STR } from "../strings.js";
 import { audio } from "../audio.js";
 import { view, zoom } from "../view.js";
@@ -101,8 +102,17 @@ export function createRenderer(ctx){
     }});
     for(const c of world.chests){ if(!c.opened) order.push({y:c.y,draw:()=>blit(ctx,SP.chest.rows,SP.chest.pal,c.x,c.y,3,false)}); }
     for(const f of world.fragments){ if(!f.taken) order.push({y:f.y,draw:()=>drawFragment(ctx,f.x,f.y,2,G.t)}); }
-    for(const d of G.drops){ order.push({y:d.y,draw:()=>{ if(d.kind==="gold")drawCoin(ctx,d.x,d.y,2,G.t); else if(d.kind==="potionhp")drawPotion(ctx,d.x,d.y,2,COL.hpf,"#ff8a8a"); else drawPotion(ctx,d.x,d.y,2,COL.mpf,"#8ab8ff"); }}); }
+    for(const d of G.drops){ order.push({y:d.y,draw:()=>{ if(d.kind==="gold")drawCoin(ctx,d.x,d.y,2,G.t); else if(d.kind==="gear")drawGearDrop(d); else if(d.kind==="potionhp")drawPotion(ctx,d.x,d.y,2,COL.hpf,"#ff8a8a"); else drawPotion(ctx,d.x,d.y,2,COL.mpf,"#8ab8ff"); }}); }
     G._decoOrder=order;
+  }
+
+  // looted gear on the ground: a rarity-coloured gem (readable at a glance, no
+  // RNG — purely deterministic bob from sim time so it never perturbs the sim).
+  function drawGearDrop(d){ const col=gearCol(d.inst); const bob=Math.sin(G.t*4+d.x*0.05)*2; const x=d.x, y=d.y-6+bob;
+    ctx.globalAlpha=0.3; ctx.fillStyle="#000"; ctx.beginPath(); ctx.ellipse(d.x,d.y+4,7,3,0,0,6.28); ctx.fill(); ctx.globalAlpha=1;
+    ctx.fillStyle="#0c0e12"; ctx.beginPath(); ctx.moveTo(x,y-9); ctx.lineTo(x+7,y); ctx.lineTo(x,y+9); ctx.lineTo(x-7,y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x,y-7); ctx.lineTo(x+5,y); ctx.lineTo(x,y+7); ctx.lineTo(x-5,y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,0.7)"; ctx.beginPath(); ctx.moveTo(x,y-7); ctx.lineTo(x+2,y-1); ctx.lineTo(x-2,y-1); ctx.closePath(); ctx.fill();
   }
 
   function renderEntities(){
@@ -306,20 +316,43 @@ export function createRenderer(ctx){
   }
   function wrapText(txt,x,y,maxW,lh){ const words=txt.split(" "); let line="",yy=y; for(const w of words){ const t=line+w+" "; if(ctx.measureText(t).width>maxW){ ctx.fillText(line,x,yy); line=w+" "; yy+=lh;} else line=t; } ctx.fillText(line,x,yy); }
 
-  function renderInventory(){ const bw=Math.min(VW*0.8,440), bh=Math.min(VH*0.8,400), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
-    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+30);
-    // equipment doll
-    const dx=x+70, dy=y+90; blit(ctx,SP.hero.rows,SP.hero.pal,dx,dy,5,false);
+  // Compare arrow vs the piece currently equipped in this item's slot.
+  function cmpArrow(inst){ const eq=gearStat(G.hero.equip[inst.slot]); const v=gearStat(inst);
+    return v>eq?{s:"▲",c:COL.heal}:(v<eq?{s:"▼",c:"#d05555"}:{s:"=",c:COL.textDim}); }
+  function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,460), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
+    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28);
+    const colX=x+28, colW=bw*0.46;
+    // ---- left: equipment doll + equipped slots + totals ----
+    blit(ctx,SP.hero.rows,SP.hero.pal,colX+8,y+58,5,false);
     ctx.textAlign="left"; ctx.font="12px 'Courier New'";
-    const rows=[[STR.slotWeapon,h.weapon.name],[STR.slotBody,h.armor.name],[STR.slotShield,h.shield.name]];
-    let ry=y+70; for(const [a,b] of rows){ ctx.fillStyle=COL.textDim; ctx.fillText(a+":",x+140,ry); ctx.fillStyle=COL.cream; ctx.fillText(b,x+140,ry+16); ry+=44; }
-    ctx.fillStyle=COL.textGold; ctx.fillText(STR.statsDmg+": "+(h.baseDmg+h.weapon.dmg+h.dmgBonus), x+140, ry); ctx.fillText(STR.statsDef+": "+(h.armor.def+h.shield.def+h.defBonus), x+140, ry+18);
-    // backpack
-    ctx.fillStyle=COL.textDim; ctx.fillText(STR.backpack+":", x+30, y+bh-90);
-    ctx.fillStyle=COL.cream; ctx.fillText("♥ Poción de vida x"+h.potHP, x+30, y+bh-70);
-    ctx.fillText("◆ Poción de maná x"+h.potMP, x+30, y+bh-52);
-    ctx.fillText("✦ Bendiciones x"+h.blessings, x+30, y+bh-34);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.invHint+" · P usa poción vida · O usa maná",VW/2,y+bh-12);
+    const slots=[[STR.slotWeapon,"weapon"],[STR.slotBody,"body"],[STR.slotShield,"shield"]];
+    let ry=y+62; for(const [label,slot] of slots){ const inst=h.equip[slot];
+      ctx.fillStyle=COL.textDim; ctx.fillText(label, colX+96, ry);
+      ctx.fillStyle=gearCol(inst); ctx.fillText(gearName(inst), colX+96, ry+15);
+      ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText((slot==="weapon"?STR.statsDmg:STR.statsDef)+" "+gearStat(inst), colX+96, ry+28); ctx.font="12px 'Courier New'";
+      ry+=46; }
+    ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'";
+    ctx.fillText(STR.statsDmg+": "+equippedDmg(h), colX+8, ry+6);
+    ctx.fillText(STR.statsDef+": "+equippedDef(h), colX+8, ry+24);
+    // potions / blessings
+    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'";
+    ctx.fillText("♥ x"+h.potHP+"   ◆ x"+h.potMP+"   ✦ x"+h.blessings, colX+8, y+bh-22);
+    // ---- right: backpack list with compare arrows ----
+    const rx=x+bw*0.50, rw=bw*0.46;
+    ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.backpack, rx, y+54);
+    ui.invRects=[];
+    const bag=h.bag; if(G.invSel==null) G.invSel=0; G.invSel=Math.max(0,Math.min(G.invSel, Math.max(0,bag.length-1)));
+    const rowH=30, listY=y+62, maxRows=Math.floor((bh-120)/rowH);
+    if(!bag.length){ ctx.fillStyle=COL.textDim; ctx.fillText(STR.bagEmpty, rx, listY+18); }
+    for(let i=0;i<bag.length && i<maxRows;i++){ const inst=bag[i]; const ay=listY+i*rowH; const sel=i===G.invSel;
+      ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(rx,ay,rw,rowH-4);
+      if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=1.5; ctx.strokeRect(rx,ay,rw,rowH-4); }
+      ctx.textAlign="left"; ctx.fillStyle=gearCol(inst); ctx.font="12px 'Courier New'";
+      ctx.fillText(gearName(inst)+" ("+gearStat(inst)+")", rx+8, ay+18);
+      const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+18);
+      ui.invRects.push({x:rx,y:ay,w:rw,h:rowH-4, idx:i});
+    }
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
   }
 
   function renderShop(){ const items=sim.shopItems(); const bw=Math.min(VW*0.86,460), bh=Math.min(VH*0.82,420), x=(VW-bw)/2, y=(VH-bh)/2;

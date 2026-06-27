@@ -44,6 +44,13 @@ export const STR = {
   invHint: "I: cerrar",
   statsDmg: "Daño",
   statsDef: "Defensa",
+  // Loot & gear. Rarity labels are UI categories (here); item proper names are
+  // content data in sim/gear.js GEAR so adding gear is a one-line edit.
+  loot: (t) => "Botín: " + t,
+  bagFull: "Mochila llena: convertida en oro",
+  bagEmpty: "(vacía)",
+  equipHint: "▲▼ elegir · Enter/tap equipar · I cerrar · P/O pociones",
+  rarity: { common: "Común", uncommon: "Infrecuente", rare: "Raro", epic: "Épico" },
 
   shopTitle: "TIENDA DE SOLANA",
   buy: "Comprar",

@@ -41,7 +41,16 @@ export function createGame(canvas, ctx, getView){
       scene:()=>G.scene,
       hero:()=>G.hero?{cls:G.hero.cls,x:G.hero.x,y:G.hero.y}:null,
       enemyCount:()=>G.enemies.length,
-      worldFingerprint:(seed)=>simDev.worldFingerprint(seed) };
+      worldFingerprint:(seed)=>simDev.worldFingerprint(seed),
+      // gear/progression contract consumed by tools/gear.mjs (CAS-29) — additive
+      tpZone:(zone)=>simDev.tpZone(zone),
+      seed:(n)=>simDev.seed(n),
+      gear:()=>simDev.gear(),
+      spawnKill:(type)=>simDev.spawnKill(type),
+      pickup:()=>simDev.pickup(),
+      bag:()=>simDev.bag(),
+      equipBag:(i)=>simDev.equipBag(i),
+      openInv:()=>simDev.openInv() };
   }
   syncMenuDom(); positionNameInput();
 
