@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -58,6 +58,10 @@ function newHero(name,cls){
   return { name:name||"Héroe", x:world.tcx, y:world.tcy+TS*2, vx:0,vy:0, facing:Math.PI/2,
     hp:100, maxHp:100, mp:50, maxMp:50, lvl:1, xp:0, xpNext:60, gold:30,
     baseDmg:12, dmgBonus:0, defBonus:0,
+    // spell state: per-slot cooldowns (slots 1-3) + timed buff/HoT amounts. dmgBonus/
+    // defBonus are the buff sinks (equippedDmg/Def read them), restored on expiry.
+    spellCD:[0,0,0,0], spellCDmax:[0,0,0,0],
+    dmgBuffT:0, dmgBuffAmt:0, defBuffT:0, defBuffAmt:0, hotT:0, hotRate:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     animState:"idle", animT:0, cls:cls||"warrior",
     // gear: 3 equipped slots (instances by id) + a bag of loose instances. Stats
@@ -94,7 +98,8 @@ function moveEnt(e,dx,dy,r){
 // ----------------------------- spawning --------------------------------
 function spawnEnemy(type,x,y){
   const tpl=ETPL[type]; const e={type, x,y, hp:tpl.hp, maxHp:tpl.hp, tpl, state:"idle", st:0,
-    vx:0,vy:0, facing:0, wt:0, hurtFlash:0, hitDone:false, phase:0, knockX:0,knockY:0, wanderX:x,wanderY:y, wanderT:0};
+    vx:0,vy:0, facing:0, wt:0, hurtFlash:0, hitDone:false, phase:0, knockX:0,knockY:0, wanderX:x,wanderY:y, wanderT:0,
+    stun:0, slow:1, slowT:0}; // crowd-control sinks: stun freezes the AI, slow scales chase speed (both time-based, no RNG)
   G.enemies.push(e); return e;
 }
 function spawnBoss(){ const e=spawnEnemy("golem",(world.caves.x+world.caves.w/2)*TS,(world.caves.y+5)*TS); e.isBoss=true; }
@@ -170,20 +175,62 @@ function onNeutralKill(){ const s=G.skull; s.kills++; s.killT=90;
   if(s.kills>=2 && s.level<3){ s.level=3; s.t=110; toast(STR.redSkull); } else if(s.level<2){ s.level=2; s.t=80; } }
 
 // ------------------------------ spells ---------------------------------
+// castSpell(0) is the basic attack (per-class ATK). Slots 1-3 read SPELLS[cls][slot-1]
+// and run through resolveSpell — there is ZERO per-class branching here, so a new
+// class is purely a data row in config.js. Each slot has its own MP cost + cooldown.
 export function castSpell(i){
   const h=G.hero; if(h.rolling) return;
   if(i===0){ heroAttack(); return; }
-  const cost=[0,10,14,22][i];
-  if(h.mp<cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
-  if(h.atkCD>0) return; h.atkCD=0.5;
-  if(i===1){ h.mp-=cost; audio.sfx.fire(); const[a,b]=[Math.cos(h.facing),Math.sin(h.facing)];
-    G.projectiles.push({x:h.x+a*20,y:h.y+b*20,vx:a*320,vy:b*320,life:1.4,dmg:22,kind:"fire"}); }
-  else if(i===2){ h.mp-=cost; audio.sfx.heal(); h.hp=Math.min(h.maxHp,h.hp+44); floater(h.x,h.y-30,"+44","#5fd66a"); for(let k=0;k<6;k++) addFx("heal",h.x+frr(-14,14),h.y+frr(-18,6)); }
-  else if(i===3){ h.mp-=cost; audio.sfx.rune(); h.atkCD=0.7; shakeAdd(4);
-    const range=96, dmg=38;
-    for(const e of G.enemies){ const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>range+e.tpl.size) continue;
-      const ang=Math.atan2(e.y-h.y,e.x-h.x); if(Math.abs(angDiff(ang,h.facing))<Math.PI*0.5){ hitEnemy(e,dmg,h.facing); } }
-    addFx("rune",h.x,h.y,{ang:h.facing}); }
+  const list=SPELLS[h.cls||"warrior"]; const sp=list && list[i-1];
+  if(!sp) return;
+  if(h.spellCD[i]>0) return;                                   // per-slot cooldown gate
+  if(h.mp<sp.cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
+  h.mp-=sp.cost; h.spellCD[i]=sp.cd; h.spellCDmax[i]=sp.cd;
+  if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
+  resolveSpell(h,sp);
+}
+// Generic effect resolver: dispatch by spell `type`. New types are added here once
+// and become available to every class through data. No spell knows its class.
+function resolveSpell(h,sp){
+  const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
+  switch(sp.type){
+    case "proj":
+      G.projectiles.push({x:h.x+ca*20,y:h.y-2+sa*20,vx:ca*sp.spd,vy:sa*sp.spd,life:sp.life||1.4,dmg:sp.dmg,kind:sp.kind,ang:a, aoe:sp.aoe||0, burstFx:sp.fx, col:sp.col});
+      shakeAdd(sp.aoe?3:2.4); break;
+    case "cone":
+      for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>sp.range+e.tpl.size) continue;
+        const ang=Math.atan2(e.y-h.y,e.x-h.x); if(Math.abs(angDiff(ang,a))<(sp.arc||Math.PI*0.6)/2){
+          hitEnemy(e,sp.dmg,a); if(sp.knock){ e.knockX+=ca*e.tpl.knock*sp.knock; e.knockY+=sa*e.tpl.knock*sp.knock; } if(sp.stun) e.stun=Math.max(e.stun,sp.stun); } }
+      addFx(sp.fx||"conecast",h.x+ca*20,h.y-2+sa*20,{ang:a,range:sp.range,col:sp.col,life:0.3}); shakeAdd(5); break;
+    case "nova":
+      for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d<=sp.range+e.tpl.size){
+        hitEnemy(e,sp.dmg,Math.atan2(e.y-h.y,e.x-h.x));
+        if(sp.stun) e.stun=Math.max(e.stun,sp.stun);
+        if(sp.slow){ e.slow=sp.slow; e.slowT=sp.slowDur||2; } } }
+      if(sp.heal){ h.hp=Math.min(h.maxHp,h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a"); }
+      addFx(sp.fx||"novacast",h.x,h.y,{r:sp.range,col:sp.col,style:sp.style,life:0.5}); shakeAdd(6); break;
+    case "heal":
+      h.hp=Math.min(h.maxHp,h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a");
+      addFx(sp.fx||"healburst",h.x,h.y,{col:sp.col,life:0.5}); for(let k=0;k<6;k++) addFx("heal",h.x+frr(-14,14),h.y+frr(-18,6)); break;
+    case "hot":
+      h.hotT=sp.dur; h.hotRate=sp.heal; floater(h.x,h.y-30,STR.spellRegen,sp.col||"#7bd44a");
+      addFx(sp.fx||"buffaura",h.x,h.y,{col:sp.col,life:0.5}); break;
+    case "buff":
+      applyBuff(h,sp.stat,sp.amt,sp.dur); floater(h.x,h.y-30, sp.stat==="dmg"?STR.spellAtkUp:STR.spellDefUp, sp.col||"#ffd24d");
+      addFx(sp.fx||"buffaura",h.x,h.y,{col:sp.col,life:0.5}); break;
+    case "dash":
+      h.rolling=true; h.rollT=0.20; h.iframe=0.22; h.rollCD=Math.max(h.rollCD,0.3); h.rollX=ca; h.rollY=sa; h.moved=false;
+      for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>sp.range+e.tpl.size) continue;
+        const ang=Math.atan2(e.y-h.y,e.x-h.x); if(Math.abs(angDiff(ang,a))<0.9){ hitEnemy(e,sp.dmg,a); } }
+      addFx(sp.fx||"charge",h.x,h.y,{ang:a,col:sp.col,life:0.3}); shakeAdd(5); break;
+  }
+}
+// Timed stat buff: dmgBonus/defBonus are the sinks read by equippedDmg/Def, so a
+// buff changes real combat numbers. Recasting refreshes (removes the old amount
+// first) so the bonus never drifts upward across overlapping casts.
+function applyBuff(h,stat,amt,dur){
+  if(stat==="def"){ if(h.defBuffT>0) h.defBonus-=h.defBuffAmt; h.defBonus+=amt; h.defBuffAmt=amt; h.defBuffT=dur; }
+  else { if(h.dmgBuffT>0) h.dmgBonus-=h.dmgBuffAmt; h.dmgBonus+=amt; h.dmgBuffAmt=amt; h.dmgBuffT=dur; }
 }
 
 // ----------------------------- pickups ---------------------------------
@@ -322,6 +369,11 @@ export function update(dtMs){
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
   h._pdCD=Math.max(0,(h._pdCD||0)-dt); // perfect-dodge reward cooldown
+  // spell cooldowns + timed buffs (in-place; no per-frame allocation)
+  for(let s=1;s<4;s++){ if(h.spellCD[s]>0) h.spellCD[s]=Math.max(0,h.spellCD[s]-dt); }
+  if(h.dmgBuffT>0){ h.dmgBuffT-=dt; if(h.dmgBuffT<=0){ h.dmgBonus-=h.dmgBuffAmt; h.dmgBuffAmt=0; } }
+  if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
+  if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(h.maxHp,h.hp+h.hotRate*dt); if(h.hotT<=0) h.hotRate=0; }
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
   if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12);
@@ -365,10 +417,16 @@ export function update(dtMs){
 function updateEnemies(dt){ const h=G.hero;
   for(const e of G.enemies){
     e.hurtFlash=Math.max(0,e.hurtFlash-dt);
+    if(e.slowT>0) e.slowT-=dt;
+    // stun (shield bash / vines root): freeze the AI, only let knockback ride out
+    if(e.stun>0){ e.stun-=dt; e.animState="idle"; e.animT=0;
+      if(Math.abs(e.knockX)>1||Math.abs(e.knockY)>1){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*0.6); e.knockX*=0.82; e.knockY*=0.82; }
+      continue; }
     { let ns=(e.state==="windup"||e.state==="strike")?"attack":(e.state==="chase")?"walk":"idle";
       if(ns!==e.animState){ e.animState=ns; e.animT=0; } else e.animT=(e.animT||0)+dt; }
     // knockback decay
     if(Math.abs(e.knockX)>1||Math.abs(e.knockY)>1){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*0.6); e.knockX*=0.82; e.knockY*=0.82; }
+    const espd=e.tpl.spd*((e.slowT>0)?(e.slow||1):1); // frost slow scales chase speed
     const d=Math.hypot(h.x-e.x,h.y-e.y);
     const aggro=e.hostile?300:e.tpl.aggro;
     if(e.tpl.neutral && !e.hostile){ // wander only
@@ -380,7 +438,7 @@ function updateEnemies(dt){ const h=G.hero;
     } else if(e.state==="chase"){
       if(d>aggro*1.4 && !e.hostile){ e.state="idle"; }
       else if(d<=e.tpl.range){ e.state="windup"; e.st=e.tpl.windup; e.hitDone=false; }
-      else { const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a; moveEnt(e,Math.cos(a)*e.tpl.spd*dt,Math.sin(a)*e.tpl.spd*dt,e.tpl.size*0.6); }
+      else { const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a; moveEnt(e,Math.cos(a)*espd*dt,Math.sin(a)*espd*dt,e.tpl.size*0.6); }
     } else if(e.state==="windup"){
       e.st-=dt; e.facing=Math.atan2(h.y-e.y,h.x-e.x);
       if(e.st<=0){ e.state="strike"; e.st=0.12;
@@ -418,8 +476,9 @@ function updateProjectiles(dt){ const h=G.hero;
     if(solidBlocked(p.x,p.y,4)){ p.life=0; }
     if(p.enemy){ if(dist2(p.x,p.y,h.x,h.y)<18*18){ damageHero(p.dmg,Math.atan2(p.vy,p.vx)); p.life=0; } }
     else { for(const e of G.enemies){ if(e.dead) continue; if(dist2(p.x,p.y,e.x,e.y)<(e.tpl.size+7)*(e.tpl.size+7)){ const ha=Math.atan2(p.vy,p.vx); hitEnemy(e,p.dmg,ha);
-      if(p.kind==="fire"||p.kind==="orb"){ addFx(p.kind==="orb"?"orbburst":"flame",p.x,p.y,{life:0.45}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<46*46) hitEnemy(e2,p.dmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); } }
-      else addFx("impact",p.x,p.y,{ang:ha,life:0.3});
+      const aoe=p.aoe||((p.kind==="fire"||p.kind==="orb")?46:0); // basic fire/orb keep their legacy splash; spells carry their own aoe
+      if(aoe){ addFx(p.burstFx||(p.kind==="orb"?"orbburst":"flame"),p.x,p.y,{life:0.45,col:p.col,r:aoe}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<aoe*aoe) hitEnemy(e2,p.dmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); } }
+      else addFx(p.burstFx||"impact",p.x,p.y,{ang:ha,col:p.col,life:0.3});
       shakeAdd(3); p.life=0; break; } } }
     if(p.life<=0){ if(p.kind==="fire") addFx("flame",p.x,p.y); else if(p.kind==="orb") addFx("orbburst",p.x,p.y,{life:0.45}); }
   }
@@ -443,6 +502,36 @@ export const dev = {
     if(type==="golem"&&e) e.isBoss=true; e.hp=0; killEnemy(e);
     return G.drops.slice(before).map(d=>({ kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat })); },
   pickup(){ tryPickup(); return G.hero.bag.length; },
+  // --- spell-identity harness hooks (tools/spells.mjs, CAS-52); additive ---
+  setClass(cls){ if(SPELLS[cls]){ G.hero.cls=cls; } return G.hero.cls; },
+  cast(i){ castSpell(i); return { mp:Math.round(G.hero.mp), cd:G.hero.spellCD.slice() }; },
+  // Probe one class: cast each of slots 1-3 at a fresh dummy enemy in front and
+  // return the OBSERVED effect of each, so the headless test can assert all 15
+  // spells are mechanically distinguishable (not just differently labelled).
+  spellProbe(cls){
+    if(!SPELLS[cls]) return null; const out=[]; const h=G.hero;
+    for(let slot=1; slot<=3; slot++){
+      h.cls=cls; h.maxMp=200; h.mp=200; h.maxHp=400; h.hp=1; h.facing=0; h.rolling=false;
+      h.dmgBonus=0; h.defBonus=0; h.dmgBuffT=0; h.dmgBuffAmt=0; h.defBuffT=0; h.defBuffAmt=0; h.hotT=0; h.hotRate=0;
+      h.spellCD=[0,0,0,0]; h.spellCDmax=[0,0,0,0];
+      G.enemies.length=0; G.projectiles.length=0; G.fx.length=0;
+      const e=spawnEnemy("orc", h.x+40, h.y); e.maxHp=e.hp=600;
+      const e0=e.hp, h0=h.hp;
+      castSpell(slot);
+      const sp=SPELLS[cls][slot-1]; const pr=G.projectiles[G.projectiles.length-1];
+      out.push({ slot, id:sp.id, type:sp.type, cost:sp.cost,
+        mpSpent: 200-Math.round(h.mp),
+        enemyDmg: Math.round(e0-e.hp),
+        heroHeal: Math.round(h.hp-h0),
+        projSpawned: G.projectiles.length,
+        projKind: pr?pr.kind:null, projAoe: pr?(pr.aoe||0):0, projSpd: pr?Math.round(Math.hypot(pr.vx,pr.vy)):0, projDmg: pr?pr.dmg:0,
+        dmgBuff: h.dmgBonus, defBuff: h.defBonus,
+        enemyStun: +(e.stun||0).toFixed(2), enemySlowT: +(e.slowT||0).toFixed(2),
+        hotActive: h.hotT>0?1:0 });
+    }
+    G.enemies.length=0; G.projectiles.length=0; G.fx.length=0;
+    return out;
+  },
   bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b) })); },
   equipBag(i){ return equipBag(i); },
   openInv(){ G.scene="inventory"; return G.scene; },

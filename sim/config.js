@@ -24,6 +24,42 @@ export const ATK = {
   mage:   {type:"proj",  cd:0.50, dmgMul:1.15, kind:"orb",   spd:300, fx:"orb"},
 };
 
+// per-class spells for slots 2-4 (cast indices 1,2,3) — the SECOND class-identity
+// surface after ATK. Pure data: the generic resolver in sim/sim.js executes each
+// spell by its `type`, so adding a class is adding a row here, never a code branch.
+// Each entry carries its own MP `cost` + `cd` (independent per-slot cooldown), a
+// `col` (spell-bar tint + fx colour) and an `fx` (renderer effect name). All
+// effects run on the sim RNG only — determinism / Stage-2 server-authority ready.
+//   types: proj(spd,kind,aoe?) | cone(range,arc,knock?,stun?) | nova(range,heal?,stun?,slow?,slowDur?)
+//          | heal(heal) | hot(heal/s,dur) | buff(stat:"dmg"|"def",amt,dur) | dash(range,dmg)
+export const SPELLS = {
+  warrior: [
+    {id:"shieldbash", type:"cone", cost:8,  cd:3.0, dmg:20, range:74, arc:Math.PI*0.70, stun:0.9, knock:1.7, col:"#dfe6f0", fx:"conecast", sfx:"sword"},
+    {id:"warcry",     type:"buff", cost:12, cd:9.0, stat:"dmg", amt:9,  dur:6.0, col:"#ff8a3a", fx:"buffaura", sfx:"rune"},
+    {id:"charge",     type:"dash", cost:14, cd:5.0, dmg:30, range:64, col:"#e8d28a", fx:"charge", sfx:"roll"},
+  ],
+  paladin: [
+    {id:"consecration", type:"nova", cost:14, cd:4.0, dmg:26, range:104, heal:10, col:"#ffe39a", fx:"holynova", sfx:"rune"},
+    {id:"divineshield", type:"buff", cost:12, cd:10.0, stat:"def", amt:11, dur:6.0, col:"#ffe39a", fx:"buffaura", sfx:"heal"},
+    {id:"judgment",     type:"proj", cost:16, cd:3.0, dmg:46, spd:480, kind:"judgment", col:"#ffd24d", fx:"spellburst", sfx:"fire"},
+  ],
+  mage: [
+    {id:"fireball", type:"proj", cost:10, cd:1.4, dmg:24, spd:320, kind:"fire", aoe:48, col:"#ff7a3a", fx:"flame", sfx:"fire"},
+    {id:"frost",    type:"nova", cost:14, cd:3.5, dmg:16, range:110, slow:0.45, slowDur:2.5, col:"#7fd6ff", fx:"novacast", style:"crystal", sfx:"rune"},
+    {id:"voltbolt", type:"proj", cost:18, cd:2.2, dmg:40, spd:620, kind:"voltbolt", col:"#9be7ff", fx:"spellburst", sfx:"fire"},
+  ],
+  druid: [
+    {id:"vines",      type:"nova", cost:12, cd:4.0, dmg:14, range:92,  stun:1.4, col:"#8fd47a", fx:"novacast", style:"spike", sfx:"rune"},
+    {id:"regen",      type:"hot",  cost:12, cd:8.0, heal:11, dur:5.0, col:"#7bd44a", fx:"buffaura", sfx:"heal"},
+    {id:"thornstorm", type:"nova", cost:20, cd:5.0, dmg:34, range:104, col:"#5fae4a", fx:"novacast", style:"spike", sfx:"rune"},
+  ],
+  priest: [
+    {id:"greaterheal", type:"heal", cost:16, cd:5.0, heal:60, col:"#7fffa8", fx:"healburst", sfx:"heal"},
+    {id:"powerword",   type:"buff", cost:12, cd:9.0, stat:"def", amt:8, dur:7.0, col:"#bfeaff", fx:"buffaura", sfx:"heal"},
+    {id:"smite",       type:"proj", cost:14, cd:2.4, dmg:38, spd:460, kind:"holybolt", col:"#fff0b0", fx:"spellburst", sfx:"fire"},
+  ],
+};
+
 // gearChance = per-kill probability this enemy drops a gear instance (rolled on
 // the sim RNG in killEnemy). The drop's tier window is the kill ZONE (ZONE_LOOT
 // in sim/gear.js); the golem boss ignores chance and guarantees a rare+ drop.

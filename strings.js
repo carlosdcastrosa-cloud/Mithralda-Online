@@ -14,9 +14,21 @@ export const STR = {
   questLabel: (n) => "Misión: Limpia el Bosque (lobos " + n + "/8)",
   questDone: "Misión completada: ¡Bosque limpio!",
 
-  spells: ["GOLPE", "LLAMARADA", "SANAR", "ONDA RÚNICA"],
+  spells: ["GOLPE", "LLAMARADA", "SANAR", "ONDA RÚNICA"], // generic fallback labels
   // per-class name for the basic-attack slot (slot 0) — surfaces class identity on the HUD
   spellSlot0: { warrior: "CORTE", paladin: "FLECHA", mage: "ORBE", druid: "ESPINAS", priest: "NOVA" },
+  // per-class names for spell slots 2-4 (cast indices 1-3). Order matches SPELLS[cls].
+  // Mechanics are data in sim/config.js; these are just the player-visible labels.
+  spellNames: {
+    warrior: ["GOLPE ESCUDO", "GRITO", "EMBESTIDA"],
+    paladin: ["CONSAGRAR", "ESC. DIVINO", "JUICIO"],
+    mage:    ["BOLA FUEGO", "ESCARCHA", "RAYO"],
+    druid:   ["ENREDADERAS", "REGENERAR", "T. ESPINAS"],
+    priest:  ["SANACIÓN", "PAL. PODER", "CASTIGO"],
+  },
+  spellAtkUp: "¡DAÑO+!",
+  spellDefUp: "¡DEFENSA+!",
+  spellRegen: "REGEN",
 
   // Class-selection screen. Class identity (names, roles, attack flavour) is data,
   // not code — designers edit it here without touching game logic.

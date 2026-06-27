@@ -50,7 +50,11 @@ export function createGame(canvas, ctx, getView){
       pickup:()=>simDev.pickup(),
       bag:()=>simDev.bag(),
       equipBag:(i)=>simDev.equipBag(i),
-      openInv:()=>simDev.openInv() };
+      openInv:()=>simDev.openInv(),
+      // spell-identity contract consumed by tools/spells.mjs (CAS-52) — additive
+      setClass:(cls)=>simDev.setClass(cls),
+      cast:(i)=>simDev.cast(i),
+      spellProbe:(cls)=>simDev.spellProbe(cls) };
   }
   syncMenuDom(); positionNameInput();
 
