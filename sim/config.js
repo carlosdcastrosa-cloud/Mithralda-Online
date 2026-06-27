@@ -9,6 +9,37 @@ export const MAP_W = 110, MAP_H = 110;
 // terrain tile ids
 export const T_GRASS = 0, T_DIRT = 1, T_STONE = 2, T_COBBLE = 3, T_SAND = 4, T_WATER = 5;
 
+// CAS-80: data-driven town tilemap — Puerto Solana reads as a small hub built from the
+// real Ancient Ruins tiles. One glyph per 32px cell, stamped over the 18×18 town rect
+// in sim/world.js; TOWN_LEGEND maps each glyph to a terrain tile id, and each tile id
+// is painted by its ERW atlas in render/render.js (flagstone for the plaza, grass for
+// the verges). Designers reshape the town by editing these rows alone — no code change;
+// collision stays grid-anchored (water/walls block via solidBlocked). Layout: a rounded
+// flagstone plaza (P) ringed by grass verges (g), with dirt roads (.) punching out to
+// the four hunt-zone exits — N caves / S arena / E forest / W ruins — at local cols/rows
+// 8-9 so they line up with the world's approach paths. Width must equal town.w (18).
+export const TOWN_LEGEND = { g:T_GRASS, P:T_COBBLE, ".":T_DIRT, "~":T_WATER };
+export const TOWN_MAP = [
+  "gggggggg..gggggggg",
+  "gggggggg..gggggggg",
+  "gggggggg..gggggggg",
+  "gggggPPPPPPPPggggg",
+  "ggggPPPPPPPPPPgggg",
+  "gggPPPPPPPPPPPPggg",
+  "gggPPPPPPPPPPPPggg",
+  "gggPPPPPPPPPPPPggg",
+  "...PPPPPPPPPPPP...",
+  "...PPPPPPPPPPPP...",
+  "gggPPPPPPPPPPPPggg",
+  "gggPPPPPPPPPPPPggg",
+  "gggPPPPPPPPPPPPggg",
+  "ggggPPPPPPPPPPgggg",
+  "gggggPPPPPPPPggggg",
+  "gggggggg..gggggggg",
+  "gggggggg..gggggggg",
+  "gggggggg..gggggggg",
+];
+
 export const CFG = {
   heroSpeed: 152, rollSpeed: 430, rollTime: 0.20, rollIFrame: 0.34, rollCD: 0.62,
   atkRange: 50, atkArc: Math.PI * 0.62, atkCD: 0.42, atkActive: 0.16,

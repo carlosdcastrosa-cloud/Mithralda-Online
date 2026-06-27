@@ -5,8 +5,17 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, TOWN_MAP, TOWN_LEGEND } from "./config.js";
 import { inRect } from "./math.js";
+
+// CAS-80: resolve a town-local cell (lx,ly within the 18×18 town rect) to its terrain
+// tile id from the data-driven TOWN_MAP. Out-of-bounds (defensive) falls back to plaza
+// flagstone so a mis-sized map can never punch a hole in the town floor.
+function townTile(lx, ly){
+  const row = TOWN_MAP[ly];
+  const t = row ? TOWN_LEGEND[row[lx]] : undefined;
+  return t === undefined ? T_COBBLE : t;
+}
 
 export function buildWorld(rng){
   const { srand, seed, rr, ri } = rng;
@@ -20,7 +29,7 @@ export function buildWorld(rng){
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
     let t=T_GRASS;
     if(inRect(x,y,caves)) t=T_STONE;
-    else if(inRect(x,y,town)) t=T_COBBLE;
+    else if(inRect(x,y,town)) t=townTile(x-town.x, y-town.y);  // CAS-80: data-driven hub tilemap
     else if(inRect(x,y,arena)) t=T_SAND;
     else if(inRect(x,y,forest)) t=T_GRASS;
     // dirt paths radiating from town center
