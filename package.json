@@ -22,7 +22,8 @@
     "verify": "node tools/determinism.mjs && node tools/smoke.mjs",
     "test": "node tools/determinism.mjs && node tools/smoke.mjs",
     "erw": "python3 tools/erw_pipeline.py",
-    "hero-anim": "node tools/slice-hero-anim.mjs"
+    "hero-anim": "node tools/slice-hero-anim.mjs",
+    "class-heroes": "node tools/slice-class-heroes.mjs"
   },
   "keywords": [],
   "author": "",

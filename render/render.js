@@ -51,6 +51,29 @@ const HERO_STRIPS={
   attack:{img:"hero_attack", fc:4},
   roll:  {img:"hero_roll",   fc:4},
 };
+// CAS-98: per-class hero. CAS-94 produced 4 Higgsfield class characters
+// (warrior/mage/archer/rogue) derived from the same hooded main character, each
+// delivered as a CLEAN ML-cutout transparent PNG (assets/erw/hero/gen/classes/
+// <cls>_idle.png). tools/slice-class-heroes.mjs crops them to one shared
+// CLASS_FW×CLASS_FH cell (feet on row CLASS_FOOT, centroid at col CLASS_AX) per
+// assets/erw/hero/classes/classes.json. We draw the SELECTED class + the CAS-82
+// procedural movement feel (breathing/hop/squash/lunge from drawHero), so the
+// player sees their OWN class actually moving — never static. Scale 0.32 puts the
+// ~160px figure at ~51px ≈ 1.6 tiles — the CAS-92 final main-character size.
+// NOTE: the CAS-94 idle MOTION loops are MP4s on a grey studio backdrop (gray-on-
+// gray hooded figure); local keying leaves a halo, so true keyframed loop anim
+// awaits bg-free per-class animation SHEETS from the Art Director — then they slice
+// into a CLASS_FC>1 strip via the same path as the main hero (slice-hero-anim.mjs)
+// and this draw already supports it (fi column). All time-driven → Stage-2 safe.
+// Falls back to the hooded anim if art is absent.
+const CLASS_FW=105, CLASS_FH=164, CLASS_AX=43, CLASS_FOOT=162, CLASS_FC=1;
+const CLASS_ANIM_SCALE=0.32;
+// Map each playable class (warrior/paladin/mage/druid/priest) to a CAS-94 class
+// art set. warrior/mage match 1:1; paladin (armoured melee)→warrior, druid
+// (nature, green silhouette)→archer, priest (robed caster)→mage. Thematic
+// fallbacks pending dedicated paladin/druid/priest art — flagged on CAS-97/CAS-98.
+const CLASS_HERO_ART={ warrior:"warrior", paladin:"warrior", mage:"mage", druid:"archer", priest:"mage" };
+const CLASS_HERO_KEYS=["warrior","mage","archer","rogue"];
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 
@@ -59,6 +82,7 @@ export function createRenderer(ctx){
   const rrng = createRNG();            // presentation-only RNG (isolated from sim)
   loadImg("hero_erw", ERW_HERO_SRC);   // CAS-82: hooded pose (now the load-time fallback)
   for(const k in HERO_STRIPS) loadImg(HERO_STRIPS[k].img, `./assets/erw/hero/${HERO_STRIPS[k].img}.png`); // CAS-92 anim strips
+  for(const k of CLASS_HERO_KEYS) loadImg("clshero_"+k, `./assets/erw/hero/classes/${k}.png`); // CAS-98 per-class clean cutouts
   // offscreen buffer for the hero hurt-flash tint (only touched when flashing)
   const _heroBuf=(typeof document!=="undefined")?document.createElement("canvas"):null;
   const _heroBx=_heroBuf?_heroBuf.getContext("2d"):null;
@@ -188,7 +212,26 @@ export function createRenderer(ctx){
     if(h.iframe>0 && !h.dead && Math.floor(G.t*20)%2===0) ctx.globalAlpha=0.45;
     const flip=Math.cos(ang)<0, tint=h.hurtFlash>0?"#ffffff":null;
     const bob=(state==="idle")?Math.sin(G.t*2)*1.2:0;   // gentle idle breathing only
-    const ok=drawHeroAnim(def.img,fi,h.x,feet,flip,tint,bob)
+    // CAS-97: procedural movement feel for the single-pose class hero — same
+    // hop/squash/lunge/breathing as the CAS-82 hooded hero. Deterministic, derived
+    // from sim time / animT (no render RNG, no per-frame allocation) → Stage-2 safe.
+    const phase=(h.animT||0)*(h.rolling?16:9);
+    let sqX=1, sqY=1, bobUp=0, hx=h.x, hfeet=feet;
+    if(state==="walk"||state==="roll"){
+      bobUp=Math.abs(Math.sin(phase))*3;            // footfall hops
+      const land=Math.max(0,-Math.sin(phase*2));    // squash on landing
+      sqX=1+0.06*land; sqY=1-0.06*land;
+    } else if(state==="attack"){
+      const prog=clamp((h.animT||0)/Math.max(0.15,CFG.atkCD),0,1), pop=Math.sin(prog*Math.PI);
+      hx=h.x+Math.cos(h.atkAng)*pop*5; hfeet=feet+Math.sin(h.atkAng)*pop*2.5;  // lunge
+      sqY=1+0.09*pop; sqX=1-0.05*pop;               // stretch into the strike
+    } else { bobUp=Math.sin(G.t*2)*0.6; sqY=1+0.012*Math.sin(G.t*2); }  // idle breathing
+    // CAS-98: cycle the class idle-loop frames continuously (time-driven, always
+    // moving), a touch faster while walking/rolling so the loop reads as motion.
+    const cfps=(state==="walk")?7:(state==="roll")?11:(state==="attack")?9:2.6;
+    const cfi=Math.floor(G.t*cfps)%CLASS_FC;
+    const ok=drawHeroClass(CLASS_HERO_ART[cls],cfi,hx,hfeet,flip,sqX,sqY,bobUp,tint) // CAS-98 per-class animated loop
+          || drawHeroAnim(def.img,fi,h.x,feet,flip,tint,bob)                     // hooded anim fallback
           || drawHeroErw(h.x,feet,flip,1,1,0,tint)       // hooded pose until strips load
           || drawClassFrame(ctx,cls,(state==="roll")?"walk":state,dir4FromAngle(ang),fi,h.x,feet,HERO_SPRITE_SCALE,tint);
     ctx.globalAlpha=1;
@@ -213,6 +256,29 @@ export function createRenderer(ctx){
     ctx.save(); ctx.imageSmoothingEnabled=false;
     if(flip){ const dx=hx-(HERO_FW-HERO_AX)*S; ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,HERO_FW,HERO_FH,0,0,dw,dh); }
     else { const dx=hx-HERO_AX*S; ctx.drawImage(src,ssx,ssy,HERO_FW,HERO_FH,dx,dy,dw,dh); }
+    ctx.restore(); return true;
+  }
+  // CAS-98: draw frame `fi` of the selected class's animated idle loop from its
+  // shared CLASS_FW×CLASS_FH cell (column fi*CLASS_FW), bottom-anchored at
+  // (cx,feet) on the CLASS_FOOT baseline, centred on the lower-body centroid
+  // (CLASS_AX), nearest-neighbor, with squash (sqX/sqY) + hop (bobUp) applied and
+  // an optional silhouette tint (hurt flash). Scaled by CLASS_ANIM_SCALE → ~50px
+  // (CAS-92 final size). Returns false until the strip loads (or for a class with
+  // no art), so drawHero falls back to the hooded anim.
+  function drawHeroClass(art,fi,cx,feet,flip,sqX,sqY,bobUp,tint){
+    const img=art?IMG["clshero_"+art]:null; if(!img||!img.complete||!img.naturalWidth) return false;
+    const S=CLASS_ANIM_SCALE, dw=CLASS_FW*S*sqX, dh=CLASS_FH*S*sqY, sx=(fi||0)*CLASS_FW;
+    const dx=cx-CLASS_AX*S*sqX, dy=feet-CLASS_FOOT*S*sqY-(bobUp||0);
+    let src=img, ssx=sx, ssy=0;
+    if(tint && _heroBx){ _heroBuf.width=CLASS_FW; _heroBuf.height=CLASS_FH;
+      _heroBx.clearRect(0,0,CLASS_FW,CLASS_FH); _heroBx.imageSmoothingEnabled=false;
+      _heroBx.globalCompositeOperation="source-over"; _heroBx.drawImage(img,sx,0,CLASS_FW,CLASS_FH,0,0,CLASS_FW,CLASS_FH);
+      _heroBx.globalCompositeOperation="source-atop"; _heroBx.globalAlpha=0.85; _heroBx.fillStyle=tint; _heroBx.fillRect(0,0,CLASS_FW,CLASS_FH);
+      _heroBx.globalAlpha=1; _heroBx.globalCompositeOperation="source-over";
+      src=_heroBuf; ssx=0; ssy=0; }
+    ctx.save(); ctx.imageSmoothingEnabled=false;
+    if(flip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,CLASS_FW,CLASS_FH,0,0,dw,dh); }
+    else ctx.drawImage(src,ssx,ssy,CLASS_FW,CLASS_FH,dx,dy,dw,dh);
     ctx.restore(); return true;
   }
   function redden(pal){ const o={}; for(const k in pal) o[k]="#ff9a8a"; o.o=pal.o; return o; }
@@ -633,8 +699,19 @@ export function createRenderer(ctx){
       ctx.fillStyle=sel?"#2b313d":COL.panel; ctx.fillRect(rx,ry,cw,ch);
       ctx.strokeStyle=sel?COL.textGold:COL.panelB; ctx.lineWidth=sel?3:2; ctx.strokeRect(rx,ry,cw,ch);
       ctx.fillStyle=META[cls][2]; ctx.fillRect(rx+cw/2-14,ry+10,28,4);
-      const sc=Math.max(2,Math.min(4,Math.floor((cw-10)/22)));
-      drawClassFrame(ctx,cls,"idle","down",0, rx+cw/2, ry+ch*0.66, sc, null);
+      // CAS-98: preview the actual class art you'll play (animated loop, frame
+      // cycles on time so the card breathes), fit to the card; fall back to the
+      // old procedural class sprite until the strip loads.
+      const art=CLASS_HERO_ART[cls], aimg=art?IMG["clshero_"+art]:null, feetY=ry+ch*0.74;
+      if(aimg&&aimg.complete&&aimg.naturalWidth){
+        const fitH=ch*0.52, fs=fitH/CLASS_FH, dw=CLASS_FW*fs, fi=Math.floor(G.t*2.6)%CLASS_FC;
+        ctx.save(); ctx.imageSmoothingEnabled=false;
+        ctx.drawImage(aimg, fi*CLASS_FW,0,CLASS_FW,CLASS_FH, rx+cw/2-CLASS_AX*fs, feetY-CLASS_FOOT*fs, dw, CLASS_FH*fs);
+        ctx.restore();
+      } else {
+        const sc=Math.max(2,Math.min(4,Math.floor((cw-10)/22)));
+        drawClassFrame(ctx,cls,"idle","down",0, rx+cw/2, ry+ch*0.66, sc, null);
+      }
       ctx.fillStyle=sel?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(META[cls][0],rx+cw/2,ry+ch-26);
       ctx.fillStyle="#9aa0aa"; ctx.font="10px 'Courier New'"; ctx.fillText(META[cls][1],rx+cw/2,ry+ch-12);
       ctx.fillStyle=COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.fillText(String(i+1),rx+10,ry+18);
