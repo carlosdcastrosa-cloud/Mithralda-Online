@@ -1,0 +1,25 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# Node / tooling
+node_modules/
+npm-debug.log*
+
+# Python sprite tooling (tools-sprites/)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build / deploy artifacts
+dist/
+*.zip
+deploy/
+
+# Local dev server logs
+*.log

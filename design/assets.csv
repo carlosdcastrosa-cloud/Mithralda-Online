@@ -1,0 +1,34 @@
+id,role,type,description,size_ratio,style_line_ref,source
+thumbnail,marketplace_cover_and_og,image,hero with sword facing a snarling wolf-beast in a dark pine forest with the bold title text MITHRALDA integrated at top,16:9,STYLE_FORMULA,generate
+favicon,marketplace_icon_and_site_favicon,image,a crossed iron sword and round wooden shield emblem,1:1,STYLE_FORMULA,generate
+tile_grass,ground_tile_forest_and_field,procedural,dark mossy grass with scattered stones and twigs,32px,STYLE_FORMULA,procedural
+tile_dirt,ground_tile_path,procedural,packed brown dirt path,32px,STYLE_FORMULA,procedural
+tile_stone,ground_tile_cave_floor,procedural,cold grey cracked cave flagstone,32px,STYLE_FORMULA,procedural
+tile_cobble,ground_tile_town,procedural,worn town cobblestone in teal-grey,32px,STYLE_FORMULA,procedural
+tile_sand,ground_tile_arena,procedural,blood-stained pit sand for the arena,32px,STYLE_FORMULA,procedural
+tile_water,fountain_and_water,procedural,dark rippling water with light glints,32px,STYLE_FORMULA,procedural
+hero,player_sprite_4dir,procedural,armored adventurer in steel and bone tones with sword,40px,STYLE_FORMULA,procedural
+enemy_wolf,enemy_sprite,procedural,grey forest wolf with glowing eyes,36px,STYLE_FORMULA,procedural
+enemy_rat,enemy_sprite,procedural,giant brown rat,30px,STYLE_FORMULA,procedural
+enemy_skeleton,enemy_sprite,procedural,bone skeleton warrior with a chipped blade,40px,STYLE_FORMULA,procedural
+enemy_orc,enemy_sprite,procedural,green hulking orc with a club,44px,STYLE_FORMULA,procedural
+boss_golem,boss_sprite,procedural,ancient stone golem with glowing orange runes,72px,STYLE_FORMULA,procedural
+npc_tendero,npc_sprite,procedural,shopkeeper Bram in an apron behind a stall,40px,STYLE_FORMULA,procedural
+npc_guardia,npc_sprite,procedural,town guard Rolf with helmet and spear,40px,STYLE_FORMULA,procedural
+npc_curandera,npc_sprite,procedural,healer Lina in a green hooded robe,40px,STYLE_FORMULA,procedural
+fx_spark,melee_hit_spark,procedural,white impact spark burst,variable,STYLE_FORMULA,procedural
+fx_flame,llamarada_projectile_and_burst,procedural,orange pixel fireball and explosion,variable,STYLE_FORMULA,procedural
+fx_heal,sanar_effect,procedural,green ascending heal sparkle over hero,variable,STYLE_FORMULA,procedural
+fx_rune,onda_runica_cone,procedural,blue rune wave arc in front of hero,variable,STYLE_FORMULA,procedural
+fx_blood,cartoon_blood_splat,procedural,cartoonish pixel blood splatter,variable,STYLE_FORMULA,procedural
+loot_coin,gold_pickup,procedural,spinning gold coin,16px,STYLE_FORMULA,procedural
+loot_potion_hp,health_potion,procedural,red potion flask,20px,STYLE_FORMULA,procedural
+loot_potion_mp,mana_potion,procedural,blue potion flask,20px,STYLE_FORMULA,procedural
+loot_fragment,vitality_fragment,procedural,glowing teal crystal shard,18px,STYLE_FORMULA,procedural
+deco_tree,forest_decoration,procedural,dark pine tree,64px,STYLE_FORMULA,procedural
+deco_rock,decoration,procedural,grey boulder,40px,STYLE_FORMULA,procedural
+deco_chest,interactive_chest,procedural,wooden treasure chest with iron bands,32px,STYLE_FORMULA,procedural
+ui_frame,panel_and_dialog_frame,procedural,worn wood-and-stone bordered panel,variable,STYLE_FORMULA,procedural
+audio_music_town,calm_town_loop,procedural_audio,gentle chiptune town theme,loop,STYLE_TOKEN,procedural
+audio_music_combat,combat_loop,procedural_audio,intense chiptune monster-zone theme,loop,STYLE_TOKEN,procedural
+audio_sfx,action_sfx_set,procedural_audio,sword hit roll cast hurt coin levelup death,oneshot,STYLE_TOKEN,procedural

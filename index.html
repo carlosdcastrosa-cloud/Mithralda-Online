@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Mithralda - El Reino Pixelado</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0c0e13;
+    font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent;
+    touch-action:none;user-select:none;-webkit-user-select:none;}
+  #c{display:block;image-rendering:pixelated;image-rendering:crisp-edges;}
+  #dev{position:fixed;top:4px;left:4px;color:#0f0;font:12px monospace;display:none;z-index:50;}
+  /* HTML overlay for the hero-name input on the main menu (mobile keyboard friendly) */
+  #nameWrap{position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:40;display:none;width:min(86vw,420px);}
+  #nameInput{width:100%;box-sizing:border-box;padding:12px 14px;font:18px 'Courier New',monospace;
+    text-align:center;color:#e8e0d0;background:#1a1e26;border:3px solid #5a4632;border-radius:6px;outline:none;}
+  #nameInput::placeholder{color:#7d7460;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="dev"></div>
+<div id="nameWrap"><input id="nameInput" maxlength="14" autocomplete="off" spellcheck="false"></div>
+<script type="module">
+  import { createGame } from "./game.js";
+
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const DPR_CAP = 1.5;
+  let viewW = 0, viewH = 0, dpr = 1;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+    viewW = window.innerWidth; viewH = window.innerHeight;
+    canvas.width = Math.floor(viewW * dpr);
+    canvas.height = Math.floor(viewH * dpr);
+    canvas.style.width = viewW + "px";
+    canvas.style.height = viewH + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    if (game) game.onResize(viewW, viewH);
+  }
+
+  const game = createGame(canvas, ctx, () => ({ w: viewW, h: viewH }));
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", () => setTimeout(resize, 100));
+  resize();
+
+  // Fixed-timestep loop; pause on blur/visibility change.
+  const STEP = 1000 / 60;
+  let acc = 0, last = performance.now(), paused = false;
+  let frames = 0, fpsAt = last, fps = 0;
+  const devOn = new URLSearchParams(location.search).has("dev");
+  if (devOn) document.getElementById("dev").style.display = "block";
+
+  window.addEventListener("blur", () => { paused = true; game.onFocusLost(); });
+  window.addEventListener("focus", () => { paused = false; last = performance.now(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { paused = true; game.onFocusLost(); }
+    else { paused = false; last = performance.now(); }
+  });
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (paused) return;
+    let delta = now - last; last = now;
+    if (delta > 250) delta = 250; // avoid spiral after a stall
+    acc += delta;
+    let steps = 0;
+    while (acc >= STEP && steps < 5) { game.update(STEP); acc -= STEP; steps++; }
+    if (steps === 5) acc = 0;
+    game.render(acc / STEP);
+    if (devOn) {
+      frames++;
+      if (now - fpsAt >= 500) {
+        fps = Math.round(frames * 1000 / (now - fpsAt)); frames = 0; fpsAt = now;
+        document.getElementById("dev").textContent = fps + " fps | " + game.devInfo();
+      }
+    }
+  }
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>
