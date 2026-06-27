@@ -32,15 +32,33 @@ import {
 // animT, never render RNG, so it stays Stage-2 server-authority-safe.
 const ERW_HERO_SRC="./assets/erw/hero/hero_hooded.png";
 const ERW_SX=96, ERW_SY=56, ERW_SW=58, ERW_SH=158;
-// 158px tall × 0.42 ≈ 66px ≈ 2 tiles, matching HERO_SPRITE_SCALE's class height.
+// 158px tall × 0.42 ≈ 66px ≈ 2 tiles — the OLD (too-big) size the board rejected.
 const ERW_SCALE=0.42;
+// CAS-92: the hero is no longer a single static pose. Higgsfield generated real
+// walk / attack / dodge-roll sheets (assets/erw/hero/gen/*, bg-removed), sliced
+// into UNIFORM packed strips by tools/slice-hero-anim.mjs. Geometry mirrors
+// assets/erw/hero/hero_anim.json: every frame is HERO_FW×HERO_FH with the body
+// centroid at column HERO_AX and the feet on row HERO_FOOT, so all states share
+// one anchor. We pick the strip + frame from h.animState (time-driven, no render
+// RNG) — same data-driven pattern as ENEMY_ANIM/drawAnim. Size REVERTED: the
+// 158px standing figure × 0.32 ≈ 51px ≈ 1.6 tiles (down from the 66px the board
+// found "muy grande").
+const HERO_FW=403, HERO_FH=450, HERO_AX=122, HERO_FOOT=448;
+const HERO_ANIM_SCALE=0.32;
+const HERO_STRIPS={
+  idle:  {img:"hero_idle",   fc:1},
+  walk:  {img:"hero_walk",   fc:4},
+  attack:{img:"hero_attack", fc:4},
+  roll:  {img:"hero_roll",   fc:4},
+};
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 
 export function createRenderer(ctx){
   const G = sim.G, world = sim.world;
   const rrng = createRNG();            // presentation-only RNG (isolated from sim)
-  loadImg("hero_erw", ERW_HERO_SRC);   // CAS-82: ERW main-character hooded pose
+  loadImg("hero_erw", ERW_HERO_SRC);   // CAS-82: hooded pose (now the load-time fallback)
+  for(const k in HERO_STRIPS) loadImg(HERO_STRIPS[k].img, `./assets/erw/hero/${HERO_STRIPS[k].img}.png`); // CAS-92 anim strips
   // offscreen buffer for the hero hurt-flash tint (only touched when flashing)
   const _heroBuf=(typeof document!=="undefined")?document.createElement("canvas"):null;
   const _heroBx=_heroBuf?_heroBuf.getContext("2d"):null;
@@ -157,33 +175,45 @@ export function createRenderer(ctx){
   }
 
   function drawHero(h){
-    const cls=h.cls||"warrior", meta=CLS[cls], S=HERO_SPRITE_SCALE, feet=h.y+18, st=h.animState;
-    const cstate=(st==="attack")?"attack":(st==="walk"||st==="roll")?"walk":"idle";
+    const cls=h.cls||"warrior", feet=h.y+18, st=h.animState;
+    // CAS-92: pick the Higgsfield animation strip from the sim's anim state.
+    const state=(st==="attack")?"attack":(st==="roll")?"roll":(st==="walk")?"walk":"idle";
+    const def=HERO_STRIPS[state];
     const ang=(st==="attack")?h.atkAng:((st==="roll"&&(h.rollX||h.rollY))?Math.atan2(h.rollY,h.rollX):h.facing);
-    const dir=dir4FromAngle(ang);
-    const fc=meta.fc[cstate], fps=(cstate==="walk")?(h.rolling?16:9):(cstate==="attack")?(fc/CFG.atkCD):2.2, loop=(cstate!=="attack");
-    let fi=Math.floor((h.animT||0)*fps); fi=loop?(fi%fc):Math.min(fi,fc-1);
+    // walk loops; attack/roll play their frames once across their sim duration; idle holds.
+    const fps=(state==="walk")?9:(state==="attack")?(def.fc/Math.max(0.15,CFG.atkCD)):(state==="roll")?(def.fc/Math.max(0.12,CFG.rollTime||0.2)):2;
+    const loop=(state==="walk");
+    let fi=Math.floor((h.animT||0)*fps); fi=loop?(fi%def.fc):Math.min(fi,def.fc-1);
     if(h.rolling){ ctx.globalAlpha=0.35; ctx.fillStyle="#aeb6c2"; ctx.beginPath(); ctx.arc(h.x,h.y+4,15,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
     if(h.iframe>0 && !h.dead && Math.floor(G.t*20)%2===0) ctx.globalAlpha=0.45;
-    // CAS-82: procedural movement feel for the single-pose ERW hero — deterministic,
-    // derived from sim time / animT (no render RNG, no per-frame allocation).
-    const phase=(h.animT||0)*(h.rolling?16:9);
-    let sqX=1, sqY=1, bobUp=0, hx=h.x, hfeet=feet;
-    if(cstate==="walk"){
-      bobUp=Math.abs(Math.sin(phase))*3;            // footfall hops
-      const land=Math.max(0,-Math.sin(phase*2));    // squash on landing
-      sqX=1+0.06*land; sqY=1-0.06*land;
-    } else if(cstate==="attack"){
-      const prog=clamp((h.animT||0)*fps/Math.max(1,fc),0,1), pop=Math.sin(prog*Math.PI);
-      hx=h.x+Math.cos(h.atkAng)*pop*5; hfeet=feet+Math.sin(h.atkAng)*pop*2.5;  // lunge
-      sqY=1+0.09*pop; sqX=1-0.05*pop;               // stretch into the strike
-    } else { bobUp=Math.sin(G.t*2)*0.6; sqY=1+0.012*Math.sin(G.t*2); }  // idle breathing
     const flip=Math.cos(ang)<0, tint=h.hurtFlash>0?"#ffffff":null;
-    const ok=drawHeroErw(hx,hfeet,flip,sqX,sqY,bobUp,tint)
-          || drawClassFrame(ctx,cls,cstate,dir,fi,h.x,feet,S,tint);
+    const bob=(state==="idle")?Math.sin(G.t*2)*1.2:0;   // gentle idle breathing only
+    const ok=drawHeroAnim(def.img,fi,h.x,feet,flip,tint,bob)
+          || drawHeroErw(h.x,feet,flip,1,1,0,tint)       // hooded pose until strips load
+          || drawClassFrame(ctx,cls,(state==="roll")?"walk":state,dir4FromAngle(ang),fi,h.x,feet,HERO_SPRITE_SCALE,tint);
     ctx.globalAlpha=1;
-    if(!ok){ const bob=h.walkT?Math.sin(h.walkT)*2:0; blit(ctx,SP.hero.rows, h.hurtFlash>0?redden(SP.hero.pal):SP.hero.pal, h.x,h.y-12-bob,3, Math.cos(h.facing)<0); }
+    if(!ok){ const b2=h.walkT?Math.sin(h.walkT)*2:0; blit(ctx,SP.hero.rows, h.hurtFlash>0?redden(SP.hero.pal):SP.hero.pal, h.x,h.y-12-b2,3, Math.cos(h.facing)<0); }
     if(!h.dead){ ctx.globalAlpha=0.8; ctx.fillStyle=COL.textGold; const fx=h.x+Math.cos(h.facing)*18, fy=h.y-2+Math.sin(h.facing)*18; ctx.fillRect(fx-1.5,fy-1.5,3,3); ctx.globalAlpha=1; }
+  }
+  // CAS-92: draw one frame of a hero animation strip. Every frame is HERO_FW×HERO_FH;
+  // source column HERO_AX (body centroid) maps to world hx and source row HERO_FOOT
+  // (feet) maps to world feet, so the body never jitters between frames or states.
+  // Scaled by HERO_ANIM_SCALE (size revert), nearest-neighbor, optional hurt tint.
+  function drawHeroAnim(strip,fi,hx,feet,flip,tint,bob){
+    const img=IMG[strip]; if(!img||!img.complete||!img.naturalWidth) return false;
+    const S=HERO_ANIM_SCALE, dw=HERO_FW*S, dh=HERO_FH*S, sx=fi*HERO_FW;
+    let src=img, ssx=sx, ssy=0;
+    if(tint && _heroBx){ _heroBuf.width=HERO_FW; _heroBuf.height=HERO_FH;
+      _heroBx.clearRect(0,0,HERO_FW,HERO_FH); _heroBx.imageSmoothingEnabled=false;
+      _heroBx.globalCompositeOperation="source-over"; _heroBx.drawImage(img,sx,0,HERO_FW,HERO_FH,0,0,HERO_FW,HERO_FH);
+      _heroBx.globalCompositeOperation="source-atop"; _heroBx.globalAlpha=0.85; _heroBx.fillStyle=tint; _heroBx.fillRect(0,0,HERO_FW,HERO_FH);
+      _heroBx.globalAlpha=1; _heroBx.globalCompositeOperation="source-over";
+      src=_heroBuf; ssx=0; ssy=0; }
+    const dy=feet-HERO_FOOT*S-(bob||0);
+    ctx.save(); ctx.imageSmoothingEnabled=false;
+    if(flip){ const dx=hx-(HERO_FW-HERO_AX)*S; ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,HERO_FW,HERO_FH,0,0,dw,dh); }
+    else { const dx=hx-HERO_AX*S; ctx.drawImage(src,ssx,ssy,HERO_FW,HERO_FH,dx,dy,dw,dh); }
+    ctx.restore(); return true;
   }
   function redden(pal){ const o={}; for(const k in pal) o[k]="#ff9a8a"; o.o=pal.o; return o; }
   function whiten(pal){ const o={}; for(const k in pal) o[k]="#ffffff"; return o; }

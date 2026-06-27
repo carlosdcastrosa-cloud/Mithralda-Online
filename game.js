@@ -40,6 +40,8 @@ export function createGame(canvas, ctx, getView){
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)
       scene:()=>G.scene,
       hero:()=>G.hero?{cls:G.hero.cls,x:G.hero.x,y:G.hero.y}:null,
+      // CAS-92: read-only hero animation state, used by tools/hero-anim-shot.mjs
+      heroAnim:()=>G.hero?{state:G.hero.animState,rolling:!!G.hero.rolling,atk:G.hero.atkAnim>0}:null,
       enemyCount:()=>G.enemies.length,
       worldFingerprint:(seed)=>simDev.worldFingerprint(seed),
       // gear/progression contract consumed by tools/gear.mjs (CAS-29) — additive
