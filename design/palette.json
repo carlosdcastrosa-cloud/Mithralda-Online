@@ -1,0 +1,51 @@
+{
+  "name": "Mithralda — warm earthy medieval palette",
+  "version": 1,
+  "note": "Canonical palette-by-role for the Stage-1 vertical slice. Single source of truth for both the runtime renderer (game.js COL{}) and the asset-generation pipeline. Organized by READABILITY ROLE per design/STYLE_FORMULA.md, not as one flat gamma: environment recedes, actors pop, signal hues are reserved for hazards/pickups.",
+  "roles": {
+    "environment": {
+      "_desc": "Ground/terrain tiles. Muted, low-saturation so actors read on top. base/light/dark = flat/highlight/shadow per tile.",
+      "grass":  { "base": "#2c3a2a", "light": "#37492f", "dark": "#1f2a1d" },
+      "dirt":   { "base": "#4a3a28", "light": "#5a4632", "dark": "#382a1c" },
+      "stone":  { "base": "#3a4047", "light": "#49505a", "dark": "#2a2f35" },
+      "cobble": { "base": "#34464a", "light": "#415559", "dark": "#27353a" },
+      "sand":   { "base": "#6a5a3c", "light": "#7d6c48", "dark": "#4a3d28", "blood": "#5a1f1f" },
+      "water":  { "base": "#1d3a4a", "light": "#2e5e72", "glint": "#7fb8c8" },
+      "twig": "#3d2f1d",
+      "outline": "#14171c",
+      "bg": "#0c0e13",
+      "night": "#10141b"
+    },
+    "actors": {
+      "_desc": "Player classes + NPCs/enemies. Saturated enough to CONTRAST the environment. Shared parts (skin/blade/leather) keep the cast coherent; per-class body/cape/accent give identity.",
+      "shared": {
+        "skin": "#c89a68", "skin_dark": "#a3784c",
+        "blade": "#cdd6e1", "gold": "#cf9a38",
+        "leather": "#3c4350", "boot": "#262b34", "wood": "#6e4f33"
+      },
+      "classes": {
+        "warrior": { "body": "#6d7888", "cape": "#8d3636", "accent": "#cf9a38" },
+        "paladin": { "body": "#b7bcc6", "cape": "#e6e0cf", "accent": "#cf9a38" },
+        "mage":    { "body": "#2f6e6e", "cape": "#274f4f", "accent": "#cf9a38", "orb": "#9bef5a" },
+        "druid":   { "body": "#41693c", "cape": "#34532f", "accent": "#caa46a", "orb": "#8fd47a" },
+        "priest":  { "body": "#e2ddcd", "cape": "#ccc5b1", "accent": "#cf9a38", "orb": "#ffe39a" }
+      }
+    },
+    "signal": {
+      "_desc": "Reserved hues for combat/hazards/pickups — must NOT appear on terrain or actors so the eye reads them instantly. One distinct glow per channel.",
+      "flame": "#ff8a2a", "flame_light": "#ffd24d", "flame_core": "#fff3c8",
+      "heal": "#5fd66a", "rune": "#5a8aff", "spark": "#ffffff", "blood": "#8a1f1f",
+      "fragment": "#3fd0c0", "fragment_light": "#8fece0",
+      "loot_gold": "#f2c14e", "loot_gold_light": "#ffe39a", "loot_gold_dark": "#b88a2e",
+      "hp": "#c83b3b", "mp": "#3f6bd0"
+    },
+    "ui": {
+      "_desc": "Frames, panels, text. Worn wood-and-stone medieval framing over a near-black field.",
+      "panel": "#1a1e26", "panel_border": "#5a4632", "panel_border_dark": "#3a2c1e",
+      "cream": "#e8e0d0", "text_gold": "#e8c46a", "text_dim": "#9a9484",
+      "hp_fill": "#c83b3b", "hp_back": "#3a1416",
+      "mp_fill": "#3f6bd0", "mp_back": "#14203a",
+      "xp_fill": "#e0b94a", "xp_back": "#2a2410"
+    }
+  }
+}
