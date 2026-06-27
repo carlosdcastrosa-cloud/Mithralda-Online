@@ -192,30 +192,46 @@ function huntSpawnPos(zone){ const r=world[zone]; const h=G.hero;
     if(!solidBlocked(x,y,16)) return {x,y}; }
   return {x:h.x, y:h.y};
 }
-function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone];
-  const p=huntSpawnPos(zone); const e=spawnEnemy(cfgH.base,p.x,p.y); const base=e.tpl;
-  // Elite stat block layered on the base mob — reuses its sprite + telegraphed AI,
-  // so the fight stays readable; only HP/damage/size/reward scale up.
-  e.tpl=Object.assign({},base,{ hp:Math.round(base.hp*cfgH.hpMul), dmg:Math.round(base.dmg*cfgH.dmgMul),
-    size:Math.round(base.size*cfgH.sizeMul), xp:cfgH.xp, knock:Math.max(60,Math.round(base.knock*0.6)),
-    aggro:Math.max(base.aggro,320), champName:cfgH.name });
+function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; const B=cfgH.boss;
+  const p=huntSpawnPos(zone); const e=spawnEnemy(B?B.base:cfgH.base,p.x,p.y); const base=e.tpl;
+  if(B){
+    // CAS-65 capstone: an ABSOLUTE elite block on a boss sprite (no scaling math),
+    // plus the phase-shift fields read by updateEnemies. Reuses the shared
+    // windup→strike→recover AI so the base fight is readable; the climax mechanic
+    // is layered in at the enrage threshold.
+    e.tpl=Object.assign({},base,{ sprite:B.sprite||base.sprite, hp:B.hp, dmg:B.dmg, size:B.size,
+      spd:B.spd??base.spd, knock:B.knock??base.knock, windup:B.windup??base.windup, recover:B.recover??base.recover,
+      ranged:false, aggro:Math.max(base.aggro,340), xp:B.xp, champName:B.name });
+    e.capstone=true; e.enraged=false; e.enrageAt=B.enrageAt||0.5;
+    e.baseSpd=e.tpl.spd; e.enrageSpd=B.enrageSpd||1.35; e.enrageWindup=B.enrageWindup||0.72; e.slam=B.slam||null;
+    e.rwdTier=B.tier; e.rwdMinR=B.minR; e.rwdXp=B.xp; e.rwdGold=B.gold;
+  } else {
+    // Elite stat block layered on the base mob — reuses its sprite + telegraphed AI,
+    // so the fight stays readable; only HP/damage/size/reward scale up.
+    e.tpl=Object.assign({},base,{ hp:Math.round(base.hp*cfgH.hpMul), dmg:Math.round(base.dmg*cfgH.dmgMul),
+      size:Math.round(base.size*cfgH.sizeMul), xp:cfgH.xp, knock:Math.max(60,Math.round(base.knock*0.6)),
+      aggro:Math.max(base.aggro,320), champName:cfgH.name });
+    e.rwdTier=cfgH.tier; e.rwdMinR=cfgH.minR; e.rwdXp=cfgH.xp; e.rwdGold=cfgH.gold;
+  }
   e.hp=e.maxHp=e.tpl.hp; e.champion=true; e.zone=zone; e.state="chase";
   H.champ=e;
-  audio.sfx.boss(); toast(STR.huntChampion(cfgH.name),3.2); shakeAdd(8);
-  for(let i=0;i<8;i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
+  audio.sfx.boss(); toast(STR.huntChampion(e.tpl.champName),3.2); shakeAdd(B?12:8);
+  for(let i=0;i<(B?12:8);i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
 }
 // Champion death = zone cleared. Guaranteed gear (zone tier, rarity floor) + bonus
 // xp/gold so the hunt's payoff feeds the existing gear/progression systems.
 function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH=HUNTS[zone];
   if(H){ H.cleared=true; H.champ=null; }
-  audio.sfx.boss(); shakeAdd(10);
-  const win=cfgH.tier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier; // champion reward tier (meaningful loot)
-  dropGear(e.x,e.y, rollGearInst(srand,win[0],win[1],cfgH.minR));
-  G.drops.push({x:e.x+18,y:e.y,kind:"gold",amt:cfgH.gold});
+  audio.sfx.boss(); shakeAdd(e.capstone?14:10);
+  // reward params travel on the entity (set at spawn) so champion + capstone share
+  // this one clear path — the capstone just carries a higher tier/floor.
+  const win=e.rwdTier||cfgH.tier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
+  dropGear(e.x,e.y, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
+  G.drops.push({x:e.x+18,y:e.y,kind:"gold",amt:e.rwdGold||cfgH.gold});
   if(srand()<0.5) G.drops.push({x:e.x-18,y:e.y,kind:"potionhp"});
-  gainXP(cfgH.xp);
+  gainXP(e.rwdXp||cfgH.xp);
   toast(STR.huntCleared(zone),3.6);
-  for(let i=0;i<10;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
+  for(let i=0;i<(e.capstone?16:10);i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
 }
 function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; h.maxHp+=18; h.maxMp+=8; h.baseDmg+=3; h.hp=h.maxHp; h.mp=h.maxMp;
@@ -472,6 +488,15 @@ function updateEnemies(dt){ const h=G.hero;
   for(const e of G.enemies){
     e.hurtFlash=Math.max(0,e.hurtFlash-dt);
     if(e.slowT>0) e.slowT-=dt;
+    // CAS-65 capstone phase shift: cross the enrage HP threshold once -> speed up,
+    // tighten the windup tell, and unlock the radial slam. Telegraphed loudly
+    // (roar sfx + screen shake + flame burst + banner) so the spike is readable.
+    if(e.capstone && !e.enraged && e.hp>0 && e.hp<=e.maxHp*e.enrageAt){
+      e.enraged=true;
+      e.tpl=Object.assign({},e.tpl,{ spd:e.baseSpd*e.enrageSpd, windup:e.tpl.windup*e.enrageWindup });
+      toast(STR.bossEnrage(e.tpl.champName),2.8); audio.sfx.boss(); shakeAdd(12);
+      for(let i=0;i<12;i++) addFx("flame",e.x+frr(-34,34),e.y+frr(-34,34));
+    }
     // stun (shield bash / vines root): freeze the AI, only let knockback ride out
     if(e.stun>0){ e.stun-=dt; e.animState="idle"; e.animT=0;
       if(Math.abs(e.knockX)>1||Math.abs(e.knockY)>1){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*0.6); e.knockX*=0.82; e.knockY*=0.82; }
@@ -499,6 +524,12 @@ function updateEnemies(dt){ const h=G.hero;
         addFx("strikeflash",e.x,e.y,{ang:e.facing,range:e.tpl.ranged?0:e.tpl.range,life:0.18}); // the "now!" instant
         // boss extra: ground wave on alternate strikes
         if(e.isBoss){ e.phase++; if(e.phase%2===0){ for(let k=0;k<10;k++){ const a=k/10*6.28; G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*180,vy:Math.sin(a)*180,life:1.2,dmg:18,kind:"rune",enemy:true}); } } }
+        // CAS-65 capstone climax: once enraged, every strike erupts into a radial
+        // slam — a ring of rune shards the player must roll through / clear out of.
+        else if(e.capstone && e.enraged && e.slam){ const S=e.slam;
+          for(let k=0;k<S.count;k++){ const a=k/S.count*6.28;
+            G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*S.spd,vy:Math.sin(a)*S.spd,life:S.life,dmg:S.dmg,kind:"rune",enemy:true}); }
+          addFx("novacast",e.x,e.y,{r:96,col:"#ff7a3a",life:0.45}); shakeAdd(8); }
       }
     } else if(e.state==="strike"){
       e.st-=dt;
@@ -559,7 +590,21 @@ export const dev = {
   // --- hunt-contract harness hooks (tools/hunt.mjs, CAS-63); additive ---
   // Read a zone's contract progress; champ reports the live elite's hp if summoned.
   huntState(zone){ const H=G.hunts&&G.hunts[zone]; const cfgH=HUNTS[zone]; if(!H||!cfgH) return null;
-    return { kills:H.kills, need:cfgH.need, champ: H.champ?{hp:Math.round(H.champ.hp),max:H.champ.maxHp,name:H.champ.tpl.champName}:null, cleared:H.cleared }; },
+    return { kills:H.kills, need:cfgH.need, cleared:H.cleared,
+      champ: H.champ?{hp:Math.round(H.champ.hp),max:H.champ.maxHp,name:H.champ.tpl.champName,
+        capstone:!!H.champ.capstone, enraged:!!H.champ.enraged, slamCount:H.champ.slam?H.champ.slam.count:0,
+        rwdTier:H.champ.rwdTier||null, rwdMinR:H.champ.rwdMinR||null}:null }; },
+  // --- capstone-boss harness hooks (tools/hunt.mjs, CAS-65); additive ---
+  // Set the live champ's HP to a fraction of max so the REAL updateEnemies enrage
+  // check (next frame) fires the phase shift — not a shortcut around the threshold.
+  setChampHp(zone,frac){ const H=G.hunts&&G.hunts[zone]; if(!H||!H.champ) return null;
+    H.champ.hp=Math.max(1,Math.round(H.champ.maxHp*frac)); return Math.round(H.champ.hp); },
+  // Park the hero on top of the live champ + top them off, so the boss runs its
+  // real windup→strike→slam against a survivable target and we can count shards.
+  poke(zone){ const H=G.hunts&&G.hunts[zone]; const h=G.hero; if(!H||!H.champ) return null;
+    h.x=H.champ.x+18; h.y=H.champ.y; h.maxHp=4000; h.hp=4000; h.iframe=0; return true; },
+  // Count live enemy projectiles by kind (the radial slam emits kind:"rune").
+  enemyProj(){ const ps=G.projectiles.filter(p=>p.enemy); return { total:ps.length, rune:ps.filter(p=>p.kind==="rune").length }; },
   // Kill the zone's live Champion through the REAL killEnemy and return its drops —
   // the genuine clear path (guaranteed gear + bonus), not a shortcut.
   huntKillChampion(zone){ const H=G.hunts&&G.hunts[zone]; if(!H||!H.champ) return null;

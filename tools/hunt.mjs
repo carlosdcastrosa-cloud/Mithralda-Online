@@ -30,10 +30,13 @@ const pass = (m) => log(`✔ ${m}`);
 
 // expectations mirror sim/config.js HUNTS (kept in sync deliberately)
 const RANK = { common: 0, uncommon: 1, rare: 2, epic: 3 };
+// forest/ruins summon scaled elite champions; arena (CAS-65) summons the CAPSTONE
+// boss "Coloso del Foso" — guaranteed tier-4 epic, so its rarity floor is epic and
+// its drop stat clears every tier-3 piece (>=27).
 const ZONES = [
-  { zone: "forest", base: "wolf",   need: 10, minR: "uncommon", gold: 45 },
-  { zone: "ruins",  base: "bandit", need: 12, minR: "rare",     gold: 70 },
-  { zone: "arena",  base: "orc",    need: 14, minR: "rare",     gold: 75 },
+  { zone: "forest", base: "wolf",   need: 10, minR: "uncommon", gold: 45,  capstone: false },
+  { zone: "ruins",  base: "bandit", need: 12, minR: "rare",     gold: 70,  capstone: false },
+  { zone: "arena",  base: "orc",    need: 14, minR: "epic",     gold: 200, capstone: true, minStat: 27 },
 ];
 
 const exe = findChromium();
@@ -113,7 +116,65 @@ try {
     else fail(`[${tag}] missing/under-floor guaranteed gear: ${JSON.stringify(gear)} (floor ${z.minR})`);
     if (gold && gold.amt === z.gold) pass(`[${tag}] bonus ${gold.amt} gold dropped`);
     else fail(`[${tag}] wrong/no bonus gold: ${JSON.stringify(gold)} (expected ${z.gold})`);
+    // capstone reward must be genuinely TOP-tier (tier-4 gear, unobtainable elsewhere)
+    if (z.capstone) {
+      if (gear && gear.stat >= z.minStat) pass(`[${tag}] capstone reward is top-tier (stat ${gear.stat} >= ${z.minStat})`);
+      else fail(`[${tag}] capstone reward not top-tier: stat ${gear && gear.stat} (need >= ${z.minStat})`);
+    }
   }
+
+  // ---- CAS-65 capstone boss: phase shift + radial slam, on a FRESH page (the
+  // loop above already cleared arena on the main page) -----------------------
+  const cap = await browser.newPage();
+  await cap.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+  await cap.goto(`${srv.url}/index.html?dev`, { waitUntil: "load" });
+  await cap.bringToFront();
+  await enterPlay(cap);
+
+  // summon the capstone via the real cull quota
+  await cap.evaluate(() => {
+    window.__dev.tpZone("arena"); window.__dev.seed(99);
+    for (let i = 0; i < 14; i++) window.__dev.spawnKill("orc"); // 14th kill summons the Coloso
+  });
+  const spawned = await cap.evaluate(() => window.__dev.huntState("arena").champ);
+  if (spawned && spawned.capstone && spawned.name === "Coloso del Foso") pass(`[CAPSTONE] '${spawned.name}' summoned via the arena contract`);
+  else fail(`[CAPSTONE] capstone not summoned by contract: ${JSON.stringify(spawned)}`);
+  if (spawned && spawned.max >= 600) pass(`[CAPSTONE] true boss HP block (max ${spawned.max})`);
+  else fail(`[CAPSTONE] boss HP too small: ${JSON.stringify(spawned && spawned.max)}`);
+  if (spawned && spawned.enraged === false) pass(`[CAPSTONE] starts in phase 1 (not enraged)`);
+  else fail(`[CAPSTONE] should not start enraged: ${JSON.stringify(spawned)}`);
+  if (spawned && spawned.slamCount > 0) pass(`[CAPSTONE] radial slam configured (${spawned.slamCount} shards)`);
+  else fail(`[CAPSTONE] no slam configured: ${JSON.stringify(spawned)}`);
+
+  // phase shift: drop HP under the enrage threshold, let REAL frames run the check
+  await cap.evaluate(() => window.__dev.setChampHp("arena", 0.4));
+  await new Promise((r) => setTimeout(r, 200));
+  const enr = await cap.evaluate(() => window.__dev.huntState("arena").champ);
+  if (enr && enr.enraged === true) pass(`[CAPSTONE] phase shift fired below 50% HP (enraged)`);
+  else fail(`[CAPSTONE] enrage did not fire under threshold: ${JSON.stringify(enr)}`);
+
+  // radial slam: park the hero on the boss (topped off so it survives) and let the
+  // real windup→strike→slam run; the slam emits enemy rune shards.
+  const runeCount = await cap.evaluate(async () => {
+    let peak = 0;
+    for (let i = 0; i < 16; i++) { window.__dev.poke("arena"); await new Promise((r) => setTimeout(r, 90));
+      const p = window.__dev.enemyProj(); if (p.rune > peak) peak = p.rune; }
+    return peak;
+  });
+  if (runeCount > 0) pass(`[CAPSTONE] enraged strike erupts into a radial slam (${runeCount} live shards)`);
+  else fail(`[CAPSTONE] no slam shards observed while enraged`);
+
+  // no soft-lock: the boss persists across the punishment window (a dead hero just
+  // respawns and returns — the champ is never tied to hero life), so a retry is clean.
+  const alive = await cap.evaluate(() => { const c = window.__dev.huntState("arena").champ; return !!(c && c.hp > 0); });
+  if (alive) pass(`[CAPSTONE] boss persists for a clean retry (no soft-lock)`);
+  else fail(`[CAPSTONE] boss vanished mid-fight (retry would soft-lock)`);
+
+  const capShot = join(ROOT, "tools", "cas65-capstone.png");
+  await new Promise((r) => setTimeout(r, 200));
+  writeFileSync(capShot, await cap.screenshot());
+  pass(`capstone screenshot saved: ${capShot}`);
+  await cap.close();
 
   // (5) determinism: same seed -> identical champion reward across two fresh runs
   const reward = async () => {

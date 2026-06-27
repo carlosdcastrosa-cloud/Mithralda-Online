@@ -152,10 +152,15 @@ export function createRenderer(ctx){
   function drawEnemy(e){
     const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.champion?5:(e.tpl.size>20?4:3));
     const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false;
-    // champion aura — a pulsing gold ground ring marks the elite as the hunt climax
-    if(e.champion){ const pr=e.tpl.size*1.3 + Math.sin(G.t*4)*2; ctx.save();
-      ctx.globalAlpha=0.5; ctx.strokeStyle="#ffcf4d"; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke(); ctx.restore(); }
+    // champion aura — a pulsing ground ring marks the elite as the hunt climax.
+    // Capstone (CAS-65): the ring runs orange and turns red + double-pulses once
+    // the boss enrages, telegraphing the phase shift at a glance.
+    if(e.champion){ const cap=e.capstone, enr=e.enraged;
+      const pr=e.tpl.size*1.3 + Math.sin(G.t*(enr?7:4))*(enr?3:2); ctx.save();
+      ctx.globalAlpha=0.5; ctx.strokeStyle=cap?(enr?"#ff4636":"#ff9a3a"):"#ffcf4d"; ctx.lineWidth=cap?3:2;
+      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
+      if(cap&&enr){ ctx.globalAlpha=0.28; ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr+7,(pr+7)*0.42,0,0,6.28); ctx.stroke(); }
+      ctx.restore(); }
     // windup telegraph: flashing warning + slight grow
     if(e.state==="windup"){ const fl2=Math.floor(G.t*16)%2===0;
       if(e.tpl.ranged){ const a=e.facing; const col=e.tpl.proj==="bolt"?"#9bef5a":"#ffd24d";
@@ -183,9 +188,11 @@ export function createRenderer(ctx){
     const w=e.isBoss?64:(e.champion?58:Math.max(22,e.tpl.size*1.6)); const hh=(e.isBoss||e.champion)?6:4; const yy=e.y-e.tpl.size-((e.isBoss||e.champion)?14:8);
     ctx.fillStyle=COL.out; ctx.fillRect(e.x-w/2-1,yy-1,w+2,hh+2);
     ctx.fillStyle=COL.hpb; ctx.fillRect(e.x-w/2,yy,w,hh);
-    ctx.fillStyle=e.champion?"#ffcf4d":(e.hostile?"#ff5a4a":COL.hpf); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
+    const champCol=e.capstone?(e.enraged?"#ff4636":"#ff9a3a"):"#ffcf4d";
+    ctx.fillStyle=e.champion?champCol:(e.hostile?"#ff5a4a":COL.hpf); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
     if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("GÓLEM ANCESTRAL",e.x,yy-4); }
-    else if(e.champion){ ctx.fillStyle="#ffcf4d"; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("★ "+e.tpl.champName,e.x,yy-4); }
+    else if(e.champion){ ctx.fillStyle=champCol; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.enraged?" ¡ENFURECIDO!":""),e.x,yy-4); }
   }
   function drawNPC(n){ const spr=SP[n.sprite]; blit(ctx,spr.rows,spr.pal,n.x,n.y,3,false);
     // marker

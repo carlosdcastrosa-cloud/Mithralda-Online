@@ -21,6 +21,9 @@ export const STR = {
   huntZoneCleared: "ZONA DESPEJADA",
   huntChampion: (name) => "¡Aparece " + name + "! Derrótalo para despejar la zona.",
   huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", arena:"Arena de Sangre" }[zone] || "la zona") + "! Recompensa garantizada.",
+  // CAS-65 capstone phase shift — fires when the boss crosses its enrage threshold.
+  bossEnrage: (name) => "¡" + name + " SE ENFURECE! Esquiva la onda expansiva.",
+  bossEnrageBanner: "¡ENFURECIDO!",
 
   spells: ["GOLPE", "LLAMARADA", "SANAR", "ONDA RÚNICA"], // generic fallback labels
   // per-class name for the basic-attack slot (slot 0) — surfaces class identity on the HUD

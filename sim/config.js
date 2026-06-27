@@ -87,10 +87,24 @@ export const ETPL = {
 // `base` must be a melee ETPL row (telegraphed windup → readable elite fight).
 // `tier` is the Champion REWARD tier window — always meaningful loot (2-3) so the
 // climax drop is an upgrade, never scaled down to the zone's trash-mob tier.
+//
+// CAS-65 — capstone boss: a zone may carry a `boss` block. When present the hunt
+// quota summons a TRUE capstone (its own absolute stat block + sprite) instead of
+// the scaled elite. The capstone adds ONE distinct mechanic on top of the shared
+// combat vocabulary — a phase shift at `enrageAt` HP that speeds it up and turns
+// every strike into a telegraphed radial SLAM (ring of rune shards the player must
+// roll through / out of: a positional skill check no other enemy has). Its reward
+// is the otherwise-unobtainable tier-4 gear at an `epic` floor — a clear top-tier
+// progression target. Pure data: the generic resolver in sim.js reads this block,
+// so a second capstone is another `boss:{…}` row, never a code branch.
 export const HUNTS = {
   forest: { need:10, base:"wolf",   name:"Lobo Alfa",       hpMul:8,  dmgMul:1.8, sizeMul:1.55, tier:[2,3], minR:"uncommon", xp:90,  gold:45 },
   ruins:  { need:12, base:"bandit", name:"Capitán Bandido", hpMul:8,  dmgMul:1.7, sizeMul:1.45, tier:[2,3], minR:"rare",     xp:140, gold:70 },
-  arena:  { need:14, base:"orc",    name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75 },
+  arena:  { need:14, base:"orc",    name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75,
+    boss:{ base:"golem", sprite:"golem", name:"Coloso del Foso", hp:900, dmg:34, size:40, spd:54, knock:70, windup:0.9, recover:0.7,
+           enrageAt:0.5, enrageSpd:1.35, enrageWindup:0.72,                       // phase 2: faster + tighter tells
+           slam:{ count:14, spd:175, dmg:22, life:1.3 },                          // radial shockwave (positional tell)
+           tier:[4,4], minR:"epic", xp:380, gold:200 } },                         // guaranteed top-tier sink
 };
 
 export const CLASS_LIST = ["warrior", "paladin", "mage", "druid", "priest"];

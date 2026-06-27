@@ -54,6 +54,10 @@ export function createGame(canvas, ctx, getView){
       // hunt-contract contract consumed by tools/hunt.mjs (CAS-63) — additive
       huntState:(zone)=>simDev.huntState(zone),
       huntKillChampion:(zone)=>simDev.huntKillChampion(zone),
+      // capstone-boss contract consumed by tools/hunt.mjs (CAS-65) — additive
+      setChampHp:(zone,frac)=>simDev.setChampHp(zone,frac),
+      poke:(zone)=>simDev.poke(zone),
+      enemyProj:()=>simDev.enemyProj(),
       // spell-identity contract consumed by tools/spells.mjs (CAS-52) — additive
       setClass:(cls)=>simDev.setClass(cls),
       cast:(i)=>simDev.cast(i),
