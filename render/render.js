@@ -180,7 +180,7 @@ export function createRenderer(ctx){
     }
     let drew=false; const ch=ENEMY_ANIM[e.type];
     if(ch && IMG[ch+"_walk"]){
-      const S=e.isBoss?1.3:0.85, feet=e.y+e.tpl.size*0.5, st=e.animState||"idle";
+      const ds=ANIM[ch]&&ANIM[ch].ds; const S=ds?ds*(e.isBoss?1.15:e.champion?1.0:0.82):(e.isBoss?1.3:0.85), feet=e.y+e.tpl.size*0.5, st=e.animState||"idle";
       const fps = st==="attack"? (ANIM[ch].fc.attack/(e.tpl.windup+0.15)) : (st==="walk"?10:6);
       const fi=frameIndex(ch,st,e.animT||0,fps, st!=="attack");
       drew=drawAnim(ctx,ch,st,fi,e.x,feet,S,fl, e.hurtFlash>0?"#ffffff":null);

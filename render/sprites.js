@@ -235,8 +235,13 @@ export function loadImg(key,src){ imgPending++; const im=new Image();
 // enemy animation strips (EPIC mage skeleton). Viking sprites removed.
 export const ANIM={
   mage:    {fc:{idle:8,walk:8,attack:7}, fw:{idle:88,walk:88,attack:88}, fh:{idle:72,walk:72,attack:72}},
+  // CAS-74: real "Stone Golem" from the EPIC RPG World — Ancient Ruins pack. Single-row
+  // horizontal strips (run reused as walk). Native frames were 224×192 with heavy padding;
+  // tools/slice-pack-strip.mjs crops them to 224×88 so the feet bottom-anchor cleanly.
+  // The golem body is ~68px; ds≈1.15 (×boss mult) renders it ~90px — a 3-tile capstone.
+  golem:   {fc:{idle:8,walk:8,attack:17}, fw:{idle:224,walk:224,attack:224}, fh:{idle:88,walk:88,attack:88}, ds:1.15},
 };
-export const ENEMY_ANIM={ mage:"mage" };
+export const ENEMY_ANIM={ mage:"mage", golem:"golem" };
 // player class sprites: directional (down/up/side, left=side mirrored), states idle/walk/attack
 export const CLS={
   warrior: {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
