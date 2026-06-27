@@ -1,0 +1,8 @@
+# from: EPIC RPG World Pack - Old Prison V1.7.1/Tilesets/0-READ ME.txt
+
+Notes/tips
+
++++++++++++ notes +++++++++++
+
+> 1 thick wall is just an extra so it's limited. It isn't covered by the auto tile support using Tiled and the transition to the
+"normal" tileset is limited. You can see the example of its use in the mockup (the guard room and the storage room with provisions)

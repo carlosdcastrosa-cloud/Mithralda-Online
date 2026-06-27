@@ -1,7 +1,7 @@
 {
   "name": "_default",
   "version": "1.0.0",
-  "description": "ARPG top-down de fantasía oscura en pixel art. HTML5 Canvas + JavaScript puro (sin build, sin dependencias en runtime). UI en español.",
+  "description": "ARPG top-down de fantas\u00eda oscura en pixel art. HTML5 Canvas + JavaScript puro (sin build, sin dependencias en runtime). UI en espa\u00f1ol.",
   "main": "game.js",
   "type": "module",
   "scripts": {
@@ -15,10 +15,13 @@
     "hunt": "node tools/hunt.mjs",
     "hero-live": "node tools/hero-sprite-live.mjs",
     "stamp": "node tools/stamp-version.mjs",
+    "stamp:check": "node tools/stamp-version.mjs --check",
     "cache-bust": "node tools/cache-bust.mjs",
+    "buildid-gate-test": "node tools/buildid-gate-test.mjs",
     "deploy-verify": "node tools/deploy-verify.mjs",
     "verify": "node tools/determinism.mjs && node tools/smoke.mjs",
-    "test": "node tools/determinism.mjs && node tools/smoke.mjs"
+    "test": "node tools/determinism.mjs && node tools/smoke.mjs",
+    "erw": "python3 tools/erw_pipeline.py"
   },
   "keywords": [],
   "author": "",
