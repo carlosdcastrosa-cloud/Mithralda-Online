@@ -19,16 +19,31 @@ import { audio } from "../audio.js";
 import { view, zoom } from "../view.js";
 import { COL } from "./palette.js";
 import {
-  blit, SP, IMG, drawCoin, drawPotion, drawFragment,
+  blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
   ANIM, ENEMY_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
   dir4FromAngle, drawClassFrame, drawAnim, frameIndex,
 } from "./sprites.js";
+
+// CAS-82: the board's main-character art is a single 256×256 hooded pose
+// (assets/erw/hero/hero_hooded.png) — a higher-fidelity match for our existing
+// hooded hero, with NO walk/directional sheet. We draw the tight content cell
+// (alpha bbox 58×158 @ 96,56) bottom-anchored at ~2 tiles, and give movement
+// feel PROCEDURALLY (step-bob / squash / lunge) — all derived from sim time and
+// animT, never render RNG, so it stays Stage-2 server-authority-safe.
+const ERW_HERO_SRC="./assets/erw/hero/hero_hooded.png";
+const ERW_SX=96, ERW_SY=56, ERW_SW=58, ERW_SH=158;
+// 158px tall × 0.42 ≈ 66px ≈ 2 tiles, matching HERO_SPRITE_SCALE's class height.
+const ERW_SCALE=0.42;
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 
 export function createRenderer(ctx){
   const G = sim.G, world = sim.world;
   const rrng = createRNG();            // presentation-only RNG (isolated from sim)
+  loadImg("hero_erw", ERW_HERO_SRC);   // CAS-82: ERW main-character hooded pose
+  // offscreen buffer for the hero hurt-flash tint (only touched when flashing)
+  const _heroBuf=(typeof document!=="undefined")?document.createElement("canvas"):null;
+  const _heroBx=_heroBuf?_heroBuf.getContext("2d"):null;
   let VW = view.VW, VH = view.VH;      // synced from the viewport each frame
   const rr = (a,b)=>rrng.rr(a,b);
 
@@ -150,13 +165,47 @@ export function createRenderer(ctx){
     let fi=Math.floor((h.animT||0)*fps); fi=loop?(fi%fc):Math.min(fi,fc-1);
     if(h.rolling){ ctx.globalAlpha=0.35; ctx.fillStyle="#aeb6c2"; ctx.beginPath(); ctx.arc(h.x,h.y+4,15,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
     if(h.iframe>0 && !h.dead && Math.floor(G.t*20)%2===0) ctx.globalAlpha=0.45;
-    const ok=drawClassFrame(ctx,cls,cstate,dir,fi,h.x,feet,S, h.hurtFlash>0?"#ffffff":null);
+    // CAS-82: procedural movement feel for the single-pose ERW hero — deterministic,
+    // derived from sim time / animT (no render RNG, no per-frame allocation).
+    const phase=(h.animT||0)*(h.rolling?16:9);
+    let sqX=1, sqY=1, bobUp=0, hx=h.x, hfeet=feet;
+    if(cstate==="walk"){
+      bobUp=Math.abs(Math.sin(phase))*3;            // footfall hops
+      const land=Math.max(0,-Math.sin(phase*2));    // squash on landing
+      sqX=1+0.06*land; sqY=1-0.06*land;
+    } else if(cstate==="attack"){
+      const prog=clamp((h.animT||0)*fps/Math.max(1,fc),0,1), pop=Math.sin(prog*Math.PI);
+      hx=h.x+Math.cos(h.atkAng)*pop*5; hfeet=feet+Math.sin(h.atkAng)*pop*2.5;  // lunge
+      sqY=1+0.09*pop; sqX=1-0.05*pop;               // stretch into the strike
+    } else { bobUp=Math.sin(G.t*2)*0.6; sqY=1+0.012*Math.sin(G.t*2); }  // idle breathing
+    const flip=Math.cos(ang)<0, tint=h.hurtFlash>0?"#ffffff":null;
+    const ok=drawHeroErw(hx,hfeet,flip,sqX,sqY,bobUp,tint)
+          || drawClassFrame(ctx,cls,cstate,dir,fi,h.x,feet,S,tint);
     ctx.globalAlpha=1;
     if(!ok){ const bob=h.walkT?Math.sin(h.walkT)*2:0; blit(ctx,SP.hero.rows, h.hurtFlash>0?redden(SP.hero.pal):SP.hero.pal, h.x,h.y-12-bob,3, Math.cos(h.facing)<0); }
     if(!h.dead){ ctx.globalAlpha=0.8; ctx.fillStyle=COL.textGold; const fx=h.x+Math.cos(h.facing)*18, fy=h.y-2+Math.sin(h.facing)*18; ctx.fillRect(fx-1.5,fy-1.5,3,3); ctx.globalAlpha=1; }
   }
   function redden(pal){ const o={}; for(const k in pal) o[k]="#ff9a8a"; o.o=pal.o; return o; }
   function whiten(pal){ const o={}; for(const k in pal) o[k]="#ffffff"; return o; }
+  // CAS-82: draw the ERW hooded hero — tight content cell, bottom-anchored at
+  // (cx,feet), nearest-neighbor, with squash (sqX/sqY) + hop (bobUp) applied and
+  // an optional silhouette tint (hurt flash). Returns false until the PNG loads,
+  // so drawHero falls back to the class sheet on the first frames.
+  function drawHeroErw(cx,feet,flip,sqX,sqY,bobUp,tint){
+    const img=IMG["hero_erw"]; if(!img||!img.complete||!img.naturalWidth) return false;
+    const dw=ERW_SW*ERW_SCALE*sqX, dh=ERW_SH*ERW_SCALE*sqY, dx=cx-dw/2, dy=feet-dh-bobUp;
+    let src=img, ssx=ERW_SX, ssy=ERW_SY;
+    if(tint && _heroBx){ _heroBuf.width=ERW_SW; _heroBuf.height=ERW_SH;
+      _heroBx.clearRect(0,0,ERW_SW,ERW_SH); _heroBx.imageSmoothingEnabled=false;
+      _heroBx.globalCompositeOperation="source-over"; _heroBx.drawImage(img,ERW_SX,ERW_SY,ERW_SW,ERW_SH,0,0,ERW_SW,ERW_SH);
+      _heroBx.globalCompositeOperation="source-atop"; _heroBx.globalAlpha=0.85; _heroBx.fillStyle=tint; _heroBx.fillRect(0,0,ERW_SW,ERW_SH);
+      _heroBx.globalAlpha=1; _heroBx.globalCompositeOperation="source-over";
+      src=_heroBuf; ssx=0; ssy=0; }
+    ctx.save(); ctx.imageSmoothingEnabled=false;
+    if(flip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,ERW_SW,ERW_SH,0,0,dw,dh); }
+    else ctx.drawImage(src,ssx,ssy,ERW_SW,ERW_SH,dx,dy,dw,dh);
+    ctx.restore(); return true;
+  }
 
   function drawEnemy(e){
     const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.champion?5:(e.tpl.size>20?4:3));
