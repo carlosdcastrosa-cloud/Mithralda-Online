@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, HUNTS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, HUNTS, ZONE_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -109,6 +109,21 @@ function spawnEnemy(type,x,y){
   G.enemies.push(e); return e;
 }
 function spawnBoss(){ const e=spawnEnemy("golem",(world.caves.x+world.caves.w/2)*TS,(world.caves.y+5)*TS); e.isBoss=true; }
+// CAS-73 — apply a zone's difficulty TIER to a freshly-spawned trash mob. Clones the
+// shared ETPL row (never mutate the template) and scales hp/dmg/spd/xp by ZONE_TIER,
+// so the four hunt zones rise in difficulty. Pure math (no RNG) → deterministic /
+// Stage-2 ready. No-op for unscaled zones (forest mult 1.0) and bosses/champions
+// (their elite blocks are tuned per-row in HUNTS, never re-scaled here).
+function applyZoneScale(e, zone){
+  if(!e) return e; const z=ZONE_TIER[zone]; if(!z) return e;
+  const b=e.tpl;
+  e.tpl=Object.assign({},b,{
+    hp:Math.round(b.hp*z.hpMul), dmg:Math.round(b.dmg*z.dmgMul),
+    spd:Math.round(b.spd*(z.spdMul||1)), xp:Math.round(b.xp*(z.xpMul||1)),
+  });
+  e.hp=e.maxHp=e.tpl.hp; e.zoneTier=z.tier;
+  return e;
+}
 
 // ------------------------------ combat ---------------------------------
 function heroAttack(){
@@ -513,7 +528,7 @@ export function update(dtMs){
       let tx,ty,tries=0; do{ tx=(sp.rect.x+rr(2,sp.rect.w-2))*TS; ty=(sp.rect.y+rr(2,sp.rect.h-2))*TS; tries++; }
         while((dist2(tx,ty,h.x,h.y)<300*300 || (world.wallSet&&world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS)))) && tries<10);
       const wallHere = world.wallSet && world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS));
-      if(!wallHere && dist2(tx,ty,h.x,h.y)>240*240) spawnEnemy(tp,tx,ty); } }
+      if(!wallHere && dist2(tx,ty,h.x,h.y)>240*240) applyZoneScale(spawnEnemy(tp,tx,ty), sp.zone); } }
 
   if(h.hp<=0) heroDie();
   // camera (presentation-only; reads plain viewport numbers, never the DOM)
@@ -625,6 +640,13 @@ export const dev = {
     if(type==="golem"&&e) e.isBoss=true; e.hp=0; killEnemy(e);
     return G.drops.slice(before).map(d=>({ kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat })); },
   pickup(){ tryPickup(); return G.hero.bag.length; },
+  // --- zone-difficulty harness hook (tools/hunt.mjs, CAS-73); additive ---
+  // Spawn one trash mob through the REAL spawn+scale path, read its SCALED stats,
+  // then remove it — proves a zone's tier multiplies mob hp/dmg/spd/xp (no shortcut
+  // around applyZoneScale). Off-screen coords so it never interferes with play.
+  zoneTier(zone, type){ const e=applyZoneScale(spawnEnemy(type, -9999, -9999), zone);
+    const z=ZONE_TIER[zone]; const r=z?{ tier:z.tier, hp:e.tpl.hp, dmg:e.tpl.dmg, spd:e.tpl.spd, xp:e.tpl.xp }:null;
+    G.enemies.splice(G.enemies.indexOf(e),1); return r; },
   // --- hunt-contract harness hooks (tools/hunt.mjs, CAS-63); additive ---
   // Read a zone's contract progress; champ reports the live elite's hp if summoned.
   huntState(zone){ const H=G.hunts&&G.hunts[zone]; const cfgH=HUNTS[zone]; if(!H||!cfgH) return null;

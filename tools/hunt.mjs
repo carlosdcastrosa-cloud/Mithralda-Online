@@ -21,6 +21,7 @@ import puppeteer from "puppeteer-core";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { startServer, findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
+import { ZONE_LOOT } from "../sim/gear.js"; // pure data module — safe to import in Node
 
 const SHOT = join(ROOT, "tools", "hunt-champion.png");
 const log = (m) => console.log(m);
@@ -34,10 +35,17 @@ const RANK = { common: 0, uncommon: 1, rare: 2, epic: 3 };
 // boss "Coloso del Foso" — guaranteed tier-4 epic, so its rarity floor is epic and
 // its drop stat clears every tier-3 piece (>=27).
 const ZONES = [
-  { zone: "forest", base: "wolf",   need: 10, minR: "uncommon", gold: 45,  capstone: false },
-  { zone: "ruins",  base: "bandit", need: 12, minR: "rare",     gold: 70,  capstone: false },
-  { zone: "arena",  base: "orc",    need: 14, minR: "epic",     gold: 200, capstone: true, minStat: 27 },
+  { zone: "forest", base: "wolf",     need: 10, minR: "uncommon", gold: 45,  capstone: false },
+  { zone: "ruins",  base: "bandit",   need: 12, minR: "rare",     gold: 70,  capstone: false },
+  { zone: "caves",  base: "skeleton", need: 13, minR: "rare",     gold: 90,  capstone: false }, // CAS-73 tier-3 mini-boss
+  { zone: "arena",  base: "orc",      need: 14, minR: "epic",     gold: 200, capstone: true, minStat: 27 },
 ];
+
+// CAS-73 — the four hunt zones must form a RISING difficulty curve. Probe the same
+// mob type scaled by each zone's tier and assert hp/dmg/xp strictly increase, and
+// the loot tier window climbs in lockstep. ETPL orc base: hp 84, dmg 22, xp 32.
+const TIER_ORDER = ["forest", "ruins", "caves", "arena"];
+const ZONE_LOOT_EXPECT = { forest: [1, 2], ruins: [2, 3], caves: [3, 4], arena: [3, 4] };
 
 const exe = findChromium();
 if (!exe) { console.error("✖ No Chromium binary found."); process.exit(1); }
@@ -122,6 +130,30 @@ try {
       else fail(`[${tag}] capstone reward not top-tier: stat ${gear && gear.stat} (need >= ${z.minStat})`);
     }
   }
+
+  // ---- CAS-73: rising difficulty curve across the four zones --------------
+  // Probe the SAME mob (orc) scaled by each zone's tier; assert hp/dmg/xp climb
+  // strictly forest→ruins→caves→arena, tier ordinals are 1..4, and the loot window
+  // rises in lockstep — the reason a player advances zone to zone.
+  const tiers = await page.evaluate((order) => order.map((z) => window.__dev.zoneTier(z, "orc")), TIER_ORDER);
+  let prev = null, curveOk = true;
+  for (let i = 0; i < TIER_ORDER.length; i++) {
+    const z = TIER_ORDER[i], t = tiers[i];
+    if (!t) { fail(`[TIER] ${z} returned no tier data`); curveOk = false; continue; }
+    if (t.tier !== i + 1) { fail(`[TIER] ${z} tier ordinal ${t.tier} != ${i + 1}`); curveOk = false; }
+    if (prev && !(t.hp > prev.hp && t.dmg >= prev.dmg && t.xp > prev.xp)) {
+      fail(`[TIER] ${z} not strictly harder than ${TIER_ORDER[i - 1]}: ${JSON.stringify(t)} vs ${JSON.stringify(prev)}`);
+      curveOk = false;
+    }
+    prev = t;
+  }
+  if (curveOk) pass(`difficulty curve rises forest→ruins→caves→arena: ${tiers.map((t) => `t${t.tier}(hp${t.hp}/dmg${t.dmg}/xp${t.xp})`).join(" < ")}`);
+
+  // loot window climbs in lockstep with difficulty (assert against the shipped module)
+  const lootOk = Object.entries(ZONE_LOOT_EXPECT).every(
+    ([z, win]) => ZONE_LOOT[z] && ZONE_LOOT[z].tier[0] === win[0] && ZONE_LOOT[z].tier[1] === win[1]);
+  if (lootOk) pass(`loot windows climb with difficulty: forest[1-2] < ruins[2-3] < caves/arena[3-4]`);
+  else fail(`loot windows do not match the difficulty curve: ${JSON.stringify(ZONE_LOOT)}`);
 
   // ---- CAS-65 capstone boss: phase shift + radial slam, on a FRESH page (the
   // loop above already cleared arena on the main page) -----------------------

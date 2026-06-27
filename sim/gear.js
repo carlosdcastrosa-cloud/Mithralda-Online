@@ -41,10 +41,13 @@ export const GEAR = {
 };
 
 // Drop tier window per zone (difficulty). Per-enemy gearChance lives on ETPL
-// (sim/config.js). Caves/ruins/arena are the tier 2-3 "meaningful loot" zones.
+// (sim/config.js). CAS-73: the window climbs in lockstep with ZONE_TIER difficulty
+// (forest 1-2 → ruins 2-3 → caves/arena 3-4), so a tougher zone literally drops
+// better-tier gear — the carrot that pays for the steeper mobs. Town/field stay
+// low-tier starter zones. Shields cap at tier 3 (they drop out of the 4 window).
 export const ZONE_LOOT = {
   town:{tier:[1,1]}, field:{tier:[1,2]}, forest:{tier:[1,2]},
-  caves:{tier:[2,3]}, ruins:{tier:[2,3]}, arena:{tier:[2,3]},
+  ruins:{tier:[2,3]}, caves:{tier:[3,4]}, arena:{tier:[3,4]},
 };
 
 // ---- pure gear helpers (no game state, no RNG; safe in sim or render) ----

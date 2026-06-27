@@ -80,6 +80,21 @@ export const ETPL = {
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
 };
 
+// Per-zone difficulty TIER (CAS-73): the natural-spawn trash of each hunt zone is
+// scaled by these multipliers in the spawner loop, so the four zones form a rising
+// difficulty curve (forest = baseline → arena = pinnacle) and pushing deeper is the
+// reward loop's engine: harder zone → tougher mobs → more XP (`xpMul`) → better loot
+// (ZONE_LOOT window in sim/gear.js climbs in lockstep). `tier` is the ordinal used
+// for HUD/probes. Pure data + pure math (no RNG) → deterministic / Stage-2 ready.
+// Champions/capstones are NOT scaled here — their elite blocks are tuned per row in
+// HUNTS below, so a zone's mini-boss difficulty is independent of its trash scaling.
+export const ZONE_TIER = {
+  forest: { tier:1, hpMul:1.00, dmgMul:1.00, spdMul:1.00, xpMul:1.00 },
+  ruins:  { tier:2, hpMul:1.30, dmgMul:1.18, spdMul:1.05, xpMul:1.30 },
+  caves:  { tier:3, hpMul:1.70, dmgMul:1.35, spdMul:1.10, xpMul:1.65 },
+  arena:  { tier:4, hpMul:2.10, dmgMul:1.55, spdMul:1.15, xpMul:2.10 },
+};
+
 // Hunt contracts (CAS-63): the per-hunt OBJECTIVE that gives a farm zone a point.
 // Cull `need` enemies in the zone -> a Champion is summoned (an ELITE of a zone mob,
 // so it reuses that mob's sprite — no new art). Defeating the Champion CLEARS the
@@ -100,9 +115,14 @@ export const ETPL = {
 // progression target. Pure data: the generic resolver in sim.js reads this block,
 // so a second capstone is another `boss:{…}` row, never a code branch.
 export const HUNTS = {
-  forest: { need:10, base:"wolf",   name:"Lobo Alfa",       hpMul:8,  dmgMul:1.8, sizeMul:1.55, tier:[2,3], minR:"uncommon", xp:90,  gold:45 },
-  ruins:  { need:12, base:"bandit", name:"Capitán Bandido", hpMul:8,  dmgMul:1.7, sizeMul:1.45, tier:[2,3], minR:"rare",     xp:140, gold:70 },
-  arena:  { need:14, base:"orc",    name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75,
+  forest: { need:10, base:"wolf",     name:"Lobo Alfa",       hpMul:8,  dmgMul:1.8, sizeMul:1.55, tier:[2,3], minR:"uncommon", xp:90,  gold:45 },
+  ruins:  { need:12, base:"bandit",   name:"Capitán Bandido", hpMul:8,  dmgMul:1.7, sizeMul:1.45, tier:[2,3], minR:"rare",     xp:140, gold:70 },
+  // CAS-73 tier-3 mini-boss: fills the previously hunt-less caves zone. Skeleton base
+  // (telegraphed melee → readable) scaled hard; reward window jumps to tier 3-4 so its
+  // drop strictly out-classes ruins, keeping the climb worth it. Capstone stays the
+  // only GUARANTEED epic, so arena remains the pinnacle.
+  caves:  { need:13, base:"skeleton", name:"Rey Esquelético",  hpMul:9,  dmgMul:2.0, sizeMul:1.6,  tier:[3,4], minR:"rare",     xp:170, gold:90 },
+  arena:  { need:14, base:"orc",      name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75,
     boss:{ base:"golem", sprite:"golem", name:"Coloso del Foso", hp:900, dmg:34, size:40, spd:54, knock:70, windup:0.9, recover:0.7,
            enrageAt:0.5, enrageSpd:1.35, enrageWindup:0.72,                       // phase 2: faster + tighter tells
            slam:{ count:14, spd:175, dmg:22, life:1.3 },                          // radial shockwave (positional tell)

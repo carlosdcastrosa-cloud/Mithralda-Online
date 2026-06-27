@@ -51,6 +51,8 @@ export function createGame(canvas, ctx, getView){
       bag:()=>simDev.bag(),
       equipBag:(i)=>simDev.equipBag(i),
       openInv:()=>simDev.openInv(),
+      // zone-difficulty contract consumed by tools/hunt.mjs (CAS-73) — additive
+      zoneTier:(zone,type)=>simDev.zoneTier(zone,type),
       // hunt-contract contract consumed by tools/hunt.mjs (CAS-63) — additive
       huntState:(zone)=>simDev.huntState(zone),
       huntKillChampion:(zone)=>simDev.huntKillChampion(zone),

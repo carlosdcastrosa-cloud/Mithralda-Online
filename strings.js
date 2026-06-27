@@ -15,12 +15,12 @@ export const STR = {
   questDone: "Misión completada: ¡Bosque limpio!",
 
   // Hunt contracts (CAS-63): per-zone cull objective → Champion → zone cleared.
-  zoneNames: { forest:"Bosque del Este", ruins:"Ruinas de Eldath", arena:"Arena de Sangre" },
+  zoneNames: { forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre" },
   huntLabel: (n, need) => "Cacería: " + n + "/" + need,
   huntChampApproaches: "¡CAMPEÓN!",
   huntZoneCleared: "ZONA DESPEJADA",
   huntChampion: (name) => "¡Aparece " + name + "! Derrótalo para despejar la zona.",
-  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", arena:"Arena de Sangre" }[zone] || "la zona") + "! Recompensa garantizada.",
+  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre" }[zone] || "la zona") + "! Recompensa garantizada.",
   // CAS-65 capstone phase shift — fires when the boss crosses its enrage threshold.
   bossEnrage: (name) => "¡" + name + " SE ENFURECE! Esquiva la onda expansiva.",
   bossEnrageBanner: "¡ENFURECIDO!",
