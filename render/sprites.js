@@ -240,8 +240,14 @@ export const ANIM={
   // tools/slice-pack-strip.mjs crops them to 224×88 so the feet bottom-anchor cleanly.
   // The golem body is ~68px; ds≈1.15 (×boss mult) renders it ~90px — a 3-tile capstone.
   golem:   {fc:{idle:8,walk:8,attack:17}, fw:{idle:224,walk:224,attack:224}, fh:{idle:88,walk:88,attack:88}, ds:1.15},
+  // CAS-76: real "Moose" from the EPIC RPG World — Ancient Ruins pack. Same golem
+  // pattern: single-row horizontal strips (run reused as walk), native frames 347×192
+  // with heavy padding cropped by tools/slice-pack-strip.mjs to 347×112 so the hooves
+  // bottom-anchor. attack rears up (30-frame antler charge → a long, readable telegraph).
+  // Body is ~78px; ds≈1.1 (×0.82 trash mult) renders it ~70px — a ~2-tile bruiser.
+  moose:   {fc:{idle:8,walk:8,attack:30}, fw:{idle:347,walk:347,attack:347}, fh:{idle:112,walk:112,attack:112}, ds:1.1},
 };
-export const ENEMY_ANIM={ mage:"mage", golem:"golem" };
+export const ENEMY_ANIM={ mage:"mage", golem:"golem", moose:"moose" };
 // player class sprites: directional (down/up/side, left=side mirrored), states idle/walk/attack
 export const CLS={
   warrior: {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
@@ -262,7 +268,13 @@ export function loadAllAssets(){
   for(const cl in CLS) for(const dir of CLASS_DIRS) for(const st in CLS[cl].fc) loadImg("cls_"+cl+"_"+st+"_"+dir, "./assets/class/"+cl+"_"+st+"_"+dir+".png");
   loadImg("cave_floor","./assets/tiles/cave_floor.png");
   loadImg("cave_floor2","./assets/tiles/cave_floor2.png");
-  // CAS-71: dropped town_floor PNG loads — town renders via the Drive's procedural cobble.
+  // CAS-77: real EPIC RPG World — Ancient Ruins ground. Flagstone paves the town
+  // plaza (T_COBBLE); grass dresses forest/ruins/field (T_GRASS). Two variants each
+  // so hash2() alternates them deterministically. Art only — collision unchanged.
+  loadImg("ruins_floor","./assets/tiles/ruins_floor.png");
+  loadImg("ruins_floor2","./assets/tiles/ruins_floor2.png");
+  loadImg("ruins_grass","./assets/tiles/ruins_grass.png");
+  loadImg("ruins_grass2","./assets/tiles/ruins_grass2.png");
   loadImg("wall","./assets/tiles/wall.png");
   loadImg("wall2","./assets/tiles/wall2.png");
   for(const p of ["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"]) loadImg("prop_"+p,"./assets/props/"+p+".png");

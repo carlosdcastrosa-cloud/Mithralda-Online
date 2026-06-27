@@ -72,9 +72,16 @@ export function createRenderer(ctx){
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
-      // CAS-71: town floor renders with the Drive package's authentic procedural cobble
-      // (COL.cobble #34464a) — reverted the CAS-60 Higgsfield town_floor PNG substitution
-      // so the live build is 100% the real Drive package, no parallel Higgsfield assets.
+      // CAS-77: real EPIC RPG World — Ancient Ruins ground. Town plaza (T_COBBLE)
+      // pays in flagstone; forest/ruins/field (T_GRASS) in grass. Two deterministic
+      // variants per kind via hash2(); fall through to the procedural fill below when
+      // the image hasn't loaded (unit tooling / first frame). Collision is untouched.
+      if(t===T_COBBLE){ const img=(hash2(x,y)<0.5?IMG.ruins_floor:IMG.ruins_floor2);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
+          if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
+          continue; } }
+      if(t===T_GRASS){ const img=(hash2(x,y)<0.5?IMG.ruins_grass:IMG.ruins_grass2);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS); continue; } }
       ctx.fillStyle=tileBase[t]; ctx.fillRect(px,py,TS,TS);
       const hv=hash2(x,y);
       // texture flecks (deterministic)
