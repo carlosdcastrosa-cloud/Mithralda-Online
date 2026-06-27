@@ -184,6 +184,11 @@ export const CLS={
   priest:  {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
 };
 export const CLASS_DIRS=["down","up","side"];
+// In-world hero render scale. 22×34 source frame → 34×1.85 ≈ 63px ≈ 2 tiles,
+// matching the ASSET_PIPELINE.md §2 "~2 tiles (~64px)" standard and enemy scale
+// (CAS-21, board-approved 2026-06-27). Not the class-select card preview, which
+// fits-to-card independently.
+export const HERO_SPRITE_SCALE=1.85;
 export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58 };
 export function loadAllAssets(){
   for(const ch in ANIM) for(const st in ANIM[ch].fc) loadImg(ch+"_"+st, "./assets/char/"+ch+"_"+st+".png");

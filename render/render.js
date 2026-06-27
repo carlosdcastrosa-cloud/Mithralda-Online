@@ -20,7 +20,7 @@ import { view, zoom } from "../view.js";
 import { COL } from "./palette.js";
 import {
   blit, SP, IMG, drawCoin, drawPotion, drawFragment,
-  ANIM, ENEMY_ANIM, CLS, PROP_SCALE,
+  ANIM, ENEMY_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
   dir4FromAngle, drawClassFrame, drawAnim, frameIndex,
 } from "./sprites.js";
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
@@ -131,7 +131,7 @@ export function createRenderer(ctx){
   }
 
   function drawHero(h){
-    const cls=h.cls||"warrior", meta=CLS[cls], S=1.05, feet=h.y+18, st=h.animState;
+    const cls=h.cls||"warrior", meta=CLS[cls], S=HERO_SPRITE_SCALE, feet=h.y+18, st=h.animState;
     const cstate=(st==="attack")?"attack":(st==="walk"||st==="roll")?"walk":"idle";
     const ang=(st==="attack")?h.atkAng:((st==="roll"&&(h.rollX||h.rollY))?Math.atan2(h.rollY,h.rollX):h.facing);
     const dir=dir4FromAngle(ang);
