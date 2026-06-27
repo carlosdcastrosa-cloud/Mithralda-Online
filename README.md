@@ -30,6 +30,37 @@ Una sola fuente de verdad en `game.js`; las épicas de combate y construcción d
 - **Radios de colisión:** héroe `HERO_R = 12`, enemigos `tpl.size * ENEMY_R_MUL (0.6)`, proyectiles `PROJ_R = 4`.
 - **Sin tunneling:** `moveEnt()` y el movimiento de proyectiles están **substeppeados** (`SWEEP_STEP = TS/4 = 8` px máx. entre muestras). Junto con el bucle de timestep fijo (`index.html`, `STEP = 1/60`), los móviles más rápidos (rodar `430 ≈ 7.2` px/paso, flecha `440 ≈ 7.3` px/paso) no pueden atravesar un muro de 32 px.
 
+## Verificación (harness headless)
+Arnés repetible en `tools/` que corre el juego real en Chromium headless (puppeteer-core, solo `devDependency`; el juego desplegado sigue sin dependencias de runtime). El binario de Chromium se autodetecta (`PUPPETEER_EXECUTABLE_PATH`, `/usr/bin/chromium`, …).
+
+```bash
+npm install --include=dev   # el entorno usa NODE_ENV=production; hay que incluir dev deps
+npm run smoke               # menu→clase→play en headless; 0 errores, spawns, FPS ≥ 58 + screenshot
+npm run determinism         # buildWorld() es puro y repetible (mismo mundo siempre)
+npm run verify              # determinism + smoke
+```
+
+- **`tools/smoke.mjs`** — conduce menú → selección de clase → `play` con input sintético, sostiene movimiento mientras muestrea FPS desde el `requestAnimationFrame` real, afirma: cero errores de página, escena llega a `play`, héroe presente, enemigos spawnean, y FPS ≥ 58. Guarda `tools/smoke-screenshot.png`.
+- **`tools/determinism.mjs`** — afirma que `buildWorld()` produce terreno/sólidos/muros/spawns idénticos en N corridas y entre cargas de página. Protege la asunción de autoridad-de-servidor de Stage-2.
+- **`tools/harness.mjs`** — servidor estático efímero + lanzador de Chromium compartido por ambos.
+- Hooks de prueba (solo `?dev`, sin impacto en gameplay) viven en `window.__dev` dentro de `game.js`: `scene()`, `enemyCount()`, `hero()`, `worldFingerprint()`.
+
+## Arquitectura del motor — seams para Stage-2
+El juego entero vive hoy en una clausura (`createGame()` en `game.js`). Funciona y es performante, pero para Stage-2 (servidor autoritativo + red) hay que poder extraer el **núcleo de simulación** sin reescribir. Las fronteras *intencionadas* (aún no físicamente separadas en archivos) son:
+
+| Capa | Responsabilidad | Dónde vive hoy | Regla |
+|------|-----------------|----------------|-------|
+| **Sim core** | `update()` paso fijo, colisión (`moveEnt`/`solidBlocked`/`isSolidTile`), RNG (`seed`/`srand`), IA de enemigos, `buildWorld()` | `game.js` (clausura) | Determinista. Sin `Date`, sin `Math.random` en lógica, sin leer estado de render/DOM. |
+| **Render** | `render(alpha)`, dibujo de sprites/FX/HUD, cámara, minimapa | `game.js` | Solo lee estado de sim; **nunca** muta la simulación. |
+| **Input** | teclado/puntero/gamepad/táctil → intención | `onKeyDown`/`onPointer*`/`pollPad` | Produce intención; no aplica reglas directamente. |
+| **Content-data** | clases (`CLS`/`ATK`), enemigos (`ETPL`), zonas, loot, strings | `game.js` + `strings.js` | Datos, no código; los diseñadores iteran sin tocar el sim. |
+
+**Contrato clave:** la lógica corre a paso fijo (`STEP = 1000/60`, `index.html`); `render(alpha)` solo interpola. Esto ya separa *temporalmente* sim de render — la red de Stage-2 reemplaza la fuente de intención (input local → input del servidor) sin tocar el sim.
+
+### Deudas conocidas para Stage-2 (mapear ahora, extraer después)
+1. **Stream global único de RNG.** `_seed`/`srand()` es un solo estado mutable compartido por world-gen *y* efectos por-frame. `buildWorld()` re-siembra a `13371` al entrar, así que la generación de mundo es determinista y repetible (lo verifica `determinism.mjs`) **pero aún no parametrizable por semilla**: el servidor de Stage-2 necesitará `buildWorld(seed)` y, idealmente, **streams de RNG separados** (uno para world-gen autoritativo, otro para FX cosméticos no-autoritativos) para que lo cosmético nunca desincronice la simulación.
+2. **Sim y render comparten una clausura.** `update()` y `render()` cierran sobre el mismo objeto `G` y los mismos helpers. Es cómodo pero significa que el sim no puede correr *sin* el render (p. ej. en un servidor Node sin canvas). La extracción futura: mover sim core a un módulo sin DOM (`sim.js`) con una interfaz explícita de estado, dejando render/input como consumidores. El paso fijo y los hooks `?dev` actuales son el andamiaje para esa extracción.
+
 ## Estructura
 ```
 mithralda/
@@ -44,6 +75,7 @@ mithralda/
 │   ├── char/          # sprites del esqueleto mago (enemigo animado)
 │   ├── tiles/         # texturas de suelo y muros
 │   └── props/         # árboles, rocas, barriles, ruinas, etc.
+├── tools/            # harness de verificación headless (smoke, determinism, atlas-qa)
 └── tools-sprites/     # generadores en Python/PIL con los que se crearon los sprites
 ```
 
