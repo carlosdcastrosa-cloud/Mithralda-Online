@@ -1,13 +1,24 @@
 {
-  "frameW": 105,
-  "frameH": 164,
-  "anchorX": 43,
-  "foot": 162,
+  "_doc": "CAS-101: per-class ANIMATED idle strips (bg-removed via ML video matte). Each PNG is a horizontal strip of `frames` columns at frameW×frameH; draw column fi with feet on `foot`, lower-body centroid on `anchorX`. On-screen figure size is unchanged from the static CAS-98 set (figureH=160 preserved) so CLASS_ANIM_SCALE stays 0.32.",
+  "frameW": 140,
+  "frameH": 166,
+  "anchorX": 65,
+  "foot": 163,
   "figureH": 160,
-  "classes": [
-    "warrior",
-    "mage",
-    "archer",
-    "rogue"
-  ]
+  "frames": 6,
+  "idleFps": 2.6,
+  "art": ["warrior", "paladin", "mage", "druid", "priest", "archer", "rogue"],
+  "classMap": {
+    "warrior": "warrior",
+    "paladin": "paladin",
+    "mage": "mage",
+    "druid": "druid",
+    "priest": "priest"
+  },
+  "derivedVariants": {
+    "paladin": "warrior (crimson/steel -> holy gold)",
+    "druid": "archer (olive ranger -> forest green)",
+    "priest": "mage (robe -> white/cream holy)"
+  },
+  "spareBaseArt": ["archer", "rogue"]
 }
