@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -469,7 +469,28 @@ export function respawn(){
 function nearestNPC(){ const h=G.hero; let best=null,bd=CFG.talkRange*CFG.talkRange;
   for(const n of world.npcs){ const d=dist2(h.x,h.y,n.x,n.y); if(d<bd){bd=d;best=n;} } return best; }
 function nearestFountain(){ const h=G.hero; for(const f of world.fountains){ if(dist2(h.x,h.y,f.x,f.y)<CFG.fountainRange*CFG.fountainRange) return f; } return null; }
+// CAS-114 — nearest interactable portal (town↔abyss warp gate), same reach as talking.
+function nearestPortal(){ const h=G.hero; if(!world.portals) return null;
+  let best=null,bd=CFG.talkRange*CFG.talkRange;
+  for(const p of world.portals){ const d=dist2(h.x,h.y,p.x,p.y); if(d<bd){bd=d;best=p;} } return best; }
+// CAS-114 — the hero's PERMANENT power, a single legible number that the abyss gate
+// reads off the two things the loop rewards: merchant-upgrade tiers bought (the gold
+// SINK, CAS-112) + levels gained. Both persist (CAS-113), so the gate stays cleared
+// across reloads. Pure math (no RNG) — deterministic / Stage-2 ready.
+export function heroPower(h){ h=h||G.hero; if(!h) return 0; const u=h.upg||{};
+  return (u.dmg||0)+(u.hp||0)+(u.def||0) + Math.max(0,(h.lvl||1)-1); }
+// CAS-114 — warp through a portal. The town→abyss gate is power-gated: below REQ it
+// denies with a clear toast (HUD feedback); at/above it warps the hero to the abyss
+// vestibule. The abyss→town gate always returns. Clears transient state on arrival.
+function usePortal(p){ const h=G.hero;
+  if(p.to==="abyss"){ const pw=heroPower(h);
+    if(pw<ABYSS_POWER_REQ){ toast(STR.abyssLocked(pw,ABYSS_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
+  h.x=p.dx; h.y=p.dy; h.vx=h.vy=0; h.rolling=false; h.rollT=0; h.iframe=0.6;
+  audio.sfx.roll(); toast(p.to==="abyss"?STR.enteredAbyss:STR.leftAbyss,3.0); return true;
+}
 export function interact(){
+  const p=nearestPortal();
+  if(p){ usePortal(p); return; }
   const f=nearestFountain();
   const n=nearestNPC();
   if(n){ openDialogue(n); return; }
@@ -562,7 +583,7 @@ export function update(dtMs){
   if(G.scene!=="play"){ updateFloaters(dt); updateFx(dt); return; } // freeze world in menus but let transient fx expire
   const h=G.hero;
   // music switch by zone danger
-  const z=zoneOf(world,h.x,h.y); const wantCombat=(z==="caves"||z==="forest"||z==="arena"||z==="ruins") && G.enemies.some(e=>e.state==="chase"||e.state==="windup");
+  const z=zoneOf(world,h.x,h.y); const wantCombat=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss") && G.enemies.some(e=>e.state==="chase"||e.state==="windup");
   const wantMusic=wantCombat?"combat":"town"; if(wantMusic!==G.music){ G.music=wantMusic; audio.playMusic(wantMusic); }
   if(z==="arena" && !G.arenaWarned){ G.arenaWarned=true; toast(STR.enteredArena,3.5); }
   if(z==="caves" && !G.bossSpawned && h.y<(world.caves.y+10)*TS){ G.bossSpawned=true; spawnBoss(); }
@@ -848,6 +869,21 @@ export const dev = {
     baseDmg:h.baseDmg, maxHp:h.maxHp, hp:Math.round(h.hp), potHP:h.potHP, potMP:h.potMP,
     upg:{...(h.upg||{})}, scene:G.scene, merchant:!!G.merchantShop }; },
   setGold(n){ G.hero.gold=n>>>0; return G.hero.gold; },
+  // --- CAS-114 abyss power-gate harness hooks (tools/abyss.mjs); additive ---
+  // Read the gate: current power, requirement, whether the portal would open, and the
+  // live zone the hero stands in. Lets the test assert lock/unlock without guessing.
+  abyssGate(){ const h=G.hero; const pw=heroPower(h); return { power:pw, req:ABYSS_POWER_REQ,
+    unlocked:pw>=ABYSS_POWER_REQ, zone:zoneOf(world,h.x,h.y),
+    upg:{...(h.upg||{})}, lvl:h.lvl }; },
+  // Set the permanent upgrade tiers directly (the gold-sink stat the gate reads), so a
+  // test can drive the hero across the threshold without grinding the shop. baseDmg etc.
+  // are NOT touched here — this only moves the GATE input; combat hooks cover the rest.
+  setUpg(d,hp,def){ const h=G.hero; h.upg={dmg:Math.max(0,d|0),hp:Math.max(0,hp|0),def:Math.max(0,def|0)}; return heroPower(h); },
+  // Park the hero on a portal and fire the REAL interact()→usePortal path, returning the
+  // resulting zone — proves the gate denies/allows and the warp lands (no shortcut).
+  tryPortal(to){ const P=world.portals&&world.portals.find(p=>p.to===to); if(!P) return null;
+    G.hero.x=P.x; G.hero.y=P.y; const before=zoneOf(world,G.hero.x,G.hero.y);
+    interact(); return { to, before, after:zoneOf(world,G.hero.x,G.hero.y), power:heroPower(G.hero), req:ABYSS_POWER_REQ }; },
   bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b) })); },
   equipBag(i){ return equipBag(i); },
   openInv(){ G.scene="inventory"; return G.scene; },

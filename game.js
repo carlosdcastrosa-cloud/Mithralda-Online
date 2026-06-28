@@ -78,6 +78,8 @@ export function createGame(canvas, ctx, getView){
       // merchant-shop economic-loop contract consumed by tools/shop.mjs (CAS-112) — additive
       merchantTP:()=>simDev.merchantTP(), shopList:()=>simDev.shopList(), shopBuy:(i)=>simDev.shopBuy(i),
       heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
+      // CAS-114 abyss power-gate contract consumed by tools/abyss.mjs — additive
+      abyssGate:()=>simDev.abyssGate(), setUpg:(d,hp,def)=>simDev.setUpg(d,hp,def), tryPortal:(to)=>simDev.tryPortal(to),
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe(),
       // CAS-113 persistence contract consumed by tools/persist.mjs — additive

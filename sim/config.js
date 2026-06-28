@@ -130,7 +130,19 @@ export const ZONE_TIER = {
   ruins:  { tier:2, hpMul:1.30, dmgMul:1.18, spdMul:1.05, xpMul:1.30 },
   caves:  { tier:3, hpMul:1.70, dmgMul:1.35, spdMul:1.10, xpMul:1.65 },
   arena:  { tier:4, hpMul:2.10, dmgMul:1.55, spdMul:1.15, xpMul:2.10 },
+  // CAS-114 — the Abismo: a fifth, power-gated hunt zone that strictly out-classes
+  // every open zone (trash hits harder + drops more, capstone is the true endgame).
+  // It is the PAYOFF the loop lacked: grind gold → buy merchant upgrades (CAS-112) +
+  // level → clear the ABYSS_POWER_REQ gate → unlock richer content; the persisted
+  // progression (CAS-113) keeps it unlocked across reloads. Same pure-math scaling.
+  abyss:  { tier:5, hpMul:2.80, dmgMul:1.90, spdMul:1.20, xpMul:2.80 },
 };
+
+// CAS-114 — power GATE for the Abismo. The hero's permanent power is a single legible
+// number = merchant-upgrade tiers bought (the gold SINK, CAS-112) + levels gained, so
+// the gate reads directly off the two things the loop rewards. heroPower() (sim.js)
+// computes it; the town portal blocks entry (with HUD feedback) until it clears REQ.
+export const ABYSS_POWER_REQ = 8;
 
 // Hunt contracts (CAS-63): the per-hunt OBJECTIVE that gives a farm zone a point.
 // Cull `need` enemies in the zone -> a Champion is summoned (an ELITE of a zone mob,
@@ -178,6 +190,16 @@ export const HUNTS = {
            enrageAt:0.5, enrageSpd:1.35, enrageWindup:0.72,                       // phase 2: faster + tighter tells
            slam:{ count:14, spd:175, dmg:22, life:1.3 },                          // radial shockwave (positional tell)
            tier:[4,4], minR:"epic", xp:380, gold:200 } },                         // guaranteed top-tier sink
+  // CAS-114 — the Abismo capstone: a SECOND capstone that out-classes the Coloso on
+  // every axis (more HP/dmg, a denser/faster slam, an earlier+harsher enrage) and pays
+  // the richest guaranteed-epic + gold/xp in the game. Reached only past the power gate,
+  // it is the explicit grind target that closes the economic loop. Pure data — the
+  // generic hunt/capstone resolver in sim.js reads this row, no new code branch.
+  abyss:  { need:16, base:"wraith",   name:"Heraldo del Vacío", hpMul:9,  dmgMul:2.1, sizeMul:1.6,  tier:[4,4], minR:"epic",     xp:240, gold:140,
+    boss:{ base:"golem", sprite:"golem", name:"Tirano del Abismo", hp:1500, dmg:48, size:46, spd:60, knock:84, windup:0.84, recover:0.62,
+           enrageAt:0.55, enrageSpd:1.48, enrageWindup:0.6,                       // phase 2: earlier + much faster + tighter tells
+           slam:{ count:18, spd:200, dmg:30, life:1.45 },                         // denser, faster radial shockwave
+           tier:[4,4], minR:"epic", xp:640, gold:360 } },                         // richest guaranteed top-tier sink
 };
 
 // CAS-100: per-class BASE STATS — the first class-identity surface (before ATK/SPELLS).

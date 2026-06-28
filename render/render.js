@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef } from "../sim/gear.js";
@@ -161,6 +161,27 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.waterL; const ph=Math.sin(G.t*2+f.x)*3; ctx.fillRect(f.x-8,f.y-4+ph,5,3); ctx.fillRect(f.x+4,f.y+2-ph,4,3);
       ctx.fillStyle=COL.waterGlint; ctx.fillRect(f.x-3,f.y-8+ph,3,3);
       if(f.temple){ ctx.fillStyle=COL.textGold; ctx.fillRect(f.x-2,f.y-r-10,4,8); ctx.fillRect(f.x-6,f.y-r-6,12,3);} }
+    // CAS-114 — warp portals (town↔abyss). The town→abyss gate reads LOCKED (dim red,
+    // a barred glyph) until the hero's power clears the gate, then OPEN (violet swirl);
+    // the return gate is always open. Animated from sim time only (no render RNG).
+    if(world.portals) for(const p of world.portals){
+      const locked = p.to==="abyss" && sim.heroPower(G.hero) < ABYSS_POWER_REQ;
+      const base = locked ? "#7a2230" : "#6a3cc0";
+      const glow = locked ? "#c23a4a" : "#b07cff";
+      const rot = G.t*(locked?0.6:1.8); const r=18;
+      ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.beginPath(); ctx.ellipse(p.x,p.y+6,r,7,0,0,6.28); ctx.fill();
+      // stone ring base
+      ctx.fillStyle=COL.stoneD||"#2a2f38"; ctx.beginPath(); ctx.arc(p.x,p.y,r+3,0,6.28); ctx.fill();
+      ctx.fillStyle=base; ctx.beginPath(); ctx.arc(p.x,p.y,r,0,6.28); ctx.fill();
+      // swirling rune arc
+      ctx.strokeStyle=glow; ctx.lineWidth=3; ctx.beginPath();
+      ctx.arc(p.x,p.y,r-4,rot,rot+Math.PI*1.1); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x,p.y,r-9,-rot,-rot+Math.PI*0.9); ctx.stroke();
+      // core glow pulse
+      const pulse=2+Math.sin(G.t*(locked?2:4)+p.x)*1.5;
+      ctx.fillStyle=glow; ctx.globalAlpha=locked?0.5:0.9; ctx.beginPath(); ctx.arc(p.x,p.y,4+pulse,0,6.28); ctx.fill(); ctx.globalAlpha=1;
+      if(locked){ ctx.strokeStyle="#1a0d10"; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(p.x-9,p.y-9); ctx.lineTo(p.x+9,p.y+9); ctx.stroke(); }
+    }
     // deco (trees, rocks, chests) - sorted by y handled in entities pass for overlap; draw ground deco here
     const order=[];
     for(const d of world.deco) order.push({y:d.y,draw:()=>{
@@ -532,7 +553,7 @@ export function createRenderer(ctx){
       ctx.fillRect(qx-hw,hy-2,hw,20); ctx.fillStyle=hc; ctx.fillText(ht,qx-6,hy+13); }
     // zone name
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
-    const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
+    const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
     ctx.fillText(zn, VW/2, 20);
     // spell bar
     renderSpellBar();
@@ -559,17 +580,21 @@ export function createRenderer(ctx){
   function renderMiniMap(){ const mw=120, mh=120; const x=VW-mw-12, y=VH-mh-12; if(isTouch) return;
     ctx.fillStyle="rgba(12,14,19,0.8)"; ctx.fillRect(x-2,y-2,mw+4,mh+4); ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass]];
-    for(const [r,c] of zr){ ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
+    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"]];
+    for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
+    // CAS-114 — portal blips on the minimap (violet)
+    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-1,y+p.y*sy-1,3,3); } }
     ctx.fillStyle="#ff5a4a"; for(const e of G.enemies){ ctx.fillRect(x+e.x*sx-1,y+e.y*sy-1,2,2); }
     ctx.fillStyle=COL.textGold; ctx.fillRect(x+G.hero.x*sx-2,y+G.hero.y*sy-2,4,4);
   }
   function renderBigMap(){ const mw=Math.min(VW*0.7,420), mh=mw; const x=(VW-mw)/2, y=(VH-mh)/2;
     panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins]];
-    for(const [r,c,nm] of zr){ ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy);
+    const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins],[world.abyss,"#3a2350",STR.zoneAbyss]];
+    for(const [r,c,nm] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy);
       ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.fillText(nm,x+(r.x+r.w/2)*TS*sx,y+(r.y+r.h/2)*TS*sy); }
+    // CAS-114 — portal markers on the world map (violet diamonds)
+    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-2,y+p.y*sy-2,4,4); } }
     ctx.fillStyle=COL.textGold; ctx.fillRect(x+G.hero.x*sx-3,y+G.hero.y*sy-3,6,6);
     ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText("M / tap: cerrar",VW/2,y+mh+18);
   }

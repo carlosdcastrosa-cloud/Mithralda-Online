@@ -26,9 +26,14 @@ export function buildWorld(rng){
   const caves = {x:30,y:4,w:52,h:34};
   const arena = {x:42,y:66,w:26,h:38};
   const ruins = {x:6,y:44,w:30,h:30};
+  // CAS-114 — the Abismo: a self-contained dungeon in the SE corner, reached only by
+  // the gated town portal (no walking path), so it reads as a separate, deeper place.
+  // Dark stone floor (T_STONE, like the caves) sets it apart from the open grass zones.
+  const abyss = {x:80,y:78,w:26,h:28};
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
     let t=T_GRASS;
     if(inRect(x,y,caves)) t=T_STONE;
+    else if(inRect(x,y,abyss)) t=T_STONE;
     else if(inRect(x,y,town)) t=townTile(x-town.x, y-town.y);  // CAS-80: data-driven hub tilemap
     else if(inRect(x,y,arena)) t=T_SAND;
     else if(inRect(x,y,forest)) t=T_GRASS;
@@ -49,6 +54,7 @@ export function buildWorld(rng){
   const fountains=[]; // {x,y}
   const npcs=[];
   const spawners=[]; // {x,y,r,types[],zone,max,cool,t}
+  const portals=[];   // CAS-114: {x,y,to,dx,dy,kind} — interactable warp gates (town↔abyss)
 
   function place(kind,x,y,r){ solids.push({x,y,r,kind}); deco.push({x,y,kind}); }
   // trees, bushes & grass in forest (Ancient Ruins foliage)
@@ -142,7 +148,32 @@ export function buildWorld(rng){
     else prop(srand()<0.5?"prop_grass1":"prop_grass2",x,y,false); }
   chests.push({x:(ruins.x+2)*TS,y:(ruins.y+2)*TS,opened:false,loot:"gold60"});
   fragments.push({x:(ruins.x+2)*TS,y:(ruins.y+ruins.h-3)*TS,taken:false,kind:"hp"});
-  return { terr, town, forest, caves, arena, ruins, solids, deco, chests, fragments, fountains, npcs, spawners, templeF, tcx, tcy, wallSet };
+  // ---- El Abismo (CAS-114): the power-gated endgame dungeon ----
+  // Tier-5 mob pool (the caves/arena roster, scaled hard by ZONE_TIER.abyss). No new
+  // art: reuses existing animated/procedural enemies. The capstone Tirano spawns via
+  // the HUNTS.abyss contract (shared resolver), so nothing here is hard-coded combat.
+  spawners.push({rect:abyss,types:["wraith","skeleton","orc","mage","spearman","wraith"],max:13,cool:3,t:0,zone:"abyss"});
+  // dressing — bones, pillars, rocks & torch posts for an oppressive ruin feel.
+  for(let i=0;i<22;i++){ const tx=abyss.x+rr(2,abyss.w-2), ty=abyss.y+rr(2,abyss.h-2);
+    const x=tx*TS, y=ty*TS, k=srand();
+    if(k<0.26) prop("prop_pillar",x,y,true,9);
+    else if(k<0.46) prop("prop_bones",x,y,false);
+    else if(k<0.64) prop("prop_rock",x,y,false);
+    else if(k<0.78) prop("prop_barrel",x,y,true,9);
+    else prop("prop_ruin_pillar2",x,y,true,9); }
+  for(let i=0;i<5;i++){ prop("prop_torch",(abyss.x+2)*TS,(abyss.y+4+i*5)*TS,false);
+    prop("prop_torch",(abyss.x+abyss.w-2)*TS,(abyss.y+4+i*5)*TS,false); }
+  chests.push({x:(abyss.x+3)*TS,y:(abyss.y+3)*TS,opened:false,loot:"gold60"});
+  fragments.push({x:(abyss.x+abyss.w-3)*TS,y:(abyss.y+3)*TS,taken:false,kind:"mp"});
+  // ---- portals (CAS-114): a gated town gate down to the Abismo + a return gate up ----
+  // The town portal sits NE of the plaza; the abyss return gate sits near the zone's
+  // south edge. Entering drops the hero at the return gate (entry vestibule) and the
+  // spawner keeps mobs >240px away, so you arrive safe and walk INTO the fight.
+  const acx=(abyss.x+5)*TS, acy=(abyss.y+abyss.h-3)*TS;     // abyss vestibule (near return gate)
+  const tpx=tcx+5*TS, tpy=tcy-6*TS;                          // town gate, NE of plaza
+  portals.push({x:tpx, y:tpy, to:"abyss", dx:acx, dy:acy-TS*2, kind:"down"});
+  portals.push({x:acx, y:acy, to:"town",  dx:tpx, dy:tpy+TS*2, kind:"up"});
+  return { terr, town, forest, caves, arena, ruins, abyss, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
 }
 
 export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
@@ -150,5 +181,6 @@ export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
   if(inRect(tx,ty,world.caves)) return "caves";
   if(inRect(tx,ty,world.arena)) return "arena";
   if(world.ruins && inRect(tx,ty,world.ruins)) return "ruins";
+  if(world.abyss && inRect(tx,ty,world.abyss)) return "abyss";  // CAS-114
   if(inRect(tx,ty,world.forest)) return "forest";
   return "field"; }
