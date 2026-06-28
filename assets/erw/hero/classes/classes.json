@@ -1,13 +1,16 @@
 {
-  "_doc": "CAS-101: per-class ANIMATED idle strips (bg-removed via ML video matte). Each PNG is a horizontal strip of `frames` columns at frameW×frameH; draw column fi with feet on `foot`, lower-body centroid on `anchorX`. On-screen figure size is unchanged from the static CAS-98 set (figureH=160 preserved) so CLASS_ANIM_SCALE stays 0.32.",
+  "_doc": "CAS-167: the 5 playable class heroes are now derived DIRECTLY from the canonical Main Character (art-reference/main-character.png — the Drive sprite). STYLE FORMULA law: same hooded silhouette, proportion, pixel density for ALL classes; only the cloak HUE + sash ACCENT shift within the family. Replaces the earlier off-style redesigns (full-plate warrior, pointy-hat mage) the CEO rejected. Each <cls>.png is a 6-frame breathing-idle strip and <cls>_walk.png an 8-frame walk-cycle (alt-leg swing+lift + body footfall bob) — no static characters. Built by tools/cas167-build-classes.mjs. render.js loads <cls>.png as clshero_* and <cls>_walk.png as clswalk_*; cell geom unchanged so CLASS_ANIM_SCALE stays 0.32.",
   "frameW": 140,
   "frameH": 166,
   "anchorX": 65,
   "foot": 163,
   "figureH": 160,
   "frames": 6,
+  "walkFrames": 8,
   "idleFps": 2.6,
-  "art": ["warrior", "paladin", "mage", "druid", "priest", "archer", "rogue"],
+  "walkFps": 8,
+  "source": "art-reference/main-character.png",
+  "art": ["warrior", "paladin", "mage", "druid", "priest"],
   "classMap": {
     "warrior": "warrior",
     "paladin": "paladin",
@@ -15,10 +18,13 @@
     "druid": "druid",
     "priest": "priest"
   },
-  "derivedVariants": {
-    "paladin": "warrior (crimson/steel -> holy gold)",
-    "druid": "archer (olive ranger -> forest green)",
-    "priest": "mage (robe -> white/cream holy)"
+  "palette": {
+    "warrior": "canonical steel-blue cloak + red sash",
+    "paladin": "holy-gold cloak + crimson sash",
+    "mage": "arcane-purple cloak + cyan sash",
+    "druid": "forest-green cloak + amber sash",
+    "priest": "cream-white cloak + gold sash"
   },
+  "protected": "hood-interior / outline / legs kept near-black across all classes so the family reads as one character",
   "spareBaseArt": ["archer", "rogue"]
 }
