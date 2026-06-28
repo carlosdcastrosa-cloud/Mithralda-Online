@@ -16,6 +16,7 @@
     "hunt": "node tools/hunt.mjs",
     "arch": "node tools/archetypes.mjs",
     "arch126": "node tools/cas126-archetypes.mjs",
+    "arch126-live": "node tools/cas126-live.mjs",
     "abyss": "node tools/abyss.mjs",
     "shop": "node tools/shop.mjs",
     "persist": "node tools/persist.mjs",
