@@ -108,7 +108,11 @@ export function buildWorld(rng){
   fragments.push({x:(arena.x+2)*TS,y:(arena.y+arena.h-3)*TS,taken:false,kind:"hp"});
   // spawners
   spawners.push({rect:forest,types:["wolf","wolf","rat","bat","bat"],max:12,cool:3,t:0,zone:"forest"});
-  spawners.push({rect:caves,types:["skeleton","spearman","orc","skeleton","mage","wraith","spearman"],max:12,cool:4,t:0,zone:"caves"});
+  // CAS-126 caves IDENTITY — "la Necrópolis": a caster gauntlet around a SUMMONER
+  // (necromancer) that keeps raising skeletons. The fight is about cutting the head off
+  // the tide (kill the summoner) while dodging spear/bolt poke — distinct from any other
+  // zone's pack. Summoned adds scale to the zone tier through the real spawn path.
+  spawners.push({rect:caves,types:["skeleton","mage","spearman","wraith","summoner","skeleton"],max:12,cool:4,t:0,zone:"caves"});
   // ---- dungeon walls in the caves (perimeter ring + interior alcoves) ----
   const wallSet=new Set();
   const cx0=caves.x, cy0=caves.y, cx1=caves.x+caves.w-1, cy1=caves.y+caves.h-1;
@@ -138,7 +142,10 @@ export function buildWorld(rng){
   // CAS-76: the animated Moose bruiser joins the ruins pool (replaces the trailing
   // bandit/orc dup slots → ~2/7 spawn weight; existing variety preserved, RNG sequence
   // unchanged so spawns stay deterministic).
-  spawners.push({rect:ruins,types:["orc","mage","spearman","skeleton","bandit","moose","moose"],max:12,cool:4,t:0,zone:"ruins"});
+  // CAS-126 ruins IDENTITY — "la Hueste de Eldath": a brute-led WARBAND (orc/moose) with
+  // a spear-poke flank, kept alive by a HEALER medic. The zone twist is sustain — out-
+  // tank the brutes OR focus the medic first, a different decision than caves' add-tide.
+  spawners.push({rect:ruins,types:["orc","moose","bandit","spearman","healer","moose"],max:12,cool:4,t:0,zone:"ruins"});
   const rcyp=town.y+town.h/2;
   for(let i=0;i<34;i++){ const tx=ruins.x+rr(1,ruins.w-2), ty=ruins.y+rr(1,ruins.h-2);
     if(tx>=ruins.x+ruins.w-4 && Math.abs(ty-rcyp)<2) continue; // keep east entrance clear
@@ -157,10 +164,11 @@ export function buildWorld(rng){
   // Tier-5 mob pool (the caves/arena roster, scaled hard by ZONE_TIER.abyss). No new
   // art: reuses existing animated/procedural enemies. The capstone Tirano spawns via
   // the HUNTS.abyss contract (shared resolver), so nothing here is hard-coded combat.
-  // CAS-115: the abyss runs the HARDEST archetype mix — every archetype present and
-  // weighted toward the punishing ones (brute orc/moose + caster wraith/mage) with a
-  // rusher (bandit) to force constant repositioning. Tier-5 scaling stacks on top.
-  spawners.push({rect:abyss,types:["wraith","mage","orc","moose","bandit","wraith","orc"],max:13,cool:3,t:0,zone:"abyss"});
+  // CAS-126 abyss IDENTITY — "el Pozo de Embestidas": the CHARGE pit. Heavy CHARGERS
+  // commit long locked-facing lanes you must sidestep while wraith/mage casters poke from
+  // range and a moose brute anchors. The zone fight is lane-management — a different motor
+  // skill than caves (kill priority) or ruins (sustain). Tier-5 scaling stacks on top.
+  spawners.push({rect:abyss,types:["wraith","orc","charger","moose","mage","charger"],max:13,cool:3,t:0,zone:"abyss"});
   // dressing — bones, pillars, rocks & torch posts for an oppressive ruin feel.
   for(let i=0;i<22;i++){ const tx=abyss.x+rr(2,abyss.w-2), ty=abyss.y+rr(2,abyss.h-2);
     const x=tx*TS, y=ty*TS, k=srand();
@@ -183,10 +191,12 @@ export function buildWorld(rng){
   portals.push({x:acx, y:acy, to:"town",  dx:tpx, dy:tpy+TS*2, kind:"up"});
   // ---- la Cripta Helada (CAS-121): a tier-6 frozen dungeon ----
   // Same shared machinery as the abyss: a tier-6 mob pool scaled by ZONE_TIER.frost +
-  // the capstone Guardián de la Cripta spawned by the HUNTS.frost contract. The roster
-  // mixes every archetype (caster wraith/mage, brute orc/moose, rusher bandit) so the
-  // zone stays a read-and-react fight before the boss's carapace mechanic on top.
-  spawners.push({rect:frost,types:["wraith","mage","orc","moose","wraith","bandit","orc"],max:13,cool:3,t:0,zone:"frost"});
+  // the capstone Guardián de la Cripta spawned by the HUNTS.frost contract.
+  // CAS-126 frost IDENTITY — "la Hueste Helada": a SUPPORT-heavy attrition host. A SUMMONER
+  // and a HEALER prop up slowing wraith/mage casters and an orc anchor, so the zone grinds
+  // you down with adds + heals + slows — thematically the status-fight prelude to the boss's
+  // carapace (which only a status build cracks). Hardest, most attritional pack in the game.
+  spawners.push({rect:frost,types:["wraith","mage","summoner","healer","wraith","orc"],max:13,cool:3,t:0,zone:"frost"});
   // dressing — frozen pillars, bones & rocks for a cold, ruined-crypt feel.
   for(let i=0;i<22;i++){ const tx=frost.x+rr(2,frost.w-2), ty=frost.y+rr(2,frost.h-2);
     const x=tx*TS, y=ty*TS, k=srand();

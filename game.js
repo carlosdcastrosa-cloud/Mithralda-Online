@@ -90,6 +90,9 @@ export function createGame(canvas, ctx, getView){
       // CAS-115 combat-archetype contract consumed by tools/archetypes.mjs — additive
       archMeta:(type)=>simDev.archMeta(type), archArena:(type,dx,dy)=>simDev.archArena(type,dx,dy),
       archSnap:()=>simDev.archSnap(), archMoveHero:(dx,dy)=>simDev.archMoveHero(dx,dy),
+      // CAS-126 new-archetype + zone-identity contract consumed by tools/cas126-archetypes.mjs — additive
+      zonePools:()=>simDev.zonePools(), enemyCount:()=>simDev.enemyCount(), broodCount:()=>simDev.broodCount(),
+      summonProbe:()=>simDev.summonProbe(), healProbe:()=>simDev.healProbe(), archAllyHp:()=>simDev.archAllyHp(),
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe(),
       // CAS-118 status-effect contract consumed by tools/cas118-status.mjs — additive

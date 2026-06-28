@@ -121,6 +121,23 @@ export const SPELLS = {
 //   brute  — slow tank, BIG HP, LONG windup then a small radial GROUND-SLAM AoE
 //            (`aoe` px) with heavy knockback. Telegraph: a filled ground ring that
 //            grows to the AoE radius. Hardest hitter → richest trash reward.
+//
+// CAS-126 — three NEW archetypes that raise encounter variety + zone identity. Same
+// rule: pure data on the shared windup→strike→recover AI (no per-mob code path), each
+// with a PERCEPTIBLE telegraph drawn off `arch` in render.js, deterministic / Stage-2
+// ready. They turn a zone's pack composition into a distinct fight, not a reskin:
+//   charger — heavy TANK that COMMITS a long straight-line CHARGE. Unlike the rusher's
+//             short tracking lunge it LOCKS its facing at windup and barrels the full
+//             `charge` px, ploughing PAST the hero (huge knock). Telegraph: a fixed,
+//             wide charge LANE — sidestep the lane, not the mob. Long recover after.
+//   summoner— fragile BACKLINE that, instead of attacking, SUMMONS adds on its cadence
+//             (`summon`: {type,count,cap,r}; crowd-capped so it never floods). Holds the
+//             `kite`..`range` band like a caster but never melees/fires. Telegraph: a
+//             growing summon glyph-ring. Kill it to stop the tide. Deals 0 direct dmg.
+//   healer  — pack MEDIC that HEALS the most-wounded ally in `heal.r` by `heal.amt` of
+//             its max HP each cadence. Holds back like a kiter. Telegraph: a green heal
+//             TETHER to its target during the windup. Focus it or the pack won't die.
+//             Deals 0 direct dmg — pure force-multiplier, never an OP solo threat.
 // Untagged rows keep the legacy generic-melee behaviour (rat/skeleton chumps, neutral
 // adv, and the champion/boss base rows whose elite mechanics layer on top in HUNTS).
 export const ETPL = {
@@ -149,6 +166,16 @@ export const ETPL = {
   // sprite "orc" is only the procedural fallback for the sub-second asset-load window
   // (same convention as mage→"skel"); ENEMY_ANIM.moose drives the real animated strips.
   moose:   {hp:150,dmg:26, spd:82,  aggro:260, range:56, windup:0.88, recover:0.7,  xp:48, gold:[14,24],sprite:"orc",  size:26, knock:200, boss:false, gearChance:0.32, arch:"brute", aoe:68},
+  // CAS-126 — charger: tier-4/5 charge-pit tank. Commits a long locked-facing dash
+  // (`charge` px) that ploughs past the hero with massive knock; the wide fixed lane is
+  // the tell. Big HP, long recover → a punishing but readable repositioning threat.
+  charger: {hp:140, dmg:25, spd:74, aggro:300, range:215, windup:0.66, recover:0.9, xp:46, gold:[12,22],sprite:"orc",  size:26, knock:235, boss:false, gearChance:0.30, arch:"charger", charge:300},
+  // CAS-126 — summoner: fragile necromancer backline. Holds the band, raises adds on
+  // cadence (crowd-capped). 0 direct dmg — its threat is the tide; focus-kill to stop it.
+  summoner:{hp:46,  dmg:0,  spd:60, aggro:330, range:260, windup:0.95, recover:0.95,xp:34, gold:[10,18],sprite:"skel", size:20, knock:40,  boss:false, gearChance:0.24, arch:"summoner", kite:170, summon:{type:"skeleton", count:2, cap:4, r:130}},
+  // CAS-126 — healer: pack medic. Tethers + heals the most-wounded ally each cadence.
+  // 0 direct dmg, fragile (50 hp). The force-multiplier that makes a pack attritional.
+  healer:  {hp:50,  dmg:0,  spd:66, aggro:330, range:240, windup:0.82, recover:0.85,xp:32, gold:[9,17], sprite:"adv",  size:19, knock:50,  boss:false, gearChance:0.24, arch:"healer", kite:155, heal:{amt:0.16, r:200}},
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
 };
 

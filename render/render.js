@@ -427,6 +427,38 @@ export function createRenderer(ctx){
         ctx.lineTo(tx-Math.cos(a-0.45)*12,ty-Math.sin(a-0.45)*12); ctx.lineTo(tx-Math.cos(a+0.45)*12,ty-Math.sin(a+0.45)*12);
         ctx.closePath(); ctx.fill();
         ctx.restore();
+      } else if(e.tpl.arch==="charger"){
+        // CAS-126 charger CHARGE tell: a WIDE fixed charge LANE (committed facing — it does
+        // NOT track) drawn as a translucent corridor + dashed edges + arrowhead, so the
+        // player reads "step OUT of the lane", not "step away from the mob".
+        const L=e.tpl.charge||300, a=e.facing, ca=Math.cos(a), sa=Math.sin(a);
+        const w=e.tpl.size*0.9, nx=-sa*w, ny=ca*w, tx=e.x+ca*L, ty=e.y-4+sa*L;
+        ctx.save();
+        ctx.globalAlpha=0.16+0.12*Math.abs(Math.sin(G.t*12)); ctx.fillStyle="#ff5230";
+        ctx.beginPath(); ctx.moveTo(e.x+nx,e.y-4+ny); ctx.lineTo(tx+nx,ty+ny); ctx.lineTo(tx-nx,ty-ny); ctx.lineTo(e.x-nx,e.y-4-ny); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha=fl2?0.9:0.55; ctx.strokeStyle=fl2?"#ffd24d":"#ff7a3a"; ctx.lineWidth=2.5; ctx.setLineDash([9,7]);
+        ctx.beginPath(); ctx.moveTo(e.x+nx,e.y-4+ny); ctx.lineTo(tx+nx,ty+ny); ctx.moveTo(e.x-nx,e.y-4-ny); ctx.lineTo(tx-nx,ty-ny); ctx.stroke(); ctx.setLineDash([]);
+        ctx.globalAlpha=0.9; ctx.fillStyle="#ffd24d"; ctx.beginPath(); ctx.moveTo(tx,ty);
+        ctx.lineTo(tx-ca*16-sa*12,ty-sa*16+ca*12); ctx.lineTo(tx-ca*16+sa*12,ty-sa*16-ca*12); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      } else if(e.tpl.arch==="summoner"){
+        // CAS-126 summoner tell: a growing purple glyph-RING under the caster as it channels
+        // the raise — reads "adds incoming, cut the head off". No hero-facing danger zone.
+        const prog=clamp(1-(e.st||0)/(e.tpl.windup||0.9),0,1), R=14+prog*30, cy=e.y+e.tpl.size*0.35;
+        ctx.save(); ctx.globalAlpha=0.35+0.30*Math.abs(Math.sin(G.t*12));
+        ctx.strokeStyle="#b48cff"; ctx.lineWidth=2.5; ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
+        ctx.globalAlpha=0.22; ctx.fillStyle="#9a6cff"; ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.fill();
+        ctx.globalAlpha=0.5; ctx.lineWidth=1.5; ctx.beginPath(); ctx.ellipse(e.x,cy,R*0.55,R*0.28,0,0,6.28); ctx.stroke(); ctx.restore();
+      } else if(e.tpl.arch==="healer"){
+        // CAS-126 healer tell: a pulsing green TETHER from the medic to the ally it is about
+        // to heal — the player reads "interrupt this / kill the medic". No hero danger zone.
+        const t=e.healTgt;
+        ctx.save(); ctx.globalAlpha=0.4+0.4*Math.abs(Math.sin(G.t*10)); ctx.strokeStyle="#7dffa0"; ctx.lineWidth=2.5; ctx.setLineDash([5,5]);
+        if(t&&t.hp>0){ ctx.beginPath(); ctx.moveTo(e.x,e.y-4); ctx.lineTo(t.x,t.y-4); ctx.stroke();
+          ctx.setLineDash([]); ctx.globalAlpha=0.8; ctx.fillStyle="#7dffa0";
+          ctx.beginPath(); ctx.arc(t.x,t.y,4+(fl2?2:0),0,6.28); ctx.fill();
+        } else { ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.size+6,0,6.28); ctx.stroke(); }
+        ctx.setLineDash([]); ctx.restore();
       } else {
         ctx.globalAlpha=0.5; ctx.fillStyle=fl2?"#ffd24d":"#ff6a3a";
         ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.range+6,0,6.28); ctx.fill(); ctx.globalAlpha=1;

@@ -215,7 +215,7 @@ function applyZoneScale(e, zone){
     hp:Math.round(b.hp*z.hpMul), dmg:Math.round(b.dmg*z.dmgMul),
     spd:Math.round(b.spd*(z.spdMul||1)), xp:Math.round(b.xp*(z.xpMul||1)),
   });
-  e.hp=e.maxHp=e.tpl.hp; e.zoneTier=z.tier;
+  e.hp=e.maxHp=e.tpl.hp; e.zoneTier=z.tier; e.scaleZone=zone; // CAS-126: remember the zone so a summoner can scale its adds the same way
   return e;
 }
 
@@ -875,13 +875,18 @@ function updateEnemies(dt){ const h=G.hero;
       else {
         e.facing=Math.atan2(h.y-e.y,h.x-e.x);
         const arch=e.tpl.arch;
-        // CAS-115 caster KITE: maintain the firing band — if the hero closes inside
-        // `kite`, back away (still readable: it never melees) and hold fire until the
-        // hero is in the `kite`..`range` band again. Pure positional, deterministic.
-        if(arch==="caster" && d < (e.tpl.kite||0)){
+        // CAS-115 caster KITE / CAS-126 summoner+healer BACKLINE: maintain the band — if
+        // the hero closes inside `kite`, back away (still readable: it never melees) and
+        // hold its cadence until the hero is in the `kite`..`range` band again. The two new
+        // support archetypes share this positioning (they hover behind the pack). Pure
+        // positional, deterministic.
+        if((arch==="caster"||arch==="summoner"||arch==="healer") && d < (e.tpl.kite||0)){
           const ra=Math.atan2(e.y-h.y,e.x-h.x); moveEnt(e,Math.cos(ra)*espd*dt,Math.sin(ra)*espd*dt,e.tpl.size*0.6);
         } else if(d<=e.tpl.range){
           e.atkCount=(e.atkCount||0)+1;
+          // CAS-126 healer: lock the heal TARGET the instant it commits, so the windup can
+          // draw a tether to it (telegraph). Most-wounded ally in range, never itself.
+          if(arch==="healer"){ e.healTgt=pickWoundedAlly(e); }
           // CAS-121: the Cripta capstone's CORAZA DE ESCARCHA takes priority — on every
           // Nth committed attack it raises the carapace (immune + channel nova + adds)
           // instead of striking. Only a status break opens it (see shatter path above).
@@ -898,8 +903,13 @@ function updateEnemies(dt){ const h=G.hero;
         else { moveEnt(e,Math.cos(e.facing)*espd*dt,Math.sin(e.facing)*espd*dt,e.tpl.size*0.6); }
       }
     } else if(e.state==="windup"){
-      e.st-=dt; e.facing=Math.atan2(h.y-e.y,h.x-e.x);
-      if(e.st<=0){ e.state="strike"; e.st=(e.tpl.arch==="rusher"&&!e.specialNow)?0.2:0.12; // rusher needs a longer window for the lunge to read
+      // CAS-126 charger COMMITS its facing at windup start — it does NOT track, so the
+      // charge lane is fixed and the player can sidestep it (the whole point of the tell).
+      e.st-=dt; if(e.tpl.arch!=="charger") e.facing=Math.atan2(h.y-e.y,h.x-e.x);
+      if(e.st<=0){ e.state="strike";
+        // strike-window length per archetype: rusher lunge + charger charge need a longer
+        // window for the dash to read/travel; everyone else lands on the "now!" instant.
+        e.st=(e.specialNow)?0.12:(e.tpl.arch==="charger")?0.36:(e.tpl.arch==="rusher")?0.2:0.12;
         addFx("strikeflash",e.x,e.y,{ang:e.facing,range:e.tpl.ranged?0:e.tpl.range,life:0.18}); // the "now!" instant
         // boss extra: ground wave on alternate strikes
         if(e.isBoss){ e.phase++; if(e.phase%2===0){ for(let k=0;k<10;k++){ const a=k/10*6.28; G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*180,vy:Math.sin(a)*180,life:1.2,dmg:18,kind:"rune",enemy:true}); } } }
@@ -927,8 +937,23 @@ function updateEnemies(dt){ const h=G.hero;
           const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl);
           addFx("spark",e.x+Math.cos(a)*14,e.y+Math.sin(a)*14); }
       }
+      // CAS-126 charger CHARGE: barrel the full `charge` px along the LOCKED facing over
+      // the strike window, ploughing PAST the hero (it does not stop on the hero — closing
+      // the lane was the tell). One contact hit + big knock; sidestepping the lane avoids it.
+      else if(e.tpl.arch==="charger" && !e.specialNow){
+        const cspd=(e.tpl.charge||300)/0.36; moveEnt(e,Math.cos(e.facing)*cspd*dt,Math.sin(e.facing)*cspd*dt,e.tpl.size*0.6);
+        if(!e.hitDone && d<=e.tpl.size+12){ e.hitDone=true;
+          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl);
+          addFx("spark",e.x+Math.cos(a)*16,e.y+Math.sin(a)*16); shakeAdd(5); }
+      }
       else if(!e.hitDone){ e.hitDone=true;
-        if(e.specialNow){ /* CAS-109: radial slam already fired at strike start — no melee hit */ }
+        // CAS-126 summoner: raise a deterministic ring of adds (crowd-capped) instead of
+        // an attack. 0 direct dmg — the tide IS the threat. Adds scale to the zone tier.
+        if(e.tpl.arch==="summoner"){ summonAdds(e); }
+        // CAS-126 healer: mend the locked target (most-wounded ally) by a % of its max HP.
+        // 0 direct dmg; the tether telegraph during windup let the player read + interrupt it.
+        else if(e.tpl.arch==="healer"){ healAlly(e); }
+        else if(e.specialNow){ /* CAS-109: radial slam already fired at strike start — no melee hit */ }
         // CAS-115 brute GROUND-SLAM: a small radial AoE (no facing arc — it hits all
         // around) with heavy knock. The grown ground-ring during windup told the player
         // to step OUT of the `aoe` radius; standing inside it eats the full blow.
@@ -953,6 +978,39 @@ function updateEnemies(dt){ const h=G.hero;
     else if(e.state==="shield"){ e.facing=Math.atan2(h.y-e.y,h.x-e.x); e.st-=dt;
       if(e.st<=0) fireFrostNova(e); }
   }
+}
+// CAS-126 — support-archetype helpers (deterministic, zero RNG).
+// pickWoundedAlly: the healer's target — the MOST-wounded living non-neutral ally within
+// `heal.r` (lowest hp fraction), never itself, never a champion/boss. null if none hurt.
+function pickWoundedAlly(e){ const H=e.tpl.heal; if(!H) return null; const r2=(H.r||180)*(H.r||180);
+  let best=null, bestFrac=1;
+  for(const o of G.enemies){ if(o===e||o.hp<=0||o.tpl.neutral||o.champion||o.isBoss) continue;
+    if(dist2(o.x,o.y,e.x,e.y)>r2) continue; const frac=o.hp/(o.maxHp||1);
+    if(frac<0.999 && frac<bestFrac){ bestFrac=frac; best=o; } }
+  return best;
+}
+// healAlly: restore `heal.amt` of the locked target's max HP (capped). Telegraphed by the
+// windup tether; the player could have killed the target/healer to deny it. 0 hero dmg.
+function healAlly(e){ const H=e.tpl.heal, t=e.healTgt; e.healTgt=null; if(!H||!t||t.hp<=0) return;
+  if(G.enemies.indexOf(t)<0) return; // target died mid-cast — the heal fizzles
+  t.hp=Math.min(t.maxHp, t.hp + Math.round((H.amt||0.15)*t.maxHp)); t.hurtFlash=0.1;
+  addFx("novacast",t.x,t.y,{r:e.tpl.size+6,col:"#7dffa0",life:0.4});
+  for(let i=0;i<5;i++) addFx("spark",t.x+frr(-12,12),t.y+frr(-14,4));
+}
+// summonAdds: raise a deterministic ring of adds, BROOD-capped so it never floods. Caps on
+// this summoner's own LIVING brood (`summonedBy` ref) — robust even as adds wander off to
+// the hero, unlike a radius count. At `cap` the cast fizzles (just fx). Each add is scaled
+// to the summoner's zone tier via the real spawn path. Never summons supports (fixed type).
+function summonAdds(e){ const S=e.tpl.summon; if(!S) return;
+  let brood=0; for(const o of G.enemies){ if(o.summonedBy===e && o.hp>0) brood++; }
+  addFx("novacast",e.x,e.y,{r:e.tpl.size+8,col:"#b48cff",life:0.45});
+  if(brood>=(S.cap||4)) return; // brood already full — hold (keeps the pack bounded / balanced)
+  const room=(S.cap||4)-brood, n=Math.min(S.count||2, room);
+  for(let i=0;i<n;i++){ const a=(i/Math.max(1,n))*6.28 + 0.5;
+    const ax=e.x+Math.cos(a)*40, ay=e.y+Math.sin(a)*40;
+    const add=spawnEnemy(S.type||"skeleton", ax, ay); if(add){ add.state="chase"; add.summonedBy=e; applyZoneScale(add, e.scaleZone); }
+    addFx("spark",ax,ay); }
+  audio.sfx.fire();
 }
 // CAS-121 — raise the frost carapace: immune + channel the Freeze Nova + summon adds.
 function startCarapace(e){ const C=e.carapace; if(!C) return;
@@ -1228,6 +1286,7 @@ export const dev = {
   // assert ≥3 distinct archetypes exist with their behaviour fields + danger reward.
   archMeta(type){ const t=ETPL[type]; if(!t) return null;
     return { type, arch:t.arch||null, ranged:!!t.ranged, lunge:t.lunge||0, kite:t.kite||0, aoe:t.aoe||0,
+      charge:t.charge||0, summon:t.summon||null, heal:t.heal||null, // CAS-126 new-archetype fields
       hp:t.hp, dmg:t.dmg, spd:t.spd, xp:t.xp, gold:t.gold.slice(), windup:t.windup }; },
   // Clean single-mob arena for behaviour probing: clear all entities, park a tanky hero
   // at a fixed spot (so AoE/lunge damage is measurable, mercy-iframes off), spawn ONE
@@ -1245,6 +1304,30 @@ export const dev = {
   // sidestepping a lunge mid-windup) without touching its AI state.
   archMoveHero(dx,dy){ const e=G.enemies[0]; if(!e) return null; const h=G.hero;
     h.x=e.x+(dx||0); h.y=e.y+(dy||0); h.iframe=0; return { dist:Math.round(Math.hypot(e.x-h.x,e.y-h.y)) }; },
+  // --- CAS-126 new-archetype + zone-identity harness hooks (tools/cas126-archetypes.mjs) ---
+  // The per-zone spawner pool compositions, so the test can assert each zone fields a
+  // DIFFERENT mix of archetypes (AC2: zona A ≠ zona B). Pure data off world.spawners.
+  zonePools(){ const o={}; for(const s of world.spawners) o[s.zone]=s.types.slice(); return o; },
+  enemyCount(){ return G.enemies.length; },
+  // Count of LIVING summoned adds (their `summonedBy` is set) — isolates a summoner's brood
+  // from the live zone spawner so the test can assert the crowd-cap holds.
+  broodCount(){ let n=0; for(const o of G.enemies){ if(o.summonedBy && o.hp>0) n++; } return n; },
+  // Summoner probe: tanky hero, ONE summoner parked in its firing band (dx in kite..range)
+  // so the REAL AI commits its raise cadence. Harness polls enemyCount() — adds appear,
+  // then plateau at `cap` (crowd-capped, never floods). Deterministic (fixed offsets).
+  summonProbe(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=100000; h.hp=100000; h.cls="warrior";
+    const e=spawnEnemy("summoner", h.x+210, h.y); if(e){ e.state="chase"; applyZoneScale(e,"caves"); } return e?G.enemies.length:0; },
+  // Healer probe: a WOUNDED ally + a healer next to it, both parked in the healer's band
+  // from the hero. Returns the ally's start HP; harness polls archAllyHp() — it must rise
+  // (the medic mends it) then the player could deny it by killing the medic. Deterministic.
+  healProbe(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=100000; h.hp=100000; h.cls="warrior";
+    const heal=spawnEnemy("healer", h.x+200, h.y); if(heal) heal.state="chase";
+    const ally=spawnEnemy("orc", h.x+200, h.y-40); if(ally){ ally.state="idle"; ally.hp=Math.round(ally.maxHp*0.3); } // 30% → wounded
+    return ally?ally.hp:0; },
+  // Live HP of the wounded ally (index 1) in the heal probe.
+  archAllyHp(){ const a=G.enemies[1]; return a?a.hp:0; },
   // Determinism probe (tools/determinism.mjs). Rebuilds the world from a FRESH
   // RNG each call so independent runs must agree byte-for-byte. seed is accepted
   // but buildWorld() still hard-seeds internally (tracked Stage-2 seam).
