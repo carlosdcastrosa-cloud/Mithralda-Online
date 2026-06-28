@@ -91,6 +91,9 @@ export function buildWorld(rng){
   // CAS-112: role "merchant" → opens the persistent upgrade shop (gold sink that
   // closes the hunt→gold→power loop). Still neutral:true so combat AI ignores it.
   npcs.push({x:tcx+1.5*TS,y:tcy+5*TS,sprite:"merchant",name:STR.npcMerchant,role:"merchant",lines:STR.merchantLines,neutral:true});
+  // CAS-134: the Bounty Board steward beside the merchant — role "bounty" opens the daily
+  // contracts + login-streak board (the daily return loop). Neutral so combat AI ignores it.
+  npcs.push({x:tcx-1.5*TS,y:tcy+5*TS,sprite:"npcRolf",name:STR.npcBounty,role:"bounty",lines:STR.bountyLines,neutral:true});
   for(let i=0;i<6;i++){ const x=(town.x+rr(2,town.w-2))*TS, y=(town.y+rr(2,town.h-2))*TS;
     if(Math.hypot(x-tcx,y-tcy)<3*TS) continue; prop("crate",x,y,true,8); }
   for(let i=0;i<4;i++){ prop("lantern",(town.x+2)*TS,(town.y+3+i*4)*TS,false);

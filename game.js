@@ -21,6 +21,7 @@ import { createRenderer } from "./render/render.js";
 import { loadAllAssets } from "./render/sprites.js";
 import * as persist from "./persist.js";
 import { analytics } from "./analytics.js";
+import { daily } from "./daily.js";
 
 export function createGame(canvas, ctx, getView){
   // wire the simulation's injected dependencies (input intents, audio, viewport)
@@ -32,9 +33,9 @@ export function createGame(canvas, ctx, getView){
   // CAS-113: throttled progression autosave rides the sim step (never per-frame).
   // CAS-131: a single scene-transition observer fires the UI open/close blip so the
   // SFX wiring lives in ONE place instead of scattered across every menu entry point.
-  const MENU_SCENES=new Set(["inventory","talents","shop","pause","dialogue"]);
+  const MENU_SCENES=new Set(["inventory","talents","shop","bounty","pause","dialogue"]);
   let prevScene=G.scene;
-  function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); analytics.tick(dtMs, G); syncMenuDom();
+  function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); analytics.tick(dtMs, G); daily.tick(); syncMenuDom();
     const s=G.scene; if(s!==prevScene){
       const into=MENU_SCENES.has(s), from=MENU_SCENES.has(prevScene);
       if(into&&!from) audio.sfx.uiOpen(); else if(from&&!into) audio.sfx.uiClose();
@@ -55,8 +56,14 @@ export function createGame(canvas, ctx, getView){
   // on tab hide/unload. Pure observer — analytics.tick(dt,G) in update() only READS G.
   analytics.boot();
   analytics.initFlush();
+  // CAS-134: the daily return loop (daily contracts + login streak). boot() loads/rolls
+  // the day's deterministic contracts + streak chain; daily.tick() in update() observes
+  // contract progress READ-ONLY off G; initFlush() persists on tab hide/unload. Pure
+  // client-side, fork-neutral — reversible by deleting daily.js + its one localStorage key.
+  daily.boot();
+  daily.initFlush();
   // Read API for the analytics.html dashboard + QA harness (own anonymous device data).
-  if(typeof window!=="undefined") window.__analytics=analytics.dev;
+  if(typeof window!=="undefined"){ window.__analytics=analytics.dev; window.__daily=daily.dev; }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
     window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)
@@ -100,6 +107,8 @@ export function createGame(canvas, ctx, getView){
       cast:(i)=>simDev.cast(i),
       // merchant-shop economic-loop contract consumed by tools/shop.mjs (CAS-112) — additive
       merchantTP:()=>simDev.merchantTP(), shopList:()=>simDev.shopList(), shopBuy:(i)=>simDev.shopBuy(i),
+      // CAS-134 daily-return-loop contract consumed by tools/cas134-daily.mjs — additive
+      bountyTP:()=>simDev.bountyTP(),
       heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
       // CAS-114 abyss power-gate contract consumed by tools/abyss.mjs — additive
       abyssGate:()=>simDev.abyssGate(), setUpg:(d,hp,def)=>simDev.setUpg(d,hp,def), tryPortal:(to)=>simDev.tryPortal(to),

@@ -173,6 +173,7 @@ export const STR = {
   npcLina: "Curandera Lina",
   npcAdventurer: "Aventurero",
   npcMerchant: "Mercader Ambulante",
+  npcBounty: "Heraldo de Cacerías",
 
   bramLines: [
     "Bienvenido a mi tienda, viajero. ¿Buscas acero o frascos?",
@@ -199,6 +200,28 @@ export const STR = {
     "Reliquias de las Ruinas Antiguas, recién traídas. Echa un ojo.",
     "Vuelve con oro, forastero. Siempre tengo algo nuevo en el carro.",
   ],
+  bountyLines: [
+    "El Tablón de Cacerías tiene encargos frescos cada amanecer.",
+    "Cúmplelos y cobra. Y vuelve a diario: la racha paga mejor.",
+  ],
+
+  // CAS-134 — daily return loop: bounty board (daily contracts + login streak).
+  bountyTitle: "TABLÓN DE CACERÍAS",
+  bountyContracts: "Contratos de hoy",
+  bountyStreak: (n) => "Racha diaria: " + n + (n === 1 ? " día" : " días"),
+  bountyStreakReward: (g) => "Recompensa de hoy: +" + g + " oro",
+  bountyClaim: "Reclamar",
+  bountyClaimed: "Cobrado",
+  bountyResetIn: (t) => "Rota en " + t,
+  bountyReward: (g, xp) => "+" + g + " oro · +" + xp + " XP",
+  bountyHint: "E / tap para cerrar",
+  dailySlay: (n) => "Da caza a " + n + " enemigos",
+  dailyChampion: (n) => "Derrota " + n + (n === 1 ? " campeón" : " campeones"),
+  dailyClear: (zone) => "Despeja: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada" }[zone] || "la zona"),
+  dailyClaimed: (g, xp) => "¡Contrato cobrado! +" + g + " oro, +" + xp + " XP",
+  dailyStreakClaimed: (n, g) => "¡Racha de " + n + "! +" + g + " oro",
+  dailyNotDone: "Aún no has cumplido este contrato",
+  dailyAlready: "Ya lo has cobrado hoy",
 
   fountainRest: "Descansaste en la Fuente. Vida y maná restaurados.",
   fountainSaved: "Punto de reaparición fijado en esta Fuente.",

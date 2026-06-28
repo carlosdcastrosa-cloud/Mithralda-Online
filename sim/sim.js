@@ -46,7 +46,7 @@ export function configure(deps){ io = deps.io; audio = deps.audio; view = deps.v
 export { world, rng };
 
 export const G = {
-  scene:"menu", // menu, play, dialogue, shop, inventory, talents, pause, dead, victory
+  scene:"menu", // menu, play, dialogue, shop, bounty, inventory, talents, pause, dead, victory
   // CAS-123: frozen run-summary snapshot built when the Stage-1 final boss dies; read by
   // renderVictory(). null until the win fires. Cleared scene-side only (the win persists
   // on the hero), so re-opening it is harmless.
@@ -56,7 +56,7 @@ export const G = {
   // CAS-127: reduceMotion is the accessibility off-switch — it gates screen shake and
   // trims flourish particle bursts (never changes balance/mechanics; purely cosmetic).
   cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false, reduceMotion:false},
-  quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0,
+  quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0, bountySel:0,
   toast:"", toastT:0, music:"town", arenaWarned:false, bossDead:false,
   skull:{level:0, t:0, kills:0, killT:0}, started:false,
   hitstop:0, // client-feel impact freeze (frames @60fps); never gates authoritative state beyond pausing local sim
@@ -106,6 +106,11 @@ function newHero(name,cls){
     // playT = seconds actually spent in play; deaths = run attempts; stage1 = the
     // win flag (true once the final boss has died). All three persist (serializeSave).
     playT:0, deaths:0, stage1:false,
+    // CAS-134: monotonic lifetime tallies the daily-contract OBSERVER (daily.js) delta-
+    // counts read-only to advance the day's "slay N" / "defeat M champions" contracts.
+    // Persisted additively so the meta-loop is honest across sessions; gameplay never
+    // reads these (pure counters), so no balance/determinism touch.
+    kills:0, champKills:0,
     respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
 }
 function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
@@ -196,6 +201,9 @@ export function serializeSave(){
     // CAS-123: durable Stage-1 arc state. Additive (old saves lack these → default to a
     // fresh, unfinished run), so no SAVE_VERSION bump / progress wipe.
     stage1:!!h.stage1, playT:h.playT||0, deaths:h.deaths||0,
+    // CAS-134: durable lifetime tallies for the daily-contract observer. Additive — old
+    // saves lack them → default 0 — so no SAVE_VERSION bump / progress wipe.
+    kills:h.kills||0, champKills:h.champKills||0,
     // CAS-128: persist an IN-PROGRESS tutorial so a first-run refresh resumes the
     // guided flow (only the step index — per-step counters re-derive). Additive/guarded;
     // absent in old saves → no tutorial, no SAVE_VERSION bump.
@@ -223,6 +231,7 @@ export function loadSave(d){
     h.talents=sanitizeTalents(d.talents, h.cls); h.talentPts=Math.max(0,Math.floor(num(d.talentPts,0))); recalcTalents(h);
     // CAS-123: rehydrate the Stage-1 arc (clamped; absent in old saves → fresh run).
     h.stage1=!!d.stage1; h.playT=Math.max(0,num(d.playT,0)); h.deaths=Math.max(0,Math.floor(num(d.deaths,0)));
+    h.kills=Math.max(0,Math.floor(num(d.kills,0))); h.champKills=Math.max(0,Math.floor(num(d.champKills,0))); // CAS-134
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
@@ -377,6 +386,8 @@ function killEnemy(e){
   if(e.dead) return; e.dead=true;
   freeze(e.isBoss?9:(e.champion?8:5)); // kill confirm — boss/champion deaths land heaviest
   const tpl=e.tpl; const zone=zoneOf(world,e.x,e.y);
+  // CAS-134: bump the monotonic daily-contract tallies (pure counters; observer-read only).
+  if(G.hero && !tpl.neutral){ G.hero.kills=(G.hero.kills|0)+1; if(e.isBoss||e.champion) G.hero.champKills=(G.hero.champKills|0)+1; }
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
@@ -503,6 +514,15 @@ function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30
     h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup();
     // CAS-127: level-up burst — a ring flourish + scattered heal sparks so the ding is felt.
     addFx("lvlring",h.x,h.y,{life:0.6}); for(let i=0,n=rmCount(10);i<n;i++) addFx("heal",h.x+frr(-20,20),h.y+frr(-24,8)); } }
+// CAS-134: the single, deliberate META-reward seam — the ONLY way the daily-return loop
+// (daily.js) writes into sim state, and only on an explicit player CLAIM (never per-frame).
+// Grants gold / xp / potions through the same paths a real reward uses (gold add + gainXP,
+// so claiming can level you up with the usual ding). Stage-2 portable: a server build grants
+// the same shape through the same surface. No RNG, deterministic.
+export function applyMetaReward(r){ const h=G.hero; if(!h||!r) return;
+  if(r.gold>0){ h.gold+=r.gold|0; audio.sfx.coin(); floater(h.x,h.y-26,"+"+(r.gold|0)+" oro",C_GOLD); }
+  if(r.potHP>0){ h.potHP+=r.potHP|0; }
+  if(r.xp>0){ gainXP(r.xp|0); } }
 // CAS-119: recompute the cached talent bundle after any change (alloc/respec/load)
 // and clamp current HP into the (possibly smaller) effective max so a respec that
 // drops +vida nodes can't leave the hero above their max.
@@ -780,6 +800,7 @@ export function advanceDialogue(){
     if(n.role==="shop"){ G.scene="shop"; G.shopSel=0; G.healShop=false; G.merchantShop=false; }
     else if(n.role==="heal"){ G.scene="shop"; G.shopSel=0; G.healShop=true; G.merchantShop=false; }
     else if(n.role==="merchant"){ G.scene="shop"; G.shopSel=0; G.merchantShop=true; G.healShop=false; }
+    else if(n.role==="bounty"){ G.scene="bounty"; G.bountySel=0; G.healShop=false; G.merchantShop=false; } // CAS-134 bounty board
     else { G.scene="play"; G.healShop=false; G.merchantShop=false; }
   }
 }
@@ -1349,6 +1370,9 @@ export const dev = {
   // Park the hero on the Mercader Ambulante so the REAL interact()→dialogue→shop
   // path can be driven by the test (E twice). Returns the merchant's coords.
   merchantTP(){ for(const n of world.npcs){ if(n.role==="merchant"){ G.hero.x=n.x; G.hero.y=n.y+10; return [Math.round(n.x),Math.round(n.y)]; } } return null; },
+  // CAS-134: park the hero on the Bounty-Board steward so the REAL interact()→dialogue→
+  // bounty-board path (E twice) can be driven by the daily harness / screenshot tool.
+  bountyTP(){ for(const n of world.npcs){ if(n.role==="bounty"){ G.hero.x=n.x; G.hero.y=n.y+10; return [Math.round(n.x),Math.round(n.y)]; } } return null; },
   // Read the live shop list (whichever shop is open) with each line's affordability
   // gate, so the headless test can assert maxed/blocked lines without guessing.
   shopList(){ const h=G.hero; return shopItems().map(it=>({ name:it.name, price:it.price, blocked:!!(it.once&&it.once(h)) })); },

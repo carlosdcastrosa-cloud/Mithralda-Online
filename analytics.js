@@ -51,7 +51,7 @@ export const analytics = (()=>{
   function fresh(now){
     return { v:STORE_V, aid:anonId(), createdTs:now, createdDay:day(now),
       sessions:0, days:[], lastDay:null, lastTs:now, totalPlayMs:0,
-      funnel:{}, sessionsLog:[] };
+      funnel:{}, sessionsLog:[], events:{} };
   }
 
   // mark a funnel step reached. first-ever reach stamps the ts; n counts how many
@@ -82,6 +82,18 @@ export const analytics = (()=>{
     // across sessions even though G.tut only exists during the run that showed it.
     try{ if(localStorage.getItem("mithralda.tut.v1")==="1") mark("onboarding_complete"); }catch(e){}
     write();
+  }
+
+  // CAS-134 — a generic, public retention EVENT counter. The daily return loop (daily.js)
+  // beacons engagement events here (contract ready/claimed, streak claimed) so the metric
+  // the CTO took to the board is MEASURABLE alongside D1/D7 — without adding a second sink.
+  // {name:{n,first,last}} aggregate counters; no PII, no per-event payload. Persists lazily.
+  function event(name){
+    if(!store || typeof name!=="string") return;
+    if(!store.events) store.events={};
+    const now=Date.now(); let e=store.events[name];
+    if(!e){ e=store.events[name]={ n:0, first:now }; }
+    e.n=(e.n||0)+1; e.last=now; write();
   }
 
   // ------------------------------------------------------- per-step observe ----
@@ -158,6 +170,7 @@ export const analytics = (()=>{
       lastDay:store.lastDay }; }
   // full snapshot for the dashboard / QA harness.
   function reportBlob(){ return { v:STORE_V, retention:retention(), funnel:funnel(),
+    events:store?Object.assign({},store.events):{}, // CAS-134 retention events
     sessionsLog:store?store.sessionsLog.slice():[] }; }
   function dump(){ return store?JSON.parse(JSON.stringify(store)):null; }
 
@@ -172,5 +185,5 @@ export const analytics = (()=>{
     _markDay(s){ if(!store) return; if(!store.days.includes(s)) store.days.push(s); write(); },
   };
 
-  return { boot, tick, flush, initFlush, dump, report:reportBlob, funnel, retention, dev:devApi, KEY };
+  return { boot, tick, event, flush, initFlush, dump, report:reportBlob, funnel, retention, dev:devApi, KEY };
 })();

@@ -20,6 +20,7 @@ import { audio } from "../audio.js";
 import { view, zoom } from "../view.js";
 import { COL } from "./palette.js";
 import { resetGame } from "../persist.js";   // CAS-113: pause-menu "Nueva partida"
+import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
   ANIM, ENEMY_ANIM, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
@@ -119,6 +120,7 @@ export function createRenderer(ctx){
     if(G.scene==="talents") renderTalents();
     if(G.scene==="dialogue") renderDialogue();
     if(G.scene==="shop") renderShop();
+    if(G.scene==="bounty") renderBounty();
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
     if(G.scene==="victory") renderVictory();
@@ -946,6 +948,69 @@ export function createRenderer(ctx){
     // close
     const cy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,24); ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Cerrar (E)",VW/2,cy+17);
     ui.shopRects.push({x:x+bw/2-60,y:cy,w:120,h:24,act:()=>{G.scene="play";G.healShop=false;G.merchantShop=false;}});
+  }
+
+  // CAS-134: the Bounty Board — today's daily contracts (progress + claim) and the login
+  // streak (+ today's reward + claim), plus a live reset countdown. Pure view: reads the
+  // daily.board() view model and writes tap rects into ui.bountyRects; the claim action is
+  // the only state change and routes through daily.claim()/claimStreak() (the sim seam).
+  function fmtCountdown(ms){ const s=Math.max(0,Math.floor(ms/1000)); const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
+    return (h<10?"0":"")+h+":"+(m<10?"0":"")+m+":"+(ss<10?"0":"")+ss; }
+  function renderBounty(){ const b=daily.board(); ui.bountyRects=[];
+    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.bountyTitle,VW/2,y+28);
+    if(!b){ ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("—",VW/2,y+60); return; }
+    // reset countdown (top-right of the panel)
+    ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.bountyResetIn(fmtCountdown(b.resetMs)), x+bw-16, y+24);
+    // gold readout (top-left)
+    ctx.textAlign="left"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.gold(G.hero.gold), x+16, y+24);
+
+    // ----- streak banner -----
+    const sy=y+40, sh=44;
+    ctx.fillStyle="#241d12"; ctx.fillRect(x+16,sy,bw-32,sh);
+    ctx.fillStyle=COL.panelB; ctx.fillRect(x+16,sy,bw-32,3);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.bountyStreak(b.streak.n), x+28, sy+20);
+    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.bountyStreakReward(b.streak.reward.gold)+(b.streak.reward.potHP?"  (+poción)":""), x+28, sy+37);
+    // streak claim chip
+    drawClaimChip(x+bw-128, sy+11, 100, 24, b.streak.claimable, !b.streak.claimable,
+      ()=>{ daily.claimStreak(); }, b.streak.claimable?STR.bountyClaim:STR.bountyClaimed);
+
+    // ----- contracts -----
+    let cy=sy+sh+14; ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.bountyContracts, x+20, cy); cy+=8;
+    const ih=78;
+    for(let i=0;i<b.contracts.length;i++){ const c=b.contracts[i]; const ry=cy+i*ih; const sel=i===(G.bountySel||0);
+      ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(x+20,ry,bw-40,ih-10);
+      if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x+20,ry,bw-40,ih-10); }
+      // title + reward
+      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 13px 'Courier New'"; ctx.fillText(c.title, x+34, ry+22);
+      ctx.fillStyle=COL.gold; ctx.font="12px 'Courier New'"; ctx.fillText(STR.bountyReward(c.gold,c.xp), x+34, ry+58);
+      // progress bar
+      const pbx=x+34, pbw=bw-200, pby=ry+32, pbh=10, f=c.need>0?Math.min(1,c.prog/c.need):0;
+      ctx.fillStyle="#14181f"; ctx.fillRect(pbx,pby,pbw,pbh);
+      ctx.fillStyle=c.done?COL.heal:COL.textGold; ctx.fillRect(pbx,pby,pbw*f,pbh);
+      ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(pbx+0.5,pby+0.5,pbw,pbh);
+      ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(c.prog+"/"+c.need, pbx+pbw+8, pby+9);
+      // claim chip (right)
+      const canClaim=c.done && !c.claimed;
+      drawClaimChip(x+bw-128, ry+ (ih-10)/2-12, 100, 24, canClaim, c.claimed,
+        ()=>{ G.bountySel=i; daily.claim(c.id); }, c.claimed?STR.bountyClaimed:STR.bountyClaim);
+      // whole-row select (tap) — claim handled by the chip's own rect (pushed last = wins)
+      ui.bountyRects.push({x:x+20,y:ry,w:bw-40,h:ih-10,act:()=>{ G.bountySel=i; }});
+    }
+    // close
+    const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
+    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Cerrar (E)",VW/2,ccy+17);
+    ui.bountyRects.push({x:x+bw/2-60,y:ccy,w:120,h:24,act:()=>{ G.scene="play"; }});
+  }
+  // a small CLAIM / CLAIMED chip; `on` = active (gold), `done` = already claimed (dim).
+  function drawClaimChip(cx,cy,cw,ch,on,done,act,label){
+    ctx.fillStyle=on?"#2e6b2e":(done?"#262b22":"#23272f");
+    ctx.fillRect(cx,cy,cw,ch);
+    ctx.strokeStyle=on?COL.heal:"#3a4150"; ctx.lineWidth=1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
+    ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(label, cx+cw/2, cy+16);
+    ctx.textAlign="left";
+    if(on) ui.bountyRects.push({x:cx,y:cy,w:cw,h:ch,act});
   }
 
   function renderPause(){ const bw=Math.min(VW*0.8,400), bh=Math.min(VH-20,560), x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);

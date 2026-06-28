@@ -15,12 +15,13 @@ import { STR } from "./strings.js";
 import { audio } from "./audio.js";
 import { view, zoom } from "./view.js";
 import { COL } from "./render/palette.js";
+import { daily } from "./daily.js";   // CAS-134: bounty-board claim actions
 
 const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], classRects:[], talentRects:[], mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], classRects:[], talentRects:[], mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -59,6 +60,15 @@ function edge(code){
     else if(code==="ArrowUp"){G.shopSel=(G.shopSel+sim.shopItems().length-1)%sim.shopItems().length;}
     else if(code==="ArrowDown"){G.shopSel=(G.shopSel+1)%sim.shopItems().length;}
     else if(code==="Enter"||code==="Space"){sim.buyItem(G.shopSel);} return; }
+  // CAS-134: bounty board — E/Escape close; ↑/↓ pick a contract; Enter/Space claim it;
+  // S claims the login-streak reward.
+  if(G.scene==="bounty"){ const b=daily.board(); const n=(b&&b.contracts.length)||0;
+    if(code==="Escape"||code==="KeyE"){ G.scene="play"; }
+    else if(code==="ArrowUp"&&n){ G.bountySel=(((G.bountySel||0)-1)+n)%n; }
+    else if(code==="ArrowDown"&&n){ G.bountySel=(((G.bountySel||0)+1))%n; }
+    else if((code==="Enter"||code==="Space")&&n){ const c=b.contracts[G.bountySel||0]; if(c) daily.claim(c.id); }
+    else if(code==="KeyS"){ daily.claimStreak(); }
+    return; }
   if(G.scene==="inventory"){ const n=G.hero.bag.length;
     if(code==="KeyI"||code==="Escape") G.scene="play";
     else if(code==="ArrowUp"&&n){ G.invSel=(((G.invSel||0)-1)+n)%n; }
@@ -167,6 +177,7 @@ function handleUITap(x,y){
   if(G.scene==="inventory"){ return invTap(x,y); }
   if(G.scene==="talents"){ return talentTap(x,y); }
   if(G.scene==="shop"){ return shopTap(x,y); }
+  if(G.scene==="bounty"){ return bountyTap(x,y); }
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
     const top=topBtns(); for(const k in top){ const b=top[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -188,6 +199,10 @@ function talentTap(x,y){ for(const r of (ui.talentRects||[])){ if(x>=r.x&&x<=r.x
 function pauseTap(x,y){ for(const r of ui.pauseRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
   if(r.slider){ r.set(Math.max(0,Math.min(1,(x-r.x)/r.w))); } else r.act(); return true; } } return true; }
 function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
+// CAS-134: bounty board taps. Each contract pushes its CLAIM-chip rect BEFORE its
+// row-select rect, so a first-match-wins forward scan fires the claim when the tap lands
+// on the chip (drawn on top) and only selects the row otherwise.
+function bountyTap(x,y){ for(const r of ui.bountyRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.
 function invTap(x,y){ for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; sim.equipBag(r.idx); return true; } } G.scene="play"; return true; }
 function menuPlayHit(x,y){ const r=ui.menuPlayRect; return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
