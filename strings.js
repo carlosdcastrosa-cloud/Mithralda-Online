@@ -81,6 +81,9 @@ export const STR = {
   bagEmpty: "(vacía)",
   equipHint: "▲▼ elegir · Enter/tap equipar · I cerrar · P/O pociones",
   rarity: { common: "Común", uncommon: "Infrecuente", rare: "Raro", epic: "Épico" },
+  // CAS-117 equip-decision compare box (equipado vs nuevo) + affix tooltip chrome
+  cmpEquipped: "Equipado",
+  cmpNew: "Nuevo",
 
   shopTitle: "TIENDA DE SOLANA",
   merchantTitle: "CARRO DEL MERCADER",

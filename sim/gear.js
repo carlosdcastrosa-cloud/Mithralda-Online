@@ -20,6 +20,35 @@ export const RARITY = {
 };
 export const RARITY_ORDER = ["common","uncommon","rare","epic"];
 
+// ===========================================================================
+// CAS-117 — AFFIXES: the "drops have weight + a decision" layer. Every piece
+// ABOVE common rolls 1-2 affixes that move REAL combat numbers (nothing
+// cosmetic). Each affix is data {id, amt}; combat reads the aggregate via
+// affixTotals(h) — never a stored/baked stat, so it stays deterministic and
+// Stage-2 server-authority-ready (recomputable from the 3 equipped instances).
+//   dmg     — flat +daño folded into equippedDmg (scales the whole loop)
+//   hp      — flat +vida máx (heroMaxHp) → bigger health pool, observable
+//   atkspd  — % faster basic attack (shorter atkCD) — pct stored as integer
+//   movespd — % faster on foot — pct stored as integer
+//   onhit   — flat bonus damage added to EVERY hero hit (the "on-hit ligero")
+// `pct` affixes are stored as whole-number percent (8 == +8%). Flat affixes
+// scale with the def TIER (a t4 roll dwarfs a t1 roll) so deeper zones drop
+// affixes with more weight; pct affixes scale gently with rarity rank only.
+// Totals are CAPPED in affixTotals so stacking can't break the frame/combat.
+export const AFFIXES = {
+  dmg:     { stat:"dmg",     label:"daño",       pct:false, base:[2,4]  },
+  hp:      { stat:"hp",      label:"vida máx",   pct:false, base:[10,18] },
+  atkspd:  { stat:"atkspd",  label:"vel. ataque",pct:true,  base:[5,9]  },
+  movespd: { stat:"movespd", label:"vel. mov.",  pct:true,  base:[4,7]  },
+  onhit:   { stat:"onhit",   label:"daño extra", pct:false, base:[2,3]  },
+};
+export const AFFIX_ORDER = ["dmg","hp","atkspd","movespd","onhit"];
+export const AFFIX_CAP = { atkspd:40, movespd:40 }; // %-cap so stacking stays sane
+
+// Human-readable affix line for tooltips/diffs (e.g. "+6 daño" / "+8% vel. ataque").
+export function affixLabel(af){ const a=AFFIXES[af&&af.id]; if(!a) return ""; return "+"+af.amt+(a.pct?"% ":" ")+a.label; }
+export function affixList(inst){ return (inst&&Array.isArray(inst.affixes))?inst.affixes:[]; }
+
 export const GEAR = {
   weapon: [
     {id:"w_rusty", name:"Espada oxidada",   tier:1, dmg:3},
@@ -71,6 +100,34 @@ export function rollRarity(srand,minR){ const floorRank=minR?rarityRank(minR):0;
   for(const k of RARITY_ORDER){ if(RARITY[k].rank<floorRank) continue; r-=RARITY[k].weight; if(r<0) return k; }
   return minR||"common"; }
 
+// Roll the affix list for a freshly-dropped instance, using ONLY the injected
+// srand (determinism / Stage-2). Common rolls nothing; uncommon 1, rare 1-2,
+// epic 2 distinct affixes. Flat amounts scale with def `tier`; pct amounts with
+// rarity rank. CAS-117.
+export function rollAffixes(srand,rarity,tier){ const rank=rarityRank(rarity); if(rank<1) return [];
+  const n = rank===1 ? 1 : (rank===2 ? (srand()<0.5?1:2) : 2);
+  const pool=AFFIX_ORDER.slice(); const out=[];
+  for(let k=0;k<n && pool.length;k++){
+    const id=pool.splice(Math.floor(srand()*pool.length),1)[0]; const a=AFFIXES[id]; const r=srand();
+    let amt;
+    if(a.pct){ amt=Math.round(a.base[0]+(a.base[1]-a.base[0])*r) + 2*(rank-1); }
+    else { amt=Math.max(1,Math.round((a.base[0]+(a.base[1]-a.base[0])*r)*(1+0.35*(tier-1)))); }
+    out.push({id, amt});
+  }
+  return out; }
+
+// Sum every equipped piece's affixes into one combat-stat bundle. The ONLY
+// reader of gear affixes (combat + UI route through this) so equipping a drop
+// changes real numbers, never a stored stat. Pct fields are integer percent and
+// CAPPED so stacking can't break the frame budget / combat. CAS-117.
+export function affixTotals(h){ const t={dmg:0,hp:0,atkspd:0,movespd:0,onhit:0};
+  if(!h||!h.equip) return t;
+  for(const slot of ["weapon","body","shield"]){ const inst=h.equip[slot]; if(!inst||!Array.isArray(inst.affixes)) continue;
+    for(const af of inst.affixes){ if(t[af.id]!=null && typeof af.amt==="number") t[af.id]+=af.amt; } }
+  if(AFFIX_CAP.atkspd) t.atkspd=Math.min(t.atkspd,AFFIX_CAP.atkspd);
+  if(AFFIX_CAP.movespd) t.movespd=Math.min(t.movespd,AFFIX_CAP.movespd);
+  return t; }
+
 // Roll a fresh gear instance whose def tier is within [tmin,tmax]. Slot is chosen
 // uniformly among slots that actually have a def in range (shields cap at tier 3,
 // so they drop out of higher windows). Returns null if nothing fits.
@@ -80,9 +137,18 @@ export function rollGearInst(srand,tmin,tmax,minR){ const slots=["weapon","body"
   const slot=avail[Math.floor(srand()*avail.length)];
   const pool=GEAR[slot].filter(d=>d.tier>=tmin&&d.tier<=tmax);
   const def=pool[Math.floor(srand()*pool.length)];
-  return { slot, defId:def.id, rarity:rollRarity(srand,minR) }; }
+  const rarity=rollRarity(srand,minR);
+  const inst={ slot, defId:def.id, rarity };
+  const affixes=rollAffixes(srand,rarity,def.tier); if(affixes.length) inst.affixes=affixes;
+  return inst; }
 
 // Equipped totals — the ONLY readers of hero gear (combat + UI route through
 // these so equipping a drop changes real combat numbers, not just the panel).
-export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus; }
+// CAS-117: the +daño affix folds straight into equippedDmg; +vida into the
+// effective max via heroMaxHp; atkspd/movespd/onhit are read at their sim sites.
+export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus + affixTotals(h).dmg; }
 export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip.shield) + h.defBonus; }
+// Effective max HP = the stored base pool (class+level+shop+shards) plus any
+// +vida affixes currently equipped. Never baked into h.maxHp, so persistence
+// and leveling stay clean (mirrors how timed buffs stay out of permDmg/permDef).
+export function heroMaxHp(h){ return h.maxHp + affixTotals(h).hp; }

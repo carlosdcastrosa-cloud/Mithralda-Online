@@ -13,7 +13,7 @@ import { zoneOf } from "../sim/world.js";
 import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
-import { gearStat, gearName, gearCol, equippedDmg, equippedDef } from "../sim/gear.js";
+import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
 import { STR } from "../strings.js";
 import { audio } from "../audio.js";
 import { view, zoom } from "../view.js";
@@ -552,7 +552,8 @@ export function createRenderer(ctx){
     ctx.fillStyle=fg; ctx.fillRect(x,y,w*clamp(frac,0,1),hh); if(label){ ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(label,x+4,y+hh-2);} }
   function renderHUD(){ const h=G.hero; ctx.textAlign="left";
     const pad=12, bw=Math.min(220,VW*0.42);
-    bar(pad,pad,bw,16,h.hp/h.maxHp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+h.maxHp);
+    const mhp=heroMaxHp(h); // CAS-117: bar reflects the +vida affix pool
+    bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
     bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
     bar(pad,pad+38,bw,10,h.xp/h.xpNext,COL.xpf,COL.xpb, STR.level(h.lvl));
     // gold + potions
@@ -642,41 +643,69 @@ export function createRenderer(ctx){
   }
   function wrapText(txt,x,y,maxW,lh){ const words=txt.split(" "); let line="",yy=y; for(const w of words){ const t=line+w+" "; if(ctx.measureText(t).width>maxW){ ctx.fillText(line,x,yy); line=w+" "; yy+=lh;} else line=t; } ctx.fillText(line,x,yy); }
 
-  // Compare arrow vs the piece currently equipped in this item's slot.
-  function cmpArrow(inst){ const eq=gearStat(G.hero.equip[inst.slot]); const v=gearStat(inst);
-    return v>eq?{s:"▲",c:COL.heal}:(v<eq?{s:"▼",c:"#d05555"}:{s:"=",c:COL.textDim}); }
-  function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,460), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
+  // Compare arrow vs the piece currently equipped in this item's slot. Now factors
+  // affixes in: a same-base-stat piece with stronger affixes still reads as an
+  // upgrade. CAS-117 — score = resolved stat + a light affix weight.
+  function affixScore(inst){ let s=0; for(const af of affixList(inst)) s+=af.amt; return s; }
+  function cmpArrow(inst){ const eq=G.hero.equip[inst.slot]; const v=gearStat(inst)+affixScore(inst)*0.6, e=gearStat(eq)+affixScore(eq)*0.6;
+    return v>e+0.5?{s:"▲",c:COL.heal}:(v<e-0.5?{s:"▼",c:"#d05555"}:{s:"=",c:COL.textDim}); }
+  // One affix line, e.g. "+8% vel. ataque" in a soft cyan. CAS-117.
+  function drawAffixLines(inst,ax,ay,lh){ const list=affixList(inst); ctx.font="10px 'Courier New'"; ctx.textAlign="left";
+    for(let k=0;k<list.length;k++){ ctx.fillStyle="#9be7ff"; ctx.fillText("• "+affixLabel(list[k]), ax, ay+k*lh); } return list.length; }
+  // A signed coloured delta token ("+12", "-3", "—"). CAS-117 equip-decision diff.
+  function deltaTok(d){ if(!d) return {t:"—",c:COL.textDim}; return d>0?{t:"+"+d,c:COL.heal}:{t:""+d,c:"#d05555"}; }
+  function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,470), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
     panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28);
-    const colX=x+28, colW=bw*0.46;
-    // ---- left: equipment doll + equipped slots + totals ----
+    const colX=x+28;
+    // ---- left: equipment doll + equipped slots (with affixes) + totals ----
     blit(ctx,SP.hero.rows,SP.hero.pal,colX+8,y+58,5,false);
     ctx.textAlign="left"; ctx.font="12px 'Courier New'";
     const slots=[[STR.slotWeapon,"weapon"],[STR.slotBody,"body"],[STR.slotShield,"shield"]];
     let ry=y+62; for(const [label,slot] of slots){ const inst=h.equip[slot];
-      ctx.fillStyle=COL.textDim; ctx.fillText(label, colX+96, ry);
-      ctx.fillStyle=gearCol(inst); ctx.fillText(gearName(inst), colX+96, ry+15);
-      ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText((slot==="weapon"?STR.statsDmg:STR.statsDef)+" "+gearStat(inst), colX+96, ry+28); ctx.font="12px 'Courier New'";
-      ry+=46; }
+      ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(label, colX+96, ry);
+      ctx.fillStyle=gearCol(inst); ctx.fillText(gearName(inst), colX+96, ry+14);
+      ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText((slot==="weapon"?STR.statsDmg:STR.statsDef)+" "+gearStat(inst), colX+96, ry+26);
+      const n=drawAffixLines(inst, colX+96, ry+38, 11); ry+=40+n*11; }
+    const af=affixTotals(h);
     ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'";
-    ctx.fillText(STR.statsDmg+": "+equippedDmg(h), colX+8, ry+6);
-    ctx.fillText(STR.statsDef+": "+equippedDef(h), colX+8, ry+24);
-    // potions / blessings
-    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'";
-    ctx.fillText("♥ x"+h.potHP+"   ◆ x"+h.potMP+"   ✦ x"+h.blessings, colX+8, y+bh-22);
+    ctx.fillText(STR.statsDmg+": "+equippedDmg(h)+"   "+STR.statsDef+": "+equippedDef(h), colX+8, ry+8);
+    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'";
+    ctx.fillText("♥ "+heroMaxHp(h)+(af.atkspd?"  ⚔+"+af.atkspd+"%":"")+(af.movespd?"  »+"+af.movespd+"%":"")+(af.onhit?"  ✦+"+af.onhit:""), colX+8, ry+26);
+    ctx.fillStyle=COL.cream; ctx.fillText("♥ x"+h.potHP+"   ◆ x"+h.potMP+"   ✦ x"+h.blessings, colX+8, y+bh-20);
     // ---- right: backpack list with compare arrows ----
     const rx=x+bw*0.50, rw=bw*0.46;
-    ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.backpack, rx, y+54);
+    ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(STR.backpack, rx, y+54);
     ui.invRects=[];
     const bag=h.bag; if(G.invSel==null) G.invSel=0; G.invSel=Math.max(0,Math.min(G.invSel, Math.max(0,bag.length-1)));
-    const rowH=30, listY=y+62, maxRows=Math.floor((bh-120)/rowH);
+    const cmpH=92; const rowH=28, listY=y+62, maxRows=Math.max(1,Math.floor((bh-120-cmpH)/rowH));
     if(!bag.length){ ctx.fillStyle=COL.textDim; ctx.fillText(STR.bagEmpty, rx, listY+18); }
     for(let i=0;i<bag.length && i<maxRows;i++){ const inst=bag[i]; const ay=listY+i*rowH; const sel=i===G.invSel;
       ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(rx,ay,rw,rowH-4);
       if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=1.5; ctx.strokeRect(rx,ay,rw,rowH-4); }
       ctx.textAlign="left"; ctx.fillStyle=gearCol(inst); ctx.font="12px 'Courier New'";
-      ctx.fillText(gearName(inst)+" ("+gearStat(inst)+")", rx+8, ay+18);
-      const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+18);
+      ctx.fillText(gearName(inst)+" ("+gearStat(inst)+")", rx+8, ay+16);
+      const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="10px 'Courier New'"; ctx.fillText("◈".repeat(na), rx+8, ay+rowH-7); }
+      const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+16);
       ui.invRects.push({x:rx,y:ay,w:rw,h:rowH-4, idx:i});
+    }
+    // ---- compare box: equipped vs selected (the equip DECISION). CAS-117 ----
+    const cy=listY+Math.min(bag.length,maxRows)*rowH+6; const sel=bag[G.invSel];
+    if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
+      const eq=h.equip[sel.slot];
+      ctx.textAlign="left"; ctx.font="10px 'Courier New'"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
+      ctx.fillStyle=gearCol(eq); ctx.fillText(gearName(eq)+" ("+gearStat(eq)+")", rx+6, cy+25);
+      drawAffixLines(eq, rx+10, cy+36, 10);
+      const midX=rx+rw*0.52;
+      ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpNew, midX, cy+13);
+      ctx.fillStyle=gearCol(sel); ctx.fillText("("+gearStat(sel)+")", midX, cy+25);
+      drawAffixLines(sel, midX+4, cy+36, 10);
+      // net combat deltas if equipped (the tradeoff at a glance)
+      const before={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const old=h.equip[sel.slot]; h.equip[sel.slot]=sel;
+      const after={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const a2=affixTotals(h); h.equip[sel.slot]=old; const a1=affixTotals(h);
+      const parts=[["Dmg",after.dmg-before.dmg],["Def",after.def-before.def],["HP",after.hp-before.hp],["AtkV%",a2.atkspd-a1.atkspd],["MovV%",a2.movespd-a1.movespd]];
+      let dx=rx+6; ctx.font="bold 10px 'Courier New'"; const dyb=cy+cmpH-8;
+      for(const [lbl,dv] of parts){ const tk=deltaTok(dv); const seg=lbl+" "; ctx.fillStyle=COL.textDim; ctx.fillText(seg,dx,dyb); dx+=ctx.measureText(seg).width;
+        ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
   }

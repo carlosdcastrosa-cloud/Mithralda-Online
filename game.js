@@ -60,6 +60,8 @@ export function createGame(canvas, ctx, getView){
       pickup:()=>simDev.pickup(),
       bag:()=>simDev.bag(),
       equipBag:(i)=>simDev.equipBag(i),
+      // CAS-117 affix/equip-decision contract consumed by tools/cas117-affix.mjs — additive
+      equipPreview:(i)=>simDev.equipPreview(i),
       openInv:()=>simDev.openInv(),
       // zone-difficulty contract consumed by tools/hunt.mjs (CAS-73) — additive
       zoneTier:(zone,type)=>simDev.zoneTier(zone,type),

@@ -18,7 +18,7 @@ import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, 
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES } from "./gear.js";
 
 // feedback floater palette (presentation hints carried by sim events)
 const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
@@ -100,8 +100,15 @@ export const SAVE_VERSION = 1;
 function num(v,dflt){ return (typeof v==="number" && isFinite(v))?v:dflt; }
 // Validate a stored gear instance against the gear data; drop anything unknown so
 // a corrupted/old save can never render or compute against a missing def.
-function safeInst(inst){ return (inst && inst.slot && gearDef(inst.slot,inst.defId)) ? {slot:inst.slot,defId:inst.defId,rarity:RARITY_VALID(inst.rarity)} : null; }
+function safeInst(inst){ if(!(inst && inst.slot && gearDef(inst.slot,inst.defId))) return null;
+  const o={slot:inst.slot,defId:inst.defId,rarity:RARITY_VALID(inst.rarity)};
+  const af=safeAffixes(inst.affixes); if(af) o.affixes=af; return o; }
 function RARITY_VALID(r){ return (r==="common"||r==="uncommon"||r==="rare"||r==="epic")?r:"common"; }
+// CAS-117: validate persisted affixes — drop anything unknown/malformed so a
+// corrupted/old save can never compute against a missing affix; cap at 2.
+function safeAffixes(arr){ if(!Array.isArray(arr)) return null; const out=[];
+  for(const a of arr){ if(a&&AFFIXES[a.id]&&typeof a.amt==="number"&&isFinite(a.amt)){ out.push({id:a.id,amt:Math.max(0,Math.round(a.amt))}); if(out.length>=2) break; } }
+  return out.length?out:null; }
 // Snapshot the DURABLE hero progression as a plain JSON-safe blob. Transient
 // combat/anim/buff state is intentionally excluded (rehydrated clean), and any
 // active timed buff is stripped from the bonus sinks so only PERMANENT power is
@@ -133,7 +140,7 @@ export function loadSave(d){
     h.potHP=Math.max(0,Math.floor(num(d.potHP,h.potHP))); h.potMP=Math.max(0,Math.floor(num(d.potMP,h.potMP))); h.blessings=Math.max(0,Math.floor(num(d.blessings,0)));
     if(d.equip){ for(const slot of ["weapon","body","shield"]){ const ok=safeInst(d.equip[slot]); if(ok) h.equip[slot]=ok; } }
     if(Array.isArray(d.bag)) h.bag=d.bag.map(safeInst).filter(Boolean).slice(0,16);
-    h.hp=h.maxHp; h.mp=h.maxMp;                       // always respawn at full
+    h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
     G.hero=h; G.hunts=initHunts(); G.fields.length=0;
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
     G.scene="play"; G.started=true;
@@ -189,12 +196,12 @@ function heroAttack(){
   const h=G.hero; if(h.atkCD>0||h.rolling) return;
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const dmg=equippedDmg(h)*cfg.dmgMul;
-  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd; h._atkHits=new Set();
+  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+affixTotals(h).atkspd/100); h._atkHits=new Set(); // CAS-117: +vel.ataque affix shortens the cooldown
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
   else if(cfg.type==="nova"){ h.atkT=0; audio.sfx.rune();
     for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d<=cfg.range+e.tpl.size){ hitEnemy(e,dmg,Math.atan2(e.y-h.y,e.x-h.x)); } }
-    if(cfg.heal){ h.hp=Math.min(h.maxHp,h.hp+cfg.heal); floater(h.x,h.y-30,"+"+cfg.heal,"#5fd66a"); }
+    if(cfg.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+cfg.heal); floater(h.x,h.y-30,"+"+cfg.heal,"#5fd66a"); }
     addFx("holynova",h.x,h.y,{r:cfg.range,life:0.5}); shakeAdd(6); }
   else { h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(2.6);
     addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.26}); }
@@ -211,6 +218,10 @@ function applyHeroMelee(){
   }
 }
 function hitEnemy(e,dmg,ang){
+  // CAS-117: the "on-hit ligero" affix — a small flat bonus folded into EVERY
+  // hero-sourced hit (melee/nova/proj/spell all funnel here). hitEnemy is the
+  // hero→enemy damage path only, so this never touches enemy→hero damage.
+  const oh=G.hero?affixTotals(G.hero).onhit:0; if(oh) dmg+=oh;
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
   floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d");
@@ -318,7 +329,7 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
 }
 function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; // CAS-100: per-class growth → archetypes diverge as you climb
-    h.maxHp+=(h.hpGain||18); h.maxMp+=(h.mpGain||8); h.baseDmg+=(h.dmgGain||3); h.hp=h.maxHp; h.mp=h.maxMp;
+    h.maxHp+=(h.hpGain||18); h.maxMp+=(h.mpGain||8); h.baseDmg+=(h.dmgGain||3); h.hp=heroMaxHp(h); h.mp=h.maxMp;
     h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup(); for(let i=0;i<6;i++) addFx("heal",h.x+frr(-16,16),h.y+frr(-20,6)); } }
 
 function registerSkull(){ const s=G.skull;
@@ -361,10 +372,10 @@ function resolveSpell(h,sp){
         hitEnemy(e,sp.dmg,Math.atan2(e.y-h.y,e.x-h.x));
         if(sp.stun) e.stun=Math.max(e.stun,sp.stun);
         if(sp.slow){ e.slow=sp.slow; e.slowT=sp.slowDur||2; } } }
-      if(sp.heal){ h.hp=Math.min(h.maxHp,h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a"); }
+      if(sp.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a"); }
       addFx(sp.fx||"novacast",h.x,h.y,{r:sp.range,col:sp.col,style:sp.style,life:0.5}); shakeAdd(6); break;
     case "heal":
-      h.hp=Math.min(h.maxHp,h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a");
+      h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a");
       addFx(sp.fx||"healburst",h.x,h.y,{col:sp.col,life:0.5}); for(let k=0;k<6;k++) addFx("heal",h.x+frr(-14,14),h.y+frr(-18,6)); break;
     case "hot":
       h.hotT=sp.dur; h.hotRate=sp.heal; floater(h.x,h.y-30,STR.spellRegen,sp.col||"#7bd44a");
@@ -468,7 +479,7 @@ function heroDie(){
   else if(h.blessings>0){ h.blessings--; }
 }
 export function respawn(){
-  const h=G.hero; h.dead=false; h.hp=h.maxHp; h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
+  const h=G.hero; h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
 }
 
@@ -501,7 +512,7 @@ export function interact(){
   const f=nearestFountain();
   const n=nearestNPC();
   if(n){ openDialogue(n); return; }
-  if(f){ const h=G.hero; h.hp=h.maxHp; h.mp=h.maxMp; h.respawn={x:f.x,y:f.y+TS}; toast(STR.fountainRest); audio.sfx.heal(); return; }
+  if(f){ const h=G.hero; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.respawn={x:f.x,y:f.y+TS}; toast(STR.fountainRest); audio.sfx.heal(); return; }
 }
 function openDialogue(n){
   if(n.role==="quest" && G.quest.done && !G.quest.rewarded){
@@ -543,7 +554,7 @@ export function shopItems(){
     {name:"Poción de vida",price:15,act:h=>h.potHP++},
     {name:"Poción de maná",price:12,act:h=>h.potMP++},
     {name:"Bendición",price:60,act:h=>{h.blessings++; toast(STR.blessingOn);}},
-    {name:"Curación completa",price:20,act:h=>{h.hp=h.maxHp;h.mp=h.maxMp;}},
+    {name:"Curación completa",price:20,act:h=>{h.hp=heroMaxHp(h);h.mp=h.maxMp;}},
   ];
   // Shop upgrades grant gear INSTANCES (same data model as drops). `once` guards
   // by resolved stat so you can't buy a downgrade once you've looted better.
@@ -560,10 +571,13 @@ export function shopItems(){
 // into the SAME bag index (indices stay stable so callers can equip several in a
 // row from one snapshot). Combat/UI totals recompute via equippedDmg/Def.
 export function equipBag(i){ const h=G.hero; const inst=h.bag[i];
-  if(!inst) return {dmg:equippedDmg(h),def:equippedDef(h)};
+  if(!inst) return {dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)};
   const slot=inst.slot; const old=h.equip[slot];
   h.equip[slot]=inst; h.bag[i]=old; audio.sfx.buy();
-  return {slot, dmg:equippedDmg(h), def:equippedDef(h)};
+  // CAS-117: swapping out a +vida piece can lower the effective max below
+  // current hp — clamp so the bar never reads over 100%.
+  const mhp=heroMaxHp(h); if(h.hp>mhp) h.hp=mhp;
+  return {slot, dmg:equippedDmg(h), def:equippedDef(h), hp:mhp};
 }
 export function buyItem(idx){ const h=G.hero; const it=shopItems()[idx]; if(!it) return;
   if(it.once && it.once(h)){ audio.sfx.deny(); toast("Ya tienes algo igual o mejor"); return; }
@@ -571,7 +585,7 @@ export function buyItem(idx){ const h=G.hero; const it=shopItems()[idx]; if(!it)
   h.gold-=it.price; it.act(h); audio.sfx.buy(); toast(STR.bought(it.name)); }
 
 // --------------------- player commands (driven by input) ---------------
-export function doPotionHP(){ const h=G.hero; if(h.potHP>0&&h.hp<h.maxHp){ h.potHP--; h.hp=Math.min(h.maxHp,h.hp+50); audio.sfx.heal(); floater(h.x,h.y-30,"+50","#5fd66a"); } }
+export function doPotionHP(){ const h=G.hero; if(h.potHP>0&&h.hp<heroMaxHp(h)){ h.potHP--; h.hp=Math.min(heroMaxHp(h),h.hp+50); audio.sfx.heal(); floater(h.x,h.y-30,"+50","#5fd66a"); } }
 export function doPotionMP(){ const h=G.hero; if(h.potMP>0&&h.mp<h.maxMp){ h.potMP--; h.mp=Math.min(h.maxMp,h.mp+30); audio.sfx.cast(); floater(h.x,h.y-30,"+30","#7fb8e6"); } }
 export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
@@ -602,13 +616,13 @@ export function update(dtMs){
   for(let s=1;s<4;s++){ if(h.spellCD[s]>0) h.spellCD[s]=Math.max(0,h.spellCD[s]-dt); }
   if(h.dmgBuffT>0){ h.dmgBuffT-=dt; if(h.dmgBuffT<=0){ h.dmgBonus-=h.dmgBuffAmt; h.dmgBuffAmt=0; } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
-  if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(h.maxHp,h.hp+h.hotRate*dt); if(h.hotT<=0) h.hotRate=0; }
+  if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+h.hotRate*dt); if(h.hotT<=0) h.hotRate=0; }
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
   if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12);
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
   else { const mv=io.moveVec(); const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
-    const sp=h.moveSpeed||CFG.heroSpeed; // CAS-100: per-class mobility
+    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+affixTotals(h).movespd/100); // CAS-100 class mobility · CAS-117 +vel.mov affix
     h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
@@ -780,12 +794,13 @@ export const dev = {
   // --- gear/progression harness hooks (tools/gear.mjs); additive, see CAS-29 ---
   tpZone(zone){ const r=world[zone]; if(!r) return null; G.hero.x=(r.x+r.w/2)*TS; G.hero.y=(r.y+r.h/2)*TS; return zone; },
   seed(n){ seed(n>>>0); return n>>>0; },                       // reseed the sim RNG (deterministic drops)
-  gear(){ const h=G.hero; return { dmg:equippedDmg(h), def:equippedDef(h), weapon:gearName(h.equip.weapon) }; },
+  gear(){ const h=G.hero; return { dmg:equippedDmg(h), def:equippedDef(h), weapon:gearName(h.equip.weapon),
+    affix:affixTotals(h), equip:["weapon","body","shield"].map(s=>({slot:s,rarity:h.equip[s].rarity,affixes:h.equip[s].affixes||[]})) }; },
   // Spawn one enemy at the hero and kill it THIS instant via the real killEnemy,
   // returning only the drops that kill produced (the loot loop, not a shortcut).
   spawnKill(type){ const before=G.drops.length; const e=spawnEnemy(type, G.hero.x, G.hero.y);
     if(type==="golem"&&e) e.isBoss=true; e.hp=0; killEnemy(e);
-    return G.drops.slice(before).map(d=>({ kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat, tier:d.tier })); },
+    return G.drops.slice(before).map(d=>({ kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat, tier:d.tier, affixes:(d.inst&&d.inst.affixes)||[] })); },
   // CAS-116: the resolved drop-tier window for a zone (reads ZONE_LOOT), so the loot
   // harness can prove the Abismo out-tiers the open zones without re-deriving stats.
   zoneLoot(zone){ const w=ZONE_LOOT[zone]; return w?{zone,tier:w.tier.slice()}:null; },
@@ -900,8 +915,9 @@ export const dev = {
   // Buy through the REAL buyItem (gold check + once-gate + act), then snapshot the
   // combat stats it touched — proves a purchase changes real numbers, not just UI.
   shopBuy(i){ buyItem(i); return this.heroStats(); },
-  heroStats(){ const h=G.hero; return { gold:h.gold, dmg:equippedDmg(h), def:equippedDef(h),
-    baseDmg:h.baseDmg, maxHp:h.maxHp, hp:Math.round(h.hp), potHP:h.potHP, potMP:h.potMP,
+  heroStats(){ const h=G.hero; const af=affixTotals(h); return { gold:h.gold, dmg:equippedDmg(h), def:equippedDef(h),
+    baseDmg:h.baseDmg, maxHp:heroMaxHp(h), baseMaxHp:h.maxHp, hp:Math.round(h.hp), potHP:h.potHP, potMP:h.potMP,
+    affix:af, moveSpeed:Math.round((h.moveSpeed||CFG.heroSpeed)*(1+af.movespd/100)),
     upg:{...(h.upg||{})}, scene:G.scene, merchant:!!G.merchantShop }; },
   setGold(n){ G.hero.gold=n>>>0; return G.hero.gold; },
   // --- CAS-114 abyss power-gate harness hooks (tools/abyss.mjs); additive ---
@@ -919,8 +935,16 @@ export const dev = {
   tryPortal(to){ const P=world.portals&&world.portals.find(p=>p.to===to); if(!P) return null;
     G.hero.x=P.x; G.hero.y=P.y; const before=zoneOf(world,G.hero.x,G.hero.y);
     interact(); return { to, before, after:zoneOf(world,G.hero.x,G.hero.y), power:heroPower(G.hero), req:ABYSS_POWER_REQ }; },
-  bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b) })); },
+  bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b), affixes:b.affixes||[] })); },
   equipBag(i){ return equipBag(i); },
+  // CAS-117: the equip DECISION surface — snapshot combat totals + the slot's
+  // equipped-vs-candidate affixes BEFORE committing, so the compare/diff (UI and
+  // QA) can show the tradeoff without mutating state. Returns null for a bad index.
+  equipPreview(i){ const h=G.hero; const cand=h.bag[i]; if(!cand) return null;
+    const cur=h.equip[cand.slot]; const before={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h),af:affixTotals(h)};
+    h.equip[cand.slot]=cand; const after={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h),af:affixTotals(h)}; h.equip[cand.slot]=cur;
+    return { slot:cand.slot, equipped:{rarity:cur.rarity,stat:gearStat(cur),affixes:cur.affixes||[]},
+      candidate:{rarity:cand.rarity,stat:gearStat(cand),affixes:cand.affixes||[]}, before, after }; },
   openInv(){ G.scene="inventory"; return G.scene; },
   // --- CAS-115 combat-archetype harness hooks (tools/archetypes.mjs); additive ---
   // Static archetype metadata straight off the data table (no sim step) so the test can
