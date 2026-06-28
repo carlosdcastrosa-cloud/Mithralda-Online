@@ -14,11 +14,11 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, STATUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs } from "./gear.js";
 
 // feedback floater palette (presentation hints carried by sim events)
 const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
@@ -69,6 +69,9 @@ function newHero(name,cls){
     spellCD:[0,0,0,0], spellCDmax:[0,0,0,0],
     dmgBuffT:0, dmgBuffAmt:0, defBuffT:0, defBuffAmt:0, hotT:0, hotRate:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
+    // CAS-118 status sinks (mirror the enemy fields): slow scales move speed, stun gates
+    // input, dots holds active DoTs. Transient — never serialized (rehydrated clean).
+    slow:1, slowT:0, stun:0, dots:null,
     animState:"idle", animT:0, cls:cls||"warrior",
     // gear: 3 equipped slots (instances by id) + a bag of loose instances. Stats
     // are resolved from data (sim/gear.js), never stored — see equippedDmg/Def.
@@ -171,7 +174,7 @@ function moveEnt(e,dx,dy,r){
 function spawnEnemy(type,x,y){
   const tpl=ETPL[type]; const e={type, x,y, hp:tpl.hp, maxHp:tpl.hp, tpl, state:"idle", st:0,
     vx:0,vy:0, facing:0, wt:0, hurtFlash:0, hitDone:false, phase:0, knockX:0,knockY:0, wanderX:x,wanderY:y, wanderT:0,
-    stun:0, slow:1, slowT:0}; // crowd-control sinks: stun freezes the AI, slow scales chase speed (both time-based, no RNG)
+    stun:0, slow:1, slowT:0, dots:null}; // crowd-control sinks: stun freezes the AI, slow scales chase speed, dots = active DoTs (CAS-118); all time-based, no RNG
   G.enemies.push(e); return e;
 }
 function spawnBoss(){ const e=spawnEnemy("golem",(world.caves.x+world.caves.w/2)*TS,(world.caves.y+5)*TS); e.isBoss=true; }
@@ -193,7 +196,7 @@ function applyZoneScale(e, zone){
 
 // ------------------------------ combat ---------------------------------
 function heroAttack(){
-  const h=G.hero; if(h.atkCD>0||h.rolling) return;
+  const h=G.hero; if(h.atkCD>0||h.rolling||h.stun>0) return; // CAS-118: stun gates the swing
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const dmg=equippedDmg(h)*cfg.dmgMul;
   h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+affixTotals(h).atkspd/100); h._atkHits=new Set(); // CAS-117: +vel.ataque affix shortens the cooldown
@@ -227,6 +230,10 @@ function hitEnemy(e,dmg,ang){
   floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d");
   addFx("spark",e.x,e.y); addFx("blood",e.x,e.y,{ang}); addFx("impact",e.x,e.y,{ang,life:0.26});
   freeze(Math.min(5, 2+Math.floor(dmg/14))); // hit pops harder the bigger the blow
+  // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
+  // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
+  // affix decision now changes how combat FEELS, not just the damage panel.
+  if(G.hero){ const procs=weaponProcs(G.hero); if(procs) for(const pr of procs) applyStatus(e, pr.proc, {dmg:pr.amt}); }
   if(e.tpl.neutral && !e.hostile){ makeHostile(e); registerSkull(); }
   if(e.hp<=0) killEnemy(e);
   else if(e.tpl.neutral) { /* stays hostile */ }
@@ -344,7 +351,7 @@ function onNeutralKill(){ const s=G.skull; s.kills++; s.killT=90;
 // and run through resolveSpell — there is ZERO per-class branching here, so a new
 // class is purely a data row in config.js. Each slot has its own MP cost + cooldown.
 export function castSpell(i){
-  const h=G.hero; if(h.rolling) return;
+  const h=G.hero; if(h.rolling||h.stun>0) return; // CAS-118: stun gates casting
   if(i===0){ heroAttack(); return; }
   const list=SPELLS[h.cls||"warrior"]; const sp=list && list[i-1];
   if(!sp) return;
@@ -426,6 +433,41 @@ function updateFields(dt){
   for(const f of G.fields){ f.life-=dt; f.acc+=dt;
     while(f.acc>=f.tick){ f.acc-=f.tick; fieldTick(f); } }
   G.fields=G.fields.filter(f=>f.life>0);
+}
+
+// --------------------------- CAS-118: status effects -------------------
+// One generic apply/update path shared by the hero AND every enemy. Statuses are
+// data rows in STATUS (config.js): DoTs (poison/quemadura) tick flat damage on a
+// clock; slow scales movement; stun freezes the AI / interrupts a telegraphed
+// strike. All time-driven (no RNG) → deterministic / Stage-2 server-authority ready.
+// Refresh policy: a re-apply keeps the STRONGER per-tick damage and the LONGER
+// remaining duration, so stacking the same source can't snowball the frame/curve.
+function applyStatus(ent, type, opt){
+  if(!ent) return; opt=opt||{}; const def=STATUS[type]; if(!def) return;
+  if(def.dot){ ent.dots=ent.dots||{};
+    const cur=ent.dots[type]; const dmg=opt.dmg||def.dmg, dur=opt.dur||def.dur;
+    ent.dots[type]= cur ? { t:Math.max(cur.t,dur), acc:cur.acc, dmg:Math.max(cur.dmg,dmg), tick:def.tick }
+                        : { t:dur, acc:0, dmg, tick:def.tick };
+  } else if(type==="slow"){ ent.slow=opt.amt||def.amt; ent.slowT=Math.max(ent.slowT||0, opt.dur||def.dur); }
+  else if(type==="stun"){ ent.stun=Math.max(ent.stun||0, opt.dur||def.dur); }
+}
+// Advance an entity's DoTs one frame, dealing flat (defence-bypassing) ticks on each
+// status's clock. Light feedback only (small hurtFlash + a coloured tick floater) so a
+// DoT reads as pressure, never a stun-lock. Returns true if a tick left the entity at
+// <=0 HP so the caller runs the real death path (killEnemy / heroDie). No allocation
+// when the entity carries no DoTs (the common case).
+function tickDots(ent, dt, isHero){
+  if(!ent.dots) return false; let dead=false; let any=false;
+  for(const type in ent.dots){ const d=ent.dots[type]; if(!d) continue; any=true;
+    const def=STATUS[type]; d.t-=dt; d.acc+=dt;
+    while(d.acc>=d.tick){ d.acc-=d.tick;
+      ent.hp-=d.dmg; ent.hurtFlash=Math.max(ent.hurtFlash||0,0.10);
+      floater(ent.x, ent.y-(isHero?30:ent.tpl.size), "-"+d.dmg, def.col);
+      if(ent.hp<=0){ dead=true; break; } }
+    if(d.t<=0 || dead) delete ent.dots[type];
+    if(dead) break; }
+  if(any && ent.dots && Object.keys(ent.dots).length===0) ent.dots=null;
+  return dead;
 }
 // Timed stat buff: dmgBonus/defBonus are the sinks read by equippedDmg/Def, so a
 // buff changes real combat numbers. Recasting refreshes (removes the old amount
@@ -617,12 +659,16 @@ export function update(dtMs){
   if(h.dmgBuffT>0){ h.dmgBuffT-=dt; if(h.dmgBuffT<=0){ h.dmgBonus-=h.dmgBuffAmt; h.dmgBuffAmt=0; } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+h.hotRate*dt); if(h.hotT<=0) h.hotRate=0; }
+  // CAS-118: the hero SUFFERS statuses too — slow/stun timers wind down and DoTs tick.
+  if(h.slowT>0) h.slowT-=dt; if(h.stun>0) h.stun-=dt;
+  if(h.dots) tickDots(h,dt,true);
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
   if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12);
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
   else { const mv=io.moveVec(); const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
-    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+affixTotals(h).movespd/100); // CAS-100 class mobility · CAS-117 +vel.mov affix
+    const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
+    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+affixTotals(h).movespd/100)*statusSlow; // CAS-100 class mobility · CAS-117 +vel.mov affix
     h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
@@ -663,6 +709,10 @@ function updateEnemies(dt){ const h=G.hero;
   for(const e of G.enemies){
     e.hurtFlash=Math.max(0,e.hurtFlash-dt);
     if(e.slowT>0) e.slowT-=dt;
+    // CAS-118: DoTs tick first so a burning/poisoned enemy keeps losing HP even while
+    // stunned. A lethal tick runs the REAL killEnemy path (drops/xp/clear), then we skip
+    // this corpse for the rest of the frame.
+    if(e.dots && tickDots(e,dt,false)){ killEnemy(e); continue; }
     // CAS-65 capstone phase shift: cross the enrage HP threshold once -> speed up,
     // tighten the windup tell, and unlock the radial slam. Telegraphed loudly
     // (roar sfx + screen shake + flame burst + banner) so the spike is readable.
@@ -736,7 +786,7 @@ function updateEnemies(dt){ const h=G.hero;
       if(e.tpl.arch==="rusher" && !e.specialNow){
         const lspd=(e.tpl.lunge||110)/0.2; moveEnt(e,Math.cos(e.facing)*lspd*dt,Math.sin(e.facing)*lspd*dt,e.tpl.size*0.6);
         if(!e.hitDone && d<=e.tpl.size+e.tpl.range*0.5){ e.hitDone=true;
-          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a);
+          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl);
           addFx("spark",e.x+Math.cos(a)*14,e.y+Math.sin(a)*14); }
       }
       else if(!e.hitDone){ e.hitDone=true;
@@ -745,14 +795,14 @@ function updateEnemies(dt){ const h=G.hero;
         // around) with heavy knock. The grown ground-ring during windup told the player
         // to step OUT of the `aoe` radius; standing inside it eats the full blow.
         else if(e.tpl.arch==="brute"){ const R=e.tpl.aoe||56;
-          if(d<=R+e.tpl.size*0.4){ const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a); }
+          if(d<=R+e.tpl.size*0.4){ const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl); }
           addFx("novacast",e.x,e.y+e.tpl.size*0.35,{r:R,col:"#ff7a3a",life:0.4}); shakeAdd(8);
         }
         else if(e.tpl.ranged){ const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a;
-          G.projectiles.push({x:e.x+Math.cos(a)*16, y:e.y-4+Math.sin(a)*16, vx:Math.cos(a)*e.tpl.projspd, vy:Math.sin(a)*e.tpl.projspd, life:2.4, dmg:e.tpl.dmg, kind:e.tpl.proj||"spear", enemy:true, ang:a});
+          G.projectiles.push({x:e.x+Math.cos(a)*16, y:e.y-4+Math.sin(a)*16, vx:Math.cos(a)*e.tpl.projspd, vy:Math.sin(a)*e.tpl.projspd, life:2.4, dmg:e.tpl.dmg, kind:e.tpl.proj||"spear", enemy:true, ang:a, infl:e.tpl.infl}); // CAS-118: bolt carries the slow infl
           addFx("spark",e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);
         } else {
-          if(d<=e.tpl.range+10){ const a=Math.atan2(h.y-e.y,h.x-e.x); if(Math.abs(angDiff(a,e.facing))<1.2) damageHero(e.tpl.dmg,a); }
+          if(d<=e.tpl.range+10){ const a=Math.atan2(h.y-e.y,h.x-e.x); if(Math.abs(angDiff(a,e.facing))<1.2) damageHero(e.tpl.dmg,a,e.tpl.infl); }
           addFx("spark",e.x+Math.cos(e.facing)*e.tpl.range*0.6,e.y+Math.sin(e.facing)*e.tpl.range*0.6);
         }
       }
@@ -764,16 +814,20 @@ function updateEnemies(dt){ const h=G.hero;
 function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0.5;
   freeze(6); h.iframe=Math.max(h.iframe,0.20); h.mp=Math.min(h.maxMp,h.mp+8);
   floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.34}); audio.sfx.roll(); }
-function damageHero(dmg,ang){ const h=G.hero; if(h.dead) return;
+function damageHero(dmg,ang,infl){ const h=G.hero; if(h.dead) return;
   if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return; } // only an active roll earns the dodge, not mercy i-frames
   const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   h.iframe=0.25; // brief mercy invuln
+  // CAS-118: a mob's telegraphed strike can also INFLICT a status (bandit poison / wraith
+  // slow). It only lands when the hit lands — dodging the telegraph (i-frames above) skips
+  // it entirely, so reading the tell avoids BOTH the damage and the state. AC #3.
+  if(infl && infl.type) applyStatus(h, infl.type, infl);
 }
 function updateProjectiles(dt){ const h=G.hero;
   for(const p of G.projectiles){ p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
     if(solidBlocked(p.x,p.y,4)){ p.life=0; }
-    if(p.enemy){ if(dist2(p.x,p.y,h.x,h.y)<18*18){ damageHero(p.dmg,Math.atan2(p.vy,p.vx)); p.life=0; } }
+    if(p.enemy){ if(dist2(p.x,p.y,h.x,h.y)<18*18){ damageHero(p.dmg,Math.atan2(p.vy,p.vx),p.infl); p.life=0; } }
     else { for(const e of G.enemies){ if(e.dead) continue; if(dist2(p.x,p.y,e.x,e.y)<(e.tpl.size+7)*(e.tpl.size+7)){ const ha=Math.atan2(p.vy,p.vx); hitEnemy(e,p.dmg,ha);
       const aoe=p.aoe||((p.kind==="fire"||p.kind==="orb")?46:0); // basic fire/orb keep their legacy splash; spells carry their own aoe
       if(aoe){ addFx(p.burstFx||(p.kind==="orb"?"orbburst":"flame"),p.x,p.y,{life:0.45,col:p.col,r:aoe}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<aoe*aoe) hitEnemy(e2,p.dmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); } }
@@ -982,4 +1036,35 @@ export const dev = {
       spawnCoords: w.spawners.map(s=>[s.rect.x,s.rect.y,s.rect.w,s.rect.h]),
     };
   },
+  // --- CAS-118 status-effect harness hooks (tools/cas118-status.mjs); additive ---
+  // Static status metadata straight off the STATUS table (no sim step) so the test can
+  // assert the catalogue (≥3 effects with their tick/dur/dmg behaviour fields).
+  statusMeta(type){ const s=STATUS[type]; if(!s) return null;
+    return { type, dot:!!s.dot, tick:s.tick||0, dur:s.dur, dmg:s.dmg||0, amt:s.amt||0, label:s.label }; },
+  // The mob→hero infl row (which mobs apply what on a telegraphed strike) — proves AC#3
+  // data exists without driving a fight.
+  mobInfl(type){ const t=ETPL[type]; return (t&&t.infl)?{...t.infl}:null; },
+  // Live status snapshot of the hero or the first/only enemy: active DoTs (remaining
+  // time + per-tick dmg), slow, stun, hp. The headless test reads this each tick to
+  // assert tics land and durations expire.
+  statusOf(who){ const ent= who==="hero"?G.hero:G.enemies[0]; if(!ent) return null;
+    const dots={}; if(ent.dots) for(const k in ent.dots){ dots[k]={ t:+ent.dots[k].t.toFixed(2), dmg:ent.dots[k].dmg }; }
+    return { dots, slowT:+(ent.slowT||0).toFixed(2), slow:ent.slow||1, stun:+(ent.stun||0).toFixed(2), hp:Math.round(ent.hp) }; },
+  // Apply a status through the REAL engine (proves the apply/tick/expire path + visual).
+  applyStatusTo(who,type,opt){ const ent= who==="hero"?G.hero:G.enemies[0]; if(!ent) return null; applyStatus(ent,type,opt||{}); return this.statusOf(who); },
+  // Read the equipped weapon's on-hit procs — the CAS-117 affix → CAS-118 effect bridge.
+  weaponProcs(){ return weaponProcs(G.hero)||[]; },
+  // Force a burn affix onto the live weapon so the harness can prove that EQUIPPING an
+  // 'ardiente' weapon makes struck enemies catch fire (AC#2). A real instance mutation.
+  giveBurnWeapon(amt){ const w=G.hero.equip.weapon; w.affixes=[{id:"burn",amt:amt||4}]; return weaponProcs(G.hero); },
+  // Clean status arena (mirrors archArena): tanky hero + one unscaled mob in front,
+  // hero statuses cleared. The page game loop then runs the REAL AI; the harness reads
+  // statusOf() each tick.
+  statusArena(type,dx,dy){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=100000; h.hp=100000; h.dots=null; h.slowT=0; h.slow=1; h.stun=0;
+    const e=spawnEnemy(type, h.x+(dx||0), h.y+(dy||0)); if(e){ e.state="chase"; } return e?type:null; },
+  // Hero lands a REAL basic-attack hit on the arena mob (through hitEnemy, so weapon
+  // procs fire) and returns the mob's resulting statuses — no applyStatus shortcut.
+  heroHit(){ const h=G.hero; const e=G.enemies[0]; if(!e) return null; h.facing=Math.atan2(e.y-h.y,e.x-h.x);
+    hitEnemy(e, equippedDmg(h), h.facing); return this.statusOf("enemy"); },
 };

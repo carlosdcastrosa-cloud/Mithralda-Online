@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, STATUS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
@@ -265,6 +265,7 @@ export function createRenderer(ctx){
     ctx.globalAlpha=1;
     if(!ok){ const b2=h.walkT?Math.sin(h.walkT)*2:0; blit(ctx,SP.hero.rows, h.hurtFlash>0?redden(SP.hero.pal):SP.hero.pal, h.x,h.y-12-b2,3, Math.cos(h.facing)<0); }
     if(!h.dead){ ctx.globalAlpha=0.8; ctx.fillStyle=COL.textGold; const fx=h.x+Math.cos(h.facing)*18, fy=h.y-2+Math.sin(h.facing)*18; ctx.fillRect(fx-1.5,fy-1.5,3,3); ctx.globalAlpha=1; }
+    if(!h.dead) drawStatusFx(h, h.x, h.y+14, h.y-40); // CAS-118: the hero shows its own afflictions (aura + pips above head)
   }
   // CAS-92: draw one frame of a hero animation strip. Every frame is HERO_FW×HERO_FH;
   // source column HERO_AX (body centroid) maps to world hx and source row HERO_FOOT
@@ -336,6 +337,30 @@ export function createRenderer(ctx){
     ctx.restore(); return true;
   }
 
+  // CAS-118 — status feedback on any afflicted entity (hero or enemy): a faint pulsing
+  // ground aura in the dominant status colour + a small row of coloured icon pips above
+  // it. Reads the same fields the sim drives (dots / slowT / stun), so it can never
+  // disagree with the simulation. Cheap: early-out when the entity carries no status.
+  function activeStatuses(ent){
+    const out=[];
+    if(ent.dots){ for(const k in ent.dots){ const s=STATUS[k]; if(s) out.push({col:s.col}); } }
+    if(ent.slowT>0){ const s=STATUS.slow; out.push({col:s.col}); }
+    if(ent.stun>0){ const s=STATUS.stun; out.push({col:s.col}); }
+    return out;
+  }
+  function drawStatusFx(ent, cx, feetY, topY){
+    const st=activeStatuses(ent); if(!st.length) return;
+    // faint pulsing ground aura in the first status's colour
+    const pulse=0.5+0.5*Math.abs(Math.sin(G.t*6));
+    ctx.save(); ctx.globalAlpha=0.18+0.16*pulse; ctx.fillStyle=st[0].col;
+    ctx.beginPath(); ctx.ellipse(cx,feetY,13,6,0,0,6.28); ctx.fill(); ctx.restore();
+    // icon pips row, centred above the entity
+    const n=st.length, sz=5, gap=3, total=n*sz+(n-1)*gap; let px=cx-total/2;
+    ctx.save();
+    for(let i=0;i<n;i++){ ctx.globalAlpha=0.95; ctx.fillStyle=COL.out; ctx.fillRect(px-1,topY-1,sz+2,sz+2);
+      ctx.fillStyle=st[i].col; ctx.fillRect(px,topY,sz,sz); px+=sz+gap; }
+    ctx.restore();
+  }
   function drawEnemy(e){
     const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.champion?5:(e.tpl.size>20?4:3));
     const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false;
@@ -410,6 +435,8 @@ export function createRenderer(ctx){
     if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("GÓLEM ANCESTRAL",e.x,yy-4); }
     else if(e.champion){ ctx.fillStyle=e.specialNow?"#ff5230":champCol; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
       ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
+    // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
+    drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
   }
   function drawNPC(n){
     // CAS-84: animated town NPCs (e.g. the merchant) reuse the enemy drawAnim helper
@@ -552,6 +579,23 @@ export function createRenderer(ctx){
     ctx.fillStyle=fg; ctx.fillRect(x,y,w*clamp(frac,0,1),hh); if(label){ ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(label,x+4,y+hh-2);} }
   function renderHUD(){ const h=G.hero; ctx.textAlign="left";
     const pad=12, bw=Math.min(220,VW*0.42);
+    // CAS-118: while the hero suffers a status, frame the screen with a pulsing edge
+    // tint in that status's colour + a compact chip row (icon + label + seconds left),
+    // so "el jugador también los sufre" reads instantly without crowding the HUD.
+    { const chips=[];
+      if(h.dots) for(const k in h.dots){ const s=STATUS[k]; if(s) chips.push({col:s.col,label:s.label,t:h.dots[k].t}); }
+      if(h.slowT>0){ const s=STATUS.slow; chips.push({col:s.col,label:s.label,t:h.slowT}); }
+      if(h.stun>0){ const s=STATUS.stun; chips.push({col:s.col,label:s.label,t:h.stun}); }
+      if(chips.length){
+        const pulse=0.5+0.5*Math.abs(Math.sin(G.t*6));
+        ctx.save(); ctx.globalAlpha=0.22+0.20*pulse; ctx.strokeStyle=chips[0].col; ctx.lineWidth=6;
+        ctx.strokeRect(3,3,VW-6,VH-6); ctx.restore();
+        let cy=pad+ (G.skull.level>0?120:116);
+        ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
+        for(const c of chips){ ctx.fillStyle=COL.out; ctx.fillRect(pad-1,cy-1,9,9); ctx.fillStyle=c.col; ctx.fillRect(pad,cy,7,7);
+          ctx.fillStyle=c.col; ctx.fillText(c.label+" "+c.t.toFixed(1)+"s", pad+13, cy+8); cy+=15; }
+      }
+    }
     const mhp=heroMaxHp(h); // CAS-117: bar reflects the +vida affix pool
     bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
     bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);

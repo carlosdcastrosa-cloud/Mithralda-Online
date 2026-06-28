@@ -89,6 +89,11 @@ export function createGame(canvas, ctx, getView){
       archSnap:()=>simDev.archSnap(), archMoveHero:(dx,dy)=>simDev.archMoveHero(dx,dy),
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe(),
+      // CAS-118 status-effect contract consumed by tools/cas118-status.mjs — additive
+      statusMeta:(type)=>simDev.statusMeta(type), mobInfl:(type)=>simDev.mobInfl(type),
+      statusOf:(who)=>simDev.statusOf(who), applyStatusTo:(who,type,opt)=>simDev.applyStatusTo(who,type,opt),
+      weaponProcs:()=>simDev.weaponProcs(), giveBurnWeapon:(amt)=>simDev.giveBurnWeapon(amt),
+      statusArena:(type,dx,dy)=>simDev.statusArena(type,dx,dy), heroHit:()=>simDev.heroHit(),
       // CAS-113 persistence contract consumed by tools/persist.mjs — additive
       saveBlob:()=>serializeSave(), saveNow:()=>persist.save(),
       hasSave:()=>persist.hasSave(), clearSave:()=>persist.clear(),

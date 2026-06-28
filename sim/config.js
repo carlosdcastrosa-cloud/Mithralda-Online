@@ -123,8 +123,13 @@ export const ETPL = {
   mage:    {hp:56, dmg:16, spd:62,  aggro:340, range:250, windup:0.9, recover:0.85, xp:36, gold:[11,20],sprite:"skel", size:21, knock:60, boss:false, ranged:true, projspd:240, proj:"bolt", gearChance:0.26, arch:"caster", kite:170},
   // CAS-60: new mob variety — bat (forest flyer), bandit (ruins rogue), wraith (caves ranged ghost)
   bat:     {hp:16, dmg:7,  spd:158, aggro:220, range:34, windup:0.28, recover:0.35, xp:9,  gold:[1,4], sprite:"bat",    size:14, knock:90,  boss:false, gearChance:0.08, arch:"rusher", lunge:96},
-  bandit:  {hp:60, dmg:18, spd:106, aggro:250, range:48, windup:0.5,  recover:0.55, xp:30, gold:[11,21],sprite:"bandit", size:19, knock:110, boss:false, gearChance:0.26, arch:"rusher", lunge:132},
-  wraith:  {hp:48, dmg:15, spd:66,  aggro:320, range:230, windup:0.85,recover:0.8,  xp:32, gold:[9,17], sprite:"wraith", size:20, knock:60,  boss:false, ranged:true, projspd:260, proj:"bolt", gearChance:0.26, arch:"caster", kite:162},
+  // CAS-118: the bandit's telegraphed LUNGE coats its blade in poison — a contact hit
+  // applies `infl` to the hero. Reading the dashed lunge-line tell (render.js) and
+  // sidestepping avoids BOTH the hit and the status (damageHero skips infl on a dodge).
+  bandit:  {hp:60, dmg:18, spd:106, aggro:250, range:48, windup:0.5,  recover:0.55, xp:30, gold:[11,21],sprite:"bandit", size:19, knock:110, boss:false, gearChance:0.26, arch:"rusher", lunge:132, infl:{type:"poison",dmg:4,dur:4}},
+  // CAS-118: the wraith's bolt carries a chilling SLOW — its aim-line tell during windup
+  // telegraphs the shot; dodging the bolt avoids the slow (infl rides the projectile).
+  wraith:  {hp:48, dmg:15, spd:66,  aggro:320, range:230, windup:0.85,recover:0.8,  xp:32, gold:[9,17], sprite:"wraith", size:20, knock:60,  boss:false, ranged:true, projspd:260, proj:"bolt", gearChance:0.26, arch:"caster", kite:162, infl:{type:"slow",amt:0.5,dur:2.2}},
   golem:   {hp:640,dmg:30, spd:46,  aggro:360, range:64, windup:0.95, recover:0.8,  xp:220,gold:[60,90],sprite:"golem",size:36, knock:60, boss:true},
   // CAS-76: animated "Moose" bruiser (Ancient Ruins pack). A heavy charger — long
   // antler-rear telegraph (windup 0.85 → matches the 30-frame attack strip), big
@@ -133,6 +138,24 @@ export const ETPL = {
   // (same convention as mage→"skel"); ENEMY_ANIM.moose drives the real animated strips.
   moose:   {hp:150,dmg:26, spd:82,  aggro:260, range:56, windup:0.88, recover:0.7,  xp:48, gold:[14,24],sprite:"orc",  size:26, knock:200, boss:false, gearChance:0.32, arch:"brute", aoe:68},
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
+};
+
+// CAS-118 — STATUS EFFECTS: data-driven combat states applied by the player (weapon
+// on-hit affixes CAS-117, spells) and suffered from mobs (telegraphed strikes). The
+// generic engine in sim.js (applyStatus / tickDots) reads these rows, so adding a
+// status is a data edit — no per-status code branch. Time-driven, zero RNG, so it
+// stays deterministic / Stage-2 server-authority ready.
+//   dot   — ticks `dmg` damage every `tick`s for `dur`s   (veneno / quemadura)
+//   slow  — scales the victim's move/chase speed to `amt` for `dur`s   (lentitud)
+//   stun  — freezes the AI / interrupts the telegraphed strike for `dur`s   (aturdir/raíz)
+// `col` is the tick-floater + on-entity icon colour; `label` the HUD/probe name.
+// DoT damage is FLAT (bypasses defence) but small per tick so it reads as pressure,
+// never a one-shot — tuned to be felt without breaking the CAS-114/112/109 curve.
+export const STATUS = {
+  poison: { dot:true,  tick:0.5, dur:4.0, dmg:3, col:"#8be04a", label:"veneno" },
+  burn:   { dot:true,  tick:0.4, dur:2.4, dmg:4, col:"#ff8a3a", label:"quemadura" },
+  slow:   { dot:false, amt:0.55, dur:2.2,        col:"#7fd0ff", label:"lentitud" },
+  stun:   { dot:false, dur:0.9,                  col:"#ffe066", label:"aturdir" },
 };
 
 // Per-zone difficulty TIER (CAS-73): the natural-spawn trash of each hunt zone is

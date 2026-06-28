@@ -41,12 +41,29 @@ export const AFFIXES = {
   atkspd:  { stat:"atkspd",  label:"vel. ataque",pct:true,  base:[5,9]  },
   movespd: { stat:"movespd", label:"vel. mov.",  pct:true,  base:[4,7]  },
   onhit:   { stat:"onhit",   label:"daño extra", pct:false, base:[2,3]  },
+  // CAS-118 — PROC affix: an on-hit STATUS enchant (only rolls on weapons). `proc`
+  // names the STATUS applied by every hero hit; `amt` is the DoT damage/tick (scales
+  // with def tier like a flat affix). It is NOT a combat-number total — affixTotals
+  // skips ids it doesn't track, so a burn weapon changes how combat FEELS, not the
+  // numeric panel. Equipping an 'ardiente' weapon visibly sets struck enemies on fire.
+  burn:    { stat:"burn",    label:"quema al golpear", pct:false, base:[2,3], proc:"burn" },
 };
 export const AFFIX_ORDER = ["dmg","hp","atkspd","movespd","onhit"];
+// Proc (on-hit status) affixes — appended to the roll pool ONLY for weapons (CAS-118),
+// so the "arma ardiente" decision lives on the weapon slot, never armour.
+export const PROC_AFFIXES = ["burn"];
 export const AFFIX_CAP = { atkspd:40, movespd:40 }; // %-cap so stacking stays sane
 
 // Human-readable affix line for tooltips/diffs (e.g. "+6 daño" / "+8% vel. ataque").
-export function affixLabel(af){ const a=AFFIXES[af&&af.id]; if(!a) return ""; return "+"+af.amt+(a.pct?"% ":" ")+a.label; }
+// Proc affixes read as the enchant + its per-tick weight (e.g. "quema al golpear (+4/tic)").
+export function affixLabel(af){ const a=AFFIXES[af&&af.id]; if(!a) return "";
+  if(a.proc) return a.label+" (+"+af.amt+"/tic)";
+  return "+"+af.amt+(a.pct?"% ":" ")+a.label; }
+// CAS-118: on-hit status procs carried by the equipped WEAPON's affixes — read at hero
+// hit time (hitEnemy) so the affix decision (CAS-117) changes observable combat feel.
+export function weaponProcs(h){ const inst=h&&h.equip&&h.equip.weapon; if(!inst||!Array.isArray(inst.affixes)) return null;
+  let out=null; for(const af of inst.affixes){ const a=AFFIXES[af&&af.id]; if(a&&a.proc&&typeof af.amt==="number"){ (out||(out=[])).push({proc:a.proc, amt:af.amt}); } }
+  return out; }
 export function affixList(inst){ return (inst&&Array.isArray(inst.affixes))?inst.affixes:[]; }
 
 export const GEAR = {
@@ -104,9 +121,11 @@ export function rollRarity(srand,minR){ const floorRank=minR?rarityRank(minR):0;
 // srand (determinism / Stage-2). Common rolls nothing; uncommon 1, rare 1-2,
 // epic 2 distinct affixes. Flat amounts scale with def `tier`; pct amounts with
 // rarity rank. CAS-117.
-export function rollAffixes(srand,rarity,tier){ const rank=rarityRank(rarity); if(rank<1) return [];
+export function rollAffixes(srand,rarity,tier,slot){ const rank=rarityRank(rarity); if(rank<1) return [];
   const n = rank===1 ? 1 : (rank===2 ? (srand()<0.5?1:2) : 2);
-  const pool=AFFIX_ORDER.slice(); const out=[];
+  const pool=AFFIX_ORDER.slice();
+  if(slot==="weapon") for(const p of PROC_AFFIXES) pool.push(p); // CAS-118: on-hit procs only on weapons
+  const out=[];
   for(let k=0;k<n && pool.length;k++){
     const id=pool.splice(Math.floor(srand()*pool.length),1)[0]; const a=AFFIXES[id]; const r=srand();
     let amt;
@@ -139,7 +158,7 @@ export function rollGearInst(srand,tmin,tmax,minR){ const slots=["weapon","body"
   const def=pool[Math.floor(srand()*pool.length)];
   const rarity=rollRarity(srand,minR);
   const inst={ slot, defId:def.id, rarity };
-  const affixes=rollAffixes(srand,rarity,def.tier); if(affixes.length) inst.affixes=affixes;
+  const affixes=rollAffixes(srand,rarity,def.tier,slot); if(affixes.length) inst.affixes=affixes;
   return inst; }
 
 // Equipped totals — the ONLY readers of hero gear (combat + UI route through
