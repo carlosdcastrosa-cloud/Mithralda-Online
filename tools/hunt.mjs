@@ -208,6 +208,63 @@ try {
   pass(`capstone screenshot saved: ${capShot}`);
   await cap.close();
 
+  // ---- CAS-109: every REGULAR Champion (forest/ruins/caves) carries a telegraphed
+  // radial-slam SPECIAL — a longer windup tell then a ring of shards instead of the
+  // melee hit, on a strike cadence. Drive the real windup→strike AI and assert the
+  // slam fires (shards emitted), the telegraph is observable (specialNow during
+  // windup), and the boss survives the punishment window (clean dodge-or-die fight).
+  const SPECIAL_ZONES = [
+    { zone: "forest", base: "wolf",     need: 10, slam: 8  },
+    { zone: "ruins",  base: "bandit",   need: 12, slam: 10 },
+    { zone: "caves",  base: "skeleton", need: 13, slam: 12 },
+  ];
+  for (const z of SPECIAL_ZONES) {
+    const sp = await browser.newPage();
+    await sp.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+    await sp.goto(`${srv.url}/index.html?dev`, { waitUntil: "load" });
+    await enterPlay(sp);
+    const tag = z.zone.toUpperCase();
+    // summon via the real cull quota
+    const champ = await sp.evaluate((z) => {
+      window.__dev.tpZone(z.zone); window.__dev.seed(55);
+      for (let i = 0; i < z.need; i++) window.__dev.spawnKill(z.base);
+      return window.__dev.huntState(z.zone).champ;
+    }, z);
+    if (champ && champ.hasSpecial && champ.specialSlam === z.slam)
+      pass(`[SPECIAL ${tag}] Champion '${champ.name}' carries a ${champ.specialSlam}-shard special slam`);
+    else fail(`[SPECIAL ${tag}] special not configured: ${JSON.stringify(champ)}`);
+
+    // arm the next strike as the special, park the hero in range, run REAL frames;
+    // capture both the live shard ring AND that the telegraph flag was raised (the
+    // longer windup the render draws as the growing-ring "dodge me" tell).
+    const obs = await sp.evaluate(async (zone) => {
+      let peakRune = 0, sawTelegraph = false, sawSpecialWindup = false;
+      // arm ONCE — forceSpecial makes the very next in-range strike the special; do
+      // NOT re-arm mid-fight (forceSpecial resets state to chase and would abort an
+      // in-progress windup before it can strike). poke() keeps the hero in range.
+      window.__dev.forceSpecial(zone);
+      for (let i = 0; i < 30; i++) {
+        window.__dev.poke(zone);
+        await new Promise((r) => setTimeout(r, 70));
+        const c = window.__dev.huntState(zone).champ;
+        if (c && c.specialNow) { sawTelegraph = true; if (c.state === "windup") sawSpecialWindup = true; }
+        const p = window.__dev.enemyProj();
+        if (p.rune > peakRune) peakRune = p.rune;
+        if (peakRune > 0 && sawSpecialWindup) break;
+      }
+      const c = window.__dev.huntState(zone).champ;
+      return { peakRune, sawTelegraph, sawSpecialWindup, aliveAfter: !!(c && c.hp > 0) };
+    }, z.zone);
+    if (obs.sawSpecialWindup) pass(`[SPECIAL ${tag}] telegraph observed (specialNow during windup — the growing-ring tell)`);
+    else fail(`[SPECIAL ${tag}] no telegraphed special windup observed`);
+    if (obs.peakRune >= Math.ceil(z.slam * 0.5)) pass(`[SPECIAL ${tag}] radial slam fired (${obs.peakRune} live shards, ~${z.slam} expected)`);
+    else fail(`[SPECIAL ${tag}] slam did not fire (${obs.peakRune} shards)`);
+    if (obs.aliveAfter) pass(`[SPECIAL ${tag}] boss survives the slam window (dodge-or-die, no soft-lock)`);
+    else fail(`[SPECIAL ${tag}] boss vanished mid-fight`);
+    if (z.zone === "caves") { await new Promise((r) => setTimeout(r, 150)); writeFileSync(join(ROOT, "tools", "cas109-special.png"), await sp.screenshot()); pass(`special-slam screenshot saved: tools/cas109-special.png`); }
+    await sp.close();
+  }
+
   // (5) determinism: same seed -> identical champion reward across two fresh runs
   const reward = async () => {
     const p = await browser.newPage();

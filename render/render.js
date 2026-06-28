@@ -70,6 +70,9 @@ const HERO_STRIPS={
 // so on-screen size + CLASS_ANIM_SCALE=0.32 are UNCHANGED (geom source: classes.json).
 const CLASS_FW=140, CLASS_FH=166, CLASS_AX=65, CLASS_FOOT=163, CLASS_FC=6;
 const CLASS_ANIM_SCALE=0.32;
+// CAS-110: per-class WALK-CYCLE strips (8 frames @ 8fps, same cell geom as the idle).
+// Keyed by movement: walk → clswalk_* gait; idle/attack/roll keep the CAS-101 idle loop.
+const CLASS_WALK_FC=8, CLASS_WALK_FPS=8;
 // Each playable class now has its OWN dedicated strip (CAS-101) — no more thematic
 // aliasing. archer/rogue strips stay in the folder as spare base art (not loaded).
 const CLASS_HERO_ART={ warrior:"warrior", paladin:"paladin", mage:"mage", druid:"druid", priest:"priest" };
@@ -83,6 +86,7 @@ export function createRenderer(ctx){
   loadImg("hero_erw", ERW_HERO_SRC);   // CAS-82: hooded pose (now the load-time fallback)
   for(const k in HERO_STRIPS) loadImg(HERO_STRIPS[k].img, `./assets/erw/hero/${HERO_STRIPS[k].img}.png`); // CAS-92 anim strips
   for(const k of CLASS_HERO_KEYS) loadImg("clshero_"+k, `./assets/erw/hero/classes/${k}.png`); // CAS-98 per-class clean cutouts
+  for(const k of CLASS_HERO_KEYS) loadImg("clswalk_"+k, `./assets/erw/hero/classes/${k}_walk.png`); // CAS-110 per-class walk-cycle strips
   // offscreen buffer for the hero hurt-flash tint (only touched when flashing)
   const _heroBuf=(typeof document!=="undefined")?document.createElement("canvas"):null;
   const _heroBx=_heroBuf?_heroBuf.getContext("2d"):null;
@@ -226,11 +230,13 @@ export function createRenderer(ctx){
       hx=h.x+Math.cos(h.atkAng)*pop*5; hfeet=feet+Math.sin(h.atkAng)*pop*2.5;  // lunge
       sqY=1+0.09*pop; sqX=1-0.05*pop;               // stretch into the strike
     } else { bobUp=Math.sin(G.t*2)*0.6; sqY=1+0.012*Math.sin(G.t*2); }  // idle breathing
-    // CAS-98: cycle the class idle-loop frames continuously (time-driven, always
-    // moving), a touch faster while walking/rolling so the loop reads as motion.
-    const cfps=(state==="walk")?7:(state==="roll")?11:(state==="attack")?9:2.6;
-    const cfi=Math.floor(G.t*cfps)%CLASS_FC;
-    const ok=drawHeroClass(CLASS_HERO_ART[cls],cfi,hx,hfeet,flip,sqX,sqY,bobUp,tint) // CAS-98 per-class animated loop
+    // CAS-110: when walking, play the dedicated 8-frame walk-cycle strip (real gait)
+    // at CLASS_WALK_FPS; otherwise cycle the CAS-98/101 idle loop (time-driven, always
+    // moving), a touch faster while rolling/attacking so the loop still reads as motion.
+    const walking=(state==="walk");
+    const cfps=(state==="roll")?11:(state==="attack")?9:2.6;
+    const cfi=walking?(Math.floor(G.t*CLASS_WALK_FPS)%CLASS_WALK_FC):(Math.floor(G.t*cfps)%CLASS_FC);
+    const ok=drawHeroClass(CLASS_HERO_ART[cls],cfi,hx,hfeet,flip,sqX,sqY,bobUp,tint,walking) // CAS-98/110 per-class animated loop
           || drawHeroAnim(def.img,fi,h.x,feet,flip,tint,bob)                     // hooded anim fallback
           || drawHeroErw(h.x,feet,flip,1,1,0,tint)       // hooded pose until strips load
           || drawClassFrame(ctx,cls,(state==="roll")?"walk":state,dir4FromAngle(ang),fi,h.x,feet,HERO_SPRITE_SCALE,tint);
@@ -265,8 +271,13 @@ export function createRenderer(ctx){
   // an optional silhouette tint (hurt flash). Scaled by CLASS_ANIM_SCALE → ~50px
   // (CAS-92 final size). Returns false until the strip loads (or for a class with
   // no art), so drawHero falls back to the hooded anim.
-  function drawHeroClass(art,fi,cx,feet,flip,sqX,sqY,bobUp,tint){
-    const img=art?IMG["clshero_"+art]:null; if(!img||!img.complete||!img.naturalWidth) return false;
+  function drawHeroClass(art,fi,cx,feet,flip,sqX,sqY,bobUp,tint,walk){
+    // CAS-110: walk → dedicated clswalk_* strip (8 frames). Same cell geom as the idle,
+    // so the only difference is which image + how many columns; falls back to the idle
+    // strip (clamped to CLASS_FC) until the walk PNG loads → no blank frame.
+    let img=art?IMG[(walk?"clswalk_":"clshero_")+art]:null;
+    if(walk && (!img||!img.complete||!img.naturalWidth)){ img=art?IMG["clshero_"+art]:null; fi=(fi||0)%CLASS_FC; }
+    if(!img||!img.complete||!img.naturalWidth) return false;
     const S=CLASS_ANIM_SCALE, dw=CLASS_FW*S*sqX, dh=CLASS_FH*S*sqY, sx=(fi||0)*CLASS_FW;
     const dx=cx-CLASS_AX*S*sqX, dy=feet-CLASS_FOOT*S*sqY-(bobUp||0);
     let src=img, ssx=sx, ssy=0;
@@ -329,6 +340,14 @@ export function createRenderer(ctx){
         ctx.fillStyle="rgba(255,120,60,0.35)"; ctx.beginPath(); ctx.moveTo(e.x,e.y);
         ctx.arc(e.x,e.y,e.tpl.range+12,e.facing-0.5,e.facing+0.5); ctx.closePath(); ctx.fill();
       }
+      // CAS-109 special-slam tell: a red ring that GROWS over the (longer) windup so
+      // the player reads "radial slam incoming — roll out/through" before it lands.
+      if(e.specialNow){ const wmax=(e.special&&e.special.windup)||e.tpl.windup;
+        const prog=clamp(1-(e.st||0)/wmax,0,1), R=34+prog*72, cy=e.y+e.tpl.size*0.45;
+        ctx.save(); ctx.globalAlpha=0.30+0.30*Math.abs(Math.sin(G.t*16));
+        ctx.strokeStyle="#ff5230"; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
+        ctx.globalAlpha=0.45; ctx.lineWidth=1.5; ctx.strokeStyle="#ffd0a0";
+        ctx.beginPath(); ctx.ellipse(e.x,cy,R*0.62,R*0.31,0,0,6.28); ctx.stroke(); ctx.restore(); }
     }
     let drew=false; const ch=ENEMY_ANIM[e.type];
     if(ch && IMG[ch+"_walk"]){
@@ -345,8 +364,8 @@ export function createRenderer(ctx){
     const champCol=e.capstone?(e.enraged?"#ff4636":"#ff9a3a"):"#ffcf4d";
     ctx.fillStyle=e.champion?champCol:(e.hostile?"#ff5a4a":COL.hpf); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
     if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("GÓLEM ANCESTRAL",e.x,yy-4); }
-    else if(e.champion){ ctx.fillStyle=champCol; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
-      ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.enraged?" ¡ENFURECIDO!":""),e.x,yy-4); }
+    else if(e.champion){ ctx.fillStyle=e.specialNow?"#ff5230":champCol; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
   }
   function drawNPC(n){
     // CAS-84: animated town NPCs (e.g. the merchant) reuse the enemy drawAnim helper

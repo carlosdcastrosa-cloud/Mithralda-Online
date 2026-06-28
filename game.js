@@ -62,6 +62,8 @@ export function createGame(canvas, ctx, getView){
       setChampHp:(zone,frac)=>simDev.setChampHp(zone,frac),
       poke:(zone)=>simDev.poke(zone),
       enemyProj:()=>simDev.enemyProj(),
+      // Champion telegraphed-slam contract consumed by tools/hunt.mjs (CAS-109) — additive
+      forceSpecial:(zone)=>simDev.forceSpecial(zone),
       // spell-identity contract consumed by tools/spells.mjs (CAS-52) — additive
       setClass:(cls)=>simDev.setClass(cls),
       // per-class base-stat contract consumed by tools/classstats.mjs (CAS-100) — additive

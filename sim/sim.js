@@ -233,6 +233,8 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
       size:Math.round(base.size*cfgH.sizeMul), xp:cfgH.xp, knock:Math.max(60,Math.round(base.knock*0.6)),
       aggro:Math.max(base.aggro,320), champName:cfgH.name });
     e.rwdTier=cfgH.tier; e.rwdMinR=cfgH.minR; e.rwdXp=cfgH.xp; e.rwdGold=cfgH.gold;
+    // CAS-109: telegraphed radial-slam special on a strike cadence (see HUNTS.special).
+    e.special=cfgH.special||null; e.atkCount=0; e.specialNow=false;
   }
   e.hp=e.maxHp=e.tpl.hp; e.champion=true; e.zone=zone; e.state="chase";
   H.champ=e;
@@ -577,7 +579,14 @@ function updateEnemies(dt){ const h=G.hero;
       else { e.wanderT-=dt; if(e.wanderT<=0){ e.wanderT=rr(1.5,3.5); const a=rr(0,6.28); e.wx=Math.cos(a); e.wy=Math.sin(a);} moveEnt(e,(e.wx||0)*30*dt,(e.wy||0)*30*dt,e.tpl.size*0.6); }
     } else if(e.state==="chase"){
       if(d>aggro*1.4 && !e.hostile){ e.state="idle"; }
-      else if(d<=e.tpl.range){ e.state="windup"; e.st=e.tpl.windup; e.hitDone=false; }
+      else if(d<=e.tpl.range){
+        // CAS-109: every Nth Champion strike is a telegraphed radial SLAM — a longer
+        // windup (the growing-ring tell in render) then a ring of shards instead of
+        // the melee hit. Punishes face-tanking; readable + dodgeable with the roll.
+        e.specialNow = !!(e.special && e.special.slam && (++e.atkCount % e.special.every === 0));
+        e.state="windup"; e.st=e.specialNow ? (e.special.windup || e.tpl.windup*1.6) : e.tpl.windup; e.hitDone=false;
+        if(e.specialNow){ audio.sfx.boss(); }
+      }
       else { const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a; moveEnt(e,Math.cos(a)*espd*dt,Math.sin(a)*espd*dt,e.tpl.size*0.6); }
     } else if(e.state==="windup"){
       e.st-=dt; e.facing=Math.atan2(h.y-e.y,h.x-e.x);
@@ -591,11 +600,18 @@ function updateEnemies(dt){ const h=G.hero;
           for(let k=0;k<S.count;k++){ const a=k/S.count*6.28;
             G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*S.spd,vy:Math.sin(a)*S.spd,life:S.life,dmg:S.dmg,kind:"rune",enemy:true}); }
           addFx("novacast",e.x,e.y,{r:96,col:"#ff7a3a",life:0.45}); shakeAdd(8); }
+        // CAS-109 Champion special: telegraphed radial slam on the strike instant
+        // (windup was the growing-ring tell). The ring replaces the melee hit below.
+        else if(e.specialNow && e.special && e.special.slam){ const S=e.special.slam;
+          for(let k=0;k<S.count;k++){ const a=k/S.count*6.28 + (e.facing||0);
+            G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*S.spd,vy:Math.sin(a)*S.spd,life:S.life,dmg:S.dmg,kind:"rune",enemy:true}); }
+          addFx("novacast",e.x,e.y,{r:84,col:"#ffb27a",life:0.42}); shakeAdd(7); }
       }
     } else if(e.state==="strike"){
       e.st-=dt;
       if(!e.hitDone){ e.hitDone=true;
-        if(e.tpl.ranged){ const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a;
+        if(e.specialNow){ /* CAS-109: radial slam already fired at strike start — no melee hit */ }
+        else if(e.tpl.ranged){ const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a;
           G.projectiles.push({x:e.x+Math.cos(a)*16, y:e.y-4+Math.sin(a)*16, vx:Math.cos(a)*e.tpl.projspd, vy:Math.sin(a)*e.tpl.projspd, life:2.4, dmg:e.tpl.dmg, kind:e.tpl.proj||"spear", enemy:true, ang:a});
           addFx("spark",e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);
         } else {
@@ -603,7 +619,7 @@ function updateEnemies(dt){ const h=G.hero;
           addFx("spark",e.x+Math.cos(e.facing)*e.tpl.range*0.6,e.y+Math.sin(e.facing)*e.tpl.range*0.6);
         }
       }
-      if(e.st<=0){ e.state="recover"; e.st=e.tpl.recover; }
+      if(e.st<=0){ e.state="recover"; e.st=e.tpl.recover; e.specialNow=false; }
     } else if(e.state==="recover"){ e.st-=dt; if(e.st<=0) e.state=d<aggro?"chase":"idle"; }
   }
 }
@@ -661,7 +677,16 @@ export const dev = {
     return { kills:H.kills, need:cfgH.need, cleared:H.cleared,
       champ: H.champ?{hp:Math.round(H.champ.hp),max:H.champ.maxHp,name:H.champ.tpl.champName,
         capstone:!!H.champ.capstone, enraged:!!H.champ.enraged, slamCount:H.champ.slam?H.champ.slam.count:0,
+        hasSpecial:!!H.champ.special, specialNow:!!H.champ.specialNow, state:H.champ.state,
+        specialSlam:H.champ.special?H.champ.special.slam.count:0,
         rwdTier:H.champ.rwdTier||null, rwdMinR:H.champ.rwdMinR||null}:null }; },
+  // CAS-109: arm the live Champion so its NEXT in-range strike is the telegraphed
+  // radial slam (sets atkCount to one below the cadence). The REAL windup→strike AI
+  // then fires the special — no shortcut around the slam emission. Pair with poke()
+  // to park the hero in range and enemyProj() to count the shards.
+  forceSpecial(zone){ const H=G.hunts&&G.hunts[zone]; if(!H||!H.champ||!H.champ.special) return null;
+    const e=H.champ; e.atkCount=e.special.every-1; e.state="chase";
+    return { every:e.special.every, atkCount:e.atkCount, slam:e.special.slam.count }; },
   // --- capstone-boss harness hooks (tools/hunt.mjs, CAS-65); additive ---
   // Set the live champ's HP to a fraction of max so the REAL updateEnemies enrage
   // check (next frame) fires the phase shift — not a shortcut around the threshold.

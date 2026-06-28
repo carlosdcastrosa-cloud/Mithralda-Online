@@ -151,14 +151,28 @@ export const ZONE_TIER = {
 // is the otherwise-unobtainable tier-4 gear at an `epic` floor — a clear top-tier
 // progression target. Pure data: the generic resolver in sim.js reads this block,
 // so a second capstone is another `boss:{…}` row, never a code branch.
+//
+// CAS-109 — Champion SPECIAL: every regular (non-capstone) Champion carries a
+// `special` block: on every `every`-th melee strike it winds up LONGER (`windup`,
+// a loud growing-ring tell drawn in render.js) and then erupts a telegraphed
+// radial SLAM — `slam.count` rune shards at `slam.spd` for `slam.dmg`, instead of
+// the normal directional hit. This makes the forest/ruins/caves bosses a readable
+// positional FIGHT (roll through the ring) rather than tank-and-spank, mirroring
+// the capstone's slam but on a recurring cadence (not gated on enrage). Pure data:
+// the shared windup→strike AI in sim.js reads this block, so tuning a boss's
+// special is a one-line edit. `slam.dmg` is per-shard PRE-defence (mitigated by the
+// hero's gear def downstream) — kept moderate so it's a punish, not a one-shot.
 export const HUNTS = {
-  forest: { need:10, base:"wolf",     name:"Lobo Alfa",       hpMul:8,  dmgMul:1.8, sizeMul:1.55, tier:[2,3], minR:"uncommon", xp:90,  gold:45 },
-  ruins:  { need:12, base:"bandit",   name:"Capitán Bandido", hpMul:8,  dmgMul:1.7, sizeMul:1.45, tier:[2,3], minR:"rare",     xp:140, gold:70 },
+  forest: { need:10, base:"wolf",     name:"Lobo Alfa",       hpMul:8,  dmgMul:1.8, sizeMul:1.55, tier:[2,3], minR:"uncommon", xp:90,  gold:45,
+    special:{ name:"Aullido Sísmico", every:3, windup:0.75, slam:{ count:8,  spd:150, dmg:12, life:1.0 } } },
+  ruins:  { need:12, base:"bandit",   name:"Capitán Bandido", hpMul:8,  dmgMul:1.7, sizeMul:1.45, tier:[2,3], minR:"rare",     xp:140, gold:70,
+    special:{ name:"Salva de Pólvora", every:3, windup:0.78, slam:{ count:10, spd:165, dmg:15, life:1.0 } } },
   // CAS-73 tier-3 mini-boss: fills the previously hunt-less caves zone. Skeleton base
   // (telegraphed melee → readable) scaled hard; reward window jumps to tier 3-4 so its
   // drop strictly out-classes ruins, keeping the climb worth it. Capstone stays the
   // only GUARANTEED epic, so arena remains the pinnacle.
-  caves:  { need:13, base:"skeleton", name:"Rey Esquelético",  hpMul:9,  dmgMul:2.0, sizeMul:1.6,  tier:[3,4], minR:"rare",     xp:170, gold:90 },
+  caves:  { need:13, base:"skeleton", name:"Rey Esquelético",  hpMul:9,  dmgMul:2.0, sizeMul:1.6,  tier:[3,4], minR:"rare",     xp:170, gold:90,
+    special:{ name:"Onda Ósea", every:3, windup:0.82, slam:{ count:12, spd:175, dmg:17, life:1.1 } } },
   arena:  { need:14, base:"orc",      name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75,
     boss:{ base:"golem", sprite:"golem", name:"Coloso del Foso", hp:900, dmg:34, size:40, spd:54, knock:70, windup:0.9, recover:0.7,
            enrageAt:0.5, enrageSpd:1.35, enrageWindup:0.72,                       // phase 2: faster + tighter tells
