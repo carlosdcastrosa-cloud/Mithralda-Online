@@ -948,31 +948,47 @@ export function createRenderer(ctx){
     ui.shopRects.push({x:x+bw/2-60,y:cy,w:120,h:24,act:()=>{G.scene="play";G.healShop=false;G.merchantShop=false;}});
   }
 
-  function renderPause(){ const bw=Math.min(VW*0.8,400), bh=430, x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.pauseTitle,VW/2,y+40);
-    ctx.fillStyle=COL.textDim; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingsTitle,VW/2,y+70);
-    ui.pauseRects=[]; const opts=[
+  function renderPause(){ const bw=Math.min(VW*0.8,400), bh=Math.min(VH-20,560), x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.pauseTitle,VW/2,y+34);
+    ctx.fillStyle=COL.textDim; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingsTitle,VW/2,y+58);
+    ui.pauseRects=[];
+    // CAS-131: a labelled, draggable/tappable mix slider (master / music / sfx). The
+    // tap x sets the fill fraction; pauseTap routes slider rows through r.set(frac).
+    function slider(label,oy,get,set,dim){ const sx=x+30, sw=bw-60, sh=22;
+      ctx.textAlign="left"; ctx.fillStyle=dim?COL.textDim:COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(label,sx,oy-2);
+      const bx=sx, by=oy+4, bwd=sw, bhd=sh-8;
+      ctx.fillStyle="#20262f"; ctx.fillRect(bx,by,bwd,bhd);
+      const f=Math.max(0,Math.min(1,get())); ctx.fillStyle=dim?"#46505f":COL.textGold; ctx.fillRect(bx,by,bwd*f,bhd);
+      ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,bwd,bhd);
+      ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(Math.round(f*100)+"%",bx+bwd-3,oy-2);
+      ui.pauseRects.push({x:bx,y:oy-6,w:bwd,h:sh+6,slider:true,set}); }
+    const opts=[
       [STR.settingShake+": "+(G.settings.shake>0?"ON":"OFF"),()=>{G.settings.shake=G.settings.shake>0?0:1;}],
       // CAS-127: accessibility off-switch — kills screen shake + trims flourish particles.
       [STR.settingReduceMotion+": "+(G.settings.reduceMotion?"ON":"OFF"),()=>{G.settings.reduceMotion=!G.settings.reduceMotion; if(G.settings.reduceMotion) G.shake=0;}],
       [STR.settingCRT+": "+(G.settings.crt?"ON":"OFF"),()=>{G.settings.crt=!G.settings.crt;}],
       [STR.settingRollDir+": "+(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove),()=>{G.settings.rollAim=!G.settings.rollAim;}],
-      ["Sonido: "+(audio.on?"ON":"OFF"),()=>audio.setEnabled(!audio.on)],
+      // CAS-131: mute kills all audio; the 3 sliders below are the persisted mix.
+      [STR.settingMute+": "+(audio.muted?"ON":"OFF"),()=>audio.toggleMute()],
       // CAS-128: replay the onboarding guide on demand (returning players never auto-get it).
       [STR.tutReplay,()=>{ G.scene="play"; sim.startTutorial(); }],
     ];
+    let oy=y+78; for(const [label,act] of opts){
+      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(x+30,oy,bw-60,26); ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,VW/2,oy+18); ui.pauseRects.push({x:x+30,y:oy,w:bw-60,h:26,act}); oy+=32; }
+    // mix sliders (dim when muted to show they're inactive)
+    oy+=4;
+    slider(STR.settingMaster,oy,()=>audio.master,(f)=>audio.setMaster(f),audio.muted); oy+=30;
+    slider(STR.settingMusic,oy,()=>audio.music,(f)=>audio.setMusic(f),audio.muted); oy+=30;
+    slider(STR.settingSfx,oy,()=>audio.sfxVol,(f)=>audio.setSfx(f),audio.muted); oy+=34;
     // CAS-113: "Nueva partida" — wipes the localStorage save + restarts clean.
-    // Two-tap arm/confirm so an accidental click can't nuke a run; the arm clears
-    // when the player resumes (see resume button below).
-    if(G.resetArm){
-      opts.push(["⚠ ¿Borrar progreso? — SÍ, BORRAR", ()=>{ G.resetArm=false; resetGame(); }]);
-      opts.push(["Cancelar", ()=>{ G.resetArm=false; }]);
-    } else {
-      opts.push(["Nueva partida (borrar guardado)", ()=>{ G.resetArm=true; }]);
-    }
-    let oy=y+90; for(const [label,act] of opts){ const danger=/BORRAR|Nueva partida/.test(label);
-      ctx.fillStyle=danger?"#3a2222":"#20262f"; ctx.fillRect(x+30,oy,bw-60,30); ctx.fillStyle=danger?"#f0a0a0":COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,VW/2,oy+20); ui.pauseRects.push({x:x+30,y:oy,w:bw-60,h:30,act}); oy+=38; }
-    ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-80,oy+6,160,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,oy+26); ui.pauseRects.push({x:x+bw/2-80,y:oy+6,w:160,h:30,act:()=>{G.resetArm=false;G.scene="play";}});
+    // Two-tap arm/confirm so an accidental click can't nuke a run.
+    const reset=[]; if(G.resetArm){
+      reset.push(["⚠ ¿Borrar progreso? — SÍ, BORRAR", ()=>{ G.resetArm=false; resetGame(); }]);
+      reset.push(["Cancelar", ()=>{ G.resetArm=false; }]);
+    } else { reset.push(["Nueva partida (borrar guardado)", ()=>{ G.resetArm=true; }]); }
+    ctx.textAlign="center"; for(const [label,act] of reset){ const danger=/BORRAR|Nueva partida/.test(label);
+      ctx.fillStyle=danger?"#3a2222":"#20262f"; ctx.fillRect(x+30,oy,bw-60,26); ctx.fillStyle=danger?"#f0a0a0":COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,VW/2,oy+18); ui.pauseRects.push({x:x+30,y:oy,w:bw-60,h:26,act}); oy+=32; }
+    ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-80,oy+4,160,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,oy+24); ui.pauseRects.push({x:x+bw/2-80,y:oy+4,w:160,h:30,act:()=>{G.resetArm=false;G.scene="play";}});
   }
 
   function renderDeath(){ ctx.fillStyle="rgba(40,8,8,0.6)"; ctx.fillRect(0,0,VW,VH);

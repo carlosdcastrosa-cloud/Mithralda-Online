@@ -151,6 +151,10 @@ export const STR = {
   settingRollDir: "Dirección de rodada",
   rollTowardMove: "Hacia el movimiento",
   rollTowardAim: "Hacia la mira",
+  settingMute: "Silenciar",
+  settingMaster: "Volumen",
+  settingMusic: "Música",
+  settingSfx: "Efectos",
 
   perfectDodge: "¡ESQUIVA!",
   levelUp: (n) => "¡Subiste al nivel " + n + "!",

@@ -185,7 +185,8 @@ function talentTap(x,y){ for(const r of (ui.talentRects||[])){ if(x>=r.x&&x<=r.x
     if(r.id){ G.talFocus=r.focus!=null?r.focus:G.talFocus; sim.allocTalent(r.id); }
     else if(r.act) r.act();
     return true; } } return true; }
-function pauseTap(x,y){ for(const r of ui.pauseRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
+function pauseTap(x,y){ for(const r of ui.pauseRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+  if(r.slider){ r.set(Math.max(0,Math.min(1,(x-r.x)/r.w))); } else r.act(); return true; } } return true; }
 function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.
 function invTap(x,y){ for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; sim.equipBag(r.idx); return true; } } G.scene="play"; return true; }
@@ -199,7 +200,7 @@ function startGame(){
   audio.init(); audio.resume();
 }
 function chooseClass(cls){ sim.createHero(G.pendingName||"Héroe",cls);
-  audio.playMusic("town"); audio.start(); }
+  audio.playMusic("town"); audio.setAmbient("town"); audio.start(); }
 function toggleSound(){ audio.setEnabled(!audio.on); }
 
 export function positionNameInput(){ if(!nameWrap) return; const cy=view.VH*0.52; nameWrap.style.top=(cy-26)+"px"; }

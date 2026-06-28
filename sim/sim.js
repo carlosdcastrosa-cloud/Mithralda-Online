@@ -372,7 +372,7 @@ function dropGear(x,y,inst){ if(!inst) return; G.drops.push({x,y,kind:"gear",ins
   // CAS-116 — drop-time feedback (AC3): a rarity-coloured floater + sfx the moment
   // notable loot (uncommon+) hits the ground, so the player READS the drop before
   // walking onto it. Common trash stays quiet (no spam) — the ground gem suffices.
-  if(rarityRank(inst.rarity)>=1){ floater(x,y-18,gearName(inst),gearCol(inst)); audio.sfx.pickup(); } }
+  if(rarityRank(inst.rarity)>=1){ floater(x,y-18,gearName(inst),gearCol(inst)); audio.sfx.loot(rarityRank(inst.rarity)); } }
 function killEnemy(e){
   if(e.dead) return; e.dead=true;
   freeze(e.isBoss?9:(e.champion?8:5)); // kill confirm — boss/champion deaths land heaviest
@@ -687,7 +687,7 @@ function takeGear(inst){ const h=G.hero; const st=gearStat(inst);
   if(h.bag.length>=BAG_CAP){ // bag full: convert the weakest held to gold to make room
     let wi=0,wv=Infinity; h.bag.forEach((b,i)=>{ const v=gearStat(b); if(v<wv){ wv=v; wi=i; } });
     h.gold+=Math.max(1,Math.round(wv/2)); h.bag.splice(wi,1); toast(STR.bagFull); }
-  h.bag.push(inst); audio.sfx.pickup(); toast(STR.loot(gearName(inst)));
+  h.bag.push(inst); audio.sfx.loot(rarityRank(inst.rarity)); toast(STR.loot(gearName(inst)));
   // CAS-127: rarity-coloured pickup pop — a popping name floater + an expanding ring
   // in the item's rarity colour so collecting loot reads with weight.
   floater(h.x,h.y-30,gearName(inst),gearCol(inst),{pop:1.4,life:1.0});
@@ -856,9 +856,16 @@ export function update(dtMs){
   const h=G.hero;
   h.playT+=dt; // CAS-123: accumulate live-play seconds for the victory summary (play-only)
   tickTutorial(dt); // CAS-128: onboarding step machine (observes hero state; no balance touch)
-  // music switch by zone danger
-  const z=zoneOf(world,h.x,h.y); const wantCombat=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss"||z==="frost") && G.enemies.some(e=>e.state==="chase"||e.state==="windup"||e.state==="shield");
-  const wantMusic=wantCombat?"combat":"town"; if(wantMusic!==G.music){ G.music=wantMusic; audio.playMusic(wantMusic); }
+  // music switch by zone danger + boss presence (CAS-131: town/combat/boss tracks).
+  const z=zoneOf(world,h.x,h.y);
+  const inDanger=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss"||z==="frost");
+  const wantCombat=inDanger && G.enemies.some(e=>e.state==="chase"||e.state==="windup"||e.state==="shield");
+  // a live boss / champion / capstone in the zone escalates to the épica boss theme.
+  const bossFight=inDanger && G.enemies.some(e=>e.hp>0 && (e.isBoss||e.capstone||e.champion));
+  const wantMusic=bossFight?"boss":wantCombat?"combat":"town";
+  if(wantMusic!==G.music){ G.music=wantMusic; audio.playMusic(wantMusic); }
+  // CAS-131: per-biome ambient soundscape crossfades under the music on zone change.
+  if(z!==G._ambZone){ G._ambZone=z; if(audio&&audio.setAmbient) audio.setAmbient(z); }
   if(z==="arena" && !G.arenaWarned){ G.arenaWarned=true; toast(STR.enteredArena,3.5); }
   if(z==="caves" && !G.bossSpawned && h.y<(world.caves.y+10)*TS){ G.bossSpawned=true; spawnBoss(); }
 
@@ -887,6 +894,8 @@ export function update(dtMs){
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
       h.dustT=(h.dustT||0)+dt; if(h.dustT>0.15){ h.dustT=0; addFx("dust", h.x-h.vx*0.03, h.y+15-h.vy*0.02); }
+      // CAS-131: footstep SFX on a walk cadence (decoupled from the dust pulse).
+      h.stepT=(h.stepT||0)+dt; if(h.stepT>0.30){ h.stepT=0; audio.sfx.step(); }
       if(!io.aimActive && io.isTouch) h.facing=Math.atan2(mv[1],mv[0]); }
     else h.walkT=0;
   }

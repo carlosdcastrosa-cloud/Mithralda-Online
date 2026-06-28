@@ -29,7 +29,15 @@ export function createGame(canvas, ctx, getView){
 
   // one fixed simulation step + the menu DOM sync (the only DOM the loop touches)
   // CAS-113: throttled progression autosave rides the sim step (never per-frame).
-  function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); syncMenuDom(); }
+  // CAS-131: a single scene-transition observer fires the UI open/close blip so the
+  // SFX wiring lives in ONE place instead of scattered across every menu entry point.
+  const MENU_SCENES=new Set(["inventory","talents","shop","pause","dialogue"]);
+  let prevScene=G.scene;
+  function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); syncMenuDom();
+    const s=G.scene; if(s!==prevScene){
+      const into=MENU_SCENES.has(s), from=MENU_SCENES.has(prevScene);
+      if(into&&!from) audio.sfx.uiOpen(); else if(from&&!into) audio.sfx.uiClose();
+      prevScene=s; } }
   function render(alpha){ renderer.render(alpha); }
   function onResize(w,h){ view.VW=w; view.VH=h; if(G.scene==="menu") positionNameInput(); }
   function onFocusLost(){ if(G.scene==="play") G.scene="pause"; }
@@ -120,7 +128,11 @@ export function createGame(canvas, ctx, getView){
       tutState:()=>simDev.tutState(), tutArm:(v)=>simDev.tutArm(v), tutStart:()=>simDev.tutStart(),
       tutSkip:()=>simDev.tutSkip(), tutSetStep:(i)=>simDev.tutSetStep(i), tutSeen:()=>persist.tutSeen(),
       clearTutSeen:()=>persist.clearTutSeen(),
-      setSound:(v)=>audio.setEnabled(v) };
+      setSound:(v)=>audio.setEnabled(v),
+      // CAS-131 audio/soundscape contract consumed by tools/cas131-audio.mjs — additive
+      audioState:()=>audio.state(), setMaster:(v)=>audio.setMaster(v), setMusic:(v)=>audio.setMusic(v),
+      setSfx:(v)=>audio.setSfx(v), setMuted:(v)=>audio.setMuted(v), setAmbient:(z)=>audio.setAmbient(z),
+      playMusic:(t)=>audio.playMusic(t) };
   }
   syncMenuDom(); positionNameInput();
 
