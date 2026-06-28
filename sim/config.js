@@ -234,6 +234,24 @@ export const MASTERY = {
   goldPerRank:8,       // extra gold added to each elite/champion payoff, per rank
   tierBumpChance:0.14, // per-rank chance the elite/champion gear rolls one tier higher (capped)
   maxLootTier:4,       // gear tier ceiling (matches the deepest ZONE_LOOT window)
+  // CAS-150 — ELITE-MASTERY REWARD TRACK: the milestones the returning player CHASES. The
+  // CAS-149 counter (h.eliteKills) accumulated but unlocked nothing discrete; this turns it
+  // into a visible reward track. Each milestone is a PERMANENT, meaningful perk (not a
+  // cosmetic) that crosses ONCE when lifetime elite kills reach `at`. Perks are DERIVED from
+  // the lifetime count (cached in h.mperk, recomputed like talents h.tt) — never baked/spent — so
+  // they survive reload, stay deterministic, and a Stage-2 server maps the same count → same
+  // perks. Thresholds are front-loaded (first two reachable in a couple of sessions, the
+  // retention signal the board asked to validate) then stretched to the max-rank kill count.
+  //   perk keys → where consumed:  hp (flat +maxHp, heroMaxHp) · dmgPct (% all hero damage,
+  //   hitEnemy) · eliteDmgPct (% extra vs elite-class targets, hitEnemy) · crit (+% crit
+  //   chance, hitEnemy, stacks with talents). Each is ORTHOGONAL to the CAS-149 rank perks
+  //   (per-rank +maxHp / loot fortune), so the track adds new power instead of duplicating it.
+  track:[
+    { at:5,  id:"m1", name:"Constitución del Cazador", desc:"+20 Vida máx. permanente",        perk:{hp:20} },
+    { at:15, id:"m2", name:"Instinto Asesino",         desc:"+6% prob. de crítico",            perk:{crit:6} },
+    { at:35, id:"m3", name:"Verdugo de Élites",        desc:"+18% daño a élites, campeones y jefes", perk:{eliteDmgPct:18} },
+    { at:70, id:"m4", name:"Maestría Suprema",         desc:"+8% daño global · +15 Vida máx.",  perk:{dmgPct:8, hp:15} },
+  ],
 };
 
 // CAS-118 — STATUS EFFECTS: data-driven combat states applied by the player (weapon

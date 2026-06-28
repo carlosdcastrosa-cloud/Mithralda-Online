@@ -49,7 +49,7 @@ function onKeyDown(e){
     e.preventDefault(); return; }
   if(BIND[e.code]) { keys.add(BIND[e.code]); e.preventDefault(); }
   edge(e.code);
-  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","KeyT","Escape"].includes(e.code)) e.preventDefault();
+  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","KeyT","KeyV","Escape"].includes(e.code)) e.preventDefault();
 }
 function onKeyUp(e){ if(BIND[e.code]) keys.delete(BIND[e.code]); }
 function edge(code){
@@ -84,6 +84,8 @@ function edge(code){
     else if(code==="ArrowLeft"||code==="ArrowUp"){ G.talFocus=focusStep(-1); }
     else if(code==="Enter"||code==="Space"){ const id=focusedNodeId(); if(id) sim.allocTalent(id); }
     else if(code==="KeyR"){ sim.respecTalents(); } return; }
+  // CAS-150: elite-mastery reward-track panel — V/Escape close (read-only screen).
+  if(G.scene==="mastery"){ if(code==="KeyV"||code==="Escape"){ G.scene="play"; } return; }
   if(G.scene==="pause"){ if(code==="Escape"){ G.resetArm=false; G.scene="play"; }
     else if(code==="Digit1"){G.settings.shake=G.settings.shake>0?0:1;}
     else if(code==="Digit2"){G.settings.crt=!G.settings.crt;}
@@ -99,6 +101,7 @@ function edge(code){
     case "KeyF": sim.tryPickup(); break;
     case "KeyI": G.scene="inventory"; break;
     case "KeyT": G.scene="talents"; G.talFocus=G.talFocus||0; break; // CAS-119 talent panel
+    case "KeyV": G.scene="mastery"; break; // CAS-150 elite-mastery reward track
     case "KeyM": G.showMap=!G.showMap; break;
     case "KeyE": sim.interact(); break;
     case "Escape": G.scene="pause"; break;
@@ -163,8 +166,9 @@ export function tbtns(){ // returns button rects for current scene
 export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(34,s*0.072); const y=14+b/2; return {
   inv:{x:VW-14-b*0.5, y, r:b*0.5, label:"I", act:()=>{G.scene=G.scene==="inventory"?"play":"inventory";}},
   tal:{x:VW-14-b*1.6, y, r:b*0.5, label:"T", act:()=>{G.scene=G.scene==="talents"?"play":"talents";}}, // CAS-119
-  map:{x:VW-14-b*2.7, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
-  pause:{x:VW-14-b*3.8, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
+  mst:{x:VW-14-b*2.7, y, r:b*0.5, label:"✦", act:()=>{G.scene=G.scene==="mastery"?"play":"mastery";}}, // CAS-150 mastery track
+  map:{x:VW-14-b*3.8, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
+  pause:{x:VW-14-b*4.9, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
 
 function handleUITap(x,y){
   // CAS-128: tutorial Skip button (pointer + touch). Checked before the play-scene
@@ -176,6 +180,7 @@ function handleUITap(x,y){
   if(G.scene==="pause"){ return pauseTap(x,y); }
   if(G.scene==="inventory"){ return invTap(x,y); }
   if(G.scene==="talents"){ return talentTap(x,y); }
+  if(G.scene==="mastery"){ G.scene="play"; return true; } // CAS-150: tap anywhere closes the read-only track
   if(G.scene==="shop"){ return shopTap(x,y); }
   if(G.scene==="bounty"){ return bountyTap(x,y); }
   if(G.scene==="play" && isTouch){

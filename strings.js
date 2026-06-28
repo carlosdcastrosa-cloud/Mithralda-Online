@@ -40,6 +40,12 @@ export const STR = {
   masteryUp: (n) => "¡Maestría de Élite " + n + "! +Vida máx · botín de élite mejorado.",
   masteryFloater: (n) => "✦ Maestría " + n,
   masteryHud: (n) => "⚔ Maestría " + n,
+  // CAS-150 — Elite-Mastery REWARD TRACK (milestone unlock + panel).
+  masteryMilestone: (name, desc) => "✦ HITO DE MAESTRÍA: " + name + " — " + desc,
+  masteryTitle: "SENDA DE MAESTRÍA DE ÉLITE",
+  masteryPanelHint: (k) => "Élites abatidas: " + k + "  ·  cada élite, campeón y jefe cuenta",
+  masteryNextHint: (rem, name) => "Próximo hito en " + rem + " élite" + (rem===1?"":"s") + ": " + name,
+  masteryAllUnlocked: "Senda completa — todos los hitos desbloqueados.",
   // CAS-65 capstone phase shift — fires when the boss crosses its enrage threshold.
   bossEnrage: (name) => "¡" + name + " SE ENFURECE! Esquiva la onda expansiva.",
   bossEnrageBanner: "¡ENFURECIDO!",

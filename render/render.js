@@ -118,6 +118,7 @@ export function createRenderer(ctx){
     if(G.showMap) renderBigMap();
     if(G.scene==="inventory") renderInventory();
     if(G.scene==="talents") renderTalents();
+    if(G.scene==="mastery") renderMastery(); // CAS-150 elite-mastery reward track
     if(G.scene==="dialogue") renderDialogue();
     if(G.scene==="shop") renderShop();
     if(G.scene==="bounty") renderBounty();
@@ -709,7 +710,10 @@ export function createRenderer(ctx){
     { const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
       ctx.save(); ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
       const prog = nx!=null ? (" "+(h.eliteKills|0)+"/"+nx) : " MÁX";
-      ctx.fillText(STR.masteryHud(mr)+prog, pad+bw+8, pad+14); ctx.restore(); ctx.textAlign="left"; }
+      // CAS-150: "(V)" hint opens the reward-track panel — only while a milestone is still
+      // pending (an unmet goal to chase), so a fully-unlocked track stays clean.
+      const hint = sim.masteryNextMilestone(h.eliteKills|0) ? " (V)" : "";
+      ctx.fillText(STR.masteryHud(mr)+prog+hint, pad+bw+8, pad+14); ctx.restore(); ctx.textAlign="left"; }
     // gold + potions
     ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
     ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
@@ -956,6 +960,49 @@ export function createRenderer(ctx){
     ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+17);
     ui.talentRects.push({x:rbx,y:rby,w:rbw,h:rbh, act:()=>sim.respecTalents()});
     ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.talentHint, VW/2, y+bh-6);
+  }
+
+  // CAS-150 — ELITE-MASTERY REWARD-TRACK panel. The cross-session hook made legible: a
+  // vertical list of milestones (DESBLOQUEADO green / locked dim), a progress bar to the
+  // next one, and the running elite-kill tally. Pure read-out (no spending) — opened with V
+  // or the ✦ touch button. Mirrors the panel/panelLocal idiom of the talent/shop screens.
+  function renderMastery(){ const h=G.hero; if(!h) return;
+    const k=h.eliteKills|0; const track=sim.masteryTrack(k); const next=sim.masteryNextMilestone(k);
+    const bw=Math.min(VW*0.92,560), bh=Math.min(VH*0.9,470), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'";
+    ctx.fillText(STR.masteryTitle, VW/2, y+28);
+    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.masteryPanelHint(k), VW/2, y+48);
+    // progress bar toward the next milestone (or "complete")
+    const pbx=x+30, pbw=bw-60, pby=y+60, pbh=14;
+    ctx.fillStyle="#23262c"; ctx.fillRect(pbx,pby,pbw,pbh);
+    if(next){ const prev=(function(){ let p=0; for(const m of track){ if(m.unlocked) p=m.at; } return p; })();
+      const span=Math.max(1,next.at-prev); const frac=Math.max(0,Math.min(1,(k-prev)/span));
+      ctx.fillStyle=COL.xpf; ctx.fillRect(pbx,pby,pbw*frac,pbh);
+      ctx.fillStyle=COL.textGold; ctx.font="10px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText(STR.masteryNextHint(Math.max(0,next.at-k), next.name), VW/2, pby+pbh+14);
+    } else { ctx.fillStyle=COL.heal; ctx.fillRect(pbx,pby,pbw,pbh);
+      ctx.fillStyle=COL.heal; ctx.font="10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.masteryAllUnlocked, VW/2, pby+pbh+14); }
+    // milestone rows
+    const top=y+98, rowH=Math.min(78,(bh-130)/track.length);
+    for(let i=0;i<track.length;i++){ const m=track[i]; const ry=top+i*rowH;
+      const rx=x+24, rw=bw-48, rh=rowH-12;
+      ctx.fillStyle=m.unlocked?"#1d3324":(m.isNext?"#33301a":"#181c22"); ctx.fillRect(rx,ry,rw,rh);
+      ctx.strokeStyle=m.unlocked?COL.heal:(m.isNext?COL.textGold:"#3a4456"); ctx.lineWidth=m.isNext?2.5:1.5; ctx.strokeRect(rx,ry,rw,rh);
+      // requirement badge (left)
+      ctx.textAlign="left"; ctx.fillStyle=m.unlocked?COL.heal:COL.textDim; ctx.font="bold 11px 'Courier New'";
+      ctx.fillText((m.unlocked?"✦ ":"")+m.at+" élites", rx+10, ry+18);
+      // name + desc
+      ctx.fillStyle=m.unlocked?COL.cream:(m.isNext?COL.textGold:COL.textDim); ctx.font="bold 13px 'Courier New'";
+      ctx.fillText(m.name, rx+10, ry+38);
+      ctx.fillStyle=m.unlocked?"#bfe6c4":COL.textDim; ctx.font="11px 'Courier New'";
+      ctx.fillText(m.desc, rx+10, ry+rh-8);
+      // status chip (right)
+      ctx.textAlign="right"; ctx.fillStyle=m.unlocked?COL.heal:(m.isNext?COL.textGold:COL.textDim); ctx.font="bold 11px 'Courier New'";
+      ctx.fillText(m.unlocked?"DESBLOQUEADO":(m.isNext?"PRÓXIMO":"BLOQUEADO"), rx+rw-10, ry+18);
+    }
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText("V / ESC para cerrar", VW/2, y+bh-8);
+    ctx.textAlign="left";
   }
 
   function renderShop(){ const items=sim.shopItems(); const bw=Math.min(VW*0.86,460), bh=Math.min(VH*0.82,420), x=(VW-bw)/2, y=(VH-bh)/2;

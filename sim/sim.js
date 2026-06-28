@@ -117,6 +117,10 @@ function newHero(name,cls){
     // CAS-149: monotonic lifetime ELITE-class kills (ambush elites + champions + final boss).
     // Drives the persistent Elite-Mastery rank; saved additively (no SAVE_VERSION bump).
     eliteKills:0,
+    // CAS-150: cached Elite-Mastery REWARD-TRACK perk bundle, derived from eliteKills (never
+    // stored — recomputed by recalcMastery on load + every elite kill). Combat reads it hot.
+    // Named `mperk` (NOT `mp` — that's mana) to avoid the mana field collision.
+    mperk:zeroMP(),
     respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
 }
 function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
@@ -244,6 +248,7 @@ export function loadSave(d){
     h.stage1=!!d.stage1; h.playT=Math.max(0,num(d.playT,0)); h.deaths=Math.max(0,Math.floor(num(d.deaths,0)));
     h.kills=Math.max(0,Math.floor(num(d.kills,0))); h.champKills=Math.max(0,Math.floor(num(d.champKills,0))); // CAS-134
     h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
+    recalcMastery(h);  // CAS-150: rebuild the reward-track perk bundle from the loaded count BEFORE heroMaxHp reads it
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
@@ -365,7 +370,18 @@ function hitEnemy(e,dmg,ang){
     return;
   }
   const oh=(G.hero?affixTotals(G.hero).onhit:0)+(tt?tt.onhit:0); if(oh) dmg+=oh;
-  let crit=false; if(tt&&tt.crit>0 && srand()*100<tt.crit){ crit=true; dmg*=(CRIT_BASE+(tt.critMult||0)/100); }
+  // CAS-150: Elite-Mastery reward-track perks fold into the same chokepoint every hero hit
+  // funnels through. dmgPct scales ALL hero damage; eliteDmgPct adds on top vs elite-class
+  // targets (the headline anti-elite reward). Multiplicative, applied before the crit roll.
+  const mk=G.hero?G.hero.mperk:null;
+  if(mk){ let mul=1+(mk.dmgPct||0)/100;
+    if((mk.eliteDmgPct||0)>0 && (e.elite||e.champion||e.isBoss)) mul+=(mk.eliteDmgPct||0)/100;
+    if(mul!==1) dmg*=mul; }
+  // Crit chance = talents + the "Instinto Asesino" milestone (mk.crit). RNG is consumed only
+  // when the combined chance is >0, so a fresh hero (no talents, no milestones) stays byte-
+  // identical for the determinism baseline.
+  const critPct=(tt?tt.crit:0)+(mk?(mk.crit||0):0);
+  let crit=false; if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
   // CAS-127: crits read LOUDER — distinct bright SFX, a bigger popping number, an extra
@@ -538,6 +554,32 @@ export function masteryRank(k){ const T=MASTERY.thresholds; let r=0; k=k|0;
   for(let i=1;i<T.length;i++){ if(k>=T[i]) r=i; } return r; }
 // Next-rank threshold (null at max rank) — HUD progress read-out.
 export function masteryNextAt(rank){ const T=MASTERY.thresholds; return rank+1<T.length?T[rank+1]:null; }
+
+// CAS-150 — ELITE-MASTERY REWARD TRACK. Pure, deterministic derivation of the unlocked
+// milestones + the aggregated permanent-perk bundle from the lifetime elite-kill count.
+// The bundle is cached on the hero (h.mp, like talents h.tt) and read by the hot combat
+// path with no per-frame allocation. NOTHING is spent or baked here — a higher count simply
+// unlocks more of the fixed track, so it survives reload and a Stage-2 server reproduces it.
+const MP_KEYS=["hp","dmgPct","eliteDmgPct","crit"];
+export function zeroMP(){ const o={}; for(const k of MP_KEYS) o[k]=0; return o; }
+// How many track milestones are unlocked at a given lifetime kill count.
+export function masteryUnlocked(k){ k=k|0; let n=0; const T=MASTERY.track;
+  for(let i=0;i<T.length;i++){ if(k>=T[i].at) n++; } return n; }
+// The NEXT locked milestone (null once all are unlocked) — the reward-track read-out.
+export function masteryNextMilestone(k){ k=k|0; const T=MASTERY.track;
+  for(let i=0;i<T.length;i++){ if(k<T[i].at) return T[i]; } return null; }
+// Aggregate every unlocked milestone's perk into one bundle. Deterministic, no RNG.
+export function masteryPerks(k){ const mp=zeroMP(); const T=MASTERY.track; k=k|0;
+  for(let i=0;i<T.length;i++){ if(k>=T[i].at){ const p=T[i].perk;
+    for(const key in p) mp[key]=(mp[key]||0)+p[key]; } } return mp; }
+// Full track snapshot for the UI panel: each milestone + unlocked flag + the active "next".
+export function masteryTrack(k){ k=k|0; const next=masteryNextMilestone(k);
+  return MASTERY.track.map(m=>({ at:m.at, id:m.id, name:m.name, desc:m.desc,
+    unlocked:k>=m.at, isNext:next?m.id===next.id:false })); }
+// Refresh the cached perk bundle (call on load + on every elite kill). Cheap & pure.
+// Stored as h.mperk (h.mp is the hero's MANA — do not collide).
+function recalcMastery(h){ if(!h) return; h.mperk=masteryPerks(h.eliteKills); }
+
 // How many rarity steps the elite loot floor is raised at a given Mastery rank — gentle:
 // +1 step from rank 2, +2 from rank 4 (capped), so deeper investment = a richer floor
 // without forcing epics on a fresh hero. Base elite floor is "uncommon" (rank 1).
@@ -558,13 +600,25 @@ function masteryLoot(h, win, minR){ const rank=masteryRank(h&&h.eliteKills);
 // permanent +maxHp (saved with maxHp → restored, never re-applied) and fire the rank-up
 // flourish. Called from every elite-class death (boss / champion / ambush elite).
 function noteEliteKill(){ const h=G.hero; if(!h) return;
-  const before=masteryRank(h.eliteKills); h.eliteKills=(h.eliteKills|0)+1;
+  const before=masteryRank(h.eliteKills); const unlBefore=masteryUnlocked(h.eliteKills);
+  h.eliteKills=(h.eliteKills|0)+1;
   const after=masteryRank(h.eliteKills);
+  recalcMastery(h);   // CAS-150: refresh the cached reward-track perk bundle (h.mp)
   if(after>before){ const gain=(after-before)*MASTERY.hpPerRank;
     h.maxHp+=gain; h.hp=Math.min(heroMaxHp(h), h.hp+gain);   // bonus is also a small heal
     toast(STR.masteryUp(after),3.0); audio.sfx.levelup();
     addFx("lvlring",h.x,h.y,{life:0.6}); floater(h.x,h.y-62,STR.masteryFloater(after),"#ffd24d");
     for(let i=0,n=rmCount(10);i<n;i++) addFx("heal",h.x+frr(-22,22),h.y+frr(-26,8)); }
+  // CAS-150: crossing a REWARD-TRACK milestone — the discrete, chased unlock. A milestone
+  // and a rank-up can land on the same kill (separate banners); the perk is already live in
+  // h.mperk (recalc above), so this is purely the celebratory tell + a top-up heal if it
+  // raised maxHp. heroMaxHp folds h.mperk.hp, so a fresh +20-maxHp milestone keeps the bar honest.
+  const unl=masteryUnlocked(h.eliteKills);
+  if(unl>unlBefore){ const m=MASTERY.track[unl-1];
+    const mhp=heroMaxHp(h); if(h.hp<mhp) h.hp=Math.min(mhp, h.hp+((m.perk&&m.perk.hp)||0));
+    toast(STR.masteryMilestone(m.name, m.desc),3.4); audio.sfx.levelup();
+    addFx("lvlring",h.x,h.y,{life:0.7}); floater(h.x,h.y-72,"✦ "+m.name,"#ffe48a");
+    for(let i=0,n=rmCount(12);i<n;i++) addFx("heal",h.x+frr(-24,24),h.y+frr(-28,10)); }
 }
 // CAS-134: the single, deliberate META-reward seam — the ONLY way the daily-return loop
 // (daily.js) writes into sim state, and only on an explicit player CLAIM (never per-frame).
@@ -1628,10 +1682,27 @@ export const dev = {
   // Live, read-only Mastery telemetry: lifetime elite kills, derived rank, next threshold,
   // and the player's current maxHp (so the test can assert the rank-up +maxHp baked in).
   masterySnap(){ const h=G.hero; const k=h?(h.eliteKills|0):0; const r=masteryRank(k);
-    return { eliteKills:k, rank:r, next:masteryNextAt(r), maxHp:h?Math.round(h.maxHp):0, hp:h?Math.round(h.hp):0 }; },
-  // Set the lifetime elite-kill counter directly (no rewards/rank-bake) so a test can park the
-  // hero at a chosen Mastery rank before spawn-killing an elite to observe the loot fortune.
-  setEliteKills(n){ const h=G.hero; if(h) h.eliteKills=Math.max(0,Math.floor(n||0)); return h?(h.eliteKills|0):0; },
+    const nm=masteryNextMilestone(k);
+    return { eliteKills:k, rank:r, next:masteryNextAt(r), maxHp:h?Math.round(h.maxHp):0, hp:h?Math.round(h.hp):0,
+      // CAS-150 reward-track read-out: live perk bundle + unlocked count + next milestone.
+      mperk:h?Object.assign({},h.mperk):null, unlocked:masteryUnlocked(k),
+      effMaxHp:h?Math.round(heroMaxHp(h)):0, nextMilestone:nm?{at:nm.at, id:nm.id, name:nm.name}:null }; },
+  // CAS-150: full reward-track snapshot for the panel/harness — every milestone with its
+  // unlocked flag + the player's current effective derived stats from the unlocked perks.
+  masteryTrackSnap(){ const h=G.hero; const k=h?(h.eliteKills|0):0;
+    return { eliteKills:k, track:masteryTrack(k), perks:h?Object.assign({},h.mperk):zeroMP() }; },
+  // CAS-150: deterministic single-melee damage probe through the REAL hitEnemy path — spawns a
+  // huge-hp dummy (optionally elite-flagged), lands ONE hero hit, returns the damage dealt then
+  // removes the dummy. Reseed the RNG before each call so the crit roll is identical between an
+  // elite and a normal target — the ratio then isolates the "Verdugo de Élites" eliteDmgPct.
+  dmgVsTarget(elite){ const h=G.hero; if(!h) return 0; const e=spawnEnemy("orc", h.x+40, h.y);
+    e.hp=1e9; e.maxHp=1e9; e.shielded=false; if(elite) e.elite=true;
+    const before=e.hp; hitEnemy(e, equippedDmg(h), 0); const dealt=before-e.hp;
+    const i=G.enemies.indexOf(e); if(i>=0) G.enemies.splice(i,1); return Math.round(dealt*100)/100; },
+  // Set the lifetime elite-kill counter directly (no rewards/rank-bake), then REBUILD the
+  // derived reward-track perk bundle so the hero's effective stats reflect the parked count
+  // (the CAS-150 perks are derived, never baked). Lets a test jump to a milestone and observe.
+  setEliteKills(n){ const h=G.hero; if(h){ h.eliteKills=Math.max(0,Math.floor(n||0)); recalcMastery(h); } return h?(h.eliteKills|0):0; },
   // Tick ONE elite-class kill toward Mastery via the real noteEliteKill path (the rank-up
   // +maxHp bake) WITHOUT any XP/loot — so a test can isolate the Mastery bonus from the
   // level-up maxHp gains that real elite kills also grant. Returns the live snapshot.

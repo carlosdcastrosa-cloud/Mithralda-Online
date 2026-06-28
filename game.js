@@ -33,7 +33,7 @@ export function createGame(canvas, ctx, getView){
   // CAS-113: throttled progression autosave rides the sim step (never per-frame).
   // CAS-131: a single scene-transition observer fires the UI open/close blip so the
   // SFX wiring lives in ONE place instead of scattered across every menu entry point.
-  const MENU_SCENES=new Set(["inventory","talents","shop","bounty","pause","dialogue"]);
+  const MENU_SCENES=new Set(["inventory","talents","mastery","shop","bounty","pause","dialogue"]);
   let prevScene=G.scene;
   function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); analytics.tick(dtMs, G); daily.tick(); syncMenuDom();
     const s=G.scene; if(s!==prevScene){
@@ -123,6 +123,8 @@ export function createGame(canvas, ctx, getView){
       forceAmbush:()=>simDev.forceAmbush(), ambushSnap:()=>simDev.ambushSnap(), eliteSpawnKill:(type,zone)=>simDev.eliteSpawnKill(type,zone),
       // CAS-149 Elite-Mastery progression contract consumed by tools/cas149-progression.mjs — additive
       masterySnap:()=>simDev.masterySnap(), setEliteKills:(n)=>simDev.setEliteKills(n), bumpMastery:()=>simDev.bumpMastery(),
+      masteryTrackSnap:()=>simDev.masteryTrackSnap(), // CAS-150 reward-track panel/harness read-out
+      dmgVsTarget:(elite)=>simDev.dmgVsTarget(elite), // CAS-150 deterministic melee-damage probe
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe(),
       // CAS-118 status-effect contract consumed by tools/cas118-status.mjs — additive

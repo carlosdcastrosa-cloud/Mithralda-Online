@@ -174,4 +174,6 @@ export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip
 // Effective max HP = the stored base pool (class+level+shop+shards) plus any
 // +vida affixes currently equipped. Never baked into h.maxHp, so persistence
 // and leveling stay clean (mirrors how timed buffs stay out of permDmg/permDef).
-export function heroMaxHp(h){ return h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0); }
+// CAS-150: Elite-Mastery reward-track +maxHp milestones fold in here too (h.mperk.hp,
+// built in sim.recalcMastery) — derived, never baked, so reload reproduces it from the count.
+export function heroMaxHp(h){ return h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0); }
