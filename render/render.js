@@ -578,7 +578,12 @@ export function createRenderer(ctx){
     const bw=Math.min(VW*0.86,560), bh=120, x=(VW-bw)/2, y=VH-bh-30;
     ctx.fillStyle="rgba(8,10,14,0.55)"; ctx.fillRect(0,0,VW,VH);
     panelLocal(x,y,bw,bh);
-    blit(ctx,SP[d.npc.sprite].rows,SP[d.npc.sprite].pal, x+34,y+bh/2, 4,false);
+    // CAS-112: portrait. Animated town NPCs (e.g. the merchant) have NO procedural
+    // SP.rows entry — draw their idle frame via drawAnim, else the procedural sprite.
+    const psp=SP[d.npc.sprite], pach=NPC_ANIM[d.npc.sprite];
+    if(pach && IMG[pach+"_idle"] && IMG[pach+"_idle"].complete && IMG[pach+"_idle"].naturalWidth){
+      const fi=frameIndex(pach,"idle",G.t,6,true); drawAnim(ctx,pach,"idle",fi, x+34, y+bh/2+ANIM[pach].fh.idle*0.32, 0.62, false, null);
+    } else if(psp){ blit(ctx,psp.rows,psp.pal, x+34,y+bh/2, 4,false); }
     ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'"; ctx.fillText(d.npc.name, x+70, y+28);
     ctx.fillStyle=COL.cream; ctx.font="14px 'Courier New'"; wrapText(d.lines[d.i],x+70,y+52,bw-90,18);
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="right"; ctx.fillText("E / tap ▸ "+STR.dialogContinue, x+bw-14, y+bh-12);

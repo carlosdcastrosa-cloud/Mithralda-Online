@@ -59,10 +59,13 @@ try {
 
   // (1) REAL open path: park on the merchant, press E (interact->dialogue), then E
   // twice to advance past the 2 dialogue lines, which opens the upgrade shop.
+  const dwell = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.evaluate(() => window.__dev.merchantTP());
   await key(page, "KeyE"); // interact -> dialogue
   await page.waitForFunction("window.__dev.scene() === 'dialogue'", { timeout: 3000 }).catch(() => {});
+  await dwell(250); // let the dialogue PORTRAIT render (animated-NPC portrait path)
   await key(page, "KeyE"); // advance line 1
+  await dwell(150);
   await key(page, "KeyE"); // advance line 2 -> opens shop
   await page.waitForFunction("window.__dev.scene() === 'shop'", { timeout: 3000 }).catch(() => {});
   const opened = await page.evaluate(() => window.__dev.heroStats());
