@@ -64,6 +64,8 @@ export function createGame(canvas, ctx, getView){
       enemyProj:()=>simDev.enemyProj(),
       // spell-identity contract consumed by tools/spells.mjs (CAS-52) — additive
       setClass:(cls)=>simDev.setClass(cls),
+      // per-class base-stat contract consumed by tools/classstats.mjs (CAS-100) — additive
+      classStats:(cls)=>simDev.classStats(cls),
       cast:(i)=>simDev.cast(i),
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe() };

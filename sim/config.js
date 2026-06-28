@@ -166,4 +166,27 @@ export const HUNTS = {
            tier:[4,4], minR:"epic", xp:380, gold:200 } },                         // guaranteed top-tier sink
 };
 
+// CAS-100: per-class BASE STATS — the first class-identity surface (before ATK/SPELLS).
+// Until now every class spawned with identical hp/mp/dmg/speed, so they only LOOKED
+// different. These rows make each class measurably distinct from level 1:
+//   hp / mp      — starting (and max) pools
+//   dmg          — baseDmg (multiplied by gear + ATK[cls].dmgMul downstream)
+//   moveScale    — multiplier on CFG.heroSpeed (mobility identity; warrior/mage heavier,
+//                  druid nimble). atkCD already differs per class via ATK[cls].cd.
+//   hpGain/mpGain/dmgGain — per-level growth, so the archetypes DIVERGE as you climb.
+// Pure data: newHero/gainXP/movement read these by class, zero per-class branching.
+// Fallbacks in sim.js keep an unknown class playable (warrior profile).
+export const CLASS_STATS = {
+  // tanky frontline bruiser: most HP + hardest hits, tiny mana pool, a touch slow
+  warrior:{ hp:135, mp:30, dmg:14, moveScale:0.96, hpGain:24, mpGain:5,  dmgGain:4 },
+  // durable holy ranged hybrid: high HP, medium everything — the all-rounder
+  paladin:{ hp:120, mp:48, dmg:12, moveScale:0.98, hpGain:20, mpGain:7,  dmgGain:3 },
+  // glass-cannon caster: lowest HP, biggest mana, strong hits but fragile + a bit slow
+  mage:   { hp:78,  mp:82, dmg:13, moveScale:0.95, hpGain:12, mpGain:13, dmgGain:3 },
+  // nimble nature melee/sustain: balanced pools, fastest on foot
+  druid:  { hp:104, mp:60, dmg:12, moveScale:1.07, hpGain:17, mpGain:9,  dmgGain:3 },
+  // support healer: deep mana, soft hitter, average frame — survives via heals
+  priest: { hp:92,  mp:78, dmg:10, moveScale:1.00, hpGain:15, mpGain:12, dmgGain:2 },
+};
+
 export const CLASS_LIST = ["warrior", "paladin", "mage", "druid", "priest"];

@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, HUNTS, ZONE_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -55,9 +55,15 @@ export const G = {
 };
 
 function newHero(name,cls){
+  cls = cls||"warrior";
+  // CAS-100: base stats + per-level growth + mobility come from CLASS_STATS so each
+  // class plays differently from level 1 (warrior fallback keeps unknown class safe).
+  const cs = CLASS_STATS[cls] || CLASS_STATS.warrior;
   return { name:name||"Héroe", x:world.tcx, y:world.tcy+TS*2, vx:0,vy:0, facing:Math.PI/2,
-    hp:100, maxHp:100, mp:50, maxMp:50, lvl:1, xp:0, xpNext:60, gold:30,
-    baseDmg:12, dmgBonus:0, defBonus:0,
+    hp:cs.hp, maxHp:cs.hp, mp:cs.mp, maxMp:cs.mp, lvl:1, xp:0, xpNext:60, gold:30,
+    baseDmg:cs.dmg, dmgBonus:0, defBonus:0,
+    // per-class mobility (px/s) + level-growth amounts; read by movement / gainXP.
+    moveSpeed:CFG.heroSpeed*cs.moveScale, hpGain:cs.hpGain, mpGain:cs.mpGain, dmgGain:cs.dmgGain,
     // spell state: per-slot cooldowns (slots 1-3) + timed buff/HoT amounts. dmgBonus/
     // defBonus are the buff sinks (equippedDmg/Def read them), restored on expiry.
     spellCD:[0,0,0,0], spellCDmax:[0,0,0,0],
@@ -249,7 +255,8 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   for(let i=0;i<(e.capstone?16:10);i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
 }
 function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
-  while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; h.maxHp+=18; h.maxMp+=8; h.baseDmg+=3; h.hp=h.maxHp; h.mp=h.maxMp;
+  while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; // CAS-100: per-class growth → archetypes diverge as you climb
+    h.maxHp+=(h.hpGain||18); h.maxMp+=(h.mpGain||8); h.baseDmg+=(h.dmgGain||3); h.hp=h.maxHp; h.mp=h.maxMp;
     h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup(); for(let i=0;i<6;i++) addFx("heal",h.x+frr(-16,16),h.y+frr(-20,6)); } }
 
 function registerSkull(){ const s=G.skull;
@@ -501,7 +508,8 @@ export function update(dtMs){
   if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12);
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
   else { const mv=io.moveVec(); const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
-    h.vx=mv[0]*CFG.heroSpeed*atkSlow; h.vy=mv[1]*CFG.heroSpeed*atkSlow;
+    const sp=h.moveSpeed||CFG.heroSpeed; // CAS-100: per-class mobility
+    h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
       h.dustT=(h.dustT||0)+dt; if(h.dustT>0.15){ h.dustT=0; addFx("dust", h.x-h.vx*0.03, h.y+15-h.vy*0.02); }
@@ -672,6 +680,19 @@ export const dev = {
     return { cleared:H.cleared, drops:G.drops.slice(before).map(d=>({kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat, amt:d.amt})) }; },
   // --- spell-identity harness hooks (tools/spells.mjs, CAS-52); additive ---
   setClass(cls){ if(SPELLS[cls]){ G.hero.cls=cls; } return G.hero.cls; },
+  // CAS-100: base-stat identity probe. Builds a fresh level-1 hero of `cls` through
+  // the REAL newHero path and reports the spawned base stats + projected level-10
+  // pools (per-class growth applied), so the headless test can assert the 5 classes
+  // are MEASURABLY distinct, not just differently skinned. Restores the live hero.
+  classStats(cls){
+    if(!CLASS_STATS[cls]) return null; const save=G.hero;
+    const h=newHero("probe",cls); const at=ATK[cls]||ATK.warrior;
+    let mhp=h.maxHp, mmp=h.maxMp, dmg=h.baseDmg; const L=10;
+    for(let l=1;l<L;l++){ mhp+=h.hpGain; mmp+=h.mpGain; dmg+=h.dmgGain; }
+    G.hero=save;
+    return { cls, hp:h.maxHp, mp:h.maxMp, dmg:h.baseDmg, moveSpeed:Math.round(h.moveSpeed),
+      atkCD:at.cd, atkType:at.type, hpGain:h.hpGain, mpGain:h.mpGain, dmgGain:h.dmgGain,
+      lvl10:{ hp:mhp, mp:mmp, dmg } }; },
   cast(i){ castSpell(i); return { mp:Math.round(G.hero.mp), cd:G.hero.spellCD.slice() }; },
   // Probe one class: cast each of slots 1-3 at a fresh dummy enemy in front and
   // return the OBSERVED effect of each, so the headless test can assert all 15

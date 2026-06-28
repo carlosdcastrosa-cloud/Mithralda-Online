@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, SPELLS, HUNTS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef } from "../sim/gear.js";
@@ -712,8 +712,20 @@ export function createRenderer(ctx){
         const sc=Math.max(2,Math.min(4,Math.floor((cw-10)/22)));
         drawClassFrame(ctx,cls,"idle","down",0, rx+cw/2, ry+ch*0.66, sc, null);
       }
-      ctx.fillStyle=sel?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(META[cls][0],rx+cw/2,ry+ch-26);
-      ctx.fillStyle="#9aa0aa"; ctx.font="10px 'Courier New'"; ctx.fillText(META[cls][1],rx+cw/2,ry+ch-12);
+      ctx.fillStyle=sel?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(META[cls][0],rx+cw/2,ry+ch-40);
+      ctx.fillStyle="#9aa0aa"; ctx.font="10px 'Courier New'"; ctx.fillText(META[cls][1],rx+cw/2,ry+ch-28);
+      // CAS-100: per-class base stats so the player can SEE each class plays different,
+      // not just looks different. 4 normalized bars (HP / MP / DMG / SPD) under the name.
+      const cs=CLASS_STATS[cls]; if(cs){
+        const rows=[["VID",cs.hp,135,"#c64b4b"],["MAN",cs.mp,82,"#4b86c6"],["DÑO",cs.dmg,14,"#e0b24a"],["VEL",cs.moveScale,1.07,"#5fae5a"]];
+        const bx=rx+30, bw=cw-40, by=ry+ch-22, bh=3;
+        ctx.textAlign="left"; ctx.font="7px 'Courier New'";
+        for(let r=0;r<rows.length;r++){ const [lab,v,mx,col]=rows[r], yy=by+r*5;
+          ctx.fillStyle="#7a808a"; ctx.fillText(lab,rx+6,yy+3);
+          ctx.fillStyle="#1b2027"; ctx.fillRect(bx,yy,bw,bh);
+          ctx.fillStyle=col; ctx.fillRect(bx,yy,bw*Math.min(1,v/mx),bh); }
+        ctx.textAlign="center";
+      }
       ctx.fillStyle=COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.fillText(String(i+1),rx+10,ry+18);
       ui.classRects.push({x:rx,y:ry,w:cw,h:ch,cls});
     }
