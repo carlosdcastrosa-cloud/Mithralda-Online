@@ -66,14 +66,14 @@ const HERO_STRIPS={
 // into a CLASS_FC>1 strip via the same path as the main hero (slice-hero-anim.mjs)
 // and this draw already supports it (fi column). All time-driven → Stage-2 safe.
 // Falls back to the hooded anim if art is absent.
-const CLASS_FW=105, CLASS_FH=164, CLASS_AX=43, CLASS_FOOT=162, CLASS_FC=1;
+// CAS-101: 6-frame ANIMATED idle strips; cell changed but figureH=160 preserved
+// so on-screen size + CLASS_ANIM_SCALE=0.32 are UNCHANGED (geom source: classes.json).
+const CLASS_FW=140, CLASS_FH=166, CLASS_AX=65, CLASS_FOOT=163, CLASS_FC=6;
 const CLASS_ANIM_SCALE=0.32;
-// Map each playable class (warrior/paladin/mage/druid/priest) to a CAS-94 class
-// art set. warrior/mage match 1:1; paladin (armoured melee)→warrior, druid
-// (nature, green silhouette)→archer, priest (robed caster)→mage. Thematic
-// fallbacks pending dedicated paladin/druid/priest art — flagged on CAS-97/CAS-98.
-const CLASS_HERO_ART={ warrior:"warrior", paladin:"warrior", mage:"mage", druid:"archer", priest:"mage" };
-const CLASS_HERO_KEYS=["warrior","mage","archer","rogue"];
+// Each playable class now has its OWN dedicated strip (CAS-101) — no more thematic
+// aliasing. archer/rogue strips stay in the folder as spare base art (not loaded).
+const CLASS_HERO_ART={ warrior:"warrior", paladin:"paladin", mage:"mage", druid:"druid", priest:"priest" };
+const CLASS_HERO_KEYS=["warrior","paladin","mage","druid","priest"];
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 
