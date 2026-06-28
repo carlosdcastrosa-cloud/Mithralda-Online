@@ -52,6 +52,8 @@ export function createGame(canvas, ctx, getView){
       worldFingerprint:(seed)=>simDev.worldFingerprint(seed),
       // gear/progression contract consumed by tools/gear.mjs (CAS-29) — additive
       tpZone:(zone)=>simDev.tpZone(zone),
+      // CAS-116 loot-loop contract consumed by tools/cas116-loot.mjs — additive
+      zoneLoot:(zone)=>simDev.zoneLoot(zone),
       seed:(n)=>simDev.seed(n),
       gear:()=>simDev.gear(),
       spawnKill:(type)=>simDev.spawnKill(type),

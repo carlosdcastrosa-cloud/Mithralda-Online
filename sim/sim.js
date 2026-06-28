@@ -18,7 +18,7 @@ import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, 
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, gearDef, rollGearInst, equippedDmg, equippedDef } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef } from "./gear.js";
 
 // feedback floater palette (presentation hints carried by sim events)
 const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
@@ -223,7 +223,11 @@ function hitEnemy(e,dmg,ang){
 function makeHostile(e){ e.hostile=true; e.tpl=Object.assign({},e.tpl,{aggro:300}); }
 // Push a gear ground-drop. The instance carries resolved stat/slot/rarity so the
 // renderer + pickup never re-roll; all randomness already happened on the sim RNG.
-function dropGear(x,y,inst){ if(!inst) return; G.drops.push({x,y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst)}); }
+function dropGear(x,y,inst){ if(!inst) return; G.drops.push({x,y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst),tier:(gearDef(inst.slot,inst.defId)||{}).tier||0});
+  // CAS-116 — drop-time feedback (AC3): a rarity-coloured floater + sfx the moment
+  // notable loot (uncommon+) hits the ground, so the player READS the drop before
+  // walking onto it. Common trash stays quiet (no spam) — the ground gem suffices.
+  if(rarityRank(inst.rarity)>=1){ floater(x,y-18,gearName(inst),gearCol(inst)); audio.sfx.pickup(); } }
 function killEnemy(e){
   if(e.dead) return; e.dead=true;
   freeze(e.isBoss?9:(e.champion?8:5)); // kill confirm — boss/champion deaths land heaviest
@@ -781,7 +785,10 @@ export const dev = {
   // returning only the drops that kill produced (the loot loop, not a shortcut).
   spawnKill(type){ const before=G.drops.length; const e=spawnEnemy(type, G.hero.x, G.hero.y);
     if(type==="golem"&&e) e.isBoss=true; e.hp=0; killEnemy(e);
-    return G.drops.slice(before).map(d=>({ kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat })); },
+    return G.drops.slice(before).map(d=>({ kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat, tier:d.tier })); },
+  // CAS-116: the resolved drop-tier window for a zone (reads ZONE_LOOT), so the loot
+  // harness can prove the Abismo out-tiers the open zones without re-deriving stats.
+  zoneLoot(zone){ const w=ZONE_LOOT[zone]; return w?{zone,tier:w.tier.slice()}:null; },
   pickup(){ tryPickup(); return G.hero.bag.length; },
   // --- zone-difficulty harness hook (tools/hunt.mjs, CAS-73); additive ---
   // Spawn one trash mob through the REAL spawn+scale path, read its SCALED stats,
@@ -821,7 +828,7 @@ export const dev = {
   // the genuine clear path (guaranteed gear + bonus), not a shortcut.
   huntKillChampion(zone){ const H=G.hunts&&G.hunts[zone]; if(!H||!H.champ) return null;
     const e=H.champ; const before=G.drops.length; e.hp=0; killEnemy(e);
-    return { cleared:H.cleared, drops:G.drops.slice(before).map(d=>({kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat, amt:d.amt})) }; },
+    return { cleared:H.cleared, drops:G.drops.slice(before).map(d=>({kind:d.kind, slot:d.slot, rarity:d.rarity, stat:d.stat, tier:d.tier, amt:d.amt})) }; },
   // --- spell-identity harness hooks (tools/spells.mjs, CAS-52); additive ---
   setClass(cls){ if(SPELLS[cls]){ G.hero.cls=cls; } return G.hero.cls; },
   // CAS-100: base-stat identity probe. Builds a fresh level-1 hero of `cls` through

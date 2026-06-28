@@ -45,9 +45,15 @@ export const GEAR = {
 // (forest 1-2 → ruins 2-3 → caves/arena 3-4), so a tougher zone literally drops
 // better-tier gear — the carrot that pays for the steeper mobs. Town/field stay
 // low-tier starter zones. Shields cap at tier 3 (they drop out of the 4 window).
+// CAS-116: the Abismo (CAS-114, ZONE_TIER 5, power-gated endgame) drops EXCLUSIVELY
+// tier-4 gear — so even its TRASH loot strictly out-classes anything buyable in the
+// shop (steel weapon t3 / plate body t3 / iron shield t2) and the open zones, which
+// only ROLL up to 4. This closes CAS-116's "2ª zona se siente como upgrade" loop:
+// before this, abyss kills fell back to field [1,2] starter junk. Shields cap at
+// tier 3, so the abyss window drops only top-tier weapons + armor (intended).
 export const ZONE_LOOT = {
   town:{tier:[1,1]}, field:{tier:[1,2]}, forest:{tier:[1,2]},
-  ruins:{tier:[2,3]}, caves:{tier:[3,4]}, arena:{tier:[3,4]},
+  ruins:{tier:[2,3]}, caves:{tier:[3,4]}, arena:{tier:[3,4]}, abyss:{tier:[4,4]},
 };
 
 // ---- pure gear helpers (no game state, no RNG; safe in sim or render) ----

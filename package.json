@@ -18,6 +18,7 @@
     "abyss": "node tools/abyss.mjs",
     "shop": "node tools/shop.mjs",
     "persist": "node tools/persist.mjs",
+    "loot": "node tools/cas116-loot.mjs",
     "hero-live": "node tools/hero-sprite-live.mjs",
     "stamp": "node tools/stamp-version.mjs",
     "stamp:check": "node tools/stamp-version.mjs --check",
