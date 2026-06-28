@@ -1,0 +1,19 @@
+{
+  "_doc": "CAS-108: per-class WALK-CYCLE strips (alternating-leg gait, baked from the CAS-101 idle sprites). SAME cell geometry as classes.json — draw column fi with feet on `foot`, lower-body centroid on `anchorX`; on-screen size unchanged (CLASS_ANIM_SCALE 0.32). Wire as a second strip keyed by movement; torso bob is still the runtime procedural so it is intentionally NOT baked here.",
+  "frameW": 140,
+  "frameH": 166,
+  "anchorX": 65,
+  "foot": 163,
+  "figureH": 160,
+  "frames": 8,
+  "walkFps": 8,
+  "art": [
+    "warrior",
+    "paladin",
+    "mage",
+    "druid",
+    "priest",
+    "archer",
+    "rogue"
+  ]
+}
