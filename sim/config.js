@@ -214,6 +214,28 @@ export const AMBUSH = {
   elite:{ hpMul:5.5, dmgMul:1.5, sizeMul:1.4, knockMul:1.3, xpMul:4, goldBonus:35, minR:"uncommon" },
 };
 
+// CAS-149 — ELITE MASTERY: the persistent, cross-session progression HOOK that gives a
+// returning player a reason to come back. EVERY elite-class kill (ambush elites CAS-146 +
+// hunt champions + the final boss) ticks a monotonic lifetime counter (h.eliteKills, saved
+// in the localStorage blob). Crossing a threshold raises your Mastery RANK, which:
+//   • bakes a small, capped permanent +maxHp (survivability — the lowest balance-risk stat
+//     to grow, so progression feels gratifying without trivializing clear-speed), and
+//   • makes CAS-146 ELITE-AMBUSH LOOT progressively MEANINGFUL — a higher rarity floor + a
+//     per-rank chance to roll the drop one tier higher + bonus gold (champions/boss keep
+//     their own fixed hunt payoff; they only FEED the rank). The loop self-reinforces: fight
+//     elites → Mastery up → elites drop better gear → stronger hero → persists next session.
+// Fork-neutral: pure deterministic counter + derived rank (no client-only logic, no RNG in
+// the rank itself), so a Stage-2 server maps h.eliteKills to an account stat unchanged.
+export const MASTERY = {
+  // Cumulative elite-class kills to reach each rank. Index = rank; rank 0 is the start.
+  // Front-loaded early (fast early growth a returner feels) then stretched (long-tail hook).
+  thresholds:[0,3,8,16,28,45,70],
+  hpPerRank:8,         // permanent +maxHp baked ONCE per rank-up (max rank 6 → +48 lifetime)
+  goldPerRank:8,       // extra gold added to each elite/champion payoff, per rank
+  tierBumpChance:0.14, // per-rank chance the elite/champion gear rolls one tier higher (capped)
+  maxLootTier:4,       // gear tier ceiling (matches the deepest ZONE_LOOT window)
+};
+
 // CAS-118 — STATUS EFFECTS: data-driven combat states applied by the player (weapon
 // on-hit affixes CAS-117, spells) and suffered from mobs (telegraphed strikes). The
 // generic engine in sim.js (applyStatus / tickDots) reads these rows, so adding a

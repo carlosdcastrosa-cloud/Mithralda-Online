@@ -703,6 +703,13 @@ export function createRenderer(ctx){
     if((h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
       ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="left";
       ctx.fillText("★"+h.talentPts+" (T)", pad+bw+8, pad+47); ctx.restore(); ctx.textAlign="left"; }
+    // CAS-149: Elite-Mastery badge — the persistent, cross-session progression read-out,
+    // kept always-visible (even rank 0, with kills-to-next) so the long-term hook that grows
+    // across sessions is legible from minute one. Sits right of the HP bar (clear of the XP★).
+    { const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
+      ctx.save(); ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
+      const prog = nx!=null ? (" "+(h.eliteKills|0)+"/"+nx) : " MÁX";
+      ctx.fillText(STR.masteryHud(mr)+prog, pad+bw+8, pad+14); ctx.restore(); ctx.textAlign="left"; }
     // gold + potions
     ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
     ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);

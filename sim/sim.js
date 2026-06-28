@@ -14,11 +14,11 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, AMBUSH } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, AMBUSH, MASTERY } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER } from "./gear.js";
 import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, sanitizeTalents, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
 // feedback floater palette (presentation hints carried by sim events)
@@ -114,6 +114,9 @@ function newHero(name,cls){
     // Persisted additively so the meta-loop is honest across sessions; gameplay never
     // reads these (pure counters), so no balance/determinism touch.
     kills:0, champKills:0,
+    // CAS-149: monotonic lifetime ELITE-class kills (ambush elites + champions + final boss).
+    // Drives the persistent Elite-Mastery rank; saved additively (no SAVE_VERSION bump).
+    eliteKills:0,
     respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
 }
 function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
@@ -207,6 +210,11 @@ export function serializeSave(){
     // CAS-134: durable lifetime tallies for the daily-contract observer. Additive — old
     // saves lack them → default 0 — so no SAVE_VERSION bump / progress wipe.
     kills:h.kills||0, champKills:h.champKills||0,
+    // CAS-149: durable lifetime elite-kill counter → Elite-Mastery rank. Additive (old
+    // saves lack it → default 0 → rank 0), so no SAVE_VERSION bump / progress wipe. The
+    // permanent +maxHp granted at each rank-up is already baked into the saved maxHp above,
+    // so the bonus is restored with maxHp and is NEVER re-applied on load (no double-count).
+    eliteKills:h.eliteKills||0,
     // CAS-128: persist an IN-PROGRESS tutorial so a first-run refresh resumes the
     // guided flow (only the step index — per-step counters re-derive). Additive/guarded;
     // absent in old saves → no tutorial, no SAVE_VERSION bump.
@@ -235,6 +243,7 @@ export function loadSave(d){
     // CAS-123: rehydrate the Stage-1 arc (clamped; absent in old saves → fresh run).
     h.stage1=!!d.stage1; h.playT=Math.max(0,num(d.playT,0)); h.deaths=Math.max(0,Math.floor(num(d.deaths,0)));
     h.kills=Math.max(0,Math.floor(num(d.kills,0))); h.champKills=Math.max(0,Math.floor(num(d.champKills,0))); // CAS-134
+    h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
@@ -393,6 +402,7 @@ function killEnemy(e){
   if(G.hero && !tpl.neutral){ G.hero.kills=(G.hero.kills|0)+1; if(e.isBoss||e.champion) G.hero.champKills=(G.hero.champKills|0)+1; }
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
+    noteEliteKill(); // CAS-149: the final boss is an elite-class kill → feeds Elite Mastery
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
     gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
   else if(e.champion){ onChampionKill(e); } // hunt climax — clears the zone, guaranteed payoff
@@ -474,6 +484,7 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   audio.sfx.boss(); shakeAdd(e.capstone?14:10);
   // reward params travel on the entity (set at spawn) so champion + capstone share
   // this one clear path — the capstone just carries a higher tier/floor.
+  noteEliteKill(); // CAS-149: a hunt champion is an elite-class kill → feeds Elite Mastery (its own fixed payoff is unchanged)
   const win=e.rwdTier||cfgH.tier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
   dropGear(e.x,e.y, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
   G.drops.push({x:e.x+18,y:e.y,kind:"gold",amt:e.rwdGold||cfgH.gold});
@@ -520,6 +531,41 @@ function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30
     h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup();
     // CAS-127: level-up burst — a ring flourish + scattered heal sparks so the ding is felt.
     addFx("lvlring",h.x,h.y,{life:0.6}); for(let i=0,n=rmCount(10);i<n;i++) addFx("heal",h.x+frr(-20,20),h.y+frr(-24,8)); } }
+
+// CAS-149 — ELITE MASTERY. Pure, deterministic derived rank from the lifetime elite-kill
+// count (no RNG, no per-frame state) — exported so the HUD can read it the same way.
+export function masteryRank(k){ const T=MASTERY.thresholds; let r=0; k=k|0;
+  for(let i=1;i<T.length;i++){ if(k>=T[i]) r=i; } return r; }
+// Next-rank threshold (null at max rank) — HUD progress read-out.
+export function masteryNextAt(rank){ const T=MASTERY.thresholds; return rank+1<T.length?T[rank+1]:null; }
+// How many rarity steps the elite loot floor is raised at a given Mastery rank — gentle:
+// +1 step from rank 2, +2 from rank 4 (capped), so deeper investment = a richer floor
+// without forcing epics on a fresh hero. Base elite floor is "uncommon" (rank 1).
+function masteryFloorSteps(rank){ return Math.min(2, Math.floor(rank/2)); }
+// Raise a rarity key by `steps`, clamped to the top of the order (epic).
+function bumpRarity(base, steps){ let i=RARITY_ORDER.indexOf(base); if(i<0) i=0;
+  return RARITY_ORDER[Math.min(RARITY_ORDER.length-1, i+Math.max(0,steps|0))]; }
+// Apply the Mastery FORTUNE to an elite/champion drop's loot params: a higher rarity floor
+// + a per-rank chance to bump the tier window one step (capped at maxLootTier). Returns the
+// boosted {win:[min,max], minR}. RNG only on the optional tier-bump (sim stream → deterministic).
+function masteryLoot(h, win, minR){ const rank=masteryRank(h&&h.eliteKills);
+  let lo=win[0], hi=win[1];
+  if(rank>0 && srand()<Math.min(0.6, rank*MASTERY.tierBumpChance)){
+    const cap=MASTERY.maxLootTier; lo=Math.min(cap,lo+1); hi=Math.min(cap,hi+1); }
+  return { win:[lo,hi], minR:bumpRarity(minR||"uncommon", masteryFloorSteps(rank)) };
+}
+// Record one elite-class kill toward Mastery and, if it crosses a rank threshold, bake the
+// permanent +maxHp (saved with maxHp → restored, never re-applied) and fire the rank-up
+// flourish. Called from every elite-class death (boss / champion / ambush elite).
+function noteEliteKill(){ const h=G.hero; if(!h) return;
+  const before=masteryRank(h.eliteKills); h.eliteKills=(h.eliteKills|0)+1;
+  const after=masteryRank(h.eliteKills);
+  if(after>before){ const gain=(after-before)*MASTERY.hpPerRank;
+    h.maxHp+=gain; h.hp=Math.min(heroMaxHp(h), h.hp+gain);   // bonus is also a small heal
+    toast(STR.masteryUp(after),3.0); audio.sfx.levelup();
+    addFx("lvlring",h.x,h.y,{life:0.6}); floater(h.x,h.y-62,STR.masteryFloater(after),"#ffd24d");
+    for(let i=0,n=rmCount(10);i<n;i++) addFx("heal",h.x+frr(-22,22),h.y+frr(-26,8)); }
+}
 // CAS-134: the single, deliberate META-reward seam — the ONLY way the daily-return loop
 // (daily.js) writes into sim state, and only on an explicit player CLAIM (never per-frame).
 // Grants gold / xp / potions through the same paths a real reward uses (gold add + gainXP,
@@ -1211,9 +1257,11 @@ function spawnAmbush(zone){
 // + bonus gold + a banner, feeding the merchant gold-sink. Reuses the same loot path as
 // champions so nothing here re-rolls stats. Called from killEnemy's trash branch for elites.
 function onEliteKill(e, zone){
-  const win=e.rwdTier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
-  dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1],e.rwdMinR||"uncommon"));
-  G.drops.push({x:e.x+16,y:e.y,kind:"gold",amt:e.rwdGold||AMBUSH.elite.goldBonus});
+  noteEliteKill(); // CAS-149: the ambush elite is the headline elite-class kill → feeds Mastery
+  const win0=e.rwdTier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
+  const ml=masteryLoot(G.hero, win0, e.rwdMinR||"uncommon"); // CAS-149: Mastery makes elite loot meaningful (floor up / tier bump)
+  dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,ml.win[0],ml.win[1],ml.minR));
+  G.drops.push({x:e.x+16,y:e.y,kind:"gold",amt:(e.rwdGold||AMBUSH.elite.goldBonus)+masteryRank(G.hero&&G.hero.eliteKills)*MASTERY.goldPerRank});
   audio.sfx.boss(); shakeAdd(8); toast(STR.eliteDown,2.6);
   for(let i=0,n=rmCount(10);i<n;i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
 }
@@ -1576,6 +1624,18 @@ export const dev = {
     e.elite=true; e.zone=zone||"caves"; e.rwdTier=(ZONE_LOOT[e.zone]||ZONE_LOOT.field).tier; e.rwdMinR=AMBUSH.elite.minR; e.rwdGold=AMBUSH.elite.goldBonus;
     e.hp=0; killEnemy(e);
     return G.drops.slice(before).map(d=>({ kind:d.kind, rarity:d.rarity, tier:d.tier, amt:d.amt||0 })); },
+  // --- CAS-149 Elite-Mastery harness hooks (tools/cas149-progression.mjs) ---
+  // Live, read-only Mastery telemetry: lifetime elite kills, derived rank, next threshold,
+  // and the player's current maxHp (so the test can assert the rank-up +maxHp baked in).
+  masterySnap(){ const h=G.hero; const k=h?(h.eliteKills|0):0; const r=masteryRank(k);
+    return { eliteKills:k, rank:r, next:masteryNextAt(r), maxHp:h?Math.round(h.maxHp):0, hp:h?Math.round(h.hp):0 }; },
+  // Set the lifetime elite-kill counter directly (no rewards/rank-bake) so a test can park the
+  // hero at a chosen Mastery rank before spawn-killing an elite to observe the loot fortune.
+  setEliteKills(n){ const h=G.hero; if(h) h.eliteKills=Math.max(0,Math.floor(n||0)); return h?(h.eliteKills|0):0; },
+  // Tick ONE elite-class kill toward Mastery via the real noteEliteKill path (the rank-up
+  // +maxHp bake) WITHOUT any XP/loot — so a test can isolate the Mastery bonus from the
+  // level-up maxHp gains that real elite kills also grant. Returns the live snapshot.
+  bumpMastery(){ noteEliteKill(); return this.masterySnap(); },
   // Determinism probe (tools/determinism.mjs). Rebuilds the world from a FRESH
   // RNG each call so independent runs must agree byte-for-byte. seed is accepted
   // but buildWorld() still hard-seeds internally (tracked Stage-2 seam).

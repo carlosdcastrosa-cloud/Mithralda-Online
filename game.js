@@ -121,6 +121,8 @@ export function createGame(canvas, ctx, getView){
       // CAS-146 enemy-variety + elite-ambush contract consumed by tools/cas146-variety.mjs — additive
       volatileProbe:(dx)=>simDev.volatileProbe(dx), volatileSnap:()=>simDev.volatileSnap(),
       forceAmbush:()=>simDev.forceAmbush(), ambushSnap:()=>simDev.ambushSnap(), eliteSpawnKill:(type,zone)=>simDev.eliteSpawnKill(type,zone),
+      // CAS-149 Elite-Mastery progression contract consumed by tools/cas149-progression.mjs — additive
+      masterySnap:()=>simDev.masterySnap(), setEliteKills:(n)=>simDev.setEliteKills(n), bumpMastery:()=>simDev.bumpMastery(),
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe(),
       // CAS-118 status-effect contract consumed by tools/cas118-status.mjs — additive
