@@ -101,7 +101,9 @@ export function createGame(canvas, ctx, getView){
       // CAS-119 talent-tree contract consumed by tools/cas119-talents.mjs — additive
       talentState:()=>simDev.talentState(), talentTree:(cls)=>simDev.talentTree(cls),
       grantTalentPts:(n)=>simDev.grantTalentPts(n), allocTalent:(id)=>simDev.allocTalent(id),
-      respecTalents:()=>simDev.respecTalents(), canAlloc:(id)=>simDev.canAlloc(id) };
+      respecTalents:()=>simDev.respecTalents(), canAlloc:(id)=>simDev.canAlloc(id),
+      // CAS-120 active-skill-bar contract consumed by tools/cas120-skills.mjs — additive
+      skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot) };
   }
   syncMenuDom(); positionNameInput();
 

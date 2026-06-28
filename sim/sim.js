@@ -402,26 +402,38 @@ export function castSpell(i){
   if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
   resolveSpell(h,sp);
 }
+// CAS-120: a class skill's hit deals its base + the hero's BUILD damage — the talent
+// flat +daño (CAS-119, cached in h.tt) plus the affix +daño on equipped gear (CAS-117).
+// So a +daño build visibly empowers SKILLS, not just the basic attack; both inputs are
+// small-capped so this stays on-curve. Deterministic (no RNG). crit / on-hit poison /
+// stun-chance layer on top inside hitEnemy, so the build is fully observable on skills.
+function spellDmg(h,sp){ return (sp.dmg||0) + ((h.tt&&h.tt.dmg)||0) + affixTotals(h).dmg; }
+// CAS-120: a damaging skill's control/ignite effect rides the unified CAS-118 engine
+// (applyStatus), so it reuses the same DoT/slow/stun timers + icon/aura/floater feedback
+// mobs use — one system, no per-skill branch. No-op when the skill carries no status.
+function applySpellStatus(e,sp){ if(sp.status) applyStatus(e,sp.status.type,sp.status); }
 // Generic effect resolver: dispatch by spell `type`. New types are added here once
 // and become available to every class through data. No spell knows its class.
 function resolveSpell(h,sp){
   const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   switch(sp.type){
     case "proj":
-      G.projectiles.push({x:h.x+ca*20,y:h.y-2+sa*20,vx:ca*sp.spd,vy:sa*sp.spd,life:sp.life||1.4,dmg:sp.dmg,kind:sp.kind,ang:a, aoe:sp.aoe||0, burstFx:sp.fx, col:sp.col});
+      // CAS-120: a spell projectile carries its status as `infl` (mirrors enemy bolts),
+      // applied on impact in updateProjectiles — so fireball ignites, smite dazes, etc.
+      G.projectiles.push({x:h.x+ca*20,y:h.y-2+sa*20,vx:ca*sp.spd,vy:sa*sp.spd,life:sp.life||1.4,dmg:spellDmg(h,sp),kind:sp.kind,ang:a, aoe:sp.aoe||0, burstFx:sp.fx, col:sp.col, infl:sp.status});
       shakeAdd(sp.aoe?3:2.4); break;
-    case "cone":
+    case "cone": {
+      const sd=spellDmg(h,sp);
       for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>sp.range+e.tpl.size) continue;
         const ang=Math.atan2(e.y-h.y,e.x-h.x); if(Math.abs(angDiff(ang,a))<(sp.arc||Math.PI*0.6)/2){
-          hitEnemy(e,sp.dmg,a); if(sp.knock){ e.knockX+=ca*e.tpl.knock*sp.knock; e.knockY+=sa*e.tpl.knock*sp.knock; } if(sp.stun) e.stun=Math.max(e.stun,sp.stun); } }
-      addFx(sp.fx||"conecast",h.x+ca*20,h.y-2+sa*20,{ang:a,range:sp.range,col:sp.col,life:0.3}); shakeAdd(5); break;
-    case "nova":
+          hitEnemy(e,sd,a); if(sp.knock){ e.knockX+=ca*e.tpl.knock*sp.knock; e.knockY+=sa*e.tpl.knock*sp.knock; } applySpellStatus(e,sp); } }
+      addFx(sp.fx||"conecast",h.x+ca*20,h.y-2+sa*20,{ang:a,range:sp.range,col:sp.col,life:0.3}); shakeAdd(5); break; }
+    case "nova": {
+      const sd=spellDmg(h,sp);
       for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d<=sp.range+e.tpl.size){
-        hitEnemy(e,sp.dmg,Math.atan2(e.y-h.y,e.x-h.x));
-        if(sp.stun) e.stun=Math.max(e.stun,sp.stun);
-        if(sp.slow){ e.slow=sp.slow; e.slowT=sp.slowDur||2; } } }
+        hitEnemy(e,sd,Math.atan2(e.y-h.y,e.x-h.x)); applySpellStatus(e,sp); } }
       if(sp.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a"); }
-      addFx(sp.fx||"novacast",h.x,h.y,{r:sp.range,col:sp.col,style:sp.style,life:0.5}); shakeAdd(6); break;
+      addFx(sp.fx||"novacast",h.x,h.y,{r:sp.range,col:sp.col,style:sp.style,life:0.5}); shakeAdd(6); break; }
     case "heal":
       h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a");
       addFx(sp.fx||"healburst",h.x,h.y,{col:sp.col,life:0.5}); for(let k=0;k<6;k++) addFx("heal",h.x+frr(-14,14),h.y+frr(-18,6)); break;
@@ -431,11 +443,12 @@ function resolveSpell(h,sp){
     case "buff":
       applyBuff(h,sp.stat,sp.amt,sp.dur); floater(h.x,h.y-30, sp.stat==="dmg"?STR.spellAtkUp:STR.spellDefUp, sp.col||"#ffd24d");
       addFx(sp.fx||"buffaura",h.x,h.y,{col:sp.col,life:0.5}); break;
-    case "dash":
+    case "dash": {
+      const sd=spellDmg(h,sp);
       h.rolling=true; h.rollT=0.20; h.iframe=0.22; h.rollCD=Math.max(h.rollCD,0.3); h.rollX=ca; h.rollY=sa; h.moved=false;
       for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>sp.range+e.tpl.size) continue;
-        const ang=Math.atan2(e.y-h.y,e.x-h.x); if(Math.abs(angDiff(ang,a))<0.9){ hitEnemy(e,sp.dmg,a); } }
-      addFx(sp.fx||"charge",h.x,h.y,{ang:a,col:sp.col,life:0.3}); shakeAdd(5); break;
+        const ang=Math.atan2(e.y-h.y,e.x-h.x); if(Math.abs(angDiff(ang,a))<0.9){ hitEnemy(e,sd,a); applySpellStatus(e,sp); } }
+      addFx(sp.fx||"charge",h.x,h.y,{ang:a,col:sp.col,life:0.3}); shakeAdd(5); break; }
     case "blink": {
       // caster mobility: instantly reposition up to `range` px toward facing, clamped
       // by collision (step-march so we stop AT a wall, never tunnel through it), and
@@ -453,8 +466,8 @@ function resolveSpell(h,sp){
       // every `tick` seconds to enemies inside `range` for `dur` seconds (optional
       // slow). One immediate plant tick makes the cast read instantly; then it lingers.
       const cx=h.x+ca*(sp.offset||40), cy=h.y+sa*(sp.offset||40);
-      const f={x:cx,y:cy,r:sp.range,dmg:sp.dmg,tick:sp.tick||0.5,acc:0,life:sp.dur,maxLife:sp.dur,
-               col:sp.col,style:sp.style,slow:sp.slow||0,slowDur:sp.slowDur||0};
+      const f={x:cx,y:cy,r:sp.range,dmg:spellDmg(h,sp),tick:sp.tick||0.5,acc:0,life:sp.dur,maxLife:sp.dur,
+               col:sp.col,style:sp.style,status:sp.status||null};
       G.fields.push(f); fieldTick(f);                                     // plant + immediate first tick
       addFx(sp.fx||"novacast",cx,cy,{r:sp.range,col:sp.col,style:sp.style||"spike",life:0.5}); shakeAdd(4); break; }
   }
@@ -466,7 +479,7 @@ function fieldTick(f){
   for(const e of G.enemies){ if(e.dead) continue;
     const rr2=(f.r+e.tpl.size); if(dist2(e.x,e.y,f.x,f.y) > rr2*rr2) continue;
     e.hp-=f.dmg; e.hurtFlash=0.12; floater(e.x,e.y-e.tpl.size,"-"+Math.round(f.dmg),"#9fe06a");
-    if(f.slow){ e.slow=f.slow; e.slowT=Math.max(e.slowT||0,f.slowDur); }
+    if(f.status) applyStatus(e,f.status.type,f.status);   // CAS-120: field control rides CAS-118
     if(e.tpl.neutral && !e.hostile){ makeHostile(e); registerSkull(); }
     if(e.hp<=0) killEnemy(e); }
 }
@@ -878,8 +891,9 @@ function updateProjectiles(dt){ const h=G.hero;
     if(solidBlocked(p.x,p.y,4)){ p.life=0; }
     if(p.enemy){ if(dist2(p.x,p.y,h.x,h.y)<18*18){ damageHero(p.dmg,Math.atan2(p.vy,p.vx),p.infl); p.life=0; } }
     else { for(const e of G.enemies){ if(e.dead) continue; if(dist2(p.x,p.y,e.x,e.y)<(e.tpl.size+7)*(e.tpl.size+7)){ const ha=Math.atan2(p.vy,p.vx); hitEnemy(e,p.dmg,ha);
+      if(p.infl) applyStatus(e,p.infl.type,p.infl);    // CAS-120: skill projectile ignites/dazes on impact
       const aoe=p.aoe||((p.kind==="fire"||p.kind==="orb")?46:0); // basic fire/orb keep their legacy splash; spells carry their own aoe
-      if(aoe){ addFx(p.burstFx||(p.kind==="orb"?"orbburst":"flame"),p.x,p.y,{life:0.45,col:p.col,r:aoe}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<aoe*aoe) hitEnemy(e2,p.dmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); } }
+      if(aoe){ addFx(p.burstFx||(p.kind==="orb"?"orbburst":"flame"),p.x,p.y,{life:0.45,col:p.col,r:aoe}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<aoe*aoe){ hitEnemy(e2,p.dmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); if(p.infl) applyStatus(e2,p.infl.type,p.infl); } } }
       else addFx(p.burstFx||"impact",p.x,p.y,{ang:ha,col:p.col,life:0.3});
       shakeAdd(3); p.life=0; break; } } }
     if(p.life<=0){ if(p.kind==="fire") addFx("flame",p.x,p.y); else if(p.kind==="orb") addFx("orbburst",p.x,p.y,{life:0.45}); }
@@ -1137,4 +1151,34 @@ export const dev = {
   respecTalents(){ const refunded=respecTalents(); return { refunded, state:this.talentState() }; },
   // Can this node be taken right now? (mirrors the UI light-up + save validation.)
   canAlloc(id){ return canAllocTalent(G.hero, id); },
+  // --- CAS-120 active-skill-bar harness hooks (tools/cas120-skills.mjs); additive ---
+  // Static skill-bar metadata straight off SPELLS[cls] (no sim step) so the test can
+  // assert each class has >=2 active skills with their cost/cd and which carry a CAS-118
+  // status — AC1/AC2. slot0 (basic attack) is excluded; these are the bar's skills 1-3.
+  skillBar(cls){ const list=SPELLS[cls]; if(!list) return null;
+    return list.map((sp,i)=>({ slot:i+1, id:sp.id, type:sp.type, cost:sp.cost, cd:sp.cd,
+      status: sp.status?sp.status.type:null, aoe:sp.aoe||0, dmg:sp.dmg||0 })); },
+  // Cast ONE class skill at a fixed dummy and report the BUILD-deployed outcome — damage
+  // dealt, the CAS-118 status it applied (DoT/slow/stun), MP spent and the cooldown it
+  // set (after talent cdr). Advances the REAL update loop a few frames so projectile
+  // skills travel & connect. No shortcut: castSpell→resolveSpell→hitEnemy/applyStatus,
+  // exactly as the game runs. Talents/affixes on the live hero feed in (so the test can
+  // alloc a node, re-probe, and prove a skill changed — AC3). Restores the arena.
+  skillProbe(cls,slot){ const list=SPELLS[cls]; if(!list||!list[slot-1]) return null;
+    const h=G.hero; h.cls=cls; h._mcfg=ATK[cls]||ATK.warrior;
+    h.maxMp=300; h.mp=300; h.maxHp=600; h.hp=300; h.facing=0; h.rolling=false; h.stun=0; h.slowT=0; h.slow=1; h.dots=null;
+    h.spellCD=[0,0,0,0]; h.spellCDmax=[0,0,0,0];
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const e=spawnEnemy("skeleton", h.x+38, h.y); e.maxHp=e.hp=6000;
+    const e0=e.hp, mp0=h.mp;
+    castSpell(slot);
+    for(let s=0;s<6;s++){ update(40); }            // let a projectile travel & connect
+    const sp=list[slot-1];
+    const dots={}; if(e.dots) for(const k in e.dots) dots[k]={ t:+e.dots[k].t.toFixed(2), dmg:e.dots[k].dmg };
+    const r={ cls, slot, id:sp.id, type:sp.type, cost:sp.cost, statusType: sp.status?sp.status.type:null,
+      mpSpent: Math.round(mp0-h.mp), dmg: Math.round(e0-e.hp),
+      cd:+(h.spellCD[slot]||0).toFixed(2), cdmax:+(h.spellCDmax[slot]||0).toFixed(2),
+      enemyStun:+(e.stun||0).toFixed(2), enemySlowT:+(e.slowT||0).toFixed(2), dots };
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    return r; },
 };

@@ -56,40 +56,49 @@ export const ATK = {
 };
 
 // per-class spells for slots 2-4 (cast indices 1,2,3) — the SECOND class-identity
-// surface after ATK. Pure data: the generic resolver in sim/sim.js executes each
-// spell by its `type`, so adding a class is adding a row here, never a code branch.
+// surface after ATK, and the ACTIVE SKILL BAR the player deploys in combat (CAS-120).
+// Pure data: the generic resolver in sim/sim.js executes each spell by its `type`, so
+// adding a class is adding a row here, never a code branch.
 // Each entry carries its own MP `cost` + `cd` (independent per-slot cooldown), a
 // `col` (spell-bar tint + fx colour) and an `fx` (renderer effect name). All
 // effects run on the sim RNG only — determinism / Stage-2 server-authority ready.
-//   types: proj(spd,kind,aoe?) | cone(range,arc,knock?,stun?) | nova(range,heal?,stun?,slow?,slowDur?)
+//   types: proj(spd,kind,aoe?) | cone(range,arc,knock?) | nova(range,heal?)
 //          | heal(heal) | hot(heal/s,dur) | buff(stat:"dmg"|"def",amt,dur) | dash(range,dmg)
 //          | blink(range,iframe)  — instant collision-clamped reposition + i-frames (no dmg; pure mobility)
-//          | field(range,dmg,tick,dur,slow?,slowDur?,offset?) — persistent ground zone that ticks dmg (area denial)
+//          | field(range,dmg,tick,dur,offset?) — persistent ground zone that ticks dmg (area denial)
+// CAS-120 — `status:{type,...}` is the unified CAS-118 effect a damaging skill applies
+// on contact (cone/nova/dash on hit, proj/field on impact/tick): veneno/quemadura (DoT)
+// | lentitud (slow amt+dur) | aturdir (stun dur). It runs through the SAME applyStatus
+// engine mobs use, so a control/ignite skill gets the same icon/aura/DoT feedback. Each
+// of the 5 classes carries at least one status skill (warrior stun, paladin/mage burn,
+// mage/druid slow, druid stun, priest stun). The base `dmg` of any damaging skill is
+// further empowered by the hero's BUILD (talent +daño CAS-119 + affix +daño CAS-117) and
+// can crit / proc on-hit poison/stun via hitEnemy — so the build is OBSERVABLE on skills.
 export const SPELLS = {
   warrior: [
-    {id:"shieldbash", type:"cone", cost:8,  cd:3.0, dmg:20, range:74, arc:Math.PI*0.70, stun:0.9, knock:1.7, col:"#dfe6f0", fx:"conecast", sfx:"sword"},
+    {id:"shieldbash", type:"cone", cost:8,  cd:3.0, dmg:20, range:74, arc:Math.PI*0.70, status:{type:"stun",dur:0.9}, knock:1.7, col:"#dfe6f0", fx:"conecast", sfx:"sword"},
     {id:"warcry",     type:"buff", cost:12, cd:9.0, stat:"dmg", amt:9,  dur:6.0, col:"#ff8a3a", fx:"buffaura", sfx:"rune"},
     {id:"charge",     type:"dash", cost:14, cd:5.0, dmg:30, range:64, col:"#e8d28a", fx:"charge", sfx:"roll"},
   ],
   paladin: [
-    {id:"consecration", type:"nova", cost:14, cd:4.0, dmg:26, range:104, heal:10, col:"#ffe39a", fx:"holynova", sfx:"rune"},
+    {id:"consecration", type:"nova", cost:14, cd:4.0, dmg:26, range:104, heal:10, status:{type:"burn"}, col:"#ffe39a", fx:"holynova", sfx:"rune"},
     {id:"divineshield", type:"buff", cost:12, cd:10.0, stat:"def", amt:11, dur:6.0, col:"#ffe39a", fx:"buffaura", sfx:"heal"},
     {id:"judgment",     type:"proj", cost:16, cd:3.0, dmg:46, spd:480, kind:"judgment", col:"#ffd24d", fx:"spellburst", sfx:"fire"},
   ],
   mage: [
-    {id:"fireball", type:"proj", cost:10, cd:1.4, dmg:24, spd:320, kind:"fire", aoe:48, col:"#ff7a3a", fx:"flame", sfx:"fire"},
-    {id:"frost",    type:"nova", cost:14, cd:3.5, dmg:16, range:110, slow:0.45, slowDur:2.5, col:"#7fd6ff", fx:"novacast", style:"crystal", sfx:"rune"},
+    {id:"fireball", type:"proj", cost:10, cd:1.4, dmg:24, spd:320, kind:"fire", aoe:48, status:{type:"burn"}, col:"#ff7a3a", fx:"flame", sfx:"fire"},
+    {id:"frost",    type:"nova", cost:14, cd:3.5, dmg:16, range:110, status:{type:"slow",amt:0.45,dur:2.5}, col:"#7fd6ff", fx:"novacast", style:"crystal", sfx:"rune"},
     {id:"blink",    type:"blink", cost:14, cd:5.5, range:158, iframe:0.42, col:"#9be7ff", fx:"blink", sfx:"roll"},
   ],
   druid: [
-    {id:"vines",      type:"nova", cost:12, cd:4.0, dmg:14, range:92,  stun:1.4, col:"#8fd47a", fx:"novacast", style:"spike", sfx:"rune"},
+    {id:"vines",      type:"nova", cost:12, cd:4.0, dmg:14, range:92,  status:{type:"stun",dur:1.4}, col:"#8fd47a", fx:"novacast", style:"spike", sfx:"rune"},
     {id:"regen",      type:"hot",  cost:12, cd:8.0, heal:11, dur:5.0, col:"#7bd44a", fx:"buffaura", sfx:"heal"},
-    {id:"thornstorm", type:"field", cost:20, cd:6.0, dmg:11, tick:0.5, dur:3.0, range:74, offset:46, slow:0.6, slowDur:1.1, col:"#5fae4a", fx:"thornfield", style:"spike", sfx:"rune"},
+    {id:"thornstorm", type:"field", cost:20, cd:6.0, dmg:11, tick:0.5, dur:3.0, range:74, offset:46, status:{type:"slow",amt:0.6,dur:1.1}, col:"#5fae4a", fx:"thornfield", style:"spike", sfx:"rune"},
   ],
   priest: [
     {id:"greaterheal", type:"heal", cost:16, cd:5.0, heal:60, col:"#7fffa8", fx:"healburst", sfx:"heal"},
     {id:"powerword",   type:"buff", cost:12, cd:9.0, stat:"def", amt:8, dur:7.0, col:"#bfeaff", fx:"buffaura", sfx:"heal"},
-    {id:"smite",       type:"proj", cost:14, cd:2.4, dmg:38, spd:460, kind:"holybolt", col:"#fff0b0", fx:"spellburst", sfx:"fire"},
+    {id:"smite",       type:"proj", cost:14, cd:2.4, dmg:38, spd:460, kind:"holybolt", status:{type:"stun",dur:0.6}, col:"#fff0b0", fx:"spellburst", sfx:"fire"},
   ],
 };
 

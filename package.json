@@ -26,6 +26,8 @@
     "status-live": "node tools/cas118-status-live.mjs",
     "talents": "node tools/cas119-talents.mjs",
     "talents-live": "node tools/cas119-talents-live.mjs",
+    "skills": "node tools/cas120-skills.mjs",
+    "skills-live": "node tools/cas120-skills-live.mjs",
     "hero-live": "node tools/hero-sprite-live.mjs",
     "stamp": "node tools/stamp-version.mjs",
     "stamp:check": "node tools/stamp-version.mjs --check",

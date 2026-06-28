@@ -643,6 +643,12 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
       ctx.fillStyle=h.mp>=costs[i]?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
       ctx.fillStyle=(i===0)?"#cfd6de":(sp[i-1].col||"#cfd6de"); ctx.fillRect(x+6,y+6,s-12,s-12);
+      // CAS-120: status pip — a small dot in the effect colour marks a skill that
+      // applies a CAS-118 status (veneno/quemadura/lentitud/aturdir), so the player
+      // reads at a glance which skills deploy control/ignite.
+      if(i>0){ const st=sp[i-1].status; if(st && STATUS[st.type]){ const pc=STATUS[st.type].col;
+        ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-8,y+8,4.5,0,6.28); ctx.fill();
+        ctx.fillStyle=pc; ctx.beginPath(); ctx.arc(x+s-8,y+8,3,0,6.28); ctx.fill(); } }
       // cooldown sweep (top-down dark wipe) for slots 1-3
       if(i>0 && h.spellCD && h.spellCD[i]>0 && h.spellCDmax[i]>0){ const f=clamp(h.spellCD[i]/h.spellCDmax[i],0,1);
         ctx.fillStyle="rgba(8,10,14,0.66)"; ctx.fillRect(x,y,s,s*f); }
