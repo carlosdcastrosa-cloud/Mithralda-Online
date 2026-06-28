@@ -115,7 +115,12 @@ export function createGame(canvas, ctx, getView){
       // CAS-127 game-feel/juice contract consumed by tools/cas127-juice.mjs — additive
       juiceState:()=>simDev.juiceState(), floaterDump:()=>simDev.floaterDump(), setReduceMotion:(v)=>simDev.setReduceMotion(v),
       clearFx:()=>simDev.clearFx(), juiceArena:(n)=>simDev.juiceArena(n), juiceSwing:()=>simDev.juiceSwing(),
-      forceCritSwing:()=>simDev.forceCritSwing(), setSound:(v)=>audio.setEnabled(v) };
+      forceCritSwing:()=>simDev.forceCritSwing(),
+      // CAS-128 onboarding/tutorial contract consumed by tools/cas128-onboarding.mjs — additive
+      tutState:()=>simDev.tutState(), tutArm:(v)=>simDev.tutArm(v), tutStart:()=>simDev.tutStart(),
+      tutSkip:()=>simDev.tutSkip(), tutSetStep:(i)=>simDev.tutSetStep(i), tutSeen:()=>persist.tutSeen(),
+      clearTutSeen:()=>persist.clearTutSeen(),
+      setSound:(v)=>audio.setEnabled(v) };
   }
   syncMenuDom(); positionNameInput();
 

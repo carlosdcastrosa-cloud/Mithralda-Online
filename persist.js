@@ -10,12 +10,21 @@
 // so the latest gold / XP / upgrades survive a refresh. All storage calls are
 // wrapped — private-mode / quota failures degrade silently, the game still runs.
 // ===========================================================================
-import { G, serializeSave, loadSave } from "./sim/sim.js";
+import { G, serializeSave, loadSave, setTutArm } from "./sim/sim.js";
 
 const KEY = "mithralda.save.v1";
+// CAS-128: a tiny, SEPARATE first-run marker. Set the first time the onboarding
+// tutorial finishes or is skipped, so a returning player never gets the tutorial
+// auto-started again (even after "Nueva partida" wipes the save). Independent of the
+// save blob so it survives a save reset; gameplay never reads it.
+const KEY_TUT = "mithralda.tut.v1";
 const SAVE_THROTTLE = 2.0;      // seconds between throttled autosaves while in a run
 let acc = 0;
 let suppressed = false;         // once true, ALL writes are no-ops until the page reloads
+
+export function tutSeen(){ try{ return localStorage.getItem(KEY_TUT)==="1"; }catch(e){ return false; } }
+function markTutSeen(){ try{ localStorage.setItem(KEY_TUT,"1"); }catch(e){} }
+export function clearTutSeen(){ try{ localStorage.removeItem(KEY_TUT); }catch(e){} } // dev/QA helper
 
 function read(){
   try{ const raw = localStorage.getItem(KEY); return raw ? JSON.parse(raw) : null; }
@@ -39,15 +48,24 @@ export function hasSave(){ return !!read(); }
 // invalid save is discarded (cleared) and the player starts clean — never crashes.
 export function boot(){
   const blob = read();
-  if(!blob) return false;
-  if(!loadSave(blob)){ clear(); return false; }   // version mismatch / bad data → clean start
-  return true;
+  const loaded = !!blob && loadSave(blob);
+  if(blob && !loaded) clear();                     // version mismatch / bad data → clean start
+  // CAS-128: arm the onboarding tutorial ONLY for a true first run — no save loaded AND
+  // the tutorial-seen marker unset. A returning player (loaded save, or a veteran who
+  // wiped progress) starts straight into play with no tutorial; they can replay it from
+  // the pause menu. A save that itself carried an in-progress tutorial resumes it inside
+  // loadSave, independent of this arm flag.
+  setTutArm(!loaded && !tutSeen());
+  return loaded;
 }
 
 // Throttled autosave — call once per sim step with the step in SECONDS. Only saves
 // while there is a live run to persist, and at most once per SAVE_THROTTLE.
 export function tick(dtSec){
   if(!G.started || G.scene==="menu" || G.scene==="classsel") return;
+  // CAS-128: the moment the tutorial is finished/skipped, write the one-time seen marker
+  // so it never auto-starts for this player again. flushed gates it to a single write.
+  if(G.tut && G.tut.finished && !G.tut.flushed){ markTutSeen(); G.tut.flushed=true; }
   acc += dtSec;
   if(acc >= SAVE_THROTTLE){ acc = 0; save(); }
 }

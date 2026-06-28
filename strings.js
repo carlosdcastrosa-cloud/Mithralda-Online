@@ -200,4 +200,22 @@ export const STR = {
   fountainSaved: "Punto de reaparición fijado en esta Fuente.",
   controlsHintPC: "Mover WASD/flechas · Atacar clic o J · Rodar Espacio · Hechizos 1-4 · Recoger F · Inventario I · Mapa M · Hablar E · Pausa Esc",
   tapToStart: "Toca o pulsa una tecla",
+
+  // CAS-128 — first-session onboarding tutorial (pure UX layer). Coachmark text is
+  // device-aware (pc / touch). headers are the short verb on each card.
+  tutTitle: "GUÍA",
+  tutStepLabel: (i, n) => "Paso " + i + "/" + n,
+  tutSkip: "Saltar ▸",
+  tutReplay: "Repetir guía inicial",
+  tutHead: { move:"MOVERSE", attack:"ATACAR", skill:"HABILIDAD", travel:"EXPLORAR", loot:"BOTÍN", equip:"EQUIPAR" },
+  tutSteps: {
+    move:   { pc:"Muévete con WASD o las flechas.", touch:"Arrastra el lado izquierdo de la pantalla para moverte." },
+    attack: { pc:"Ataca con clic izquierdo o la tecla J.", touch:"Toca el botón ⚔ (abajo a la derecha) para atacar." },
+    skill:  { pc:"Lanza una habilidad con las teclas 2, 3 o 4 (gastan maná).", touch:"Toca los botones 2, 3 o 4 para lanzar habilidades." },
+    travel: { pc:"Sal de Puerto Solana hacia una zona de caza para hallar enemigos.", touch:"Sal de Puerto Solana hacia una zona de caza para hallar enemigos." },
+    loot:   { pc:"Derrota enemigos y recoge tu primer botín con la tecla F.", touch:"Derrota enemigos y recoge tu primer botín con el botón F." },
+    equip:  { pc:"Abre el inventario con I y equípate el botín que encuentres.", touch:"Toca el botón I (arriba) para abrir el inventario y equiparte." },
+  },
+  tutDoneHead: "¡LISTO PARA LA AVENTURA!",
+  tutDone: "Sigue el OBJETIVO de arriba para avanzar. Sube de nivel, gasta talentos (T) y mejora con el Mercader (E).",
 };

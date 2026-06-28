@@ -60,7 +60,16 @@ export const G = {
   toast:"", toastT:0, music:"town", arenaWarned:false, bossDead:false,
   skull:{level:0, t:0, kills:0, killT:0}, started:false,
   hitstop:0, // client-feel impact freeze (frames @60fps); never gates authoritative state beyond pausing local sim
+  // CAS-128: first-session onboarding tutorial. null = inactive; a small deterministic
+  // step machine (no DOM, no RNG) that observes hero state + a few event flags and
+  // renders coachmarks. Persisted in the save so a mid-tutorial refresh resumes it.
+  tut:null,
 };
+// CAS-128: armed at boot by the persistence controller when this is a FIRST run
+// (no save AND the tutorial-seen flag is unset). createHero() reads it once so the
+// guided flow only ever auto-starts for a brand-new player; returning players never
+// see it (a loaded save jumps straight to play). Replay is on demand from the menu.
+let tutArmed = false;
 
 function newHero(name,cls){
   cls = cls||"warrior";
@@ -108,7 +117,47 @@ function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
 function initHunts(){ const o={}; for(const z in HUNTS) o[z]={kills:0, champ:null, cleared:false}; return o; }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
-export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.scene="play"; G.started=true; }
+export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.scene="play"; G.started=true;
+  if(tutArmed){ startTutorial(); tutArmed=false; } }            // CAS-128: first-run guided flow
+
+// --------------------- CAS-128: onboarding tutorial ---------------------
+// A pure, deterministic step machine layered ON TOP of the existing game (no balance
+// or mechanic change). Each step advances when the sim OBSERVES the player perform the
+// taught action — movement distance, an attack/skill cast, leaving town, a first pickup,
+// opening the inventory — so it teaches by doing, not by reading. render/ draws the
+// coachmarks; input/ owns skip + replay. Persisted (serializeSave) so a refresh resumes.
+export const TUT_STEPS = ["move","attack","skill","travel","loot","equip","done"];
+// number of GUIDED steps (excludes the terminal "done" celebration card)
+export const TUT_NSTEPS = TUT_STEPS.length-1;
+// arm/disarm from the persistence controller (first-run detection lives there)
+export function setTutArm(v){ tutArmed=!!v; }
+export function startTutorial(){ G.tut={ active:true, i:0, moveDist:0, atk:false, skill:false,
+  looted:false, invOpened:false, doneT:0, finished:false, flushed:false }; }
+// skip / finish both retire the tutorial AND flag it finished so the controller can
+// persist the "seen" marker (returning players won't get it again on a fresh start).
+export function tutSkip(){ if(!G.tut) return; G.tut.active=false; G.tut.finished=true; }
+function tutFinish(){ if(!G.tut) return; G.tut.active=false; G.tut.finished=true; }
+// event marks set from the natural action sites (heroAttack / castSpell / tryPickup);
+// only recorded while a tutorial is live so they cost nothing otherwise.
+function tutMark(k){ const t=G.tut; if(t&&t.active) t[k]=true; }
+// One observation tick (play scene only). Advances at most one step per tick.
+function tickTutorial(dt){
+  const t=G.tut; if(!t||!t.active) return; const h=G.hero; if(!h) return;
+  const step=TUT_STEPS[t.i];
+  if(step==="done"){ t.doneT+=dt; if(t.doneT>=5){ tutFinish(); } return; }
+  if(step==="move" && h.moved) t.moveDist += Math.hypot(h.vx,h.vy)*dt;
+  let adv=false;
+  switch(step){
+    case "move":   adv = t.moveDist>70; break;                 // walked a meaningful distance
+    case "attack": adv = t.atk; break;                         // swung once
+    case "skill":  adv = t.skill; break;                       // cast a class skill (slot 2-4)
+    case "travel": adv = zoneOf(world,h.x,h.y)!=="town"; break;// left the safe town
+    case "loot":   adv = t.looted; break;                      // picked up a first drop
+    case "equip":  adv = t.invOpened; break;                   // opened the inventory
+  }
+  if(adv){ t.i++; if(audio&&audio.sfx&&audio.sfx.pickup) audio.sfx.pickup();
+    if(TUT_STEPS[t.i]==="done") t.doneT=0; }
+}
 
 // --------------------- CAS-113: progression persistence -----------------
 // The sim owns SERIALIZATION of its authoritative progression state (a Stage-2
@@ -147,6 +196,10 @@ export function serializeSave(){
     // CAS-123: durable Stage-1 arc state. Additive (old saves lack these → default to a
     // fresh, unfinished run), so no SAVE_VERSION bump / progress wipe.
     stage1:!!h.stage1, playT:h.playT||0, deaths:h.deaths||0,
+    // CAS-128: persist an IN-PROGRESS tutorial so a first-run refresh resumes the
+    // guided flow (only the step index — per-step counters re-derive). Additive/guarded;
+    // absent in old saves → no tutorial, no SAVE_VERSION bump.
+    tut:(G.tut&&G.tut.active)?{i:G.tut.i}:null,
     equip:{weapon:h.equip.weapon, body:h.equip.body, shield:h.equip.shield}, bag:h.bag,
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
@@ -171,6 +224,9 @@ export function loadSave(d){
     // CAS-123: rehydrate the Stage-1 arc (clamped; absent in old saves → fresh run).
     h.stage1=!!d.stage1; h.playT=Math.max(0,num(d.playT,0)); h.deaths=Math.max(0,Math.floor(num(d.deaths,0)));
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
+    // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
+    if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
+    else G.tut=null;
     G.hero=h; G.hunts=initHunts(); G.fields.length=0;
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
     G.scene="play"; G.started=true;
@@ -243,6 +299,7 @@ function applyZoneScale(e, zone){
 // ------------------------------ combat ---------------------------------
 function heroAttack(){
   const h=G.hero; if(h.atkCD>0||h.rolling||h.stun>0) return; // CAS-118: stun gates the swing
+  tutMark("atk"); // CAS-128: a real swing teaches the attack step
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const dmg=equippedDmg(h)*cfg.dmgMul;
   h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+(affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0))/100); h._atkHits=new Set(); // CAS-117 affix + CAS-119 talent +vel.ataque shorten the cooldown
@@ -483,6 +540,7 @@ export function castSpell(i){
   const cd=sp.cd*(1-(h.tt?h.tt.cdr:0)/100); h.mp-=sp.cost; h.spellCD[i]=cd; h.spellCDmax[i]=cd;
   if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
   resolveSpell(h,sp);
+  tutMark("skill"); // CAS-128: a successful class-skill cast teaches the skill step
 }
 // CAS-120: a class skill's hit deals its base + the hero's BUILD damage — the talent
 // flat +daño (CAS-119, cached in h.tt) plus the affix +daño on equipped gear (CAS-117).
@@ -642,7 +700,7 @@ export function tryPickup(){
     else if(d.kind==="potionhp"){ h.potHP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de vida")); }
     else if(d.kind==="potionmp"){ h.potMP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de maná")); }
     else if(d.kind==="gear"){ takeGear(d.inst); }
-    d.taken=true;
+    d.taken=true; tutMark("looted"); // CAS-128: first collected drop teaches the loot step
   }}
   G.drops=G.drops.filter(d=>!d.taken);
   for(const c of world.chests){ if(c.opened) continue; if(dist2(h.x,h.y,c.x,c.y)<CFG.pickRange*CFG.pickRange){
@@ -793,9 +851,11 @@ export function update(dtMs){
   if(G.toastT>0) G.toastT-=dt;
   if(G.scene==="menu"){ return; } // menu DOM is owned by the controller, not the sim
   io.pollPad();
-  if(G.scene!=="play"){ updateFloaters(dt); updateFx(dt); return; } // freeze world in menus but let transient fx expire
+  if(G.scene!=="play"){ if(G.tut&&G.tut.active&&G.scene==="inventory") G.tut.invOpened=true; // CAS-128: equip step
+    updateFloaters(dt); updateFx(dt); return; } // freeze world in menus but let transient fx expire
   const h=G.hero;
   h.playT+=dt; // CAS-123: accumulate live-play seconds for the victory summary (play-only)
+  tickTutorial(dt); // CAS-128: onboarding step machine (observes hero state; no balance touch)
   // music switch by zone danger
   const z=zoneOf(world,h.x,h.y); const wantCombat=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss"||z==="frost") && G.enemies.some(e=>e.state==="chase"||e.state==="windup"||e.state==="shield");
   const wantMusic=wantCombat?"combat":"town"; if(wantMusic!==G.music){ G.music=wantMusic; audio.playMusic(wantMusic); }
@@ -1486,4 +1546,17 @@ export const dev = {
     h.tt=Object.assign({},h.tt||zeroTT(),{crit:100,critMult:0}); h.facing=Math.atan2(e.y-h.y,e.x-h.x); h.atkCD=0;
     const before=G.shake; hitEnemy(e, equippedDmg(h), h.facing); h.tt=save;
     return { dump:this.floaterDump(), shakeDelta:+(G.shake-before).toFixed(2), shake:+G.shake.toFixed(2) }; },
+  // --- CAS-128 onboarding harness hooks (tools/cas128-onboarding.mjs); additive ---
+  // Read the live tutorial state: whether active/finished, the current step id + index,
+  // and the guided-step count — so the headless/live test can assert the flow advances.
+  tutState(){ const t=G.tut; return { exists:!!t, active:!!(t&&t.active), finished:!!(t&&t.finished),
+    i:t?t.i:-1, step:t?TUT_STEPS[t.i]:null, nSteps:TUT_NSTEPS, steps:TUT_STEPS.slice(),
+    moveDist:+((t&&t.moveDist)||0).toFixed(1), looted:!!(t&&t.looted), invOpened:!!(t&&t.invOpened) }; },
+  // Arm/start/skip the tutorial directly (mirrors the first-run / menu-replay / skip paths).
+  tutArm(v){ setTutArm(v!==false); return tutArmed; },
+  tutStart(){ startTutorial(); return this.tutState(); },
+  tutSkip(){ tutSkip(); return this.tutState(); },
+  // Force the live tutorial step index (clamped) so the test can jump to a step without
+  // re-performing every prior action; the REAL advance logic then runs from there.
+  tutSetStep(i){ if(!G.tut) return null; G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,i|0)); return this.tutState(); },
 };

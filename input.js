@@ -20,7 +20,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], classRects:[], talentRects:[], mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], classRects:[], talentRects:[], mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -157,6 +157,9 @@ export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH)
   pause:{x:VW-14-b*3.8, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
 
 function handleUITap(x,y){
+  // CAS-128: tutorial Skip button (pointer + touch). Checked before the play-scene
+  // attack so a click on Skip never also triggers a swing.
+  if(G.scene==="play" && G.tut && G.tut.active){ const r=ui.tutSkipRect; if(r && r.w && x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ sim.tutSkip(); return true; } }
   if(G.scene==="dead"){ sim.respawn(); return true; }
   if(G.scene==="victory"){ sim.dismissVictory(); return true; } // CAS-123: tap to free play
   if(G.scene==="dialogue"){ sim.advanceDialogue(); return true; }

@@ -122,6 +122,9 @@ export function createRenderer(ctx){
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
     if(G.scene==="victory") renderVictory();
+    // CAS-128: onboarding coachmarks — drawn only in free play, never over a panel, so
+    // they teach without blocking. Cleared once finished/skipped (G.tut.active=false).
+    if(G.scene==="play" && G.tut && G.tut.active) renderTutorial();
     renderToast();
     if(isTouch && G.scene==="play") renderTouch();
     if(G.settings.crt) renderCRT();
@@ -945,7 +948,7 @@ export function createRenderer(ctx){
     ui.shopRects.push({x:x+bw/2-60,y:cy,w:120,h:24,act:()=>{G.scene="play";G.healShop=false;G.merchantShop=false;}});
   }
 
-  function renderPause(){ const bw=Math.min(VW*0.8,400), bh=380, x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
+  function renderPause(){ const bw=Math.min(VW*0.8,400), bh=430, x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.pauseTitle,VW/2,y+40);
     ctx.fillStyle=COL.textDim; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingsTitle,VW/2,y+70);
     ui.pauseRects=[]; const opts=[
@@ -955,6 +958,8 @@ export function createRenderer(ctx){
       [STR.settingCRT+": "+(G.settings.crt?"ON":"OFF"),()=>{G.settings.crt=!G.settings.crt;}],
       [STR.settingRollDir+": "+(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove),()=>{G.settings.rollAim=!G.settings.rollAim;}],
       ["Sonido: "+(audio.on?"ON":"OFF"),()=>audio.setEnabled(!audio.on)],
+      // CAS-128: replay the onboarding guide on demand (returning players never auto-get it).
+      [STR.tutReplay,()=>{ G.scene="play"; sim.startTutorial(); }],
     ];
     // CAS-113: "Nueva partida" — wipes the localStorage save + restarts clean.
     // Two-tap arm/confirm so an accidental click can't nuke a run; the arm clears
@@ -1017,6 +1022,35 @@ export function createRenderer(ctx){
     if(line) ctx.fillText(line,x,yy); return yy; }
   function fmtTime(s){ s=Math.max(0,Math.floor(s)); const m=Math.floor(s/60); const ss=s%60; return m+"m "+(ss<10?"0":"")+ss+"s"; }
 
+  // CAS-128: the onboarding coachmark card. Top-centre (below the zone/objective HUD,
+  // clear of the bottom touch joystick + action buttons), device-aware copy, with a
+  // Skip button (writes ui.tutSkipRect for the input layer). No screen dim — it teaches
+  // over live play. Deterministic: reads G.tut only, no RNG.
+  function tutWrap(txt,maxW){ const words=String(txt).split(" "); const out=[]; let line="";
+    for(const w of words){ const t=line?line+" "+w:w; if(ctx.measureText(t).width>maxW && line){ out.push(line); line=w; } else line=t; }
+    if(line) out.push(line); return out; }
+  function renderTutorial(){ const t=G.tut; if(!t) return; const step=sim.TUT_STEPS[t.i];
+    let head, body, showSkip=true, prog=true;
+    if(step==="done"){ head=STR.tutDoneHead; body=STR.tutDone; showSkip=false; prog=false; }
+    else { head=STR.tutHead[step]||STR.tutTitle; const s=STR.tutSteps[step]; body=s?(isTouch?s.touch:s.pc):""; }
+    const cw=Math.min(VW*0.86,460), cx=VW/2, x=cx-cw/2, y=VH*0.15, lh=17;
+    ctx.font="13px 'Courier New'"; const lines=tutWrap(body, cw-28);
+    const ch=44 + lines.length*lh + 14;
+    // card
+    ctx.fillStyle="rgba(8,10,14,0.86)"; ctx.fillRect(x,y,cw,ch);
+    ctx.fillStyle=step==="done"?COL.heal:COL.textGold; ctx.fillRect(x,y,cw,3);
+    // header strip: title · step  (left)  +  skip (right)
+    ctx.textAlign="left"; ctx.font="bold 12px 'Courier New'"; ctx.fillStyle=COL.textGold;
+    ctx.fillText(prog?(STR.tutTitle+"  ·  "+STR.tutStepLabel(t.i+1, sim.TUT_NSTEPS)):STR.tutTitle, x+14, y+18);
+    if(showSkip){ const st=STR.tutSkip; ctx.font="bold 12px 'Courier New'"; const sw=ctx.measureText(st).width+16, sx=x+cw-sw-10, sy=y+5, sh=18;
+      ctx.fillStyle="#20262f"; ctx.fillRect(sx,sy,sw,sh); ctx.fillStyle=COL.cream; ctx.textAlign="center"; ctx.fillText(st, sx+sw/2, sy+13);
+      ui.tutSkipRect={x:sx,y:sy,w:sw,h:sh}; }
+    else ui.tutSkipRect={x:0,y:0,w:0,h:0};
+    // action verb + wrapped instruction
+    ctx.textAlign="center"; ctx.fillStyle=step==="done"?COL.heal:"#9be7ff"; ctx.font="bold 13px 'Courier New'"; ctx.fillText(head, cx, y+36);
+    ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; let yy=y+54; for(const ln of lines){ ctx.fillText(ln, cx, yy); yy+=lh; }
+    ctx.textAlign="left";
+  }
   function renderToast(){ if(G.toastT<=0) return; const a=clamp(G.toastT,0,1); ctx.globalAlpha=a; ctx.textAlign="center";
     ctx.font="bold 15px 'Courier New'"; const w=ctx.measureText(G.toast).width+24; ctx.fillStyle="rgba(8,10,14,0.9)"; ctx.fillRect(VW/2-w/2,VH*0.18,w,30);
     ctx.fillStyle=COL.panelB; ctx.fillRect(VW/2-w/2,VH*0.18,w,3); ctx.fillStyle=COL.textGold; ctx.fillText(G.toast,VW/2,VH*0.18+20); ctx.globalAlpha=1; }
@@ -1106,6 +1140,13 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.fillText(String(i+1),rx+10,ry+18);
       ui.classRects.push({x:rx,y:ry,w:cw,h:ch,cls});
     }
+    // CAS-128: contextual help for the highlighted class — its role + a one-line fantasy
+    // (attack flavour) so a first-time player picks with intent, not at random. Updates
+    // live as the selection moves (1-5 / ←→ / tap-focus).
+    const selCls=CLASS_LIST[G.classSel]||CLASS_LIST[0], info=(STR.classes&&STR.classes[selCls]);
+    if(info){ const hy=cy+ch/2+26;
+      ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(info.name+" — "+info.role, VW/2, hy);
+      ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(info.attack, VW/2, hy+20); }
   }
   function drawMenuEmblem(x,y){ ctx.save(); ctx.translate(x,y);
     ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(0,0,26,0,6.28); ctx.fill(); ctx.fillStyle="#6b4a2a"; ctx.beginPath(); ctx.arc(0,0,22,0,6.28); ctx.fill();
