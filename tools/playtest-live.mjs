@@ -52,6 +52,22 @@ async function gameFrame(page) {
   throw new Error("game frame with __dev never appeared");
 }
 
+// CAS-113 persistence shares localStorage across all pages in this browser, so a
+// prior session's autosave makes a fresh page boot straight into 'play' (rehydrate),
+// never showing the menu. Resolve the game frame, wipe any save + suppress writes,
+// and reload once if we already rehydrated — guaranteeing a true menu boot.
+async function cleanFrame(p) {
+  let fr = await gameFrame(p);
+  await fr.evaluate(() => { try { window.__dev.clearSave(); window.__dev.noSave(); } catch (e) {} });
+  const sc = await fr.evaluate(() => window.__dev.scene());
+  if (sc !== "menu") {
+    await p.reload({ waitUntil: "load", timeout: 30000 });
+    fr = await gameFrame(p);
+    await fr.evaluate(() => { try { window.__dev.clearSave(); window.__dev.noSave(); } catch (e) {} });
+  }
+  return fr;
+}
+
 // menu -> classsel -> play for a given class. Operates on the game frame.
 async function enterAs(fr, cls) {
   await fr.waitForFunction("window.__dev && window.__dev.scene && window.__dev.scene()==='menu'", { timeout: 20000 });
@@ -103,7 +119,7 @@ try {
     wire(p, errs);
     await p.goto(LIVE, { waitUntil: "load", timeout: 30000 });
     let hero = null, ok = false;
-    try { const fr = await gameFrame(p); hero = await enterAs(fr, cls); ok = !!(hero && hero.cls); } catch (e) { errs.push(`flow: ${e.message}`); }
+    try { const fr = await cleanFrame(p); hero = await enterAs(fr, cls); ok = !!(hero && hero.cls); } catch (e) { errs.push(`flow: ${e.message}`); }
     await sleep(300);
     await p.screenshot({ path: shot(`02-class-${cls}`) });
     classResults.push({ cls, ok, hero, errors: errs });
@@ -123,7 +139,7 @@ try {
     window.requestAnimationFrame = (cb) => raf((t) => { window.__frames++; return cb(t); });
   });
   await g.goto(LIVE, { waitUntil: "load", timeout: 30000 });
-  const gf = await gameFrame(g);
+  const gf = await cleanFrame(g);
   await enterAs(gf, "warrior");
 
   // ---- PHASE 3: movement + collision ----
@@ -147,18 +163,29 @@ try {
     boundedFinite: !!(pWall && Number.isFinite(pWall.x) && Number.isFinite(pWall.y)) };
 
   // ---- PHASE 4: directional combat (CAS-8) + combat-feel (CAS-20) ----
-  // spawn a ring of wolves around the hero, then sweep aim+attack via pointer clicks.
+  // Spawn a TIGHT ring of wolves WITHIN basic-melee range (warrior cfg.range ~ point
+  // blank; the old 70-80px ring sat OUTSIDE a melee class's reach, so stationary clicks
+  // never connected and `killed` read a false 0). Then sweep aim+attack via real pointer
+  // clicks (CAS-8 input path). Verdict comes from the REAL hit-path floaters the engine
+  // emits (damage numbers + the on-kill "+N XP" reward), which is immune to the ambient
+  // world spawns that inflate raw enemyCount.
   const spawnRes = await gf.evaluate(() => {
-    const offs = [[80,0],[-80,0],[0,80],[0,-80],[70,70],[-70,-70],[70,-70],[-70,70]];
+    try { window.__dev.clearFx && window.__dev.clearFx(); } catch (e) {}
+    const offs = [[34,0],[-34,0],[0,34],[0,-34],[30,30],[-30,-30],[30,-30],[-30,30]];
     let n = 0; for (const [dx,dy] of offs) { try { window.__dev.spawn("wolf", dx, dy); n++; } catch(e){} }
     return { spawned: n, count: window.__dev.enemyCount() };
   });
   const enemiesBefore = spawnRes.count;
-  // sweep: dispatch pointerdown at 8 screen directions around canvas center (=aim+attack), repeat.
-  await gf.evaluate(async () => {
+  // sweep: dispatch pointerdown at 8 screen directions around canvas center (=aim+attack),
+  // repeat. Floaters are short-lived (rise+fade in well under a second), so we SAMPLE the
+  // engine's hit-path output INSIDE the sweep loop — counting any damage-number floater
+  // ("-20") and any on-kill "+N XP" floater as they appear, instead of reading once after
+  // a post-sweep delay (which let them all expire → false 0).
+  const combatEv = await gf.evaluate(async () => {
+    const d = window.__dev;
     const cv = document.getElementById("c");
     const r = cv.getBoundingClientRect();
-    const cx = r.left + r.width / 2, cy = r.top + r.height / 2, R = 160;
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2, R = 120;
     const dirs = Array.from({ length: 8 }, (_, i) => i * Math.PI / 4);
     const fire = (ang) => {
       const x = cx + Math.cos(ang) * R, y = cy + Math.sin(ang) * R;
@@ -167,17 +194,37 @@ try {
       cv.dispatchEvent(new PointerEvent("pointerdown", o));
       cv.dispatchEvent(new PointerEvent("pointerup", o));
     };
-    for (let pass = 0; pass < 12; pass++) {
-      for (const d of dirs) { fire(d); await new Promise((res) => setTimeout(res, 60)); }
+    let dmg = 0, xp = 0; let lastSample = [];
+    const seen = new Set();
+    const sample = () => {
+      const fl = (d.floaterDump ? d.floaterDump() : []);
+      lastSample = fl.slice(-6);
+      for (const f of fl) {
+        const t = String(f.txt);
+        // stable-ish key so the same on-screen floater isn't double counted across samples
+        const key = t + ":" + (f.pop || 1) + ":" + (f.col || "");
+        if (seen.has(key)) continue; seen.add(key);
+        if (/XP/i.test(t)) xp++;
+        else if (/^-?\d/.test(t)) dmg++;
+      }
+    };
+    for (let pass = 0; pass < 16; pass++) {
+      for (const dir of dirs) { fire(dir); await new Promise((res) => setTimeout(res, 55)); }
+      sample();
     }
+    sample();
+    return { enemiesAfter: d.enemyCount(), dmgFloaters: dmg, xpFloaters: xp, sample: lastSample };
   });
-  await sleep(400);
   await g.screenshot({ path: shot("03-combat") });
-  const enemiesAfter = await gf.evaluate(() => window.__dev.enemyCount());
+  const hitsLand = combatEv.dmgFloaters > 0;
+  const killsLand = combatEv.xpFloaters > 0;
   report.phases.combat = {
-    enemiesBefore, enemiesAfter, killed: enemiesBefore - enemiesAfter,
-    note: "hits land if killed>0; combat-feel (hitstop/strikeflash/perfect-dodge) present in CAS-20 build — verified visually in screenshot",
+    enemiesBefore, enemiesAfter: combatEv.enemiesAfter,
+    dmgFloaters: combatEv.dmgFloaters, xpFloaters: combatEv.xpFloaters, sample: combatEv.sample,
+    hitsLand, killsLand, pass: hitsLand,
+    note: "PASS = clicks produce damage-number floaters via the real heroAttack->hitEnemy path; '+N XP' floaters confirm kills. enemyCount delta is ambient-confounded so not the verdict. Combat-feel (hitstop/strikeflash/perfect-dodge, CAS-20) verified visually in screenshot.",
   };
+  if (!hitsLand) report.bugs.push("combat: no damage floaters after 128 pointer-click attacks on an in-range wolf ring");
 
   // ---- PHASE 5: perf / FPS under sustained movement ----
   const fpsSamples = [];
