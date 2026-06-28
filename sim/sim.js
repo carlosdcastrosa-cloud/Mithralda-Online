@@ -18,7 +18,7 @@ import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, 
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, rollGearInst, equippedDmg, equippedDef } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, rollGearInst, equippedDmg, equippedDef } from "./gear.js";
 
 // feedback floater palette (presentation hints carried by sim events)
 const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
@@ -90,6 +90,56 @@ function initHunts(){ const o={}; for(const z in HUNTS) o[z]={kills:0, champ:nul
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
 export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.scene="play"; G.started=true; }
+
+// --------------------- CAS-113: progression persistence -----------------
+// The sim owns SERIALIZATION of its authoritative progression state (a Stage-2
+// server would persist the same fields); the storage medium (localStorage) and
+// save cadence live in the controller (persist.js) so the deterministic core
+// keeps ZERO DOM/web-storage access. Bump SAVE_VERSION to invalidate old blobs.
+export const SAVE_VERSION = 1;
+function num(v,dflt){ return (typeof v==="number" && isFinite(v))?v:dflt; }
+// Validate a stored gear instance against the gear data; drop anything unknown so
+// a corrupted/old save can never render or compute against a missing def.
+function safeInst(inst){ return (inst && inst.slot && gearDef(inst.slot,inst.defId)) ? {slot:inst.slot,defId:inst.defId,rarity:RARITY_VALID(inst.rarity)} : null; }
+function RARITY_VALID(r){ return (r==="common"||r==="uncommon"||r==="rare"||r==="epic")?r:"common"; }
+// Snapshot the DURABLE hero progression as a plain JSON-safe blob. Transient
+// combat/anim/buff state is intentionally excluded (rehydrated clean), and any
+// active timed buff is stripped from the bonus sinks so only PERMANENT power is
+// saved — a save taken mid-buff can never bake the buff in forever.
+export function serializeSave(){
+  const h=G.hero; if(!h) return null;
+  const permDmg=h.dmgBonus-(h.dmgBuffT>0?h.dmgBuffAmt:0);
+  const permDef=h.defBonus-(h.defBuffT>0?h.defBuffAmt:0);
+  return { version:SAVE_VERSION, name:h.name, cls:h.cls,
+    gold:h.gold, lvl:h.lvl, xp:h.xp, xpNext:h.xpNext,
+    maxHp:h.maxHp, maxMp:h.maxMp, baseDmg:h.baseDmg, dmgBonus:permDmg, defBonus:permDef,
+    upg:{dmg:(h.upg&&h.upg.dmg)||0, hp:(h.upg&&h.upg.hp)||0, def:(h.upg&&h.upg.def)||0},
+    potHP:h.potHP, potMP:h.potMP, blessings:h.blessings,
+    equip:{weapon:h.equip.weapon, body:h.equip.body, shield:h.equip.shield}, bag:h.bag,
+    quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
+}
+// Rehydrate a save blob into a live hero and enter play. Returns false (without
+// mutating state) on version mismatch / bad data, so the controller can discard
+// the save and fall back to the normal class-selection flow — never crashes.
+export function loadSave(d){
+  if(!d || d.version!==SAVE_VERSION || typeof d.cls!=="string" || !CLASS_STATS[d.cls]) return false;
+  try{
+    const h=newHero(typeof d.name==="string"?d.name:"Héroe", d.cls);
+    h.gold=num(d.gold,h.gold); h.lvl=Math.max(1,Math.floor(num(d.lvl,1)));
+    h.xp=Math.max(0,num(d.xp,0)); h.xpNext=num(d.xpNext, xpForLevel(h.lvl));
+    h.maxHp=num(d.maxHp,h.maxHp); h.maxMp=num(d.maxMp,h.maxMp);
+    h.baseDmg=num(d.baseDmg,h.baseDmg); h.dmgBonus=num(d.dmgBonus,0); h.defBonus=num(d.defBonus,0);
+    if(d.upg) h.upg={dmg:Math.max(0,Math.floor(num(d.upg.dmg,0))), hp:Math.max(0,Math.floor(num(d.upg.hp,0))), def:Math.max(0,Math.floor(num(d.upg.def,0)))};
+    h.potHP=Math.max(0,Math.floor(num(d.potHP,h.potHP))); h.potMP=Math.max(0,Math.floor(num(d.potMP,h.potMP))); h.blessings=Math.max(0,Math.floor(num(d.blessings,0)));
+    if(d.equip){ for(const slot of ["weapon","body","shield"]){ const ok=safeInst(d.equip[slot]); if(ok) h.equip[slot]=ok; } }
+    if(Array.isArray(d.bag)) h.bag=d.bag.map(safeInst).filter(Boolean).slice(0,16);
+    h.hp=h.maxHp; h.mp=h.maxMp;                       // always respawn at full
+    G.hero=h; G.hunts=initHunts(); G.fields.length=0;
+    if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
+    G.scene="play"; G.started=true;
+    return true;
+  }catch(e){ return false; }
+}
 
 // ----------------------------- helpers ---------------------------------
 export function toast(msg,dur){ G.toast=msg; G.toastT=dur||2.6; }

@@ -13,12 +13,13 @@
 // A Stage-2 networking layer wraps sim/ by feeding intents per tick and ignoring
 // render/audio/view — no rewrite of the gameplay logic required.
 // ===========================================================================
-import { configure as configureSim, G, update as simUpdate, dev as simDev } from "./sim/sim.js";
+import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets } from "./render/sprites.js";
+import * as persist from "./persist.js";
 
 export function createGame(canvas, ctx, getView){
   // wire the simulation's injected dependencies (input intents, audio, viewport)
@@ -27,7 +28,8 @@ export function createGame(canvas, ctx, getView){
   const renderer = createRenderer(ctx);
 
   // one fixed simulation step + the menu DOM sync (the only DOM the loop touches)
-  function update(dtMs){ simUpdate(dtMs); syncMenuDom(); }
+  // CAS-113: throttled progression autosave rides the sim step (never per-frame).
+  function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); syncMenuDom(); }
   function render(alpha){ renderer.render(alpha); }
   function onResize(w,h){ view.VW=w; view.VH=h; if(G.scene==="menu") positionNameInput(); }
   function onFocusLost(){ if(G.scene==="play") G.scene="pause"; }
@@ -35,6 +37,10 @@ export function createGame(canvas, ctx, getView){
 
   // boot
   loadAllAssets();
+  // CAS-113: rehydrate a saved run BEFORE the menu DOM syncs — a valid save jumps
+  // straight into play (skipping name/class); no/invalid save leaves the menu flow.
+  persist.boot();
+  persist.initFlush();
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
     window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)
@@ -73,7 +79,11 @@ export function createGame(canvas, ctx, getView){
       merchantTP:()=>simDev.merchantTP(), shopList:()=>simDev.shopList(), shopBuy:(i)=>simDev.shopBuy(i),
       heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
       spellProbe:(cls)=>simDev.spellProbe(cls),
-      dotProbe:()=>simDev.dotProbe() };
+      dotProbe:()=>simDev.dotProbe(),
+      // CAS-113 persistence contract consumed by tools/persist.mjs — additive
+      saveBlob:()=>serializeSave(), saveNow:()=>persist.save(),
+      hasSave:()=>persist.hasSave(), clearSave:()=>persist.clear(),
+      noSave:()=>persist.suppress(), resetGame:()=>persist.resetGame() };
   }
   syncMenuDom(); positionNameInput();
 

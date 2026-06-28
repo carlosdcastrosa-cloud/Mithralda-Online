@@ -18,6 +18,7 @@ import { STR } from "../strings.js";
 import { audio } from "../audio.js";
 import { view, zoom } from "../view.js";
 import { COL } from "./palette.js";
+import { resetGame } from "../persist.js";   // CAS-113: pause-menu "Nueva partida"
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
   ANIM, ENEMY_ANIM, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
@@ -377,7 +378,11 @@ export function createRenderer(ctx){
       const S=1.0, feet=n.y+14, fi=frameIndex(ach,"idle",G.t,6,true);
       drawAnim(ctx,ach,"idle",fi,n.x,feet,S,false,null);
       topY=feet-ANIM[ach].fh.idle*S;
-    } else { const spr=SP[n.sprite]; blit(ctx,spr.rows,spr.pal,n.x,n.y,3,false); topY=n.y-spr.rows.length*3/2; }
+    } else { const spr=SP[n.sprite];
+      // CAS-113: an animated NPC has NO SP fallback entry — while its strip image is
+      // still loading (e.g. when we rehydrate a save straight into play), skip the
+      // body this frame instead of crashing on a missing sprite.
+      if(spr){ blit(ctx,spr.rows,spr.pal,n.x,n.y,3,false); topY=n.y-spr.rows.length*3/2; } else { topY=n.y-20; } }
     // marker
     const near=dist2(G.hero.x,G.hero.y,n.x,n.y)<CFG.talkRange*CFG.talkRange;
     let mk = n.role==="quest" && !G.quest.rewarded ? "!" : (near?"E":"");
@@ -646,7 +651,7 @@ export function createRenderer(ctx){
     ui.shopRects.push({x:x+bw/2-60,y:cy,w:120,h:24,act:()=>{G.scene="play";G.healShop=false;G.merchantShop=false;}});
   }
 
-  function renderPause(){ const bw=Math.min(VW*0.8,400), bh=300, x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
+  function renderPause(){ const bw=Math.min(VW*0.8,400), bh=380, x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.pauseTitle,VW/2,y+40);
     ctx.fillStyle=COL.textDim; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingsTitle,VW/2,y+70);
     ui.pauseRects=[]; const opts=[
@@ -655,8 +660,18 @@ export function createRenderer(ctx){
       [STR.settingRollDir+": "+(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove),()=>{G.settings.rollAim=!G.settings.rollAim;}],
       ["Sonido: "+(audio.on?"ON":"OFF"),()=>audio.setEnabled(!audio.on)],
     ];
-    let oy=y+90; for(const [label,act] of opts){ ctx.fillStyle="#20262f"; ctx.fillRect(x+30,oy,bw-60,30); ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,VW/2,oy+20); ui.pauseRects.push({x:x+30,y:oy,w:bw-60,h:30,act}); oy+=38; }
-    ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-80,oy+6,160,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,oy+26); ui.pauseRects.push({x:x+bw/2-80,y:oy+6,w:160,h:30,act:()=>{G.scene="play";}});
+    // CAS-113: "Nueva partida" — wipes the localStorage save + restarts clean.
+    // Two-tap arm/confirm so an accidental click can't nuke a run; the arm clears
+    // when the player resumes (see resume button below).
+    if(G.resetArm){
+      opts.push(["⚠ ¿Borrar progreso? — SÍ, BORRAR", ()=>{ G.resetArm=false; resetGame(); }]);
+      opts.push(["Cancelar", ()=>{ G.resetArm=false; }]);
+    } else {
+      opts.push(["Nueva partida (borrar guardado)", ()=>{ G.resetArm=true; }]);
+    }
+    let oy=y+90; for(const [label,act] of opts){ const danger=/BORRAR|Nueva partida/.test(label);
+      ctx.fillStyle=danger?"#3a2222":"#20262f"; ctx.fillRect(x+30,oy,bw-60,30); ctx.fillStyle=danger?"#f0a0a0":COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,VW/2,oy+20); ui.pauseRects.push({x:x+30,y:oy,w:bw-60,h:30,act}); oy+=38; }
+    ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-80,oy+6,160,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,oy+26); ui.pauseRects.push({x:x+bw/2-80,y:oy+6,w:160,h:30,act:()=>{G.resetArm=false;G.scene="play";}});
   }
 
   function renderDeath(){ ctx.fillStyle="rgba(40,8,8,0.6)"; ctx.fillRect(0,0,VW,VH);

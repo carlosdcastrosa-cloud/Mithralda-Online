@@ -15,6 +15,7 @@
     "field": "node tools/field-dot-check.mjs",
     "hunt": "node tools/hunt.mjs",
     "shop": "node tools/shop.mjs",
+    "persist": "node tools/persist.mjs",
     "hero-live": "node tools/hero-sprite-live.mjs",
     "stamp": "node tools/stamp-version.mjs",
     "stamp:check": "node tools/stamp-version.mjs --check",

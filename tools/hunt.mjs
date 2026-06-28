@@ -54,6 +54,12 @@ const srv = await startServer();
 const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: LAUNCH_ARGS });
 
 async function enterPlay(page) {
+  // CAS-113: another page in this shared browser may have left a localStorage save,
+  // which boot() would rehydrate straight into play — clear it on (re)load so this
+  // harness always starts from the menu flow it expects.
+  await page.evaluateOnNewDocument(() => { try { localStorage.removeItem("mithralda.save.v1"); } catch (e) {} });
+  await page.waitForFunction("window.__dev && window.__dev.scene", { timeout: 15000 });
+  if (await page.evaluate(() => window.__dev.scene() !== "menu")) await page.reload({ waitUntil: "load" });
   await page.waitForFunction("window.__dev && window.__dev.scene && window.__dev.scene() === 'menu'", { timeout: 15000 });
   await page.evaluate(() => {
     document.getElementById("nameInput").value = "HuntBot";

@@ -64,7 +64,7 @@ function edge(code){
     else if(code==="KeyP"){ sim.doPotionHP(); }
     else if(code==="KeyO"){ sim.doPotionMP(); }
     return; }
-  if(G.scene==="pause"){ if(code==="Escape") G.scene="play";
+  if(G.scene==="pause"){ if(code==="Escape"){ G.resetArm=false; G.scene="play"; }
     else if(code==="Digit1"){G.settings.shake=G.settings.shake>0?0:1;}
     else if(code==="Digit2"){G.settings.crt=!G.settings.crt;}
     else if(code==="Digit3"){G.settings.rollAim=!G.settings.rollAim;}

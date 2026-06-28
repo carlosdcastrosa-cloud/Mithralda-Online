@@ -42,6 +42,10 @@ try {
     page.on("console", (m) => { if (m.type() === "error") errors.push(`[classsel] console.error: ${m.text()}`); });
     await page.goto(`${srv.url}/index.html?dev`, { waitUntil: "load" });
     await page.bringToFront();
+    // CAS-113: clear any rehydratable save left by a prior page so we start at menu.
+    await page.evaluateOnNewDocument(() => { try { localStorage.removeItem("mithralda.save.v1"); } catch (e) {} });
+    await page.waitForFunction("window.__dev && window.__dev.scene", { timeout: 15000 });
+    if (await page.evaluate(() => window.__dev.scene() !== "menu")) await page.reload({ waitUntil: "load" });
     await page.waitForFunction("window.__dev && window.__dev.scene && window.__dev.scene()==='menu'", { timeout: 15000 });
     await page.evaluate(() => { document.getElementById("nameInput").value = "QA"; window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })); });
     await page.waitForFunction("window.__dev.scene()==='classsel'", { timeout: 5000 });
@@ -63,6 +67,10 @@ try {
     page.on("console", (m) => { if (m.type() === "error") errors.push(`[${c.cls}] console.error: ${m.text()}`); });
     await page.goto(`${srv.url}/index.html?dev`, { waitUntil: "load" });
     await page.bringToFront();
+    // CAS-113: clear any rehydratable save left by a prior page so we start at menu.
+    await page.evaluateOnNewDocument(() => { try { localStorage.removeItem("mithralda.save.v1"); } catch (e) {} });
+    await page.waitForFunction("window.__dev && window.__dev.scene", { timeout: 15000 });
+    if (await page.evaluate(() => window.__dev.scene() !== "menu")) await page.reload({ waitUntil: "load" });
     await page.waitForFunction("window.__dev && window.__dev.scene && window.__dev.scene()==='menu'", { timeout: 15000 });
     await page.evaluate(() => { document.getElementById("nameInput").value = "QA"; window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })); });
     await page.waitForFunction("window.__dev.scene()==='classsel'", { timeout: 5000 });
