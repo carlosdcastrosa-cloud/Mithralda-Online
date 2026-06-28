@@ -228,7 +228,13 @@ export function createRenderer(ctx){
     for(const f of G.fields) drawField(f);
     for(const p of G.projectiles) drawProjectile(p);
     for(const f of G.fx) drawFx(f);
-    for(const f of G.floaters){ ctx.globalAlpha=clamp(1-f.t/f.life,0,1); ctx.font="bold 13px 'Courier New',monospace"; ctx.textAlign="center"; ctx.fillStyle=COL.out; ctx.fillText(f.txt,f.x+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(f.txt,f.x,f.y); ctx.globalAlpha=1; }
+    // CAS-127: damage numbers POP — a brief over-scale on spawn (eased down over ~0.16s)
+    // then settle. Crits pop biggest; DoT/status ticks render small + status-coloured.
+    // Pure presentation off pooled floater flags; no allocation, no sim state touched.
+    for(const f of G.floaters){ const k=clamp(1-f.t/f.life,0,1); ctx.globalAlpha=k;
+      const base=f.small?10:13; const pk=(f.pop&&f.pop>1)?1+(f.pop-1)*clamp(1-f.t/0.16,0,1):1; const sz=Math.round(base*pk);
+      ctx.font="bold "+sz+"px 'Courier New',monospace"; ctx.textAlign="center";
+      ctx.fillStyle=COL.out; ctx.fillText(f.txt,f.x+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(f.txt,f.x,f.y); ctx.globalAlpha=1; }
   }
 
   function drawHero(h){
@@ -625,6 +631,13 @@ export function createRenderer(ctx){
       ctx.globalAlpha=k; ctx.fillStyle=col; for(let i=0;i<14;i++){ const a=i/14*6.28; const r3=r2*0.9;
         ctx.beginPath(); ctx.moveTo(f.x+Math.cos(a)*r3,f.y+Math.sin(a)*r3); ctx.lineTo(f.x+Math.cos(a)*(r2+10),f.y+Math.sin(a)*(r2+10)); ctx.lineWidth=3; ctx.stroke(); }
       ctx.globalAlpha=1; }
+    // CAS-127: level-up flourish — twin gold rings expanding off the hero's feet.
+    else if(f.kind==="lvlring"){ const r=sw*48; ctx.globalAlpha=k*0.9; ctx.strokeStyle="#ffe27a"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y+6,r,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k*0.55; ctx.strokeStyle="#fff6d0"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y+6,r*0.6,0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
+    // CAS-127: rarity-coloured loot-pickup pop — an expanding ring + a quick sparkle ring
+    // in the item's rarity colour, so collecting an item reads with weight.
+    else if(f.kind==="lootpop"){ const col=f.col||"#cfe0ff", r=sw*30; ctx.globalAlpha=k*0.85; ctx.strokeStyle=col; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k; ctx.fillStyle=col; for(let i=0;i<6;i++){ const a=i/6*6.28+f.t*5; const r3=sw*34; ctx.fillRect(f.x+Math.cos(a)*r3-1.5,f.y+Math.sin(a)*r3-1.5,3,3); } ctx.globalAlpha=1; }
   }
   function drawAtkFx(cls,x,y,ang,p){ const a=Math.sin(Math.min(1,p)*Math.PI); if(a<=0.04) return;
     const dx=Math.cos(ang),dy=Math.sin(ang); ctx.save(); ctx.globalAlpha=a;
@@ -937,6 +950,8 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textDim; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingsTitle,VW/2,y+70);
     ui.pauseRects=[]; const opts=[
       [STR.settingShake+": "+(G.settings.shake>0?"ON":"OFF"),()=>{G.settings.shake=G.settings.shake>0?0:1;}],
+      // CAS-127: accessibility off-switch — kills screen shake + trims flourish particles.
+      [STR.settingReduceMotion+": "+(G.settings.reduceMotion?"ON":"OFF"),()=>{G.settings.reduceMotion=!G.settings.reduceMotion; if(G.settings.reduceMotion) G.shake=0;}],
       [STR.settingCRT+": "+(G.settings.crt?"ON":"OFF"),()=>{G.settings.crt=!G.settings.crt;}],
       [STR.settingRollDir+": "+(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove),()=>{G.settings.rollAim=!G.settings.rollAim;}],
       ["Sonido: "+(audio.on?"ON":"OFF"),()=>audio.setEnabled(!audio.on)],

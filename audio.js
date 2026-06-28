@@ -36,6 +36,9 @@ export const audio = (()=>{
     rune(){ tone(294,0.26,"sawtooth",0.2,sfxGain,588); tone(392,0.26,"square",0.12,sfxGain); },
     hurt(){ tone(160,0.16,"square",0.22,sfxGain,90); noise(0.1,0.18,500); },
     ehurt(){ tone(220,0.07,"square",0.12,sfxGain,140); },
+    // CAS-127: a crit reads as a brighter, layered "ching" distinct from a normal hit —
+    // a high square slide + a metallic upper harmonic + a short bright noise transient.
+    crit(){ tone(880,0.10,"square",0.20,sfxGain,1500); tone(1320,0.09,"triangle",0.14,sfxGain); noise(0.05,0.14,3200); },
     coin(){ tone(880,0.06,"square",0.16,sfxGain); tone(1320,0.08,"square",0.14,sfxGain); },
     pickup(){ tone(660,0.07,"triangle",0.16,sfxGain,990); },
     levelup(){ [0,4,7,12].forEach((n,i)=>setTimeout(()=>tone(330*semis(n),0.18,"square",0.2,sfxGain),i*90)); },

@@ -53,7 +53,9 @@ export const G = {
   victory:null,
   talFocus:0,   // CAS-119: keyboard-focused talent node index (talents panel)
   t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
-  cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false},
+  // CAS-127: reduceMotion is the accessibility off-switch — it gates screen shake and
+  // trims flourish particle bursts (never changes balance/mechanics; purely cosmetic).
+  cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false, reduceMotion:false},
   quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0,
   toast:"", toastT:0, music:"town", arenaWarned:false, bossDead:false,
   skull:{level:0, t:0, kills:0, killT:0}, started:false,
@@ -178,9 +180,28 @@ export function loadSave(d){
 
 // ----------------------------- helpers ---------------------------------
 export function toast(msg,dur){ G.toast=msg; G.toastT=dur||2.6; }
-function floater(x,y,txt,col){ G.floaters.push({x,y,txt,col:col||C_CREAM,t:0,life:0.9}); }
-function addFx(kind,x,y,opt){ G.fx.push(Object.assign({kind,x,y,t:0,life:0.4},opt)); }
-function shakeAdd(a){ G.shake=Math.min(14, G.shake + a*(G.settings.shake)); }
+// CAS-127 — pooled, capped cosmetic feedback. Floaters & FX are the hottest
+// transient allocators in a dense pack (CAS-126 stress case): without a cap they
+// grow unbounded and the per-frame .filter() reallocated the whole array every
+// frame (GC churn → frame-budget spikes). Floaters reuse a free list (uniform
+// shape → zero steady-state alloc); FX are capped + compacted in place. Hard caps
+// evict the OLDEST so the newest feedback always reads. Pure presentation: no RNG,
+// no gameplay state — Stage-2 safe.
+const MAX_FLOATERS=64, MAX_FX=140, _floatPool=[];
+function floater(x,y,txt,col,opt){
+  if(G.floaters.length>=MAX_FLOATERS) _floatPool.push(G.floaters.shift()); // recycle the oldest into the pool
+  const f=_floatPool.pop()||{};
+  f.x=x; f.y=y; f.txt=txt; f.col=col||C_CREAM; f.t=0;
+  f.life=(opt&&opt.life)||0.9; f.pop=(opt&&opt.pop)||1; f.small=!!(opt&&opt.small); f.crit=!!(opt&&opt.crit);
+  G.floaters.push(f);
+}
+function addFx(kind,x,y,opt){ if(G.fx.length>=MAX_FX) G.fx.shift(); G.fx.push(Object.assign({kind,x,y,t:0,life:0.4},opt)); }
+// CAS-127: reduceMotion gates screen shake entirely (the off-switch) — magnitude
+// still scales to the blow when on, so big hits read bigger; capped at 14.
+function shakeAdd(a){ if(G.settings.reduceMotion) return; G.shake=Math.min(14, G.shake + a*(G.settings.shake)); }
+// CAS-127: trim a flourish particle-burst count when reduceMotion is on (keep ≥1 so
+// the event still reads); full count otherwise. Cosmetic-only, deterministic.
+function rmCount(n){ return G.settings.reduceMotion ? Math.max(1, Math.round(n*0.34)) : n; }
 function freeze(n){ if(n>G.hitstop) G.hitstop=n; } // request a hitstop of n frames (longest wins)
 function solidBlocked(x,y,r){
   if(x<r||y<r||x>MAP_W*TS-r||y>MAP_H*TS-r) return true;
@@ -269,8 +290,10 @@ function hitEnemy(e,dmg,ang){
   let crit=false; if(tt&&tt.crit>0 && srand()*100<tt.crit){ crit=true; dmg*=(CRIT_BASE+(tt.critMult||0)/100); }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
-  if(crit){ floater(e.x,e.y-e.tpl.size,"¡"+Math.round(dmg)+"!","#ff5d5d"); addFx("spark",e.x,e.y); }
-  else floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d");
+  // CAS-127: crits read LOUDER — distinct bright SFX, a bigger popping number, an extra
+  // shake kick. Normal hits get a subtle number pop. Pure feel (damage already applied).
+  if(crit){ audio.sfx.crit(); floater(e.x,e.y-e.tpl.size,"¡"+Math.round(dmg)+"!","#ff5d5d",{crit:true,pop:1.9,life:1.05}); addFx("spark",e.x,e.y); shakeAdd(3.5); }
+  else floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d",{pop:1.3});
   addFx("spark",e.x,e.y); addFx("blood",e.x,e.y,{ang}); addFx("impact",e.x,e.y,{ang,life:0.26});
   freeze(Math.min(5, 2+Math.floor(dmg/14))); // hit pops harder the bigger the blow
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
@@ -300,7 +323,7 @@ function killEnemy(e){
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
-    gainXP(tpl.xp); for(let i=0;i<8;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
+    gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
   else if(e.champion){ onChampionKill(e); } // hunt climax — clears the zone, guaranteed payoff
   else { gainXP(tpl.xp);
     const g=ri(tpl.gold[0],tpl.gold[1]); if(g>0){ G.drops.push({x:e.x,y:e.y,kind:"gold",amt:g}); }
@@ -368,7 +391,7 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
   e.hp=e.maxHp=e.tpl.hp; e.champion=true; e.zone=zone; e.state="chase";
   H.champ=e;
   audio.sfx.boss(); toast(STR.huntChampion(e.tpl.champName),3.2); shakeAdd(B?12:8);
-  for(let i=0;i<(B?12:8);i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
+  for(let i=0,n=rmCount(B?12:8);i<n;i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
 }
 // Champion death = zone cleared. Guaranteed gear (zone tier, rarity floor) + bonus
 // xp/gold so the hunt's payoff feeds the existing gear/progression systems.
@@ -383,7 +406,7 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   if(srand()<0.5) G.drops.push({x:e.x-18,y:e.y,kind:"potionhp"});
   gainXP(e.rwdXp||cfgH.xp);
   toast(STR.huntCleared(zone),3.6);
-  for(let i=0;i<(e.capstone?16:10);i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
+  for(let i=0,n=rmCount(e.capstone?16:10);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
   // CAS-123: the FINAL boss (data flag) closes the Stage-1 arc → victory screen.
   if(e.final) winStage1();
 }
@@ -398,7 +421,7 @@ function winStage1(){ const h=G.hero; if(!h) return;
   G.victory=buildVictorySummary(h, firstWin);
   G.scene="victory"; G.music="town"; if(audio&&audio.playMusic) audio.playMusic("town");
   if(audio&&audio.sfx&&audio.sfx.levelup) audio.sfx.levelup();
-  for(let i=0;i<24;i++) addFx("heal", h.x+frr(-40,40), h.y+frr(-50,20));
+  for(let i=0,n=rmCount(24);i<n;i++) addFx("heal", h.x+frr(-40,40), h.y+frr(-50,20));
 }
 // Pick the best-rarity equipped piece (ties → weapon) as the headline "key loot".
 function bestEquipped(h){ const slots=["weapon","body","shield"]; let best=null, bestRank=-1;
@@ -420,7 +443,9 @@ function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30
     // CAS-119: every level grants a talent point (build agency). Floater makes the
     // grant visible (AC #1); the HUD ★ badge + (T) hint prompt the player to spend.
     h.talentPts=(h.talentPts||0)+1; floater(h.x,h.y-46,STR.talentPointGain,"#ffd24d");
-    h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup(); for(let i=0;i<6;i++) addFx("heal",h.x+frr(-16,16),h.y+frr(-20,6)); } }
+    h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup();
+    // CAS-127: level-up burst — a ring flourish + scattered heal sparks so the ding is felt.
+    addFx("lvlring",h.x,h.y,{life:0.6}); for(let i=0,n=rmCount(10);i<n;i++) addFx("heal",h.x+frr(-20,20),h.y+frr(-24,8)); } }
 // CAS-119: recompute the cached talent bundle after any change (alloc/respec/load)
 // and clamp current HP into the (possibly smaller) effective max so a respec that
 // drops +vida nodes can't leave the hero above their max.
@@ -535,7 +560,7 @@ function resolveSpell(h,sp){
 function fieldTick(f){
   for(const e of G.enemies){ if(e.dead) continue;
     const rr2=(f.r+e.tpl.size); if(dist2(e.x,e.y,f.x,f.y) > rr2*rr2) continue;
-    e.hp-=f.dmg; e.hurtFlash=0.12; floater(e.x,e.y-e.tpl.size,"-"+Math.round(f.dmg),"#9fe06a");
+    e.hp-=f.dmg; e.hurtFlash=0.12; floater(e.x,e.y-e.tpl.size,"-"+Math.round(f.dmg),"#9fe06a",{small:true}); // CAS-127: DoT ticks read smaller than direct hits
     if(f.status) applyStatus(e,f.status.type,f.status);   // CAS-120: field control rides CAS-118
     if(e.tpl.neutral && !e.hostile){ makeHostile(e); registerSkull(); }
     if(e.hp<=0) killEnemy(e); }
@@ -578,7 +603,7 @@ function tickDots(ent, dt, isHero){
     const def=STATUS[type]; d.t-=dt; d.acc+=dt;
     while(d.acc>=d.tick){ d.acc-=d.tick;
       ent.hp-=d.dmg; ent.hurtFlash=Math.max(ent.hurtFlash||0,0.10);
-      floater(ent.x, ent.y-(isHero?30:ent.tpl.size), "-"+d.dmg, def.col);
+      floater(ent.x, ent.y-(isHero?30:ent.tpl.size), "-"+d.dmg, def.col, {small:true}); // CAS-127: status ticks read smaller + status-coloured, distinct from hits
       if(ent.hp<=0){ dead=true; break; } }
     if(d.t<=0 || dead) delete ent.dots[type];
     if(dead) break; }
@@ -605,6 +630,10 @@ function takeGear(inst){ const h=G.hero; const st=gearStat(inst);
     let wi=0,wv=Infinity; h.bag.forEach((b,i)=>{ const v=gearStat(b); if(v<wv){ wv=v; wi=i; } });
     h.gold+=Math.max(1,Math.round(wv/2)); h.bag.splice(wi,1); toast(STR.bagFull); }
   h.bag.push(inst); audio.sfx.pickup(); toast(STR.loot(gearName(inst)));
+  // CAS-127: rarity-coloured pickup pop — a popping name floater + an expanding ring
+  // in the item's rarity colour so collecting loot reads with weight.
+  floater(h.x,h.y-30,gearName(inst),gearCol(inst),{pop:1.4,life:1.0});
+  addFx("lootpop",h.x,h.y,{col:gearCol(inst),life:0.5});
 }
 export function tryPickup(){
   const h=G.hero;
@@ -1077,8 +1106,11 @@ function updateProjectiles(dt){ const h=G.hero;
   G.projectiles=G.projectiles.filter(p=>p.life>0);
 }
 function updateDrops(dt){ for(const d of G.drops){ d.t=(d.t||0)+dt; } }
-function updateFx(dt){ for(const f of G.fx){ f.t+=dt; } G.fx=G.fx.filter(f=>f.t<f.life); }
-function updateFloaters(dt){ for(const f of G.floaters){ f.t+=dt; f.y-=24*dt; } G.floaters=G.floaters.filter(f=>f.t<f.life); }
+// CAS-127: in-place compaction (write-index) instead of .filter() — keeps the same
+// array instance every frame (no realloc/GC churn) and recycles expired floaters into
+// the pool. Order preserved; identical visible result, far cheaper under dense packs.
+function updateFx(dt){ const a=G.fx; let w=0; for(let i=0;i<a.length;i++){ const f=a[i]; f.t+=dt; if(f.t<f.life) a[w++]=f; } a.length=w; }
+function updateFloaters(dt){ const a=G.floaters; let w=0; for(let i=0;i<a.length;i++){ const f=a[i]; f.t+=dt; f.y-=24*dt; if(f.t<f.life){ a[w++]=f; } else { _floatPool.push(f); } } a.length=w; }
 
 // --------------------------- dev hooks (wired only when ?dev) ----------
 export const dev = {
@@ -1424,4 +1456,34 @@ export const dev = {
       enemyStun:+(e.stun||0).toFixed(2), enemySlowT:+(e.slowT||0).toFixed(2), dots };
     G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
     return r; },
+  // --- CAS-127 game-feel / juice harness hooks (tools/cas127-juice.mjs); additive ---
+  // Live snapshot of the feedback systems: transient counts (with their hard caps),
+  // current screen-shake, hitstop and the two accessibility/mute toggles. The harness
+  // reads this each tick to prove juice fires, stays pooled/capped, and toggles work.
+  juiceState(){ return { fx:G.fx.length, fxCap:MAX_FX, floaters:G.floaters.length, floaterCap:MAX_FLOATERS,
+    shake:+G.shake.toFixed(2), hitstop:G.hitstop|0, reduceMotion:!!G.settings.reduceMotion,
+    sound:!!(audio&&audio.on), pool:_floatPool.length }; },
+  // The most recent floaters (newest last) with their juice styling flags, so the test
+  // can assert a crit number pops bigger/distinct and DoT ticks render small.
+  floaterDump(){ return G.floaters.slice(-12).map(f=>({ txt:f.txt, col:f.col, pop:+(f.pop||1).toFixed(2), small:!!f.small, crit:!!f.crit })); },
+  setReduceMotion(v){ G.settings.reduceMotion=!!v; if(G.settings.reduceMotion) G.shake=0; return G.settings.reduceMotion; },
+  clearFx(){ G.fx.length=0; G.floaters.length=0; G.shake=0; G.hitstop=0; return true; },
+  // Clean juice arena: a tanky hero + N unscaled mobs packed in front, feedback cleared.
+  // The page loop then runs the REAL combat; the harness drives heroAttack and reads the
+  // genuine floaters/fx/shake the hit path emits — no synthetic feedback injection.
+  juiceArena(n){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; this.clearFx();
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=100000; h.hp=100000; h.dots=null; h.slowT=0; h.slow=1; h.stun=0; h.atkCD=0;
+    const k=Math.max(1,Math.min(40,n|0||12));
+    for(let i=0;i<k;i++){ const e=spawnEnemy("skeleton", h.x+24+((i%6)*9), h.y-20+Math.floor(i/6)*9); if(e){ e.maxHp=e.hp=999999; e.state="chase"; } }
+    return G.enemies.length; },
+  // Land a REAL hero swing this instant (through heroAttack → applyHeroMelee → hitEnemy)
+  // and report the feedback it produced — proves the juice rides the genuine combat path.
+  juiceSwing(){ const h=G.hero; const e=G.enemies[0]; if(e) h.facing=Math.atan2(e.y-h.y,e.x-h.x); h.atkCD=0;
+    heroAttack(); applyHeroMelee(); return this.juiceState(); },
+  // Force the next swing to crit (talent crit=100%) so the harness can prove the crit
+  // feedback (bright sfx, bigger pop floater, extra shake) without RNG flake. Restores tt.
+  forceCritSwing(){ const h=G.hero; const e=G.enemies[0]; if(!e) return null; const save=h.tt;
+    h.tt=Object.assign({},h.tt||zeroTT(),{crit:100,critMult:0}); h.facing=Math.atan2(e.y-h.y,e.x-h.x); h.atkCD=0;
+    const before=G.shake; hitEnemy(e, equippedDmg(h), h.facing); h.tt=save;
+    return { dump:this.floaterDump(), shakeDelta:+(G.shake-before).toFixed(2), shake:+G.shake.toFixed(2) }; },
 };

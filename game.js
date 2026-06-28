@@ -111,7 +111,11 @@ export function createGame(canvas, ctx, getView){
       // CAS-120 active-skill-bar contract consumed by tools/cas120-skills.mjs — additive
       skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
-      stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory() };
+      stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
+      // CAS-127 game-feel/juice contract consumed by tools/cas127-juice.mjs — additive
+      juiceState:()=>simDev.juiceState(), floaterDump:()=>simDev.floaterDump(), setReduceMotion:(v)=>simDev.setReduceMotion(v),
+      clearFx:()=>simDev.clearFx(), juiceArena:(n)=>simDev.juiceArena(n), juiceSwing:()=>simDev.juiceSwing(),
+      forceCritSwing:()=>simDev.forceCritSwing(), setSound:(v)=>audio.setEnabled(v) };
   }
   syncMenuDom(); positionNameInput();
 

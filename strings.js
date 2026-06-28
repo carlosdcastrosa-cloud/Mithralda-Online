@@ -146,6 +146,7 @@ export const STR = {
   resume: "VOLVER AL JUEGO",
   settingsTitle: "AJUSTES",
   settingShake: "Sacudida de pantalla",
+  settingReduceMotion: "Movimiento reducido",
   settingCRT: "Filtro CRT",
   settingRollDir: "Dirección de rodada",
   rollTowardMove: "Hacia el movimiento",
