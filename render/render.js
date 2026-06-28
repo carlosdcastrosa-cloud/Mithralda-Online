@@ -391,6 +391,13 @@ export function createRenderer(ctx){
       ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
       if(cap&&enr){ ctx.globalAlpha=0.28; ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr+7,(pr+7)*0.42,0,0,6.28); ctx.stroke(); }
       ctx.restore(); }
+    // CAS-146 elite-ambush leader aura — a pulsing crimson double-ring marks the promoted
+    // mob as a notable (lighter than a champion's gold ring; it is not the hunt climax).
+    if(e.elite && !e.champion){ const pr=e.tpl.size*1.25 + Math.sin(G.t*5)*2.5; ctx.save();
+      ctx.globalAlpha=0.5; ctx.strokeStyle="#ff5a3c"; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
+      ctx.globalAlpha=0.24; ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr+6,(pr+6)*0.42,0,0,6.28); ctx.stroke();
+      ctx.restore(); }
     // CAS-121 CORAZA DE ESCARCHA telegraph: while the boss channels its Freeze Nova it
     // wears a pulsing ice shell (reads as IMMUNE) and a danger ring GROWS toward the nova
     // radius over the channel — the player reads "break it with a status, or roll out".
@@ -470,6 +477,16 @@ export function createRenderer(ctx){
           ctx.beginPath(); ctx.arc(t.x,t.y,4+(fl2?2:0),0,6.28); ctx.fill();
         } else { ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.size+6,0,6.28); ctx.stroke(); }
         ctx.setLineDash([]); ctx.restore();
+      } else if(e.tpl.arch==="volatile"){
+        // CAS-146 volatile tell: a hard-pulsing red blast ring that GROWS to the full `blast`
+        // radius over the (short) windup — reads "it's about to blow, clear the circle / kill it".
+        const R=e.tpl.blast||72, prog=clamp(1-(e.st||0)/(e.tpl.windup||0.7),0,1), cy=e.y+e.tpl.size*0.3;
+        ctx.save();
+        ctx.globalAlpha=0.22+0.26*prog; ctx.fillStyle="#ff3b2e";
+        ctx.beginPath(); ctx.ellipse(e.x,cy,R*prog,R*prog*0.5,0,0,6.28); ctx.fill();
+        ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(G.t*20)); ctx.strokeStyle=fl2?"#ffe08a":"#ff5a3c"; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
+        ctx.restore();
       } else {
         ctx.globalAlpha=0.5; ctx.fillStyle=fl2?"#ffd24d":"#ff6a3a";
         ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.range+6,0,6.28); ctx.fill(); ctx.globalAlpha=1;
@@ -502,6 +519,7 @@ export function createRenderer(ctx){
     if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("GÓLEM ANCESTRAL",e.x,yy-4); }
     else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
       ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
+    else if(e.elite){ ctx.fillStyle="#ff7a4d"; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("⚔ ÉLITE",e.x,yy-3); }
     // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
     drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
   }

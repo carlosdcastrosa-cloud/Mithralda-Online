@@ -118,6 +118,9 @@ export function createGame(canvas, ctx, getView){
       // CAS-126 new-archetype + zone-identity contract consumed by tools/cas126-archetypes.mjs — additive
       zonePools:()=>simDev.zonePools(), enemyCount:()=>simDev.enemyCount(), broodCount:()=>simDev.broodCount(),
       summonProbe:()=>simDev.summonProbe(), healProbe:()=>simDev.healProbe(), archAllyHp:()=>simDev.archAllyHp(),
+      // CAS-146 enemy-variety + elite-ambush contract consumed by tools/cas146-variety.mjs — additive
+      volatileProbe:(dx)=>simDev.volatileProbe(dx), volatileSnap:()=>simDev.volatileSnap(),
+      forceAmbush:()=>simDev.forceAmbush(), ambushSnap:()=>simDev.ambushSnap(), eliteSpawnKill:(type,zone)=>simDev.eliteSpawnKill(type,zone),
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe(),
       // CAS-118 status-effect contract consumed by tools/cas118-status.mjs — additive

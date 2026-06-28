@@ -115,7 +115,9 @@ export function buildWorld(rng){
   // (necromancer) that keeps raising skeletons. The fight is about cutting the head off
   // the tide (kill the summoner) while dodging spear/bolt poke — distinct from any other
   // zone's pack. Summoned adds scale to the zone tier through the real spawn path.
-  spawners.push({rect:caves,types:["skeleton","mage","spearman","wraith","summoner","skeleton"],max:12,cool:4,t:0,zone:"caves"});
+  // CAS-146: the volatile (suicide-bomber) slots into the caves mix — a fast glass threat
+  // that punishes face-tanking the pack and rewards reading/killing it at range.
+  spawners.push({rect:caves,types:["skeleton","mage","spearman","wraith","summoner","volatile"],max:12,cool:4,t:0,zone:"caves"});
   // ---- dungeon walls in the caves (perimeter ring + interior alcoves) ----
   const wallSet=new Set();
   const cx0=caves.x, cy0=caves.y, cx1=caves.x+caves.w-1, cy1=caves.y+caves.h-1;

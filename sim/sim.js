@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, AMBUSH } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -57,6 +57,9 @@ export const G = {
   // trims flourish particle bursts (never changes balance/mechanics; purely cosmetic).
   cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false, reduceMotion:false},
   quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0, bountySel:0,
+  // CAS-146 — elite-ambush event clock: `t` counts down only while the hero is fighting in a
+  // hunt zone; `active` is true from an ambush firing until its elite is cleared (auto-recovers).
+  ambush:{t:AMBUSH.first, active:false},
   toast:"", toastT:0, music:"town", arenaWarned:false, bossDead:false,
   skull:{level:0, t:0, kills:0, killT:0}, started:false,
   hitstop:0, // client-feel impact freeze (frames @60fps); never gates authoritative state beyond pausing local sim
@@ -122,7 +125,7 @@ function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
 function initHunts(){ const o={}; for(const z in HUNTS) o[z]={kills:0, champ:null, cleared:false}; return o; }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
-export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.scene="play"; G.started=true;
+export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; G.scene="play"; G.started=true;
   if(tutArmed){ startTutorial(); tutArmed=false; } }            // CAS-128: first-run guided flow
 
 // --------------------- CAS-128: onboarding tutorial ---------------------
@@ -236,7 +239,7 @@ export function loadSave(d){
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
-    G.hero=h; G.hunts=initHunts(); G.fields.length=0;
+    G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false};
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
     G.scene="play"; G.started=true;
     return true;
@@ -396,7 +399,10 @@ function killEnemy(e){
   else { gainXP(tpl.xp);
     const g=ri(tpl.gold[0],tpl.gold[1]); if(g>0){ G.drops.push({x:e.x,y:e.y,kind:"gold",amt:g}); }
     if(srand()<0.22) G.drops.push({x:e.x+frr(-8,8),y:e.y,kind:srand()<0.6?"potionhp":"potionmp"});
-    if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
+    // CAS-146: an ELITE (ambush leader) guarantees an elevated drop + bonus gold; a normal
+    // mob rolls its gearChance as before (non-elites take the unchanged RNG path → baselines hold).
+    if(e.elite){ onEliteKill(e, zone); }
+    else if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
       dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1])); }
     huntKill(zone); // a normal kill in a hunt zone advances that zone's contract
   }
@@ -889,6 +895,7 @@ export function update(dtMs){
   if(z!==G._ambZone){ G._ambZone=z; if(audio&&audio.setAmbient) audio.setAmbient(z); }
   if(z==="arena" && !G.arenaWarned){ G.arenaWarned=true; toast(STR.enteredArena,3.5); }
   if(z==="caves" && !G.bossSpawned && h.y<(world.caves.y+10)*TS){ G.bossSpawned=true; spawnBoss(); }
+  updateAmbush(dt, z, inDanger); // CAS-146: elite-ambush event clock (deterministic, in-zone only)
 
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
@@ -1047,6 +1054,10 @@ function updateEnemies(dt){ const h=G.hero;
       }
     } else if(e.state==="strike"){
       e.st-=dt;
+      // CAS-146 volatile DETONATION: on the strike instant it erupts a radial blast (the
+      // growing ring during windup was the tell — clear the radius or it was already dead)
+      // and SELF-DESTRUCTS. Handled at the top so it never reaches the melee/lunge branches.
+      if(e.tpl.arch==="volatile"){ detonateVolatile(e); continue; }
       // CAS-115 rusher LUNGE: dash forward through the whole strike window (the telegraph
       // was the windup), landing a single contact hit when it reaches the hero. Closing
       // the gap IS the attack — sidestepping the lunge line avoids it.
@@ -1130,6 +1141,81 @@ function summonAdds(e){ const S=e.tpl.summon; if(!S) return;
     const add=spawnEnemy(S.type||"skeleton", ax, ay); if(add){ add.state="chase"; add.summonedBy=e; applyZoneScale(add, e.scaleZone); }
     addFx("spark",ax,ay); }
   audio.sfx.fire();
+}
+// CAS-146 — volatile self-destruct: damage the hero if inside the blast radius (the windup
+// ring told them to clear it), erupt the AoE fx, and remove the mob WITHOUT loot/xp (a
+// suicide is not a player kill, so it can never be farmed for free rewards). Deterministic
+// except for the cosmetic-only flame scatter (frr, off the cosmetic RNG — never gameplay).
+function detonateVolatile(e){
+  const h=G.hero; const R=e.tpl.blast||72; const d=Math.hypot(h.x-e.x,h.y-e.y);
+  if(d<=R+e.tpl.size*0.4 && !h.dead){ const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl); }
+  addFx("novacast",e.x,e.y,{r:R,col:"#ff7a3a",life:0.5}); addFx("poof",e.x,e.y);
+  for(let i=0,n=rmCount(10);i<n;i++) addFx("flame",e.x+frr(-R*0.5,R*0.5),e.y+frr(-R*0.5,R*0.5));
+  shakeAdd(9); audio.sfx.fire();
+  e.dead=true; const ix=G.enemies.indexOf(e); if(ix>=0) G.enemies.splice(ix,1);
+}
+
+// CAS-146 — ELITE AMBUSH event clock. Counts down ONLY while the hero is present in a hunt
+// zone and alive (town/idle never builds it); fires a coordinated pack+elite when it elapses
+// and locks (`active`) until that elite is cleared, then auto-recovers onto the cooldown.
+// Never stacks on a live champion/capstone/boss (the hunt climax owns the screen). Pure
+// time+RNG on the sim stream → deterministic / Stage-2 server-authority ready.
+function updateAmbush(dt, zone, inDanger){
+  const A=G.ambush; if(!A) return; const h=G.hero;
+  // auto-recover the lock once the elite is gone (killed or abandoned to another zone)
+  if(A.active && !G.enemies.some(e=>e.elite && e.hp>0)){ A.active=false; A.t=AMBUSH.cooldown; }
+  if(!inDanger || !h || h.dead) return;                 // only builds while in a hunt zone
+  if(A.active) return;                                  // an ambush is already in play
+  if(G.enemies.some(e=>e.hp>0 && (e.isBoss||e.champion))) return; // never gank during a climax
+  A.t-=dt;
+  if(A.t<=0) spawnAmbush(zone);
+}
+// Pick the elite leader's base from the zone pool: a damaging melee/charger type — never a
+// 0-dmg support (summoner/healer) or a self-destruct volatile, which make degenerate leaders.
+function pickEliteBase(pool){
+  const ok=pool.filter(t=>{ const tp=ETPL[t]; return tp && !tp.neutral && (tp.dmg||0)>0 && tp.arch!=="volatile" && tp.arch!=="summoner" && tp.arch!=="healer"; });
+  const list=ok.length?ok:pool; return list[ri(0,list.length-1)];
+}
+// A clear open tile a readable ring-distance from the hero, inside the zone bounds — the
+// pack/elite arrive near but never ON the player (same approach as the champion spawn).
+function ambushSpawnPos(zone){ const r=world[zone]; const h=G.hero; const R=AMBUSH.ring||[160,230];
+  for(let i=0;i<24;i++){ const a=rr(0,6.28), dpx=rr(R[0],R[1]);
+    const x=h.x+Math.cos(a)*dpx, y=h.y+Math.sin(a)*dpx;
+    const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
+    if(r && (tx<r.x+1||tx>r.x+r.w-2||ty<r.y+1||ty>r.y+r.h-2)) continue;
+    if(!solidBlocked(x,y,16)) return {x,y}; }
+  return {x:h.x+R[0], y:h.y};
+}
+// Erupt the ambush: a zone-scaled trash pack + one promoted ELITE leader, telegraphed loudly
+// (warning toast + sting + spawn rings). The elite keeps its archetype telegraph so the fight
+// stays readable; its reward tier comes from the kill zone's ZONE_LOOT (deeper zone = richer).
+function spawnAmbush(zone){
+  const A=G.ambush; const sp=world.spawners.find(s=>s.zone===zone); const pool=(sp&&sp.types)||["wolf"];
+  const packN=ri(AMBUSH.packMin, AMBUSH.packMax);
+  for(let i=0;i<packN;i++){ const t=pool[ri(0,pool.length-1)]; const p=ambushSpawnPos(zone);
+    const add=applyZoneScale(spawnEnemy(t,p.x,p.y), zone);
+    if(add){ add.state="chase"; add.fromAmbush=true; addFx("poof",p.x,p.y); } }
+  const base=pickEliteBase(pool); const p=ambushSpawnPos(zone);
+  const e=applyZoneScale(spawnEnemy(base,p.x,p.y), zone);
+  if(e){ const E=AMBUSH.elite, b=e.tpl;
+    e.tpl=Object.assign({},b,{ hp:Math.round(b.hp*E.hpMul), dmg:Math.round(b.dmg*E.dmgMul),
+      size:Math.round(b.size*E.sizeMul), knock:Math.round(b.knock*E.knockMul), xp:Math.round(b.xp*E.xpMul) });
+    e.hp=e.maxHp=e.tpl.hp; e.elite=true; e.state="chase"; e.zone=zone; e.fromAmbush=true;
+    e.rwdTier=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier; e.rwdMinR=E.minR; e.rwdGold=E.goldBonus;
+    for(let i=0,n=rmCount(10);i<n;i++) addFx("flame",e.x+frr(-24,24),e.y+frr(-24,24)); addFx("poof",p.x,p.y); }
+  A.active=true; A.t=AMBUSH.cooldown;
+  audio.sfx.boss(); shakeAdd(9); toast(STR.ambush(zone),3.2);
+}
+
+// CAS-146 — elite kill payoff: a GUARANTEED elevated drop (zone tier window, rarity floor)
+// + bonus gold + a banner, feeding the merchant gold-sink. Reuses the same loot path as
+// champions so nothing here re-rolls stats. Called from killEnemy's trash branch for elites.
+function onEliteKill(e, zone){
+  const win=e.rwdTier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
+  dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1],e.rwdMinR||"uncommon"));
+  G.drops.push({x:e.x+16,y:e.y,kind:"gold",amt:e.rwdGold||AMBUSH.elite.goldBonus});
+  audio.sfx.boss(); shakeAdd(8); toast(STR.eliteDown,2.6);
+  for(let i=0,n=rmCount(10);i<n;i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
 }
 // CAS-121 — raise the frost carapace: immune + channel the Freeze Nova + summon adds.
 function startCarapace(e){ const C=e.carapace; if(!C) return;
@@ -1457,6 +1543,39 @@ export const dev = {
     return ally?ally.hp:0; },
   // Live HP of the wounded ally (index 1) in the heal probe.
   archAllyHp(){ const a=G.enemies[1]; return a?a.hp:0; },
+  // --- CAS-146 elite-ambush + volatile harness hooks (tools/cas146-variety.mjs) ---
+  // Clean arena: tanky hero parked at a fixed spot, ONE volatile spawned in range so the REAL
+  // AI commits its windup→detonate. Harness polls volatileSnap(): the mob telegraphs, blows up
+  // (heroDmgTaken jumps), and is GONE (self-destruct). Deterministic (fixed offset).
+  volatileProbe(dx){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=100000; h.hp=100000; h.cls="warrior";
+    const e=spawnEnemy("volatile", h.x+(dx||34), h.y); if(e){ e.state="chase"; e._probe=true; } return e?"volatile":null; },
+  // Tracks the PROBE entity only (`_probe`), so a live zone spawn never masks the detonation.
+  volatileSnap(){ const e=G.enemies.find(x=>x._probe && x.hp>0); const h=G.hero;
+    return { alive:!!(e&&e.hp>0), state:e?e.state:"gone", blast:e?(e.tpl.blast||0):0,
+      dist:e?Math.round(Math.hypot(e.x-h.x,e.y-h.y)):-1, heroDmgTaken:Math.round(100000-h.hp),
+      enemyCount:G.enemies.length }; },
+  // Force the ambush event in the hero's CURRENT zone through the real spawnAmbush path (no
+  // shortcut around pack/elite spawning or the reward block). Pair with tpZone() to pick the
+  // zone first. Returns the elite's promoted stats so the test can assert it out-scales trash.
+  forceAmbush(){ const z=zoneOf(world,G.hero.x,G.hero.y); G.ambush.active=false; G.ambush.t=0;
+    spawnAmbush(z); const e=G.enemies.find(x=>x.elite&&x.hp>0);
+    return e?{zone:z, type:e.type, hp:Math.round(e.hp), maxHp:Math.round(e.maxHp), dmg:e.tpl.dmg, size:e.tpl.size,
+      packCount:G.enemies.filter(x=>x.fromAmbush&&!x.elite&&x.hp>0).length, rwdMinR:e.rwdMinR, active:G.ambush.active}:null; },
+  // Live ambush telemetry: clock, lock, pack/elite counts. The base (un-promoted) stat of the
+  // elite's type so the test can prove the elite's hp/dmg are MULTIPLES of base (real promotion).
+  ambushSnap(){ const A=G.ambush; const e=G.enemies.find(x=>x.elite&&x.hp>0);
+    const base=e?ETPL[e.type]:null;
+    return { t:+(A?A.t:0).toFixed(2), active:!!(A&&A.active),
+      pack:G.enemies.filter(x=>x.fromAmbush&&!x.elite&&x.hp>0).length,
+      elite: e?{type:e.type, hp:Math.round(e.hp), dmg:e.tpl.dmg, size:e.tpl.size,
+        baseHp:base?base.hp:0, baseDmg:base?base.dmg:0}:null }; },
+  // Spawn-kill an elite of `type` THIS instant via the real killEnemy elite branch, returning
+  // only the drops that kill produced — proves the GUARANTEED elevated loot + bonus gold (AC3).
+  eliteSpawnKill(type, zone){ const before=G.drops.length; const e=spawnEnemy(type||"orc", G.hero.x, G.hero.y);
+    e.elite=true; e.zone=zone||"caves"; e.rwdTier=(ZONE_LOOT[e.zone]||ZONE_LOOT.field).tier; e.rwdMinR=AMBUSH.elite.minR; e.rwdGold=AMBUSH.elite.goldBonus;
+    e.hp=0; killEnemy(e);
+    return G.drops.slice(before).map(d=>({ kind:d.kind, rarity:d.rarity, tier:d.tier, amt:d.amt||0 })); },
   // Determinism probe (tools/determinism.mjs). Rebuilds the world from a FRESH
   // RNG each call so independent runs must agree byte-for-byte. seed is accepted
   // but buildWorld() still hard-seeds internally (tracked Stage-2 seam).

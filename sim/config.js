@@ -138,6 +138,15 @@ export const SPELLS = {
 //             its max HP each cadence. Holds back like a kiter. Telegraph: a green heal
 //             TETHER to its target during the windup. Focus it or the pack won't die.
 //             Deals 0 direct dmg — pure force-multiplier, never an OP solo threat.
+// CAS-146 — a seventh archetype that adds a NEW combat verb (area-denial-by-self):
+//   volatile— a fragile SUICIDE-BOMBER. Sprints at the hero (rusher-fast), and the instant
+//             it reaches strike range it FREEZES and telegraphs a GROWING red blast ring,
+//             then DETONATES a radial AoE (`blast` px, heavy hit) and DIES. Distinct from
+//             the brute (slow + tanky + survives the slam): the volatile is fast, paper-thin
+//             and one-shot, so the read is "kill it at range or clear the blast radius" — a
+//             pressure the roster lacked. Pure data on the shared windup→strike AI (the
+//             strike branch detonates + self-destructs); a self-kill yields NO loot/xp (the
+//             player didn't earn it), so it can never be farmed as a free reward.
 // Untagged rows keep the legacy generic-melee behaviour (rat/skeleton chumps, neutral
 // adv, and the champion/boss base rows whose elite mechanics layer on top in HUNTS).
 export const ETPL = {
@@ -176,7 +185,33 @@ export const ETPL = {
   // CAS-126 — healer: pack medic. Tethers + heals the most-wounded ally each cadence.
   // 0 direct dmg, fragile (50 hp). The force-multiplier that makes a pack attritional.
   healer:  {hp:50,  dmg:0,  spd:66, aggro:330, range:240, windup:0.82, recover:0.85,xp:32, gold:[9,17], sprite:"adv",  size:19, knock:50,  boss:false, gearChance:0.24, arch:"healer", kite:155, heal:{amt:0.16, r:200}},
+  // CAS-146 — volatile: fast, fragile suicide-bomber. Closes like a rusher, then on reaching
+  // range it freezes, telegraphs a growing blast ring, DETONATES a radial AoE and dies.
+  // High dmg (one-shot threat) but tiny HP (kill it before it reaches you). Self-kill = no loot.
+  volatile:{hp:26, dmg:23, spd:152, aggro:300, range:40, windup:0.7,  recover:0.1,  xp:16, gold:[3,8], sprite:"bat",  size:16, knock:60,  boss:false, gearChance:0.10, arch:"volatile", blast:80},
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
+};
+
+// CAS-146 — ELITE AMBUSH / pack event. While the hero is actively fighting inside a hunt
+// zone, a deterministic cadence counts down; when it elapses a coordinated AMBUSH erupts —
+// a small pack of zone trash PLUS one ELITE leader (a promoted zone mob: bigger, much
+// tougher, its own pulsing aura, keeps its archetype telegraph so the fight stays readable)
+// drops in around the hero for a burst of challenge and a GUARANTEED elevated loot roll that
+// feeds the merchant gold-sink economy (CAS-112). It is loudly telegraphed (warning toast +
+// sting + spawn rings) so it reads as an EVENT, never a cheap off-screen gank, and it never
+// stacks on a live champion/capstone (the hunt climax owns the screen). Fork-neutral: a
+// deterministic, server-authority-ready world event (no client-only logic, all on the sim
+// RNG) that carries intact into a Stage-2 online layer as a shared world spawn. Pure data —
+// spawnAmbush() in sim.js reads this table; adding/retuning an ambush is a one-line edit.
+//   first / cooldown — seconds of in-zone presence before the first / each later ambush
+//   packMin / packMax — trash mobs that drop in with the elite (zone-scaled, real spawn path)
+//   ring — [min,max] spawn radius around the hero (far enough to read, close enough to commit)
+//   elite — the leader's promotion over the zone-scaled base: stat mults + reward floor.
+//           The reward tier WINDOW comes from the kill zone's ZONE_LOOT, so deeper-zone
+//           ambushes already pay richer loot without a per-zone branch.
+export const AMBUSH = {
+  first:14, cooldown:42, packMin:2, packMax:4, ring:[170,240],
+  elite:{ hpMul:5.5, dmgMul:1.5, sizeMul:1.4, knockMul:1.3, xpMul:4, goldBonus:35, minR:"uncommon" },
 };
 
 // CAS-118 — STATUS EFFECTS: data-driven combat states applied by the player (weapon

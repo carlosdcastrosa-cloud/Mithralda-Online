@@ -33,6 +33,9 @@ export const STR = {
   bossShatter: (name) => "¡Coraza rota! " + name + " queda expuesto.",
   bossNova: (name) => "¡" + name + " libera la NOVA GÉLIDA! Te ralentiza.",
   immune: "INMUNE",
+  // CAS-146 — elite ambush / pack event.
+  ambush: (zone) => "¡EMBOSCADA en " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada" }[zone] || "la zona") + "! Una élite y su jauría te rodean.",
+  eliteDown: "¡Élite abatida! Botín superior garantizado.",
   // CAS-65 capstone phase shift — fires when the boss crosses its enrage threshold.
   bossEnrage: (name) => "¡" + name + " SE ENFURECE! Esquiva la onda expansiva.",
   bossEnrageBanner: "¡ENFURECIDO!",
