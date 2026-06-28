@@ -96,24 +96,42 @@ export const SPELLS = {
 // gearChance = per-kill probability this enemy drops a gear instance (rolled on
 // the sim RNG in killEnemy). The drop's tier window is the kill ZONE (ZONE_LOOT
 // in sim/gear.js); the golem boss ignores chance and guarantees a rare+ drop.
+//
+// CAS-115 — combat ARCHETYPE (`arch`): the read-and-react identity layer. Three
+// behaviours, all driven by the shared windup→strike→recover AI in sim.js (no per-mob
+// code branch) so adding/retuning an archetype is a data edit and stays deterministic /
+// Stage-2 server-authority ready. Each carries a PERCEPTIBLE pre-hit telegraph the
+// player can read and dodge (render.js draws the tell off `arch` during the windup):
+//   rusher — fast closer, SHORT windup then a forward LUNGE strike (`lunge` px dashed
+//            over the strike window). Telegraph: a forward lunge-streak arrow.
+//   caster — ranged kiter: holds the `kite`..`range` band, RETREATS when the hero gets
+//            inside `kite`, fires a telegraphed projectile (aim-line tell). Fragile.
+//   brute  — slow tank, BIG HP, LONG windup then a small radial GROUND-SLAM AoE
+//            (`aoe` px) with heavy knockback. Telegraph: a filled ground ring that
+//            grows to the AoE radius. Hardest hitter → richest trash reward.
+// Untagged rows keep the legacy generic-melee behaviour (rat/skeleton chumps, neutral
+// adv, and the champion/boss base rows whose elite mechanics layer on top in HUNTS).
 export const ETPL = {
-  wolf:    {hp:34, dmg:10, spd:120, aggro:240, range:42, windup:0.45, recover:0.45, xp:12, gold:[2,6], sprite:"wolf", size:18, knock:140, boss:false, gearChance:0.14},
+  // rusher: forest pounce beast — short tell, then a quick lunge in
+  wolf:    {hp:34, dmg:10, spd:128, aggro:240, range:42, windup:0.42, recover:0.45, xp:12, gold:[2,6], sprite:"wolf", size:18, knock:140, boss:false, gearChance:0.14, arch:"rusher", lunge:118},
   rat:     {hp:20, dmg:6,  spd:132, aggro:170, range:36, windup:0.35, recover:0.4,  xp:8,  gold:[1,4], sprite:"rat", size:15, knock:110, boss:false, gearChance:0.10},
   skeleton:{hp:52, dmg:14, spd:86,  aggro:230, range:46, windup:0.6,  recover:0.55, xp:20, gold:[4,9], sprite:"skel", size:20, knock:120, boss:false, gearChance:0.22},
-  orc:     {hp:84, dmg:22, spd:70,  aggro:220, range:50, windup:0.78, recover:0.7,  xp:32, gold:[8,16],sprite:"orc", size:22, knock:90,  boss:false, gearChance:0.28},
-  spearman:{hp:42, dmg:13, spd:74,  aggro:300, range:210, windup:0.7, recover:0.75, xp:26, gold:[6,12],sprite:"skel", size:19, knock:80, boss:false, ranged:true, projspd:300, proj:"spear", gearChance:0.22},
-  mage:    {hp:56, dmg:16, spd:58,  aggro:340, range:250, windup:0.9, recover:0.85, xp:34, gold:[10,18],sprite:"skel", size:21, knock:60, boss:false, ranged:true, projspd:240, proj:"bolt", gearChance:0.24},
+  // brute: slow, tanky, telegraphed ground-slam AoE + big knock; top trash reward
+  orc:     {hp:96, dmg:24, spd:64,  aggro:220, range:50, windup:0.82, recover:0.72, xp:40, gold:[11,20],sprite:"orc", size:22, knock:150, boss:false, gearChance:0.30, arch:"brute", aoe:60},
+  // caster: ranged kiter — keeps the band, retreats when crowded, slings a spear
+  spearman:{hp:42, dmg:13, spd:78,  aggro:300, range:210, windup:0.7, recover:0.75, xp:30, gold:[8,15],sprite:"skel", size:19, knock:80, boss:false, ranged:true, projspd:300, proj:"spear", gearChance:0.24, arch:"caster", kite:150},
+  mage:    {hp:56, dmg:16, spd:62,  aggro:340, range:250, windup:0.9, recover:0.85, xp:36, gold:[11,20],sprite:"skel", size:21, knock:60, boss:false, ranged:true, projspd:240, proj:"bolt", gearChance:0.26, arch:"caster", kite:170},
   // CAS-60: new mob variety — bat (forest flyer), bandit (ruins rogue), wraith (caves ranged ghost)
-  bat:     {hp:16, dmg:7,  spd:150, aggro:220, range:34, windup:0.30, recover:0.35, xp:9,  gold:[1,4], sprite:"bat",    size:14, knock:90,  boss:false, gearChance:0.08},
-  bandit:  {hp:60, dmg:18, spd:100, aggro:250, range:48, windup:0.55, recover:0.55, xp:28, gold:[10,20],sprite:"bandit", size:19, knock:110, boss:false, gearChance:0.26},
-  wraith:  {hp:48, dmg:15, spd:64,  aggro:320, range:230, windup:0.85,recover:0.8,  xp:30, gold:[8,15], sprite:"wraith", size:20, knock:60,  boss:false, ranged:true, projspd:260, proj:"bolt", gearChance:0.24},
+  bat:     {hp:16, dmg:7,  spd:158, aggro:220, range:34, windup:0.28, recover:0.35, xp:9,  gold:[1,4], sprite:"bat",    size:14, knock:90,  boss:false, gearChance:0.08, arch:"rusher", lunge:96},
+  bandit:  {hp:60, dmg:18, spd:106, aggro:250, range:48, windup:0.5,  recover:0.55, xp:30, gold:[11,21],sprite:"bandit", size:19, knock:110, boss:false, gearChance:0.26, arch:"rusher", lunge:132},
+  wraith:  {hp:48, dmg:15, spd:66,  aggro:320, range:230, windup:0.85,recover:0.8,  xp:32, gold:[9,17], sprite:"wraith", size:20, knock:60,  boss:false, ranged:true, projspd:260, proj:"bolt", gearChance:0.26, arch:"caster", kite:162},
   golem:   {hp:640,dmg:30, spd:46,  aggro:360, range:64, windup:0.95, recover:0.8,  xp:220,gold:[60,90],sprite:"golem",size:36, knock:60, boss:true},
   // CAS-76: animated "Moose" bruiser (Ancient Ruins pack). A heavy charger — long
   // antler-rear telegraph (windup 0.85 → matches the 30-frame attack strip), big
   // hooved knockback, slots into the tier-2 ruins pool. Melee, deterministic.
   // sprite "orc" is only the procedural fallback for the sub-second asset-load window
   // (same convention as mage→"skel"); ENEMY_ANIM.moose drives the real animated strips.
-  moose:   {hp:110,dmg:24, spd:94,  aggro:260, range:54, windup:0.85, recover:0.7,  xp:38, gold:[10,18],sprite:"orc",  size:26, knock:170, boss:false, gearChance:0.30},
+  moose:   {hp:150,dmg:26, spd:82,  aggro:260, range:56, windup:0.88, recover:0.7,  xp:48, gold:[14,24],sprite:"orc",  size:26, knock:200, boss:false, gearChance:0.32, arch:"brute", aoe:68},
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
 };
 

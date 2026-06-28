@@ -282,9 +282,12 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
   } else {
     // Elite stat block layered on the base mob — reuses its sprite + telegraphed AI,
     // so the fight stays readable; only HP/damage/size/reward scale up.
+    // CAS-115: strip the base mob's trash ARCHETYPE — champions run the classic
+    // generic-melee + CAS-109 radial-special AI (already QA-passed); a champion must
+    // not inherit rusher-lunge / caster-kite from its base (forest=wolf, ruins=bandit).
     e.tpl=Object.assign({},base,{ hp:Math.round(base.hp*cfgH.hpMul), dmg:Math.round(base.dmg*cfgH.dmgMul),
       size:Math.round(base.size*cfgH.sizeMul), xp:cfgH.xp, knock:Math.max(60,Math.round(base.knock*0.6)),
-      aggro:Math.max(base.aggro,320), champName:cfgH.name });
+      aggro:Math.max(base.aggro,320), champName:cfgH.name, arch:undefined });
     e.rwdTier=cfgH.tier; e.rwdMinR=cfgH.minR; e.rwdXp=cfgH.xp; e.rwdGold=cfgH.gold;
     // CAS-109: telegraphed radial-slam special on a strike cadence (see HUNTS.special).
     e.special=cfgH.special||null; e.atkCount=0; e.specialNow=false;
@@ -670,18 +673,27 @@ function updateEnemies(dt){ const h=G.hero;
       else { e.wanderT-=dt; if(e.wanderT<=0){ e.wanderT=rr(1.5,3.5); const a=rr(0,6.28); e.wx=Math.cos(a); e.wy=Math.sin(a);} moveEnt(e,(e.wx||0)*30*dt,(e.wy||0)*30*dt,e.tpl.size*0.6); }
     } else if(e.state==="chase"){
       if(d>aggro*1.4 && !e.hostile){ e.state="idle"; }
-      else if(d<=e.tpl.range){
-        // CAS-109: every Nth Champion strike is a telegraphed radial SLAM — a longer
-        // windup (the growing-ring tell in render) then a ring of shards instead of
-        // the melee hit. Punishes face-tanking; readable + dodgeable with the roll.
-        e.specialNow = !!(e.special && e.special.slam && (++e.atkCount % e.special.every === 0));
-        e.state="windup"; e.st=e.specialNow ? (e.special.windup || e.tpl.windup*1.6) : e.tpl.windup; e.hitDone=false;
-        if(e.specialNow){ audio.sfx.boss(); }
+      else {
+        e.facing=Math.atan2(h.y-e.y,h.x-e.x);
+        const arch=e.tpl.arch;
+        // CAS-115 caster KITE: maintain the firing band — if the hero closes inside
+        // `kite`, back away (still readable: it never melees) and hold fire until the
+        // hero is in the `kite`..`range` band again. Pure positional, deterministic.
+        if(arch==="caster" && d < (e.tpl.kite||0)){
+          const ra=Math.atan2(e.y-h.y,e.x-h.x); moveEnt(e,Math.cos(ra)*espd*dt,Math.sin(ra)*espd*dt,e.tpl.size*0.6);
+        } else if(d<=e.tpl.range){
+          // CAS-109: every Nth Champion strike is a telegraphed radial SLAM — a longer
+          // windup (the growing-ring tell in render) then a ring of shards instead of
+          // the melee hit. Punishes face-tanking; readable + dodgeable with the roll.
+          e.specialNow = !!(e.special && e.special.slam && (++e.atkCount % e.special.every === 0));
+          e.state="windup"; e.st=e.specialNow ? (e.special.windup || e.tpl.windup*1.6) : e.tpl.windup; e.hitDone=false;
+          if(e.specialNow){ audio.sfx.boss(); }
+        }
+        else { moveEnt(e,Math.cos(e.facing)*espd*dt,Math.sin(e.facing)*espd*dt,e.tpl.size*0.6); }
       }
-      else { const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a; moveEnt(e,Math.cos(a)*espd*dt,Math.sin(a)*espd*dt,e.tpl.size*0.6); }
     } else if(e.state==="windup"){
       e.st-=dt; e.facing=Math.atan2(h.y-e.y,h.x-e.x);
-      if(e.st<=0){ e.state="strike"; e.st=0.12;
+      if(e.st<=0){ e.state="strike"; e.st=(e.tpl.arch==="rusher"&&!e.specialNow)?0.2:0.12; // rusher needs a longer window for the lunge to read
         addFx("strikeflash",e.x,e.y,{ang:e.facing,range:e.tpl.ranged?0:e.tpl.range,life:0.18}); // the "now!" instant
         // boss extra: ground wave on alternate strikes
         if(e.isBoss){ e.phase++; if(e.phase%2===0){ for(let k=0;k<10;k++){ const a=k/10*6.28; G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*180,vy:Math.sin(a)*180,life:1.2,dmg:18,kind:"rune",enemy:true}); } } }
@@ -700,8 +712,24 @@ function updateEnemies(dt){ const h=G.hero;
       }
     } else if(e.state==="strike"){
       e.st-=dt;
-      if(!e.hitDone){ e.hitDone=true;
+      // CAS-115 rusher LUNGE: dash forward through the whole strike window (the telegraph
+      // was the windup), landing a single contact hit when it reaches the hero. Closing
+      // the gap IS the attack — sidestepping the lunge line avoids it.
+      if(e.tpl.arch==="rusher" && !e.specialNow){
+        const lspd=(e.tpl.lunge||110)/0.2; moveEnt(e,Math.cos(e.facing)*lspd*dt,Math.sin(e.facing)*lspd*dt,e.tpl.size*0.6);
+        if(!e.hitDone && d<=e.tpl.size+e.tpl.range*0.5){ e.hitDone=true;
+          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a);
+          addFx("spark",e.x+Math.cos(a)*14,e.y+Math.sin(a)*14); }
+      }
+      else if(!e.hitDone){ e.hitDone=true;
         if(e.specialNow){ /* CAS-109: radial slam already fired at strike start — no melee hit */ }
+        // CAS-115 brute GROUND-SLAM: a small radial AoE (no facing arc — it hits all
+        // around) with heavy knock. The grown ground-ring during windup told the player
+        // to step OUT of the `aoe` radius; standing inside it eats the full blow.
+        else if(e.tpl.arch==="brute"){ const R=e.tpl.aoe||56;
+          if(d<=R+e.tpl.size*0.4){ const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a); }
+          addFx("novacast",e.x,e.y+e.tpl.size*0.35,{r:R,col:"#ff7a3a",life:0.4}); shakeAdd(8);
+        }
         else if(e.tpl.ranged){ const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a;
           G.projectiles.push({x:e.x+Math.cos(a)*16, y:e.y-4+Math.sin(a)*16, vx:Math.cos(a)*e.tpl.projspd, vy:Math.sin(a)*e.tpl.projspd, life:2.4, dmg:e.tpl.dmg, kind:e.tpl.proj||"spear", enemy:true, ang:a});
           addFx("spark",e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);
@@ -887,6 +915,28 @@ export const dev = {
   bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b) })); },
   equipBag(i){ return equipBag(i); },
   openInv(){ G.scene="inventory"; return G.scene; },
+  // --- CAS-115 combat-archetype harness hooks (tools/archetypes.mjs); additive ---
+  // Static archetype metadata straight off the data table (no sim step) so the test can
+  // assert ≥3 distinct archetypes exist with their behaviour fields + danger reward.
+  archMeta(type){ const t=ETPL[type]; if(!t) return null;
+    return { type, arch:t.arch||null, ranged:!!t.ranged, lunge:t.lunge||0, kite:t.kite||0, aoe:t.aoe||0,
+      hp:t.hp, dmg:t.dmg, spd:t.spd, xp:t.xp, gold:t.gold.slice(), windup:t.windup }; },
+  // Clean single-mob arena for behaviour probing: clear all entities, park a tanky hero
+  // at a fixed spot (so AoE/lunge damage is measurable, mercy-iframes off), spawn ONE
+  // unscaled mob at offset dx,dy. The REAL updateEnemies (driven by the page game loop)
+  // then runs it; the harness reads archSnap() each tick. No shortcut around the AI.
+  archArena(type,dx,dy){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=100000; h.hp=100000; h.cls="warrior";
+    const e=spawnEnemy(type, h.x+(dx||0), h.y+(dy||0)); if(e){ e.state="chase"; } return e?type:null; },
+  // Live behaviour snapshot of the single arena mob + hero damage taken so far.
+  archSnap(){ const e=G.enemies[0], h=G.hero; if(!e) return null;
+    return { type:e.type, arch:e.tpl.arch||null, state:e.state,
+      dist:Math.round(Math.hypot(e.x-h.x,e.y-h.y)), ex:Math.round(e.x), ey:Math.round(e.y),
+      heroDmgTaken:Math.round(100000-h.hp), enemyProj:G.projectiles.filter(p=>p.enemy).length }; },
+  // Move the hero to a fixed offset from the arena mob (to test dodging out of an AoE /
+  // sidestepping a lunge mid-windup) without touching its AI state.
+  archMoveHero(dx,dy){ const e=G.enemies[0]; if(!e) return null; const h=G.hero;
+    h.x=e.x+(dx||0); h.y=e.y+(dy||0); h.iframe=0; return { dist:Math.round(Math.hypot(e.x-h.x,e.y-h.y)) }; },
   // Determinism probe (tools/determinism.mjs). Rebuilds the world from a FRESH
   // RNG each call so independent runs must agree byte-for-byte. seed is accepted
   // but buildWorld() still hard-seeds internally (tracked Stage-2 seam).

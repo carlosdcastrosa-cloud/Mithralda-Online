@@ -80,6 +80,9 @@ export function createGame(canvas, ctx, getView){
       heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
       // CAS-114 abyss power-gate contract consumed by tools/abyss.mjs — additive
       abyssGate:()=>simDev.abyssGate(), setUpg:(d,hp,def)=>simDev.setUpg(d,hp,def), tryPortal:(to)=>simDev.tryPortal(to),
+      // CAS-115 combat-archetype contract consumed by tools/archetypes.mjs — additive
+      archMeta:(type)=>simDev.archMeta(type), archArena:(type,dx,dy)=>simDev.archArena(type,dx,dy),
+      archSnap:()=>simDev.archSnap(), archMoveHero:(dx,dy)=>simDev.archMoveHero(dx,dy),
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe(),
       // CAS-113 persistence contract consumed by tools/persist.mjs — additive

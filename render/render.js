@@ -356,6 +356,28 @@ export function createRenderer(ctx){
         ctx.setLineDash([]); ctx.globalAlpha=1;
         const cx=e.x+Math.cos(a)*14, cy=e.y-8+Math.sin(a)*14; ctx.globalAlpha=0.9; ctx.fillStyle=col;
         ctx.beginPath(); ctx.arc(cx,cy,3+(fl2?2:0),0,6.28); ctx.fill(); ctx.globalAlpha=1;
+      } else if(e.tpl.arch==="brute"){
+        // CAS-115 brute GROUND-SLAM tell: a red danger ellipse on the ground that grows
+        // toward the AoE radius over the (long) windup, plus a pulsing full-size outline
+        // so the player reads the final blast size at a glance and steps OUT of it.
+        const R=e.tpl.aoe||56, prog=clamp(1-(e.st||0)/(e.tpl.windup||0.8),0,1), cy=e.y+e.tpl.size*0.35;
+        ctx.save();
+        ctx.globalAlpha=0.20+0.20*prog; ctx.fillStyle="#ff5230";
+        ctx.beginPath(); ctx.ellipse(e.x,cy,R*prog,R*prog*0.5,0,0,6.28); ctx.fill();
+        ctx.globalAlpha=0.45+0.30*Math.abs(Math.sin(G.t*14)); ctx.strokeStyle=fl2?"#ffd24d":"#ff7a3a"; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
+        ctx.restore();
+      } else if(e.tpl.arch==="rusher"){
+        // CAS-115 rusher LUNGE tell: a dashed streak + arrowhead along the lunge path so
+        // the player can sidestep the line before the dash fires.
+        const L=e.tpl.lunge||110, a=e.facing, tx=e.x+Math.cos(a)*L, ty=e.y-4+Math.sin(a)*L;
+        ctx.save();
+        ctx.globalAlpha=fl2?0.85:0.5; ctx.strokeStyle=fl2?"#ffd24d":"#ff7a3a"; ctx.lineWidth=3; ctx.setLineDash([7,6]);
+        ctx.beginPath(); ctx.moveTo(e.x,e.y-4); ctx.lineTo(tx,ty); ctx.stroke(); ctx.setLineDash([]);
+        ctx.globalAlpha=0.9; ctx.fillStyle="#ffd24d"; ctx.beginPath(); ctx.moveTo(tx,ty);
+        ctx.lineTo(tx-Math.cos(a-0.45)*12,ty-Math.sin(a-0.45)*12); ctx.lineTo(tx-Math.cos(a+0.45)*12,ty-Math.sin(a+0.45)*12);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
       } else {
         ctx.globalAlpha=0.5; ctx.fillStyle=fl2?"#ffd24d":"#ff6a3a";
         ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.range+6,0,6.28); ctx.fill(); ctx.globalAlpha=1;

@@ -152,7 +152,10 @@ export function buildWorld(rng){
   // Tier-5 mob pool (the caves/arena roster, scaled hard by ZONE_TIER.abyss). No new
   // art: reuses existing animated/procedural enemies. The capstone Tirano spawns via
   // the HUNTS.abyss contract (shared resolver), so nothing here is hard-coded combat.
-  spawners.push({rect:abyss,types:["wraith","skeleton","orc","mage","spearman","wraith"],max:13,cool:3,t:0,zone:"abyss"});
+  // CAS-115: the abyss runs the HARDEST archetype mix — every archetype present and
+  // weighted toward the punishing ones (brute orc/moose + caster wraith/mage) with a
+  // rusher (bandit) to force constant repositioning. Tier-5 scaling stacks on top.
+  spawners.push({rect:abyss,types:["wraith","mage","orc","moose","bandit","wraith","orc"],max:13,cool:3,t:0,zone:"abyss"});
   // dressing — bones, pillars, rocks & torch posts for an oppressive ruin feel.
   for(let i=0;i<22;i++){ const tx=abyss.x+rr(2,abyss.w-2), ty=abyss.y+rr(2,abyss.h-2);
     const x=tx*TS, y=ty*TS, k=srand();
