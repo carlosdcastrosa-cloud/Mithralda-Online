@@ -69,6 +69,9 @@ export function createGame(canvas, ctx, getView){
       // per-class base-stat contract consumed by tools/classstats.mjs (CAS-100) — additive
       classStats:(cls)=>simDev.classStats(cls),
       cast:(i)=>simDev.cast(i),
+      // merchant-shop economic-loop contract consumed by tools/shop.mjs (CAS-112) — additive
+      merchantTP:()=>simDev.merchantTP(), shopList:()=>simDev.shopList(), shopBuy:(i)=>simDev.shopBuy(i),
+      heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
       spellProbe:(cls)=>simDev.spellProbe(cls),
       dotProbe:()=>simDev.dotProbe() };
   }

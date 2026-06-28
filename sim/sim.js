@@ -75,6 +75,9 @@ function newHero(name,cls){
     equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
     bag:[],
     potHP:2, potMP:1, blessings:0,
+    // CAS-112: persistent merchant-shop upgrade tiers (gold sink). Each bought tier
+    // permanently bumps baseDmg / maxHp / defBonus — see shopItems()/buyItem().
+    upg:{dmg:0, hp:0, def:0},
     respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
 }
 function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
@@ -435,12 +438,29 @@ export function advanceDialogue(){
   if(d.i>=d.lines.length){
     if(d.reward){ const h=G.hero; h.gold+=50; h.potHP+=1; G.quest.rewarded=true; toast(STR.questReward); audio.sfx.buy(); }
     const n=d.npc; G.dialog=null;
-    if(n.role==="shop"){ G.scene="shop"; G.shopSel=0; }
-    else if(n.role==="heal"){ G.scene="shop"; G.shopSel=0; G.healShop=true; }
-    else { G.scene="play"; G.healShop=false; }
+    if(n.role==="shop"){ G.scene="shop"; G.shopSel=0; G.healShop=false; G.merchantShop=false; }
+    else if(n.role==="heal"){ G.scene="shop"; G.shopSel=0; G.healShop=true; G.merchantShop=false; }
+    else if(n.role==="merchant"){ G.scene="shop"; G.shopSel=0; G.merchantShop=true; G.healShop=false; }
+    else { G.scene="play"; G.healShop=false; G.merchantShop=false; }
   }
 }
 export function shopItems(){
+  // CAS-112: the Mercader Ambulante's persistent upgrade shop — the gold SINK that
+  // closes the economic loop (hunt → gold → permanent power → harder content). These
+  // are tiered, escalating, session-persistent stat investments, distinct from Bram's
+  // gear instances (which loot can outclass). Tiers tracked on h.upg; price climbs and
+  // `once` caps each line when maxed. baseDmg/maxHp/defBonus are the real combat sinks.
+  if(G.merchantShop){ const h=G.hero; const u=h.upg||(h.upg={dmg:0,hp:0,def:0});
+    const DMG=[60,120,200,320], HPU=[50,100,170,260], DEFP=[70,140,240];
+    const tier=(arr,t)=>{ const max=arr.length, done=t>=max; return {done,max,price:done?arr[max-1]:arr[t],lbl:done?"MÁX":((t+1)+"/"+max)}; };
+    const w=tier(DMG,u.dmg), v=tier(HPU,u.hp), c=tier(DEFP,u.def);
+    return [
+      {name:"Filo afilado +5 daño ("+w.lbl+")", price:w.price, act:hh=>{hh.baseDmg+=5; u.dmg++;}, once: w.done?()=>true:null},
+      {name:"Vigor +30 vida máx ("+v.lbl+")",   price:v.price, act:hh=>{hh.maxHp+=30; hh.hp+=30; u.hp++;}, once: v.done?()=>true:null},
+      {name:"Coraza +4 defensa ("+c.lbl+")",    price:c.price, act:hh=>{hh.defBonus+=4; u.def++;}, once: c.done?()=>true:null},
+      {name:"Lote de pociones (+3 vida, +2 maná)", price:40, act:hh=>{hh.potHP+=3; hh.potMP+=2;}},
+    ];
+  }
   if(G.healShop) return [
     {name:"Poción de vida",price:15,act:h=>h.potHP++},
     {name:"Poción de maná",price:12,act:h=>h.potMP++},
@@ -764,6 +784,20 @@ export const dev = {
     G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
     return { plantDmg:Math.round(hp0-afterPlant), overTimeDmg:Math.round(afterPlant-afterTime), ticks, fieldsLeft };
   },
+  // --- CAS-112 merchant-shop harness hooks (tools/shop.mjs); additive ---
+  // Park the hero on the Mercader Ambulante so the REAL interact()→dialogue→shop
+  // path can be driven by the test (E twice). Returns the merchant's coords.
+  merchantTP(){ for(const n of world.npcs){ if(n.role==="merchant"){ G.hero.x=n.x; G.hero.y=n.y+10; return [Math.round(n.x),Math.round(n.y)]; } } return null; },
+  // Read the live shop list (whichever shop is open) with each line's affordability
+  // gate, so the headless test can assert maxed/blocked lines without guessing.
+  shopList(){ const h=G.hero; return shopItems().map(it=>({ name:it.name, price:it.price, blocked:!!(it.once&&it.once(h)) })); },
+  // Buy through the REAL buyItem (gold check + once-gate + act), then snapshot the
+  // combat stats it touched — proves a purchase changes real numbers, not just UI.
+  shopBuy(i){ buyItem(i); return this.heroStats(); },
+  heroStats(){ const h=G.hero; return { gold:h.gold, dmg:equippedDmg(h), def:equippedDef(h),
+    baseDmg:h.baseDmg, maxHp:h.maxHp, hp:Math.round(h.hp), potHP:h.potHP, potMP:h.potMP,
+    upg:{...(h.upg||{})}, scene:G.scene, merchant:!!G.merchantShop }; },
+  setGold(n){ G.hero.gold=n>>>0; return G.hero.gold; },
   bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b) })); },
   equipBag(i){ return equipBag(i); },
   openInv(){ G.scene="inventory"; return G.scene; },

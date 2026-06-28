@@ -78,6 +78,7 @@ export const STR = {
   rarity: { common: "Común", uncommon: "Infrecuente", rare: "Raro", epic: "Épico" },
 
   shopTitle: "TIENDA DE SOLANA",
+  merchantTitle: "CARRO DEL MERCADER",
   buy: "Comprar",
   sell: "Vender",
   shopHint: "E / tap para cerrar",

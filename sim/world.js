@@ -77,7 +77,9 @@ export function buildWorld(rng){
     prop("stall",sx,sy,true,12); prop("crate",sx-TS,sy+TS,true,8); }
   // CAS-84: animated NPC merchant tending the southern market stall (real Ancient
   // Ruins art, idle loop via NPC_ANIM). Neutral/non-hostile — no aggro, no combat.
-  npcs.push({x:tcx+1.5*TS,y:tcy+5*TS,sprite:"merchant",name:STR.npcMerchant,role:"neutral",lines:STR.merchantLines,neutral:true});
+  // CAS-112: role "merchant" → opens the persistent upgrade shop (gold sink that
+  // closes the hunt→gold→power loop). Still neutral:true so combat AI ignores it.
+  npcs.push({x:tcx+1.5*TS,y:tcy+5*TS,sprite:"merchant",name:STR.npcMerchant,role:"merchant",lines:STR.merchantLines,neutral:true});
   for(let i=0;i<6;i++){ const x=(town.x+rr(2,town.w-2))*TS, y=(town.y+rr(2,town.h-2))*TS;
     if(Math.hypot(x-tcx,y-tcy)<3*TS) continue; prop("crate",x,y,true,8); }
   for(let i=0;i<4;i++){ prop("lantern",(town.x+2)*TS,(town.y+3+i*4)*TS,false);

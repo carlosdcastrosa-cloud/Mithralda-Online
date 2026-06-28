@@ -52,7 +52,7 @@ function onKeyUp(e){ if(BIND[e.code]) keys.delete(BIND[e.code]); }
 function edge(code){
   if(G.scene==="dead"){ if(code==="Space"||code==="Enter") sim.respawn(); return; }
   if(G.scene==="dialogue"){ if(code==="KeyE"||code==="Space"||code==="Enter") sim.advanceDialogue(); else if(code==="Escape"){G.dialog=null;G.scene="play";} return; }
-  if(G.scene==="shop"){ if(code==="Escape"||code==="KeyE"){G.scene="play";G.healShop=false;}
+  if(G.scene==="shop"){ if(code==="Escape"||code==="KeyE"){G.scene="play";G.healShop=false;G.merchantShop=false;}
     else if(code==="ArrowUp"){G.shopSel=(G.shopSel+sim.shopItems().length-1)%sim.shopItems().length;}
     else if(code==="ArrowDown"){G.shopSel=(G.shopSel+1)%sim.shopItems().length;}
     else if(code==="Enter"||code==="Space"){sim.buyItem(G.shopSel);} return; }

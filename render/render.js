@@ -625,7 +625,8 @@ export function createRenderer(ctx){
   }
 
   function renderShop(){ const items=sim.shopItems(); const bw=Math.min(VW*0.86,460), bh=Math.min(VH*0.82,420), x=(VW-bw)/2, y=(VH-bh)/2;
-    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(G.healShop?STR.npcLina:STR.shopTitle,VW/2,y+30);
+    const title=G.merchantShop?STR.merchantTitle:G.healShop?STR.npcLina:STR.shopTitle;
+    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(title,VW/2,y+30);
     ctx.fillStyle=COL.gold; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.gold(G.hero.gold),VW/2,y+50);
     ui.shopRects=[]; const iy=y+72, ih=42;
     for(let i=0;i<items.length;i++){ const it=items[i]; const ry=iy+i*ih; const sel=i===G.shopSel;
@@ -637,7 +638,7 @@ export function createRenderer(ctx){
     }
     // close
     const cy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,24); ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Cerrar (E)",VW/2,cy+17);
-    ui.shopRects.push({x:x+bw/2-60,y:cy,w:120,h:24,act:()=>{G.scene="play";G.healShop=false;}});
+    ui.shopRects.push({x:x+bw/2-60,y:cy,w:120,h:24,act:()=>{G.scene="play";G.healShop=false;G.merchantShop=false;}});
   }
 
   function renderPause(){ const bw=Math.min(VW*0.8,400), bh=300, x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
