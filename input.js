@@ -10,6 +10,7 @@
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
 import { CLASS_LIST } from "./sim/config.js";
+import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
 import { view, zoom } from "./view.js";
@@ -18,7 +19,8 @@ import { COL } from "./render/palette.js";
 const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
-export const ui = { pauseRects:[], shopRects:[], classRects:[], menuPlayRect:{x:0,y:0,w:0,h:0} };
+// CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
+export const ui = { pauseRects:[], shopRects:[], classRects:[], talentRects:[], mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -46,7 +48,7 @@ function onKeyDown(e){
     e.preventDefault(); return; }
   if(BIND[e.code]) { keys.add(BIND[e.code]); e.preventDefault(); }
   edge(e.code);
-  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","Escape"].includes(e.code)) e.preventDefault();
+  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","KeyT","Escape"].includes(e.code)) e.preventDefault();
 }
 function onKeyUp(e){ if(BIND[e.code]) keys.delete(BIND[e.code]); }
 function edge(code){
@@ -64,6 +66,13 @@ function edge(code){
     else if(code==="KeyP"){ sim.doPotionHP(); }
     else if(code==="KeyO"){ sim.doPotionMP(); }
     return; }
+  // CAS-119: talent panel — T/Escape close. Keyboard players can spend on the focused
+  // node with Enter/Space; arrows move focus. Pointer/touch use ui.talentRects (tap).
+  if(G.scene==="talents"){ if(code==="KeyT"||code==="Escape"){ G.scene="play"; }
+    else if(code==="ArrowRight"||code==="ArrowDown"){ G.talFocus=focusStep(1); }
+    else if(code==="ArrowLeft"||code==="ArrowUp"){ G.talFocus=focusStep(-1); }
+    else if(code==="Enter"||code==="Space"){ const id=focusedNodeId(); if(id) sim.allocTalent(id); }
+    else if(code==="KeyR"){ sim.respecTalents(); } return; }
   if(G.scene==="pause"){ if(code==="Escape"){ G.resetArm=false; G.scene="play"; }
     else if(code==="Digit1"){G.settings.shake=G.settings.shake>0?0:1;}
     else if(code==="Digit2"){G.settings.crt=!G.settings.crt;}
@@ -78,6 +87,7 @@ function edge(code){
     case "Digit4": sim.castSpell(3); break;
     case "KeyF": sim.tryPickup(); break;
     case "KeyI": G.scene="inventory"; break;
+    case "KeyT": G.scene="talents"; G.talFocus=G.talFocus||0; break; // CAS-119 talent panel
     case "KeyM": G.showMap=!G.showMap; break;
     case "KeyE": sim.interact(); break;
     case "Escape": G.scene="pause"; break;
@@ -99,7 +109,7 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
   }
 }
 function onPointerMove(e){ const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left,y=e.clientY-r.top;
-  mouseX=x; mouseY=y;
+  mouseX=x; mouseY=y; ui.mouseX=x; ui.mouseY=y; // CAS-119: feed the talent panel's hover
   if(stick.active && e.pointerId===stick.id){ stick.x=x; stick.y=y; }
   else if(!isTouch && G.scene==="play"){ faceMouse(); }
 }
@@ -141,14 +151,16 @@ export function tbtns(){ // returns button rects for current scene
 }
 export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(34,s*0.072); const y=14+b/2; return {
   inv:{x:VW-14-b*0.5, y, r:b*0.5, label:"I", act:()=>{G.scene=G.scene==="inventory"?"play":"inventory";}},
-  map:{x:VW-14-b*1.6, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
-  pause:{x:VW-14-b*2.7, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
+  tal:{x:VW-14-b*1.6, y, r:b*0.5, label:"T", act:()=>{G.scene=G.scene==="talents"?"play":"talents";}}, // CAS-119
+  map:{x:VW-14-b*2.7, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
+  pause:{x:VW-14-b*3.8, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
 
 function handleUITap(x,y){
   if(G.scene==="dead"){ sim.respawn(); return true; }
   if(G.scene==="dialogue"){ sim.advanceDialogue(); return true; }
   if(G.scene==="pause"){ return pauseTap(x,y); }
   if(G.scene==="inventory"){ return invTap(x,y); }
+  if(G.scene==="talents"){ return talentTap(x,y); }
   if(G.scene==="shop"){ return shopTap(x,y); }
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -157,6 +169,17 @@ function handleUITap(x,y){
   return false;
 }
 function dist2tap(ax,ay,bx,by){ const dx=ax-bx,dy=ay-by; return dx*dx+dy*dy; }
+// CAS-119 talent keyboard focus (index into the class node list).
+function talNodeList(){ return (G.hero && talentNodes(G.hero.cls)) || []; }
+function focusStep(d){ const n=talNodeList().length; if(!n) return 0; return (((G.talFocus||0)+d)%n+n)%n; }
+function focusedNodeId(){ const ns=talNodeList(); const i=G.talFocus||0; return ns[i]?ns[i].id:null; }
+// Tap a talent node rect → spend a point; tap the respec/close chrome rects → act.
+// Tapping empty panel space keeps the panel open (unlike inventory) so accidental
+// taps near nodes don't dump the player back to play mid-build.
+function talentTap(x,y){ for(const r of (ui.talentRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+    if(r.id){ G.talFocus=r.focus!=null?r.focus:G.talFocus; sim.allocTalent(r.id); }
+    else if(r.act) r.act();
+    return true; } } return true; }
 function pauseTap(x,y){ for(const r of ui.pauseRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.

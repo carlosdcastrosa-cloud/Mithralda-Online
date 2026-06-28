@@ -19,6 +19,7 @@ import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
 import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs } from "./gear.js";
+import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, sanitizeTalents, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
 // feedback floater palette (presentation hints carried by sim events)
 const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
@@ -45,7 +46,8 @@ export function configure(deps){ io = deps.io; audio = deps.audio; view = deps.v
 export { world, rng };
 
 export const G = {
-  scene:"menu", // menu, play, dialogue, shop, inventory, pause, dead
+  scene:"menu", // menu, play, dialogue, shop, inventory, talents, pause, dead
+  talFocus:0,   // CAS-119: keyboard-focused talent node index (talents panel)
   t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
   cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false},
   quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0,
@@ -73,6 +75,10 @@ function newHero(name,cls){
     // input, dots holds active DoTs. Transient — never serialized (rehydrated clean).
     slow:1, slowT:0, stun:0, dots:null,
     animState:"idle", animT:0, cls:cls||"warrior",
+    // CAS-119: talent progression. talents = {nodeId:rank} chosen by the player,
+    // talentPts = unspent points (1 granted per level in gainXP). tt = the CACHED
+    // aggregated combat bundle (recalcTalents) read by the hot path with no alloc.
+    talents:{}, talentPts:0, tt:zeroTT(),
     // gear: 3 equipped slots (instances by id) + a bag of loose instances. Stats
     // are resolved from data (sim/gear.js), never stored — see equippedDmg/Def.
     equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
@@ -125,6 +131,9 @@ export function serializeSave(){
     maxHp:h.maxHp, maxMp:h.maxMp, baseDmg:h.baseDmg, dmgBonus:permDmg, defBonus:permDef,
     upg:{dmg:(h.upg&&h.upg.dmg)||0, hp:(h.upg&&h.upg.hp)||0, def:(h.upg&&h.upg.def)||0},
     potHP:h.potHP, potMP:h.potMP, blessings:h.blessings,
+    // CAS-119: durable build choices. Additive — old v1 saves simply lack these and
+    // rehydrate with an empty tree (0 spent), so no SAVE_VERSION bump / progress wipe.
+    talents:Object.assign({},h.talents), talentPts:h.talentPts||0,
     equip:{weapon:h.equip.weapon, body:h.equip.body, shield:h.equip.shield}, bag:h.bag,
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
@@ -143,6 +152,9 @@ export function loadSave(d){
     h.potHP=Math.max(0,Math.floor(num(d.potHP,h.potHP))); h.potMP=Math.max(0,Math.floor(num(d.potMP,h.potMP))); h.blessings=Math.max(0,Math.floor(num(d.blessings,0)));
     if(d.equip){ for(const slot of ["weapon","body","shield"]){ const ok=safeInst(d.equip[slot]); if(ok) h.equip[slot]=ok; } }
     if(Array.isArray(d.bag)) h.bag=d.bag.map(safeInst).filter(Boolean).slice(0,16);
+    // CAS-119: rebuild a LEGAL talent tree from the (untrusted) blob + recompute the
+    // cached bundle, so persisted builds survive reload and corrupt data can't break it.
+    h.talents=sanitizeTalents(d.talents, h.cls); h.talentPts=Math.max(0,Math.floor(num(d.talentPts,0))); recalcTalents(h);
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
     G.hero=h; G.hunts=initHunts(); G.fields.length=0;
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
@@ -199,7 +211,7 @@ function heroAttack(){
   const h=G.hero; if(h.atkCD>0||h.rolling||h.stun>0) return; // CAS-118: stun gates the swing
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const dmg=equippedDmg(h)*cfg.dmgMul;
-  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+affixTotals(h).atkspd/100); h._atkHits=new Set(); // CAS-117: +vel.ataque affix shortens the cooldown
+  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+(affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0))/100); h._atkHits=new Set(); // CAS-117 affix + CAS-119 talent +vel.ataque shorten the cooldown
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
   else if(cfg.type==="nova"){ h.atkT=0; audio.sfx.rune();
@@ -224,16 +236,27 @@ function hitEnemy(e,dmg,ang){
   // CAS-117: the "on-hit ligero" affix — a small flat bonus folded into EVERY
   // hero-sourced hit (melee/nova/proj/spell all funnel here). hitEnemy is the
   // hero→enemy damage path only, so this never touches enemy→hero damage.
-  const oh=G.hero?affixTotals(G.hero).onhit:0; if(oh) dmg+=oh;
+  // CAS-119: talents read off the cached bundle (h.tt). onhit stacks with the affix
+  // onhit; crit rolls on the sim RNG (srand) so it stays deterministic / Stage-2 ready.
+  // RNG is consumed ONLY when the build actually has the stat, so a talentless hero
+  // (smoke/determinism baseline) leaves the sequence byte-identical.
+  const tt=G.hero?G.hero.tt:null;
+  const oh=(G.hero?affixTotals(G.hero).onhit:0)+(tt?tt.onhit:0); if(oh) dmg+=oh;
+  let crit=false; if(tt&&tt.crit>0 && srand()*100<tt.crit){ crit=true; dmg*=(CRIT_BASE+(tt.critMult||0)/100); }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
-  floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d");
+  if(crit){ floater(e.x,e.y-e.tpl.size,"¡"+Math.round(dmg)+"!","#ff5d5d"); addFx("spark",e.x,e.y); }
+  else floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d");
   addFx("spark",e.x,e.y); addFx("blood",e.x,e.y,{ang}); addFx("impact",e.x,e.y,{ang,life:0.26});
   freeze(Math.min(5, 2+Math.floor(dmg/14))); // hit pops harder the bigger the blow
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
   // affix decision now changes how combat FEELS, not just the damage panel.
   if(G.hero){ const procs=weaponProcs(G.hero); if(procs) for(const pr of procs) applyStatus(e, pr.proc, {dmg:pr.amt}); }
+  // CAS-119: talent on-hit procs — a poison build (druid/mage 'Toque tóxico') ignites
+  // veneno every hit; a stun-chance build aturde on a srand roll. Both reuse CAS-118.
+  if(tt){ const tp=talentPoison(tt); if(tp) applyStatus(e,"poison",tp);
+    if(tt.stunChance>0 && srand()*100<tt.stunChance) applyStatus(e,"stun"); }
   if(e.tpl.neutral && !e.hostile){ makeHostile(e); registerSkull(); }
   if(e.hp<=0) killEnemy(e);
   else if(e.tpl.neutral) { /* stays hostile */ }
@@ -337,7 +360,23 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
 function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; // CAS-100: per-class growth → archetypes diverge as you climb
     h.maxHp+=(h.hpGain||18); h.maxMp+=(h.mpGain||8); h.baseDmg+=(h.dmgGain||3); h.hp=heroMaxHp(h); h.mp=h.maxMp;
+    // CAS-119: every level grants a talent point (build agency). Floater makes the
+    // grant visible (AC #1); the HUD ★ badge + (T) hint prompt the player to spend.
+    h.talentPts=(h.talentPts||0)+1; floater(h.x,h.y-46,STR.talentPointGain,"#ffd24d");
     h.xpNext=xpForLevel(h.lvl); toast(STR.levelUp(h.lvl)); audio.sfx.levelup(); for(let i=0;i<6;i++) addFx("heal",h.x+frr(-16,16),h.y+frr(-20,6)); } }
+// CAS-119: recompute the cached talent bundle after any change (alloc/respec/load)
+// and clamp current HP into the (possibly smaller) effective max so a respec that
+// drops +vida nodes can't leave the hero above their max.
+function recalcTalents(h){ if(!h) return; h.tt=talentTotals(h); const m=heroMaxHp(h); if(h.hp>m) h.hp=m; }
+// Spend one point on a node if it's a legal choice (sim is the authority — the UI
+// only proposes). Returns true on success. CAS-119.
+export function allocTalent(id){ const h=G.hero; if(!h||!h.talents) return false;
+  if(!canAllocTalent(h,id)){ audio.sfx.deny(); return false; }
+  h.talents[id]=(h.talents[id]|0)+1; h.talentPts--; recalcTalents(h);
+  const n=talentNode(h.cls,id); audio.sfx.levelup(); if(n) floater(h.x,h.y-40,n.name,"#9be7ff"); return true; }
+// Refund every spent point back into the pool and wipe the build. CAS-119 respec.
+export function respecTalents(){ const h=G.hero; if(!h||!h.talents) return 0; const n=talentSpent(h);
+  if(n<=0) return 0; h.talentPts=(h.talentPts||0)+n; h.talents={}; recalcTalents(h); audio.sfx.rune(); toast(STR.talentRespec); return n; }
 
 function registerSkull(){ const s=G.skull;
   if(s.level===0){ s.level=1; s.t=60; }            // white
@@ -357,7 +396,9 @@ export function castSpell(i){
   if(!sp) return;
   if(h.spellCD[i]>0) return;                                   // per-slot cooldown gate
   if(h.mp<sp.cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
-  h.mp-=sp.cost; h.spellCD[i]=sp.cd; h.spellCDmax[i]=sp.cd;
+  // CAS-119: a cooldown-reduction build (cdr) shortens the class-spell cooldown; the
+  // HUD ring reads spellCDmax so the shorter wheel is visible.
+  const cd=sp.cd*(1-(h.tt?h.tt.cdr:0)/100); h.mp-=sp.cost; h.spellCD[i]=cd; h.spellCDmax[i]=cd;
   if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
   resolveSpell(h,sp);
 }
@@ -659,6 +700,9 @@ export function update(dtMs){
   if(h.dmgBuffT>0){ h.dmgBuffT-=dt; if(h.dmgBuffT<=0){ h.dmgBonus-=h.dmgBuffAmt; h.dmgBuffAmt=0; } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+h.hotRate*dt); if(h.hotT<=0) h.hotRate=0; }
+  // CAS-119: passive talent regeneration (regen build) — a slow always-on heal that
+  // makes survivability builds observably outlast a glass build between fights.
+  if(h.tt&&h.tt.regen>0 && h.hp>0){ const mhp=heroMaxHp(h); if(h.hp<mhp) h.hp=Math.min(mhp,h.hp+h.tt.regen*dt); }
   // CAS-118: the hero SUFFERS statuses too — slow/stun timers wind down and DoTs tick.
   if(h.slowT>0) h.slowT-=dt; if(h.stun>0) h.stun-=dt;
   if(h.dots) tickDots(h,dt,true);
@@ -668,7 +712,7 @@ export function update(dtMs){
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
   else { const mv=io.moveVec(); const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
-    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+affixTotals(h).movespd/100)*statusSlow; // CAS-100 class mobility · CAS-117 +vel.mov affix
+    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow; // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov
     h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
@@ -816,6 +860,11 @@ function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0
   floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.34}); audio.sfx.roll(); }
 function damageHero(dmg,ang,infl){ const h=G.hero; if(h.dead) return;
   if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return; } // only an active roll earns the dodge, not mercy i-frames
+  // CAS-119: a dodge build (esquiva) can fully negate a connecting telegraphed strike
+  // on a srand roll — reading the tell still beats it for free, this rewards investing
+  // in evasion. srand consumed only when the build HAS dodge (baseline unchanged).
+  const tt=h.tt; if(tt&&tt.dodge>0 && srand()*100<tt.dodge){ h.iframe=Math.max(h.iframe,0.2);
+    floater(h.x,h.y-34,STR.talentDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.32}); audio.sfx.roll(); return; }
   const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   h.iframe=0.25; // brief mercy invuln
@@ -1067,4 +1116,25 @@ export const dev = {
   // procs fire) and returns the mob's resulting statuses — no applyStatus shortcut.
   heroHit(){ const h=G.hero; const e=G.enemies[0]; if(!e) return null; h.facing=Math.atan2(e.y-h.y,e.x-h.x);
     hitEnemy(e, equippedDmg(h), h.facing); return this.statusOf("enemy"); },
+  // --- CAS-119 talent-tree harness hooks (tools/cas119-talents.mjs); additive ---
+  // Read the live talent state: class, unspent points, per-node ranks, spent total,
+  // the aggregated combat bundle (h.tt) and the resolved combat totals — so the test
+  // can prove a spent point MOVES real numbers (AC #3), not just text.
+  talentState(){ const h=G.hero; if(!h) return null;
+    return { cls:h.cls, pts:h.talentPts|0, ranks:Object.assign({},h.talents),
+      spent:talentSpent(h), tt:Object.assign({},h.tt),
+      combat:{ dmg:equippedDmg(h), def:equippedDef(h), maxHp:heroMaxHp(h) } }; },
+  // The tree definition for a class (branches + node metadata incl. req/excl), so the
+  // panel + headless test can assert distinct trees with a real exclusive fork (AC #2/#4).
+  talentTree(cls){ const t=TALENTS[cls||G.hero.cls]; if(!t) return null;
+    return { branches:t.branches.slice(), nodes:t.nodes.map(n=>({id:n.id,br:n.br,tier:n.tier,name:n.name,max:n.max,eff:Object.assign({},n.eff),req:n.req||null,excl:n.excl||null})) }; },
+  // Grant points (level-up shortcut) so a test can fund a build without grinding XP.
+  grantTalentPts(n){ const h=G.hero; if(!h) return 0; h.talentPts=(h.talentPts|0)+Math.max(0,Math.floor(n||1)); return h.talentPts; },
+  // Spend a point through the REAL allocator (enforces points/req/excl) — returns the
+  // post-state so the harness reads the legal-allocation rules, never a shortcut.
+  allocTalent(id){ const ok=allocTalent(id); return { ok, state:this.talentState() }; },
+  // Full respec through the real path (refund + wipe + recalc).
+  respecTalents(){ const refunded=respecTalents(); return { refunded, state:this.talentState() }; },
+  // Can this node be taken right now? (mirrors the UI light-up + save validation.)
+  canAlloc(id){ return canAllocTalent(G.hero, id); },
 };

@@ -165,9 +165,12 @@ export function rollGearInst(srand,tmin,tmax,minR){ const slots=["weapon","body"
 // these so equipping a drop changes real combat numbers, not just the panel).
 // CAS-117: the +daño affix folds straight into equippedDmg; +vida into the
 // effective max via heroMaxHp; atkspd/movespd/onhit are read at their sim sites.
-export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus + affixTotals(h).dmg; }
+// CAS-119: talent flat +daño / +vida fold in here too, read off the cached bundle
+// h.tt (built in sim.recalcTalents) so combat + UI route through one place and a
+// talentless hero (h.tt zero/absent) is unchanged — no import cycle into talents.js.
+export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus + affixTotals(h).dmg + ((h.tt&&h.tt.dmg)||0); }
 export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip.shield) + h.defBonus; }
 // Effective max HP = the stored base pool (class+level+shop+shards) plus any
 // +vida affixes currently equipped. Never baked into h.maxHp, so persistence
 // and leveling stay clean (mirrors how timed buffs stay out of permDmg/permDef).
-export function heroMaxHp(h){ return h.maxHp + affixTotals(h).hp; }
+export function heroMaxHp(h){ return h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0); }

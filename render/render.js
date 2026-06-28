@@ -14,6 +14,7 @@ import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, 
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
+import { TALENTS, talentNodes, talentNode, nodeRank, canAllocTalent, lockReason, talentSpent } from "../sim/talents.js";
 import { STR } from "../strings.js";
 import { audio } from "../audio.js";
 import { view, zoom } from "../view.js";
@@ -113,6 +114,7 @@ export function createRenderer(ctx){
     renderHUD();
     if(G.showMap) renderBigMap();
     if(G.scene==="inventory") renderInventory();
+    if(G.scene==="talents") renderTalents();
     if(G.scene==="dialogue") renderDialogue();
     if(G.scene==="shop") renderShop();
     if(G.scene==="pause") renderPause();
@@ -600,6 +602,11 @@ export function createRenderer(ctx){
     bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
     bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
     bar(pad,pad+38,bw,10,h.xp/h.xpNext,COL.xpf,COL.xpb, STR.level(h.lvl));
+    // CAS-119: unspent talent-point badge beside the XP bar — pulses gold to prompt the
+    // player to open the tree (T). Disappears once all points are spent.
+    if((h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
+      ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="left";
+      ctx.fillText("★"+h.talentPts+" (T)", pad+bw+8, pad+47); ctx.restore(); ctx.textAlign="left"; }
     // gold + potions
     ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
     ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
@@ -752,6 +759,75 @@ export function createRenderer(ctx){
         ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
+  }
+
+  // CAS-119 — TALENT TREE panel. Tibia-style box: 3 branch columns (with connector
+  // lines for prereqs), clickable nodes, a hover description, available-points
+  // header, a respec button. State colours: ALLOCATED (green) > AVAILABLE (gold,
+  // can spend) > LOCKED (dim). Hit-rects → ui.talentRects (read by input).
+  function nodeState(h,node){ const r=nodeRank(h,node.id); if(r>=node.max && r>0) return "max";
+    if(r>0) return "have"; if(canAllocTalent(h,node.id)) return "avail"; return "lock"; }
+  function renderTalents(){ const h=G.hero; if(!h) return;
+    const tree=TALENTS[h.cls]; if(!tree){ G.scene="play"; return; }
+    const bw=Math.min(VW*0.94,660), bh=Math.min(VH*0.92,540), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'";
+    ctx.fillText(STR.talentTitle+" — "+(STR.classes[h.cls]?STR.classes[h.cls].name:h.cls), VW/2, y+26);
+    ctx.fillStyle=(h.talentPts>0)?COL.heal:COL.textDim; ctx.font="bold 13px 'Courier New'";
+    ctx.fillText(STR.talentPoints(h.talentPts|0)+(h.talentPts>0?"":"  ("+STR.talentNoPts+")"), VW/2, y+46);
+    ui.talentRects=[];
+    const nodes=tree.nodes; const nb=tree.branches.length;
+    const colW=(bw-48)/nb, top=y+70, rowH=78, nh=54;
+    const focusId=(function(){ const ns=talentNodes(h.cls); const i=G.talFocus||0; return ns[i]?ns[i].id:null; })();
+    // branch headers
+    for(let b=0;b<nb;b++){ const cx=x+24+colW*b+colW/2;
+      ctx.fillStyle=COL.cream; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(tree.branches[b], cx, top-8); }
+    // Position each node by (branch, tier). When a tier holds MORE than one node
+    // (an exclusive fork), spread the siblings horizontally so they don't overlap,
+    // and shrink their width to fit the column. CAS-119.
+    const cellCount={}; for(const n of nodes){ const k=n.br+":"+n.tier; cellCount[k]=(cellCount[k]||0)+1; }
+    const cellIdx={}; const pos={}, sizeOf={};
+    for(const n of nodes){ const k=n.br+":"+n.tier; const m=cellCount[k]; const idx=(cellIdx[k]=(cellIdx[k]||0)); cellIdx[k]++;
+      const colLeft=x+24+colW*n.br; const cx=colLeft+colW*(idx+1)/(m+1); const cy=top+18+n.tier*rowH;
+      pos[n.id]={cx,cy}; sizeOf[n.id]=Math.min((colW/m)-12, 168); }
+    ctx.strokeStyle="#3a4456"; ctx.lineWidth=2;
+    for(const n of nodes){ if(n.req&&pos[n.req]){ const a=pos[n.req], b2=pos[n.id];
+      ctx.beginPath(); ctx.moveTo(a.cx,a.cy+nh/2); ctx.lineTo(b2.cx,b2.cy-nh/2); ctx.stroke(); } }
+    // nodes
+    let hover=null;
+    for(let i=0;i<nodes.length;i++){ const n=nodes[i]; const p=pos[n.id]; const st=nodeState(h,n); const nw=sizeOf[n.id];
+      const bx=p.cx-nw/2, by=p.cy-nh/2; const rank=nodeRank(h,n.id);
+      const fill = st==="have"||st==="max" ? "#1d3324" : (st==="avail"? "#33301a" : "#181c22");
+      const border = st==="max" ? COL.heal : (st==="have"? "#5fd66a" : (st==="avail"? COL.textGold : "#3a4456"));
+      ctx.fillStyle=fill; ctx.fillRect(bx,by,nw,nh);
+      ctx.strokeStyle=border; ctx.lineWidth=(n.id===focusId)?2.5:1.5; ctx.strokeRect(bx,by,nw,nh);
+      // exclusive-fork marker
+      if(n.excl){ ctx.fillStyle="#c77dff"; ctx.font="9px 'Courier New'"; ctx.textAlign="left"; ctx.fillText("◆", bx+4, by+12); }
+      ctx.textAlign="center"; ctx.fillStyle=(st==="lock")?COL.textDim:COL.cream; ctx.font=(nw<130?"bold 9px 'Courier New'":"bold 11px 'Courier New'");
+      ctx.fillText(n.name, p.cx, by+22);
+      ctx.fillStyle=(st==="max")?COL.heal:(st==="avail"?COL.textGold:COL.textDim); ctx.font="11px 'Courier New'";
+      ctx.fillText(STR.talentRank(rank,n.max), p.cx, by+40);
+      ui.talentRects.push({x:bx,y:by,w:nw,h:nh, id:n.id, focus:i});
+      if(ui.mouseX>=bx&&ui.mouseX<=bx+nw&&ui.mouseY>=by&&ui.mouseY<=by+nh) hover=n;
+    }
+    // description box (hovered, else keyboard-focused node)
+    const dn = hover || talentNode(h.cls, focusId);
+    const dy=y+bh-92, dbx=x+24, dbw=bw-48, dbh=52;
+    panelLocal(dbx,dy,dbw,dbh);
+    if(dn){ const st=nodeState(h,dn); ctx.textAlign="left";
+      ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(dn.name+"  ["+STR.talentRank(nodeRank(h,dn.id),dn.max)+"]", dbx+10, dy+18);
+      ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(dn.desc, dbx+10, dy+34);
+      const lr=lockReason(h,dn.id); let hint="";
+      if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
+      if(hint){ ctx.fillStyle="#d0a0a0"; ctx.font="10px 'Courier New'"; ctx.fillText(hint, dbx+10, dy+48); }
+    }
+    // respec button + hint
+    const rbw=210, rbh=26, rbx=VW/2-rbw/2, rby=y+bh-32;
+    const canR=talentSpent(h)>0;
+    ctx.fillStyle=canR?"#3a2c1e":"#23262c"; ctx.fillRect(rbx,rby,rbw,rbh);
+    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+17);
+    ui.talentRects.push({x:rbx,y:rby,w:rbw,h:rbh, act:()=>sim.respecTalents()});
+    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.talentHint, VW/2, y+bh-6);
   }
 
   function renderShop(){ const items=sim.shopItems(); const bw=Math.min(VW*0.86,460), bh=Math.min(VH*0.82,420), x=(VW-bw)/2, y=(VH-bh)/2;

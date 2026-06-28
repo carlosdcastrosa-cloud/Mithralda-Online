@@ -97,7 +97,11 @@ export function createGame(canvas, ctx, getView){
       // CAS-113 persistence contract consumed by tools/persist.mjs — additive
       saveBlob:()=>serializeSave(), saveNow:()=>persist.save(),
       hasSave:()=>persist.hasSave(), clearSave:()=>persist.clear(),
-      noSave:()=>persist.suppress(), resetGame:()=>persist.resetGame() };
+      noSave:()=>persist.suppress(), resetGame:()=>persist.resetGame(),
+      // CAS-119 talent-tree contract consumed by tools/cas119-talents.mjs — additive
+      talentState:()=>simDev.talentState(), talentTree:(cls)=>simDev.talentTree(cls),
+      grantTalentPts:(n)=>simDev.grantTalentPts(n), allocTalent:(id)=>simDev.allocTalent(id),
+      respecTalents:()=>simDev.respecTalents(), canAlloc:(id)=>simDev.canAlloc(id) };
   }
   syncMenuDom(); positionNameInput();
 

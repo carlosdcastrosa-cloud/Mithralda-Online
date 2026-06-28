@@ -85,6 +85,20 @@ export const STR = {
   cmpEquipped: "Equipado",
   cmpNew: "Nuevo",
 
+  // CAS-119 — talent tree / class progression (build agency).
+  talentTitle: "TALENTOS",
+  talentPoints: (n) => "Puntos: " + n,
+  talentPointGain: "+1 talento",
+  talentPtHud: " talento",
+  talentRespec: "Talentos reiniciados — puntos devueltos",
+  talentRespecBtn: "Reespecializar (devolver puntos)",
+  talentHint: "T cerrar · clic/Enter gastar punto · una rama tiene elección exclusiva",
+  talentLocked: "Requiere el talento previo",
+  talentExcl: "Elección exclusiva (ya elegiste la otra rama)",
+  talentNoPts: "Sin puntos — sube de nivel",
+  talentRank: (r, m) => r + "/" + m,
+  talentDodge: "¡ESQUIVA!",
+
   shopTitle: "TIENDA DE SOLANA",
   merchantTitle: "CARRO DEL MERCADER",
   buy: "Comprar",
