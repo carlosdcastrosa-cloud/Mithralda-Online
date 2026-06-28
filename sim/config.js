@@ -284,8 +284,20 @@ export const HUNTS = {
            slam:{ count:16, spd:190, dmg:26, life:1.4 },                           // enraged radial shockwave (shared vocab)
            carapace:{ every:3, channel:2.6, adds:2, addType:"wraith", shatterStun:1.8,
                       nova:{ count:22, spd:150, dmg:30, life:1.5, slow:{ amt:0.5, dur:2.6 } } },
+           // CAS-123 — this capstone IS the Stage-1 final boss. `final:true` flags its
+           // defeat as the win-condition (sim onChampionKill → victory screen). The whole
+           // game is sequenced toward this fight: it gates on the deepest power req, demands
+           // the status stack (carapace), and pays the richest reward. The flag is pure data
+           // so the "final boss" can be re-pointed to any capstone in one edit.
+           final:true,
            tier:[4,4], minR:"epic", xp:820, gold:480 } },                          // new richest guaranteed top-tier sink
 };
+
+// CAS-123 — Stage-1 win-condition descriptor. The single legible GOAL the whole run
+// builds toward, surfaced in the HUD objective tracker (render.js) from minute one and
+// resolved when the FINAL capstone (HUNTS[STAGE1_GOAL.zone].boss.final) dies. Data-driven:
+// the objective text + the gate it reads come straight from here, no UI branching.
+export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
 // CAS-100: per-class BASE STATS — the first class-identity surface (before ATK/SPELLS).
 // Until now every class spawned with identical hp/mp/dmg/speed, so they only LOOKED

@@ -53,6 +53,7 @@ function onKeyDown(e){
 function onKeyUp(e){ if(BIND[e.code]) keys.delete(BIND[e.code]); }
 function edge(code){
   if(G.scene==="dead"){ if(code==="Space"||code==="Enter") sim.respawn(); return; }
+  if(G.scene==="victory"){ if(code==="Space"||code==="Enter"||code==="Escape") sim.dismissVictory(); return; } // CAS-123
   if(G.scene==="dialogue"){ if(code==="KeyE"||code==="Space"||code==="Enter") sim.advanceDialogue(); else if(code==="Escape"){G.dialog=null;G.scene="play";} return; }
   if(G.scene==="shop"){ if(code==="Escape"||code==="KeyE"){G.scene="play";G.healShop=false;G.merchantShop=false;}
     else if(code==="ArrowUp"){G.shopSel=(G.shopSel+sim.shopItems().length-1)%sim.shopItems().length;}
@@ -157,6 +158,7 @@ export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH)
 
 function handleUITap(x,y){
   if(G.scene==="dead"){ sim.respawn(); return true; }
+  if(G.scene==="victory"){ sim.dismissVictory(); return true; } // CAS-123: tap to free play
   if(G.scene==="dialogue"){ sim.advanceDialogue(); return true; }
   if(G.scene==="pause"){ return pauseTap(x,y); }
   if(G.scene==="inventory"){ return invTap(x,y); }

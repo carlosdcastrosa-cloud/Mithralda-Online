@@ -106,7 +106,9 @@ export function createGame(canvas, ctx, getView){
       grantTalentPts:(n)=>simDev.grantTalentPts(n), allocTalent:(id)=>simDev.allocTalent(id),
       respecTalents:()=>simDev.respecTalents(), canAlloc:(id)=>simDev.canAlloc(id),
       // CAS-120 active-skill-bar contract consumed by tools/cas120-skills.mjs — additive
-      skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot) };
+      skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot),
+      // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
+      stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory() };
   }
   syncMenuDom(); positionNameInput();
 

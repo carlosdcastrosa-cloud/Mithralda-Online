@@ -30,6 +30,8 @@
     "skills-live": "node tools/cas120-skills-live.mjs",
     "frost": "node tools/cas121-frost.mjs",
     "frost-live": "node tools/cas121-frost-live.mjs",
+    "finale": "node tools/cas123-finale.mjs",
+    "finale-live": "node tools/cas123-finale-live.mjs",
     "hero-live": "node tools/hero-sprite-live.mjs",
     "stamp": "node tools/stamp-version.mjs",
     "stamp:check": "node tools/stamp-version.mjs --check",

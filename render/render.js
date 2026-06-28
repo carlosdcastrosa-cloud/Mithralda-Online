@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, STATUS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
@@ -121,6 +121,7 @@ export function createRenderer(ctx){
     if(G.scene==="shop") renderShop();
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
+    if(G.scene==="victory") renderVictory();
     renderToast();
     if(isTouch && G.scene==="play") renderTouch();
     if(G.settings.crt) renderCRT();
@@ -656,10 +657,29 @@ export function createRenderer(ctx){
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
     const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
     ctx.fillText(zn, VW/2, 20);
+    // CAS-123: Stage-1 OBJECTIVE tracker — the single legible win-goal, top-centre and
+    // ALWAYS visible so a new player reads where the run is headed from minute one. The
+    // text + colour switch as the gate opens (locked → ready) and once the run is won.
+    drawObjective(h);
     // spell bar
     renderSpellBar();
     // minimap
     if(!isTouch || true) renderMiniMap();
+  }
+  // CAS-123: the persistent Stage-1 objective banner (top-centre, under the zone name).
+  function drawObjective(h){
+    let txt, col;
+    if(h.stage1){ txt=STR.objDone; col=COL.heal; }
+    else { const pw=sim.heroPower(h), req=(STAGE1_GOAL&&STAGE1_GOAL.req)||FROST_POWER_REQ;
+      if(pw>=req){ txt=STR.objReady; col="#7fd6ff"; }                 // gate open → go fight the boss
+      else { txt=STR.objLocked(pw, req); col=COL.textGold; } }        // still building power
+    const label=STR.objLabel+": "+txt;
+    ctx.textAlign="center"; ctx.font="bold 11px 'Courier New'";
+    const w=ctx.measureText(label).width+16, x=VW/2, y=30;
+    ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(x-w/2,y-1,w,18);
+    ctx.fillStyle=col; ctx.fillRect(x-w/2,y-1,3,18);                  // accent tick
+    ctx.fillStyle=col; ctx.fillText(label, x, y+12);
+    ctx.textAlign="left";
   }
   function renderSpellBar(){ const h=G.hero; const n=4; const s=Math.min(46,VW*0.1); const gap=6; const total=n*s+(n-1)*gap;
     const x0=VW/2-total/2; const y=VH-(isTouch?0:14)-s; if(isTouch) return; // touch uses buttons
@@ -908,6 +928,47 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.cream; ctx.font="16px 'Courier New'"; ctx.fillText(STR.deathSub,VW/2,VH/2+6);
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(VW/2-90,VH/2+30,180,40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.fillText(STR.deathContinue,VW/2,VH/2+56);
   }
+
+  // CAS-123: the Stage-1 VICTORY / run-completion screen. Reads the frozen G.victory
+  // snapshot built by the sim when the final boss died; a calm gold overlay (not the red
+  // death wash), a run summary, and one button → free play with the same hero.
+  function renderVictory(){
+    const v=G.victory; if(!v){ return; }
+    // backdrop — deep blue→gold celebratory wash + drifting sparks (seeded → stable)
+    ctx.fillStyle="rgba(10,14,26,0.82)"; ctx.fillRect(0,0,VW,VH);
+    rrng.seed(123); for(let i=0;i<70;i++){ const sx=rr(0,VW), sy=rr(0,VH); const tw=0.4+0.6*Math.abs(Math.sin(G.t*2+i));
+      ctx.globalAlpha=0.25+0.4*tw; ctx.fillStyle=i%5===0?COL.textGold:"#7fd6ff"; ctx.fillRect(sx,sy,2,2); }
+    ctx.globalAlpha=1;
+    const cx=VW/2; let y=VH*0.18;
+    // title
+    ctx.textAlign="center";
+    ctx.fillStyle=COL.out; ctx.font="bold 46px 'Courier New'"; ctx.fillText(STR.victoryTitle, cx+3, y+3);
+    ctx.fillStyle=COL.textGold; ctx.fillText(STR.victoryTitle, cx, y); y+=40;
+    ctx.fillStyle=COL.cream; ctx.font="14px 'Courier New'"; wrapText(STR.victorySub(v.bossName), cx, y, VW*0.8, 18); y+=46;
+    // summary panel
+    const clsName=(STR.classLabel&&STR.classLabel[v.cls])||v.cls;
+    const rarName=(STR.rarityLabel&&v.lootRarity&&STR.rarityLabel[v.lootRarity])||v.lootRarity||"";
+    const lines=[ STR.victoryClass(clsName), STR.victoryLevel(v.lvl), STR.victoryTime(fmtTime(v.playT)),
+      STR.victoryDeaths(v.deaths), STR.victoryGold(v.gold) ];
+    if(v.lootName) lines.push(STR.victoryLoot(v.lootName, rarName));
+    const pw=Math.min(VW*0.7,360), ph=lines.length*22+20, px=cx-pw/2;
+    ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(px,y,pw,ph);
+    ctx.fillStyle=COL.panelB; ctx.fillRect(px,y,pw,3);
+    ctx.font="14px 'Courier New'"; ctx.textAlign="left"; ctx.fillStyle=COL.cream;
+    let ly=y+24; for(const ln of lines){ ctx.fillText(ln, px+18, ly); ly+=22; }
+    y+=ph+28;
+    // continue button (free play)
+    ctx.textAlign="center";
+    ctx.fillStyle="#3a2c1e"; ctx.fillRect(cx-150,y,300,40);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'"; ctx.fillText(STR.victoryContinue, cx, y+26);
+    y+=58; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; wrapText(STR.victoryFooter, cx, y, VW*0.75, 16);
+    ctx.textAlign="left";
+  }
+  // minimal word-wrap centred at x (used by the victory screen)
+  function wrapText(txt, x, y, maxW, lh){ const words=String(txt).split(" "); let line="", yy=y;
+    for(const w of words){ const t=line?line+" "+w:w; if(ctx.measureText(t).width>maxW && line){ ctx.fillText(line,x,yy); line=w; yy+=lh; } else line=t; }
+    if(line) ctx.fillText(line,x,yy); return yy; }
+  function fmtTime(s){ s=Math.max(0,Math.floor(s)); const m=Math.floor(s/60); const ss=s%60; return m+"m "+(ss<10?"0":"")+ss+"s"; }
 
   function renderToast(){ if(G.toastT<=0) return; const a=clamp(G.toastT,0,1); ctx.globalAlpha=a; ctx.textAlign="center";
     ctx.font="bold 15px 'Courier New'"; const w=ctx.measureText(G.toast).width+24; ctx.fillStyle="rgba(8,10,14,0.9)"; ctx.fillRect(VW/2-w/2,VH*0.18,w,30);

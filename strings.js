@@ -121,6 +121,27 @@ export const STR = {
   deathSub: "Renaces en el templo de Puerto Solana",
   deathContinue: "Continuar",
 
+  // CAS-123 — Stage-1 objective tracker (HUD) + victory / run-completion screen.
+  // The single legible GOAL, shown from minute one so a new player knows where the run
+  // is headed; the text switches as the gate opens and once the run is won.
+  objLabel: "OBJETIVO",
+  objLocked: (pw, req) => "Reúne poder para la Cripta Helada (" + pw + "/" + req + ")",
+  objReady: "Derrota al Guardián de la Cripta Helada",
+  objDone: "Stage-1 completado ✔ — juego libre",
+  victoryTitle: "¡VICTORIA!",
+  victorySub: (boss) => "Has derrotado al " + boss + " y completado la Crónica de Mithralda.",
+  victoryClass: (cls) => "Clase: " + cls,
+  victoryLevel: (n) => "Nivel alcanzado: " + n,
+  victoryTime: (t) => "Tiempo de juego: " + t,
+  victoryDeaths: (n) => "Caídas: " + n,
+  victoryGold: (n) => "Oro acumulado: " + n,
+  victoryLoot: (name, rarity) => "Mejor botín: " + name + " (" + rarity + ")",
+  victoryContinue: "SEGUIR JUGANDO (juego libre)",
+  victoryFooter: "Tu héroe persiste. Sigue cazando, perfecciona tu build o repite al Guardián.",
+  // class display names for the summary (lowercase ids → Spanish labels)
+  classLabel: { warrior:"Guerrero", paladin:"Paladín", mage:"Mago", druid:"Druida", priest:"Sacerdote" },
+  rarityLabel: { common:"común", uncommon:"infrecuente", rare:"raro", epic:"épico" },
+
   pauseTitle: "PAUSA",
   resume: "VOLVER AL JUEGO",
   settingsTitle: "AJUSTES",

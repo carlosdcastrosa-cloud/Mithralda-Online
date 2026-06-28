@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STATUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -46,7 +46,11 @@ export function configure(deps){ io = deps.io; audio = deps.audio; view = deps.v
 export { world, rng };
 
 export const G = {
-  scene:"menu", // menu, play, dialogue, shop, inventory, talents, pause, dead
+  scene:"menu", // menu, play, dialogue, shop, inventory, talents, pause, dead, victory
+  // CAS-123: frozen run-summary snapshot built when the Stage-1 final boss dies; read by
+  // renderVictory(). null until the win fires. Cleared scene-side only (the win persists
+  // on the hero), so re-opening it is harmless.
+  victory:null,
   talFocus:0,   // CAS-119: keyboard-focused talent node index (talents panel)
   t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
   cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false},
@@ -87,6 +91,10 @@ function newHero(name,cls){
     // CAS-112: persistent merchant-shop upgrade tiers (gold sink). Each bought tier
     // permanently bumps baseDmg / maxHp / defBonus — see shopItems()/buyItem().
     upg:{dmg:0, hp:0, def:0},
+    // CAS-123: durable run-arc tracking for the Stage-1 finale + victory summary.
+    // playT = seconds actually spent in play; deaths = run attempts; stage1 = the
+    // win flag (true once the final boss has died). All three persist (serializeSave).
+    playT:0, deaths:0, stage1:false,
     respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
 }
 function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
@@ -134,6 +142,9 @@ export function serializeSave(){
     // CAS-119: durable build choices. Additive — old v1 saves simply lack these and
     // rehydrate with an empty tree (0 spent), so no SAVE_VERSION bump / progress wipe.
     talents:Object.assign({},h.talents), talentPts:h.talentPts||0,
+    // CAS-123: durable Stage-1 arc state. Additive (old saves lack these → default to a
+    // fresh, unfinished run), so no SAVE_VERSION bump / progress wipe.
+    stage1:!!h.stage1, playT:h.playT||0, deaths:h.deaths||0,
     equip:{weapon:h.equip.weapon, body:h.equip.body, shield:h.equip.shield}, bag:h.bag,
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
@@ -155,6 +166,8 @@ export function loadSave(d){
     // CAS-119: rebuild a LEGAL talent tree from the (untrusted) blob + recompute the
     // cached bundle, so persisted builds survive reload and corrupt data can't break it.
     h.talents=sanitizeTalents(d.talents, h.cls); h.talentPts=Math.max(0,Math.floor(num(d.talentPts,0))); recalcTalents(h);
+    // CAS-123: rehydrate the Stage-1 arc (clamped; absent in old saves → fresh run).
+    h.stage1=!!d.stage1; h.playT=Math.max(0,num(d.playT,0)); h.deaths=Math.max(0,Math.floor(num(d.deaths,0)));
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
     G.hero=h; G.hunts=initHunts(); G.fields.length=0;
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
@@ -337,6 +350,7 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
     // CAS-121: carapace state (only the Cripta capstone carries B.carapace). atkCount
     // drives the cadence; shielded/shieldBroken are the live mechanic flags.
     e.carapace=B.carapace||null; e.shielded=false; e.shieldBroken=false; e.atkCount=0;
+    e.final=!!B.final; // CAS-123: this capstone's death is the Stage-1 win-condition
     e.rwdTier=B.tier; e.rwdMinR=B.minR; e.rwdXp=B.xp; e.rwdGold=B.gold;
   } else {
     // Elite stat block layered on the base mob — reuses its sprite + telegraphed AI,
@@ -370,7 +384,36 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   gainXP(e.rwdXp||cfgH.xp);
   toast(STR.huntCleared(zone),3.6);
   for(let i=0;i<(e.capstone?16:10);i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
+  // CAS-123: the FINAL boss (data flag) closes the Stage-1 arc → victory screen.
+  if(e.final) winStage1();
 }
+
+// CAS-123 — Stage-1 victory. Fires once, when the final capstone dies. Snapshots the
+// run summary (class, level, time, attempts, gold, best loot) for renderVictory(), marks
+// the durable win flag (persisted next autosave) and switches to the victory scene. The
+// hero is untouched otherwise, so dismissing it drops straight back into free play with
+// the same character — "libre tras la victoria".
+function winStage1(){ const h=G.hero; if(!h) return;
+  const firstWin=!h.stage1; h.stage1=true;
+  G.victory=buildVictorySummary(h, firstWin);
+  G.scene="victory"; G.music="town"; if(audio&&audio.playMusic) audio.playMusic("town");
+  if(audio&&audio.sfx&&audio.sfx.levelup) audio.sfx.levelup();
+  for(let i=0;i<24;i++) addFx("heal", h.x+frr(-40,40), h.y+frr(-50,20));
+}
+// Pick the best-rarity equipped piece (ties → weapon) as the headline "key loot".
+function bestEquipped(h){ const slots=["weapon","body","shield"]; let best=null, bestRank=-1;
+  for(const s of slots){ const it=h.equip&&h.equip[s]; if(!it) continue; const rk=rarityRank(it.rarity);
+    if(rk>bestRank){ bestRank=rk; best=it; } }
+  return best; }
+function buildVictorySummary(h, firstWin){
+  const b=bestEquipped(h);
+  return { cls:h.cls, lvl:h.lvl, playT:Math.floor(h.playT||0), deaths:h.deaths||0, gold:h.gold||0,
+    bossName:(STAGE1_GOAL&&STAGE1_GOAL.boss)||"el jefe final", firstWin:!!firstWin,
+    lootName:b?gearName(b):null, lootRarity:b?b.rarity:null };
+}
+// Dismiss the victory screen → resume free play with the same hero (no reset).
+export function dismissVictory(){ if(G.scene!=="victory") return; G.victory=null; const h=G.hero;
+  if(h){ h.dead=false; h.vx=h.vy=0; h.iframe=0.6; } G.scene="play"; }
 function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; // CAS-100: per-class growth → archetypes diverge as you climb
     h.maxHp+=(h.hpGain||18); h.maxMp+=(h.mpGain||8); h.baseDmg+=(h.dmgGain||3); h.hp=heroMaxHp(h); h.mp=h.maxMp;
@@ -587,6 +630,7 @@ export function tryPickup(){
 // ------------------------------ death ----------------------------------
 function heroDie(){
   const h=G.hero; if(h.dead) return; h.dead=true; h.animState="dead"; h.animT=0; G.scene="dead"; audio.sfx.death();
+  h.deaths=(h.deaths||0)+1; // CAS-123: a run attempt for the victory summary
   const red=G.skull.level>=3;
   let frac = h.blessings>0 && !red ? 0.10 : 0.30;
   const loss=Math.floor(h.xpNext*frac); h.xp=Math.max(0,h.xp-loss);
@@ -722,6 +766,7 @@ export function update(dtMs){
   io.pollPad();
   if(G.scene!=="play"){ updateFloaters(dt); updateFx(dt); return; } // freeze world in menus but let transient fx expire
   const h=G.hero;
+  h.playT+=dt; // CAS-123: accumulate live-play seconds for the victory summary (play-only)
   // music switch by zone danger
   const z=zoneOf(world,h.x,h.y); const wantCombat=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss"||z==="frost") && G.enemies.some(e=>e.state==="chase"||e.state==="windup"||e.state==="shield");
   const wantMusic=wantCombat?"combat":"town"; if(wantMusic!==G.music){ G.music=wantMusic; audio.playMusic(wantMusic); }
@@ -1026,6 +1071,23 @@ export const dev = {
   // (higher) requirement, whether the frost portal would open, and the live zone.
   frostGate(){ const h=G.hero; const pw=heroPower(h); return { power:pw, req:FROST_POWER_REQ,
     unlocked:pw>=FROST_POWER_REQ, zone:zoneOf(world,h.x,h.y), upg:{...(h.upg||{})}, lvl:h.lvl }; },
+  // --- CAS-123 Stage-1 finale harness hooks (tools/cas123-finale.mjs); additive ---
+  // Read the win-condition arc: the final-boss config, the durable win flag, the run
+  // stats and the live victory snapshot + scene. Proves the goal exists, persists and
+  // resolves — without forcing it.
+  stage1State(){ const h=G.hero; return { goal:{...STAGE1_GOAL}, stage1:!!(h&&h.stage1),
+    scene:G.scene, playT:Math.floor((h&&h.playT)||0), deaths:(h&&h.deaths)||0,
+    finalIsFinal:!!(HUNTS.frost&&HUNTS.frost.boss&&HUNTS.frost.boss.final),
+    victory:G.victory?{...G.victory}:null }; },
+  // Drive the REAL win path: ensure the final capstone is summoned + park the hero on it,
+  // so killing it (huntKillChampion) flows through onChampionKill → winStage1 with no
+  // shortcut around the flag/snapshot/scene switch. Returns the live champ telemetry.
+  armFinalBoss(){ const zone=STAGE1_GOAL.zone; const H=G.hunts&&G.hunts[zone]; if(!H) return null;
+    if(!H.champ && !H.cleared){ H.kills=HUNTS[zone].need; spawnChampion(zone); }
+    const e=H.champ; if(!e) return null; const h=G.hero; h.x=e.x+18; h.y=e.y; h.maxHp=8000; h.hp=8000; h.iframe=0;
+    return { name:e.tpl.champName, final:!!e.final, hp:Math.round(e.hp) }; },
+  // Dismiss the victory screen → free play (mirrors the input handler).
+  ackVictory(){ dismissVictory(); return G.scene; },
   // CAS-109: arm the live Champion so its NEXT in-range strike is the telegraphed
   // radial slam (sets atkCount to one below the cadence). The REAL windup→strike AI
   // then fires the special — no shortcut around the slam emission. Pair with poke()
