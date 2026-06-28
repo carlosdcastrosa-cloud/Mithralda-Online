@@ -74,6 +74,9 @@ export function createGame(canvas, ctx, getView){
       enemyProj:()=>simDev.enemyProj(),
       // Champion telegraphed-slam contract consumed by tools/hunt.mjs (CAS-109) — additive
       forceSpecial:(zone)=>simDev.forceSpecial(zone),
+      // CAS-121 frost-biome carapace contract consumed by tools/cas121-frost.mjs — additive
+      forceCarapace:(zone)=>simDev.forceCarapace(zone), frostGate:()=>simDev.frostGate(),
+      hitChamp:(zone)=>simDev.hitChamp(zone),
       // spell-identity contract consumed by tools/spells.mjs (CAS-52) — additive
       setClass:(cls)=>simDev.setClass(cls),
       // per-class base-stat contract consumed by tools/classstats.mjs (CAS-100) — additive

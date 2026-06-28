@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, STATUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STATUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -241,6 +241,17 @@ function hitEnemy(e,dmg,ang){
   // RNG is consumed ONLY when the build actually has the stat, so a talentless hero
   // (smoke/determinism baseline) leaves the sequence byte-identical.
   const tt=G.hero?G.hero.tt:null;
+  // CAS-121: a boss under its frost CARAPACE is damage-IMMUNE. The hit still funnels the
+  // same on-hit STATUS procs (so a build that applies veneno/quemadura/aturdir SHATTERS
+  // the shield — applyStatus flags it), but all damage/knock/crit is skipped and an
+  // INMUNE tell pops. Returns before any HP change. A status-less hit simply bounces.
+  if(e.shielded){
+    floater(e.x,e.y-e.tpl.size,STR.immune,"#bfefff"); addFx("spark",e.x,e.y); audio.sfx.ehurt();
+    if(G.hero){ const procs=weaponProcs(G.hero); if(procs) for(const pr of procs) applyStatus(e, pr.proc, {dmg:pr.amt}); }
+    if(tt){ const tp=talentPoison(tt); if(tp) applyStatus(e,"poison",tp);
+      if(tt.stunChance>0 && srand()*100<tt.stunChance) applyStatus(e,"stun"); }
+    return;
+  }
   const oh=(G.hero?affixTotals(G.hero).onhit:0)+(tt?tt.onhit:0); if(oh) dmg+=oh;
   let crit=false; if(tt&&tt.crit>0 && srand()*100<tt.crit){ crit=true; dmg*=(CRIT_BASE+(tt.critMult||0)/100); }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
@@ -323,6 +334,9 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
       ranged:false, aggro:Math.max(base.aggro,340), xp:B.xp, champName:B.name });
     e.capstone=true; e.enraged=false; e.enrageAt=B.enrageAt||0.5;
     e.baseSpd=e.tpl.spd; e.enrageSpd=B.enrageSpd||1.35; e.enrageWindup=B.enrageWindup||0.72; e.slam=B.slam||null;
+    // CAS-121: carapace state (only the Cripta capstone carries B.carapace). atkCount
+    // drives the cadence; shielded/shieldBroken are the live mechanic flags.
+    e.carapace=B.carapace||null; e.shielded=false; e.shieldBroken=false; e.atkCount=0;
     e.rwdTier=B.tier; e.rwdMinR=B.minR; e.rwdXp=B.xp; e.rwdGold=B.gold;
   } else {
     // Elite stat block layered on the base mob — reuses its sprite + telegraphed AI,
@@ -498,6 +512,11 @@ function updateFields(dt){
 // remaining duration, so stacking the same source can't snowball the frame/curve.
 function applyStatus(ent, type, opt){
   if(!ent) return; opt=opt||{}; const def=STATUS[type]; if(!def) return;
+  // CAS-121: landing ANY status on a carapaced boss flags it to SHATTER next frame (the
+  // single choke point catches every status source — affix proc / talent / skill /
+  // spell / field — so the build-agency stack uniformly breaks the shield). The status
+  // is still recorded below, so it keeps ticking once the carapace is gone (a reward).
+  if(ent.shielded) ent.shieldBroken=true;
   if(def.dot){ ent.dots=ent.dots||{};
     const cur=ent.dots[type]; const dmg=opt.dmg||def.dmg, dur=opt.dur||def.dur;
     ent.dots[type]= cur ? { t:Math.max(cur.t,dur), acc:cur.acc, dmg:Math.max(cur.dmg,dmg), tick:def.tick }
@@ -597,10 +616,14 @@ export function heroPower(h){ h=h||G.hero; if(!h) return 0; const u=h.upg||{};
 // denies with a clear toast (HUD feedback); at/above it warps the hero to the abyss
 // vestibule. The abyss→town gate always returns. Clears transient state on arrival.
 function usePortal(p){ const h=G.hero;
+  // CAS-114/121: each deeper biome has a power gate (abyss < cripta). Below REQ the
+  // gate denies with a clear toast; at/above it warps the hero to the vestibule.
   if(p.to==="abyss"){ const pw=heroPower(h);
     if(pw<ABYSS_POWER_REQ){ toast(STR.abyssLocked(pw,ABYSS_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
+  else if(p.to==="frost"){ const pw=heroPower(h);
+    if(pw<FROST_POWER_REQ){ toast(STR.frostLocked(pw,FROST_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
   h.x=p.dx; h.y=p.dy; h.vx=h.vy=0; h.rolling=false; h.rollT=0; h.iframe=0.6;
-  audio.sfx.roll(); toast(p.to==="abyss"?STR.enteredAbyss:STR.leftAbyss,3.0); return true;
+  audio.sfx.roll(); toast(p.to==="abyss"?STR.enteredAbyss:p.to==="frost"?STR.enteredFrost:STR.leftAbyss,3.0); return true;
 }
 export function interact(){
   const p=nearestPortal();
@@ -700,7 +723,7 @@ export function update(dtMs){
   if(G.scene!=="play"){ updateFloaters(dt); updateFx(dt); return; } // freeze world in menus but let transient fx expire
   const h=G.hero;
   // music switch by zone danger
-  const z=zoneOf(world,h.x,h.y); const wantCombat=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss") && G.enemies.some(e=>e.state==="chase"||e.state==="windup");
+  const z=zoneOf(world,h.x,h.y); const wantCombat=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss"||z==="frost") && G.enemies.some(e=>e.state==="chase"||e.state==="windup"||e.state==="shield");
   const wantMusic=wantCombat?"combat":"town"; if(wantMusic!==G.music){ G.music=wantMusic; audio.playMusic(wantMusic); }
   if(z==="arena" && !G.arenaWarned){ G.arenaWarned=true; toast(STR.enteredArena,3.5); }
   if(z==="caves" && !G.bossSpawned && h.y<(world.caves.y+10)*TS){ G.bossSpawned=true; spawnBoss(); }
@@ -769,7 +792,13 @@ function updateEnemies(dt){ const h=G.hero;
     // CAS-118: DoTs tick first so a burning/poisoned enemy keeps losing HP even while
     // stunned. A lethal tick runs the REAL killEnemy path (drops/xp/clear), then we skip
     // this corpse for the rest of the frame.
-    if(e.dots && tickDots(e,dt,false)){ killEnemy(e); continue; }
+    // CAS-121: a carapaced boss is immune even to DoTs while the shield is up (the
+    // status is recorded but paused) — it resumes ticking the instant the shield breaks.
+    if(!e.shielded && e.dots && tickDots(e,dt,false)){ killEnemy(e); continue; }
+    // CAS-121: resolve a carapace SHATTER first — a status proc is a valid break even if
+    // it also stunned the boss (the stun gate below would otherwise swallow the frame).
+    // Shattering drops the shield, staggers the boss (stun) and opens the damage window.
+    if(e.shielded && e.shieldBroken){ shatterCarapace(e); }
     // CAS-65 capstone phase shift: cross the enrage HP threshold once -> speed up,
     // tighten the windup tell, and unlock the radial slam. Telegraphed loudly
     // (roar sfx + screen shake + flame burst + banner) so the spike is readable.
@@ -807,12 +836,19 @@ function updateEnemies(dt){ const h=G.hero;
         if(arch==="caster" && d < (e.tpl.kite||0)){
           const ra=Math.atan2(e.y-h.y,e.x-h.x); moveEnt(e,Math.cos(ra)*espd*dt,Math.sin(ra)*espd*dt,e.tpl.size*0.6);
         } else if(d<=e.tpl.range){
-          // CAS-109: every Nth Champion strike is a telegraphed radial SLAM — a longer
-          // windup (the growing-ring tell in render) then a ring of shards instead of
-          // the melee hit. Punishes face-tanking; readable + dodgeable with the roll.
-          e.specialNow = !!(e.special && e.special.slam && (++e.atkCount % e.special.every === 0));
-          e.state="windup"; e.st=e.specialNow ? (e.special.windup || e.tpl.windup*1.6) : e.tpl.windup; e.hitDone=false;
-          if(e.specialNow){ audio.sfx.boss(); }
+          e.atkCount=(e.atkCount||0)+1;
+          // CAS-121: the Cripta capstone's CORAZA DE ESCARCHA takes priority — on every
+          // Nth committed attack it raises the carapace (immune + channel nova + adds)
+          // instead of striking. Only a status break opens it (see shatter path above).
+          if(e.carapace && (e.atkCount % e.carapace.every === 0)){ startCarapace(e); }
+          else {
+            // CAS-109: every Nth Champion strike is a telegraphed radial SLAM — a longer
+            // windup (the growing-ring tell in render) then a ring of shards instead of
+            // the melee hit. Punishes face-tanking; readable + dodgeable with the roll.
+            e.specialNow = !!(e.special && e.special.slam && (e.atkCount % e.special.every === 0));
+            e.state="windup"; e.st=e.specialNow ? (e.special.windup || e.tpl.windup*1.6) : e.tpl.windup; e.hitDone=false;
+            if(e.specialNow){ audio.sfx.boss(); }
+          }
         }
         else { moveEnt(e,Math.cos(e.facing)*espd*dt,Math.sin(e.facing)*espd*dt,e.tpl.size*0.6); }
       }
@@ -865,7 +901,44 @@ function updateEnemies(dt){ const h=G.hero;
       }
       if(e.st<=0){ e.state="recover"; e.st=e.tpl.recover; e.specialNow=false; }
     } else if(e.state==="recover"){ e.st-=dt; if(e.st<=0) e.state=d<aggro?"chase":"idle"; }
+    // CAS-121: CARAPACE CHANNEL — the boss holds position and channels the Freeze Nova.
+    // A status break is resolved at the top of the loop (shatterCarapace). If the channel
+    // runs out unbroken, the nova fires (heavy radial slow+dmg) and the shield drops into
+    // a short recover — beatable by dodging, but far slower than shattering it.
+    else if(e.state==="shield"){ e.facing=Math.atan2(h.y-e.y,h.x-e.x); e.st-=dt;
+      if(e.st<=0) fireFrostNova(e); }
   }
+}
+// CAS-121 — raise the frost carapace: immune + channel the Freeze Nova + summon adds.
+function startCarapace(e){ const C=e.carapace; if(!C) return;
+  e.shielded=true; e.shieldBroken=false; e.state="shield"; e.st=C.channel||2.4; e.hitDone=false;
+  // summon adds in a deterministic ring around the boss (control/AoE pressure). Each is
+  // scaled to the zone tier through the REAL spawn path so they're a genuine threat.
+  const n=C.adds||0; for(let i=0;i<n;i++){ const a=(i/Math.max(1,n))*6.28;
+    const ax=e.x+Math.cos(a)*72, ay=e.y+Math.sin(a)*72;
+    const add=spawnEnemy(C.addType||"wraith", ax, ay); if(add){ add.state="chase"; applyZoneScale(add, e.zone); } }
+  audio.sfx.boss(); shakeAdd(9); toast(STR.bossShield(e.tpl.champName),2.4);
+  addFx("novacast",e.x,e.y,{r:60,col:"#7fd0ff",life:0.45});
+  for(let i=0;i<8;i++) addFx("spark",e.x+frr(-28,28),e.y+frr(-28,28));
+}
+// CAS-121 — a landed status SHATTERS the carapace: drop the shield, cancel the nova and
+// stagger the boss into a long damage window. The big payoff for a status-built kit.
+function shatterCarapace(e){
+  e.shielded=false; e.shieldBroken=false; e.state="recover"; e.st=0.2; e.specialNow=false;
+  e.stun=Math.max(e.stun||0, (e.carapace&&e.carapace.shatterStun)||1.6);
+  toast(STR.bossShatter(e.tpl.champName),2.2); audio.sfx.boss(); shakeAdd(11);
+  addFx("novacast",e.x,e.y,{r:72,col:"#bfefff",life:0.5});
+  for(let i=0;i<12;i++) addFx("spark",e.x+frr(-30,30),e.y+frr(-30,30));
+}
+// CAS-121 — the channel completed unbroken: erupt a dense radial ring that damages AND
+// slows (the slow infl rides the same CAS-118 engine), then drop the shield into recover.
+function fireFrostNova(e){ const N=(e.carapace&&e.carapace.nova)||{count:18,spd:150,dmg:24,life:1.4};
+  for(let k=0;k<N.count;k++){ const a=k/N.count*6.28;
+    G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*N.spd,vy:Math.sin(a)*N.spd,life:N.life,dmg:N.dmg,kind:"frostnova",enemy:true,
+      infl:N.slow?{type:"slow",amt:N.slow.amt,dur:N.slow.dur}:null}); }
+  addFx("novacast",e.x,e.y,{r:118,col:"#7fd0ff",life:0.5}); shakeAdd(13);
+  toast(STR.bossNova(e.tpl.champName),2.0); audio.sfx.boss();
+  e.shielded=false; e.shieldBroken=false; e.state="recover"; e.st=e.tpl.recover;
 }
 // reward reading the telegraph: a hit negated mid-roll refunds MP + pops, not the post-hit mercy i-frame
 function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0.5;
@@ -937,7 +1010,22 @@ export const dev = {
         capstone:!!H.champ.capstone, enraged:!!H.champ.enraged, slamCount:H.champ.slam?H.champ.slam.count:0,
         hasSpecial:!!H.champ.special, specialNow:!!H.champ.specialNow, state:H.champ.state,
         specialSlam:H.champ.special?H.champ.special.slam.count:0,
+        // CAS-121 carapace telemetry: whether this boss has the shield mechanic, whether
+        // it's currently up, the channel time left, and the configured nova/adds.
+        hasCarapace:!!H.champ.carapace, shielded:!!H.champ.shielded, shieldT:+(H.champ.shielded?H.champ.st:0).toFixed(2),
+        novaCount:H.champ.carapace?H.champ.carapace.nova.count:0, adds:H.champ.carapace?H.champ.carapace.adds:0,
         rwdTier:H.champ.rwdTier||null, rwdMinR:H.champ.rwdMinR||null}:null }; },
+  // CAS-121: arm the live capstone so its NEXT in-range attack raises the carapace (sets
+  // atkCount to one below the cadence). The REAL chase→startCarapace path then fires the
+  // shield — no shortcut around the immune/channel/nova logic. Pair with poke() to park
+  // the hero in range, then heroHit()/giveBurnWeapon() to prove a status SHATTERS it.
+  forceCarapace(zone){ const H=G.hunts&&G.hunts[zone]; if(!H||!H.champ||!H.champ.carapace) return null;
+    const e=H.champ; e.atkCount=e.carapace.every-1; e.state="chase"; e.shielded=false; e.shieldBroken=false;
+    return { every:e.carapace.every, atkCount:e.atkCount, channel:e.carapace.channel, novaCount:e.carapace.nova.count }; },
+  // CAS-121: read the Cripta Helada power gate (mirrors abyssGate) — current power, the
+  // (higher) requirement, whether the frost portal would open, and the live zone.
+  frostGate(){ const h=G.hero; const pw=heroPower(h); return { power:pw, req:FROST_POWER_REQ,
+    unlocked:pw>=FROST_POWER_REQ, zone:zoneOf(world,h.x,h.y), upg:{...(h.upg||{})}, lvl:h.lvl }; },
   // CAS-109: arm the live Champion so its NEXT in-range strike is the telegraphed
   // radial slam (sets atkCount to one below the cadence). The REAL windup→strike AI
   // then fires the special — no shortcut around the slam emission. Pair with poke()
@@ -954,8 +1042,18 @@ export const dev = {
   // real windup→strike→slam against a survivable target and we can count shards.
   poke(zone){ const H=G.hunts&&G.hunts[zone]; const h=G.hero; if(!H||!H.champ) return null;
     h.x=H.champ.x+18; h.y=H.champ.y; h.maxHp=4000; h.hp=4000; h.iframe=0; return true; },
-  // Count live enemy projectiles by kind (the radial slam emits kind:"rune").
-  enemyProj(){ const ps=G.projectiles.filter(p=>p.enemy); return { total:ps.length, rune:ps.filter(p=>p.kind==="rune").length }; },
+  // Count live enemy projectiles by kind (the radial slam emits kind:"rune"; the
+  // CAS-121 Freeze Nova emits kind:"frostnova").
+  enemyProj(){ const ps=G.projectiles.filter(p=>p.enemy); return { total:ps.length, rune:ps.filter(p=>p.kind==="rune").length, frostnova:ps.filter(p=>p.kind==="frostnova").length }; },
+  // CAS-121: land a REAL hero basic-attack hit on the zone's live capstone (through
+  // hitEnemy, so carapace immunity + weapon/talent status procs apply) and return its
+  // hp + shield/status state — proves the shield is damage-IMMUNE and that a STATUS
+  // proc SHATTERS it. Targets the champion specifically (G.enemies[0] may be an add).
+  hitChamp(zone){ const H=G.hunts&&G.hunts[zone]; const h=G.hero; if(!H||!H.champ) return null;
+    const e=H.champ; h.facing=Math.atan2(e.y-h.y,e.x-h.x);
+    const before=Math.round(e.hp); hitEnemy(e, equippedDmg(h), h.facing);
+    return { before, hp:Math.round(e.hp), shielded:!!e.shielded, shieldBroken:!!e.shieldBroken,
+      dots:e.dots?Object.keys(e.dots):[], slowT:+(e.slowT||0).toFixed(2), stun:+(e.stun||0).toFixed(2) }; },
   // Kill the zone's live Champion through the REAL killEnemy and return its drops —
   // the genuine clear path (guaranteed gear + bonus), not a shortcut.
   huntKillChampion(zone){ const H=G.hunts&&G.hunts[zone]; if(!H||!H.champ) return null;

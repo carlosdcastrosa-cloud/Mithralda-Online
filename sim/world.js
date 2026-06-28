@@ -5,7 +5,7 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, TOWN_MAP, TOWN_LEGEND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_ICE, TOWN_MAP, TOWN_LEGEND } from "./config.js";
 import { inRect } from "./math.js";
 
 // CAS-80: resolve a town-local cell (lx,ly within the 18×18 town rect) to its terrain
@@ -30,10 +30,15 @@ export function buildWorld(rng){
   // the gated town portal (no walking path), so it reads as a separate, deeper place.
   // Dark stone floor (T_STONE, like the caves) sets it apart from the open grass zones.
   const abyss = {x:80,y:78,w:26,h:28};
+  // CAS-121 — the Cripta Helada: a self-contained frozen dungeon in the SW corner,
+  // reached only by a (higher) power-gated town portal. Pale-blue ice floor (T_ICE)
+  // sets it apart at a glance from the grass zones and the dark-stone abyss.
+  const frost = {x:6,y:80,w:26,h:26};
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
     let t=T_GRASS;
     if(inRect(x,y,caves)) t=T_STONE;
     else if(inRect(x,y,abyss)) t=T_STONE;
+    else if(inRect(x,y,frost)) t=T_ICE;
     else if(inRect(x,y,town)) t=townTile(x-town.x, y-town.y);  // CAS-80: data-driven hub tilemap
     else if(inRect(x,y,arena)) t=T_SAND;
     else if(inRect(x,y,forest)) t=T_GRASS;
@@ -176,7 +181,30 @@ export function buildWorld(rng){
   const tpx=tcx+5*TS, tpy=tcy-6*TS;                          // town gate, NE of plaza
   portals.push({x:tpx, y:tpy, to:"abyss", dx:acx, dy:acy-TS*2, kind:"down"});
   portals.push({x:acx, y:acy, to:"town",  dx:tpx, dy:tpy+TS*2, kind:"up"});
-  return { terr, town, forest, caves, arena, ruins, abyss, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
+  // ---- la Cripta Helada (CAS-121): a tier-6 frozen dungeon ----
+  // Same shared machinery as the abyss: a tier-6 mob pool scaled by ZONE_TIER.frost +
+  // the capstone Guardián de la Cripta spawned by the HUNTS.frost contract. The roster
+  // mixes every archetype (caster wraith/mage, brute orc/moose, rusher bandit) so the
+  // zone stays a read-and-react fight before the boss's carapace mechanic on top.
+  spawners.push({rect:frost,types:["wraith","mage","orc","moose","wraith","bandit","orc"],max:13,cool:3,t:0,zone:"frost"});
+  // dressing — frozen pillars, bones & rocks for a cold, ruined-crypt feel.
+  for(let i=0;i<22;i++){ const tx=frost.x+rr(2,frost.w-2), ty=frost.y+rr(2,frost.h-2);
+    const x=tx*TS, y=ty*TS, k=srand();
+    if(k<0.28) prop("prop_pillar",x,y,true,9);
+    else if(k<0.48) prop("prop_bones",x,y,false);
+    else if(k<0.66) prop("prop_rock",x,y,true,11);
+    else if(k<0.80) prop("prop_ruin_pillar2",x,y,true,9);
+    else prop("prop_barrel",x,y,true,9); }
+  for(let i=0;i<5;i++){ prop("prop_torch",(frost.x+2)*TS,(frost.y+4+i*4)*TS,false);
+    prop("prop_torch",(frost.x+frost.w-2)*TS,(frost.y+4+i*4)*TS,false); }
+  chests.push({x:(frost.x+3)*TS,y:(frost.y+3)*TS,opened:false,loot:"gold60"});
+  fragments.push({x:(frost.x+frost.w-3)*TS,y:(frost.y+3)*TS,taken:false,kind:"hp"});
+  // ---- portal: a (harder) gated town gate down to the Cripta + a return gate up ----
+  const fcx=(frost.x+5)*TS, fcy=(frost.y+frost.h-3)*TS;     // frost vestibule (near return gate)
+  const fpx=tcx-5*TS, fpy=tcy-6*TS;                          // town gate, NW of plaza
+  portals.push({x:fpx, y:fpy, to:"frost", dx:fcx, dy:fcy-TS*2, kind:"down"});
+  portals.push({x:fcx, y:fcy, to:"town",  dx:fpx, dy:fpy+TS*2, kind:"up"});
+  return { terr, town, forest, caves, arena, ruins, abyss, frost, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
 }
 
 export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
@@ -185,5 +213,6 @@ export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
   if(inRect(tx,ty,world.arena)) return "arena";
   if(world.ruins && inRect(tx,ty,world.ruins)) return "ruins";
   if(world.abyss && inRect(tx,ty,world.abyss)) return "abyss";  // CAS-114
+  if(world.frost && inRect(tx,ty,world.frost)) return "frost";  // CAS-121
   if(inRect(tx,ty,world.forest)) return "forest";
   return "field"; }

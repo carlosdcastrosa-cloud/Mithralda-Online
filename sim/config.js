@@ -8,6 +8,9 @@ export const MAP_W = 110, MAP_H = 110;
 
 // terrain tile ids
 export const T_GRASS = 0, T_DIRT = 1, T_STONE = 2, T_COBBLE = 3, T_SAND = 4, T_WATER = 5;
+// CAS-121 — frozen floor for the gated Cripta Helada (3rd gated biome). Procedurally
+// rendered pale-blue ice (no new art) so the zone reads as a distinct, colder place.
+export const T_ICE = 6;
 
 // CAS-80: data-driven town tilemap — Puerto Solana reads as a small hub built from the
 // real Ancient Ruins tiles. One glyph per 32px cell, stamped over the 18×18 town rect
@@ -186,6 +189,11 @@ export const ZONE_TIER = {
   // level → clear the ABYSS_POWER_REQ gate → unlock richer content; the persisted
   // progression (CAS-113) keeps it unlocked across reloads. Same pure-math scaling.
   abyss:  { tier:5, hpMul:2.80, dmgMul:1.90, spdMul:1.20, xpMul:2.80 },
+  // CAS-121 — the Cripta Helada: a sixth, harder-gated biome that strictly out-classes
+  // the Abismo (its trash hits harder + pays more, its capstone is the new endgame). It
+  // sits ABOVE the abyss on the power curve (FROST_POWER_REQ > ABYSS_POWER_REQ), so it
+  // is the next grind target once the abyss is on farm. Same pure-math scaling.
+  frost:  { tier:6, hpMul:3.60, dmgMul:2.30, spdMul:1.22, xpMul:3.40 },
 };
 
 // CAS-114 — power GATE for the Abismo. The hero's permanent power is a single legible
@@ -193,6 +201,10 @@ export const ZONE_TIER = {
 // the gate reads directly off the two things the loop rewards. heroPower() (sim.js)
 // computes it; the town portal blocks entry (with HUD feedback) until it clears REQ.
 export const ABYSS_POWER_REQ = 8;
+// CAS-121 — power GATE for the Cripta Helada, set ABOVE the abyss so the frozen biome
+// is the deeper, later unlock: clear the abyss → keep grinding upgrades + levels → the
+// town's frost gate opens. Same single legible heroPower() number drives both gates.
+export const FROST_POWER_REQ = 13;
 
 // Hunt contracts (CAS-63): the per-hunt OBJECTIVE that gives a farm zone a point.
 // Cull `need` enemies in the zone -> a Champion is summoned (an ELITE of a zone mob,
@@ -250,6 +262,29 @@ export const HUNTS = {
            enrageAt:0.55, enrageSpd:1.48, enrageWindup:0.6,                       // phase 2: earlier + much faster + tighter tells
            slam:{ count:18, spd:200, dmg:30, life:1.45 },                         // denser, faster radial shockwave
            tier:[4,4], minR:"epic", xp:640, gold:360 } },                         // richest guaranteed top-tier sink
+  // CAS-121 — the Cripta Helada capstone: the THIRD capstone and the new endgame. It
+  // out-classes the Tirano on raw stats AND carries a brand-new encounter mechanic on
+  // top of the shared windup→strike + enrage vocabulary: the CORAZA DE ESCARCHA.
+  //
+  // carapace (NEW mechanic, read-and-react): every `every`-th committed attack the boss
+  // sheaths itself in a frost carapace — it becomes DAMAGE-IMMUNE, summons `adds` frost
+  // wraiths (control/AoE pressure), and CHANNELS a Freeze Nova for `channel`s (a growing
+  // ice ring telegraph in render). The ONLY way to break it early is to land a STATUS
+  // effect on the boss (veneno/quemadura/lentitud/aturdir, CAS-118) — doing so SHATTERS
+  // the carapace, cancels the nova and STAGGERS the boss (`shatterStun`s) into a big
+  // damage window. Ignore it and the channel completes: the Nova erupts (a dense radial
+  // ring that damages + SLOWS, `nova`), then the shield drops into only a short recover.
+  // So a build that invested in the status stack (affixes CAS-117 / talents CAS-119 /
+  // skills CAS-120) trivialises the shield and wins the long openings; a status-less
+  // build can still win by dodging novas, just far slower — exactly the "flex your build"
+  // payoff. Pure data + the shared boss AI reads this block (no per-boss code branch).
+  frost:  { need:18, base:"wraith",  name:"Eco Gélido",       hpMul:10, dmgMul:2.2, sizeMul:1.6,  tier:[4,4], minR:"epic",     xp:300, gold:170,
+    boss:{ base:"golem", sprite:"golem", name:"Guardián de la Cripta", hp:2200, dmg:56, size:48, spd:58, knock:88, windup:0.86, recover:0.66,
+           enrageAt:0.45, enrageSpd:1.40, enrageWindup:0.66,                       // phase 2: earlier, faster, tighter tells
+           slam:{ count:16, spd:190, dmg:26, life:1.4 },                           // enraged radial shockwave (shared vocab)
+           carapace:{ every:3, channel:2.6, adds:2, addType:"wraith", shatterStun:1.8,
+                      nova:{ count:22, spd:150, dmg:30, life:1.5, slow:{ amt:0.5, dur:2.6 } } },
+           tier:[4,4], minR:"epic", xp:820, gold:480 } },                          // new richest guaranteed top-tier sink
 };
 
 // CAS-100: per-class BASE STATS — the first class-identity surface (before ATK/SPELLS).

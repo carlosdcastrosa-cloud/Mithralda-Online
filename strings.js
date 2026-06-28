@@ -20,11 +20,19 @@ export const STR = {
   huntChampApproaches: "¡CAMPEÓN!",
   huntZoneCleared: "ZONA DESPEJADA",
   huntChampion: (name) => "¡Aparece " + name + "! Derrótalo para despejar la zona.",
-  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo" }[zone] || "la zona") + "! Recompensa garantizada.",
+  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada" }[zone] || "la zona") + "! Recompensa garantizada.",
   // CAS-114 — the power-gated Abismo (second, harder hunt zone).
   abyssLocked: (pw, req) => "El Abismo te rechaza. Necesitas más poder (" + pw + "/" + req + "): mejora con el Mercader y sube de nivel.",
   enteredAbyss: "Has descendido al Abismo. Aquí todo golpea más fuerte… y paga mejor.",
   leftAbyss: "Regresas a Puerto Solana.",
+  // CAS-121 — the power-gated Cripta Helada (third gated biome, harder than the Abismo).
+  frostLocked: (pw, req) => "La Cripta Helada está sellada. Necesitas más poder (" + pw + "/" + req + "): supera el Abismo, mejora y sube de nivel.",
+  enteredFrost: "Entras en la Cripta Helada. El frío muerde y el Guardián vigila…",
+  // CAS-121 — Coraza de Escarcha (status-vulnerability shield) telegraph + outcomes.
+  bossShield: (name) => "¡" + name + " invoca la CORAZA DE ESCARCHA! Aplícale un efecto de estado para romperla.",
+  bossShatter: (name) => "¡Coraza rota! " + name + " queda expuesto.",
+  bossNova: (name) => "¡" + name + " libera la NOVA GÉLIDA! Te ralentiza.",
+  immune: "INMUNE",
   // CAS-65 capstone phase shift — fires when the boss crosses its enrage threshold.
   bossEnrage: (name) => "¡" + name + " SE ENFURECE! Esquiva la onda expansiva.",
   bossEnrageBanner: "¡ENFURECIDO!",
@@ -63,6 +71,7 @@ export const STR = {
   zoneArena: "Arena de Sangre",
   zoneRuins: "Ruinas de Eldath",
   zoneAbyss: "El Abismo",
+  zoneFrost: "Cripta Helada",
   zoneField: "Valdoria",
 
   invTitle: "INVENTARIO",

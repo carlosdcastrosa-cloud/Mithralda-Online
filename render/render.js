@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, STATUS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, STATUS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
@@ -95,9 +95,11 @@ export function createRenderer(ctx){
   let VW = view.VW, VH = view.VH;      // synced from the viewport each frame
   const rr = (a,b)=>rrng.rr(a,b);
 
-  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water];
-  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL];
-  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water];
+  // CAS-121: T_ICE (index 6) — pale-blue frozen floor for the Cripta Helada, drawn
+  // procedurally (no image) via the fallback fill path so the zone reads as colder.
+  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#9fc2d6"];
+  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#d6ecf6"];
+  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#7ba2b8"];
 
   function render(alpha){
     VW=view.VW; VH=view.VH;
@@ -167,7 +169,9 @@ export function createRenderer(ctx){
     // a barred glyph) until the hero's power clears the gate, then OPEN (violet swirl);
     // the return gate is always open. Animated from sim time only (no render RNG).
     if(world.portals) for(const p of world.portals){
-      const locked = p.to==="abyss" && sim.heroPower(G.hero) < ABYSS_POWER_REQ;
+      // CAS-121: each deeper gate reads its own power requirement (abyss < cripta).
+      const req = p.to==="abyss"?ABYSS_POWER_REQ : p.to==="frost"?FROST_POWER_REQ : 0;
+      const locked = req>0 && sim.heroPower(G.hero) < req;
       const base = locked ? "#7a2230" : "#6a3cc0";
       const glow = locked ? "#c23a4a" : "#b07cff";
       const rot = G.t*(locked?0.6:1.8); const r=18;
@@ -375,6 +379,23 @@ export function createRenderer(ctx){
       ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
       if(cap&&enr){ ctx.globalAlpha=0.28; ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr+7,(pr+7)*0.42,0,0,6.28); ctx.stroke(); }
       ctx.restore(); }
+    // CAS-121 CORAZA DE ESCARCHA telegraph: while the boss channels its Freeze Nova it
+    // wears a pulsing ice shell (reads as IMMUNE) and a danger ring GROWS toward the nova
+    // radius over the channel — the player reads "break it with a status, or roll out".
+    if(e.shielded){ const C=e.carapace, ch=(C&&C.channel)||2.4, prog=clamp(1-(e.st||0)/ch,0,1);
+      const Rmax=((C&&C.nova)?C.nova.spd*C.nova.life:210);
+      ctx.save();
+      // growing ground danger ring (nova footprint)
+      ctx.globalAlpha=0.16+0.18*prog; ctx.fillStyle="#7fd0ff";
+      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.4,Rmax*prog,Rmax*prog*0.5,0,0,6.28); ctx.fill();
+      ctx.globalAlpha=0.4+0.3*Math.abs(Math.sin(G.t*10)); ctx.strokeStyle="#bfefff"; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.4,Rmax,Rmax*0.5,0,0,6.28); ctx.stroke();
+      // ice shell around the boss (the immune carapace)
+      const sr=e.tpl.size*1.05+Math.sin(G.t*6)*2;
+      ctx.globalAlpha=0.55; ctx.strokeStyle="#dff4ff"; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(e.x,e.y,sr,0,6.28); ctx.stroke();
+      ctx.globalAlpha=0.18; ctx.fillStyle="#bfe6ff"; ctx.beginPath(); ctx.arc(e.x,e.y,sr,0,6.28); ctx.fill();
+      ctx.restore(); }
     // windup telegraph: flashing warning + slight grow
     if(e.state==="windup"){ const fl2=Math.floor(G.t*16)%2===0;
       if(e.tpl.ranged){ const a=e.facing; const col=e.tpl.proj==="bolt"?"#9bef5a":"#ffd24d";
@@ -435,8 +456,8 @@ export function createRenderer(ctx){
     const champCol=e.capstone?(e.enraged?"#ff4636":"#ff9a3a"):"#ffcf4d";
     ctx.fillStyle=e.champion?champCol:(e.hostile?"#ff5a4a":COL.hpf); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
     if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("GÓLEM ANCESTRAL",e.x,yy-4); }
-    else if(e.champion){ ctx.fillStyle=e.specialNow?"#ff5230":champCol; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
-      ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
+    else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
     // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
     drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
   }
@@ -463,6 +484,12 @@ export function createRenderer(ctx){
   }
   function drawProjectile(p){ if(p.kind==="fire"){ ctx.fillStyle=COL.flameL; ctx.beginPath(); ctx.arc(p.x,p.y,6,0,6.28); ctx.fill(); ctx.fillStyle=COL.flame; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,6.28); ctx.fill(); }
     else if(p.kind==="rune"){ ctx.fillStyle=COL.rune; ctx.fillRect(p.x-4,p.y-4,8,8); ctx.fillStyle="#aac4ff"; ctx.fillRect(p.x-2,p.y-2,4,4); }
+    // CAS-121 Freeze Nova shard — a pale-blue ice splinter (the boss's punish-ring).
+    else if(p.kind==="frostnova"){ const a=Math.atan2(p.vy,p.vx);
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(a);
+      ctx.globalAlpha=0.3; ctx.fillStyle="#7fd0ff"; ctx.beginPath(); ctx.arc(0,0,8,0,6.28); ctx.fill(); ctx.globalAlpha=1;
+      ctx.fillStyle="#bfefff"; ctx.beginPath(); ctx.moveTo(7,0); ctx.lineTo(-4,-3.5); ctx.lineTo(-4,3.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#eafaff"; ctx.fillRect(-1.5,-1.5,3,3); ctx.restore(); }
     else if(p.kind==="spear"){ const img=IMG.prop_spear; const a=p.ang!==undefined?p.ang:Math.atan2(p.vy,p.vx);
       if(img&&img.complete&&img.naturalWidth){ ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(a); ctx.imageSmoothingEnabled=false; const s=0.85; ctx.drawImage(img,-img.naturalWidth*s/2,-img.naturalHeight*s/2,img.naturalWidth*s,img.naturalHeight*s); ctx.restore(); }
       else { ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(a); ctx.fillStyle="#cdb892"; ctx.fillRect(-10,-1.5,20,3); ctx.fillStyle="#e6ecf4"; ctx.fillRect(8,-2.5,5,5); ctx.restore(); } }
@@ -627,7 +654,7 @@ export function createRenderer(ctx){
       ctx.fillRect(qx-hw,hy-2,hw,20); ctx.fillStyle=hc; ctx.fillText(ht,qx-6,hy+13); }
     // zone name
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
-    const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
+    const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
     ctx.fillText(zn, VW/2, 20);
     // spell bar
     renderSpellBar();
@@ -660,7 +687,7 @@ export function createRenderer(ctx){
   function renderMiniMap(){ const mw=120, mh=120; const x=VW-mw-12, y=VH-mh-12; if(isTouch) return;
     ctx.fillStyle="rgba(12,14,19,0.8)"; ctx.fillRect(x-2,y-2,mw+4,mh+4); ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"]];
+    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"],[world.frost,"#9fc2d6"]];
     for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
     // CAS-114 — portal blips on the minimap (violet)
     if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-1,y+p.y*sy-1,3,3); } }
@@ -670,7 +697,7 @@ export function createRenderer(ctx){
   function renderBigMap(){ const mw=Math.min(VW*0.7,420), mh=mw; const x=(VW-mw)/2, y=(VH-mh)/2;
     panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins],[world.abyss,"#3a2350",STR.zoneAbyss]];
+    const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins],[world.abyss,"#3a2350",STR.zoneAbyss],[world.frost,"#9fc2d6",STR.zoneFrost]];
     for(const [r,c,nm] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy);
       ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.fillText(nm,x+(r.x+r.w/2)*TS*sx,y+(r.y+r.h/2)*TS*sy); }
     // CAS-114 — portal markers on the world map (violet diamonds)
