@@ -20,6 +20,7 @@ import { io, initInput, syncMenuDom, positionNameInput } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets } from "./render/sprites.js";
 import * as persist from "./persist.js";
+import { analytics } from "./analytics.js";
 
 export function createGame(canvas, ctx, getView){
   // wire the simulation's injected dependencies (input intents, audio, viewport)
@@ -33,7 +34,7 @@ export function createGame(canvas, ctx, getView){
   // SFX wiring lives in ONE place instead of scattered across every menu entry point.
   const MENU_SCENES=new Set(["inventory","talents","shop","pause","dialogue"]);
   let prevScene=G.scene;
-  function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); syncMenuDom();
+  function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); analytics.tick(dtMs, G); syncMenuDom();
     const s=G.scene; if(s!==prevScene){
       const into=MENU_SCENES.has(s), from=MENU_SCENES.has(prevScene);
       if(into&&!from) audio.sfx.uiOpen(); else if(from&&!into) audio.sfx.uiClose();
@@ -49,6 +50,13 @@ export function createGame(canvas, ctx, getView){
   // straight into play (skipping name/class); no/invalid save leaves the menu flow.
   persist.boot();
   persist.initFlush();
+  // CAS-132: privacy-light retention/funnel analytics. boot() opens the anonymous
+  // session + records the `boot` funnel step; initFlush() finalizes session duration
+  // on tab hide/unload. Pure observer — analytics.tick(dt,G) in update() only READS G.
+  analytics.boot();
+  analytics.initFlush();
+  // Read API for the analytics.html dashboard + QA harness (own anonymous device data).
+  if(typeof window!=="undefined") window.__analytics=analytics.dev;
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
     window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)
@@ -120,6 +128,8 @@ export function createGame(canvas, ctx, getView){
       skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
+      // CAS-132 analytics funnel QA: drive the real hero-death path (additive, dev-only)
+      killHero:()=>simDev.killHero(),
       // CAS-127 game-feel/juice contract consumed by tools/cas127-juice.mjs — additive
       juiceState:()=>simDev.juiceState(), floaterDump:()=>simDev.floaterDump(), setReduceMotion:(v)=>simDev.setReduceMotion(v),
       clearFx:()=>simDev.clearFx(), juiceArena:(n)=>simDev.juiceArena(n), juiceSwing:()=>simDev.juiceSwing(),

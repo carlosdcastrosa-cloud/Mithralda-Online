@@ -1247,6 +1247,10 @@ export const dev = {
     return { name:e.tpl.champName, final:!!e.final, hp:Math.round(e.hp) }; },
   // Dismiss the victory screen → free play (mirrors the input handler).
   ackVictory(){ dismissVictory(); return G.scene; },
+  // CAS-132: drive the REAL hero-death path (heroDie → deaths++, scene "dead") so the
+  // analytics funnel's "primera muerte" step can be QA-verified headlessly. Dev-only,
+  // additive — no balance/gameplay change (the live game never calls this).
+  killHero(){ heroDie(); return { deaths:G.hero.deaths, scene:G.scene }; },
   // CAS-109: arm the live Champion so its NEXT in-range strike is the telegraphed
   // radial slam (sets atkCount to one below the cadence). The REAL windup→strike AI
   // then fires the special — no shortcut around the slam emission. Pair with poke()

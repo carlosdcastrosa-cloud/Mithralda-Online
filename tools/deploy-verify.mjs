@@ -56,7 +56,7 @@ const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 // unchanging solo no-op stub; excluded from the served-bundle comparison.
 // version.json carries the cache-bust build id (CAS-58); it ships in the bundle
 // and must be byte-identical live==master so returning players get a fresh id.
-const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "version.json"];
+const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "analytics.js", "analytics.html", "version.json"];
 const CODE = [...ROOT_FILES, ...gitTracked("sim", "render")];
 const ASSETS = CODE_ONLY ? [] : gitTracked("assets");
 const BUNDLE = [...CODE, ...ASSETS];

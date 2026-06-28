@@ -35,7 +35,7 @@ export function gitTracked(...paths) {
 // Every shipped file EXCEPT version.json itself. logic.js is a platform
 // manifest the server never exposes over HTTP (not a runtime module), so it is
 // not part of the cache-bustable graph and is excluded from the id.
-const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js"];
+const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "analytics.js", "analytics.html"];
 
 // The exact, sorted set of files whose bytes define the build id — tracked only.
 export function buildFileList() {
