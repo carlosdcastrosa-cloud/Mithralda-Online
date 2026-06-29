@@ -281,14 +281,29 @@ export const ENEMY_STRIPS={
   skel:{
     walk: _s(6,"skel_walk_strip"),
     idle: _s(8,"skel_idle_strip"),
+    attack: _s(7,"skel_attack_strip"),
   },
   bandit:{
     walk: _s(6,"bandit_walk_strip"),
     idle: _s(8,"bandit_idle_strip"),
+    attack: _s(7,"bandit_attack_strip"),
   },
   orc:{
     walk: _s(6,"orc_walk_strip"),
     idle: _s(8,"orc_idle_strip"),
+    attack: _s(7,"orc_attack_strip"),
+  },
+  // CAS-203: PixelLab 9-frame strips for wolf + bat (idle+walk) and wraith (idle only).
+  wolf:{
+    walk: _s(9,"wolf_walk_strip"),
+    idle: _s(9,"wolf_idle"),
+  },
+  bat:{
+    idle: _s(9,"bat_idle"),
+    walk: _s(9,"bat_walk_strip"),
+  },
+  wraith:{
+    idle: _s(9,"wraith_idle"),
   },
 };
 // Resolve the best available strip for a mob + animState.
