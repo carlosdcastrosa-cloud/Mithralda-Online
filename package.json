@@ -80,7 +80,8 @@
     "cas240-gait": "node tools/cas240-gait-decouple.mjs",
     "cas256": "node tools/cas256-anims.mjs",
     "cas256-live": "node tools/cas256-anims-live.mjs",
-    "cas273": "node tools/cas273-juice.mjs"
+    "cas273": "node tools/cas273-juice.mjs",
+    "cas275": "node tools/cas275-juice-live.mjs"
   },
   "keywords": [],
   "author": "",
