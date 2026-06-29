@@ -181,6 +181,7 @@ export const STR = {
   settingSfx: "Efectos",
 
   perfectDodge: "¡ESQUIVA!",
+  riposte: "¡CASTIGO!",                              // CAS-210: the perfect-dodge → counter payoff banner
   levelUp: (n) => "¡Subiste al nivel " + n + "!",
   redSkull: "¡Calavera roja! Penalización de muerte aumentada.",
   pickedUp: (t) => "Recogiste: " + t,

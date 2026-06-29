@@ -179,7 +179,10 @@ export function buildWorld(rng){
   // commit long locked-facing lanes you must sidestep while wraith/mage casters poke from
   // range and a moose brute anchors. The zone fight is lane-management — a different motor
   // skill than caves (kill priority) or ruins (sustain). Tier-5 scaling stacks on top.
-  spawners.push({rect:abyss,types:["wraith","orc","charger","moose","mage","charger"],max:13,cool:3,t:0,zone:"abyss"});
+  // CAS-210: the punisher `revenant` duelist surfaces in the deep, high-skill zones (abyss→
+  // frost→trial) where read-and-punish combat is the point — its combo chain + long punish
+  // window reward the riposte counter the most.
+  spawners.push({rect:abyss,types:["wraith","orc","charger","revenant","mage","revenant"],max:13,cool:3,t:0,zone:"abyss"});
   // dressing — bones, pillars, rocks & torch posts for an oppressive ruin feel.
   for(let i=0;i<22;i++){ const tx=abyss.x+rr(2,abyss.w-2), ty=abyss.y+rr(2,abyss.h-2);
     const x=tx*TS, y=ty*TS, k=srand();
@@ -231,7 +234,7 @@ export function buildWorld(rng){
   // + a VOLATILE burst, every read-and-react verb at once) scaled by ZONE_TIER.trial, plus
   // the WORLD-BOSS (Avatar del Coliseo) summoned by the HUNTS.trial contract. Clearing the
   // gauntlet IS the gate to the boss — survive the arena, the Avatar answers.
-  spawners.push({rect:trial,types:["charger","summoner","healer","wraith","volatile","mage"],max:13,cool:3,t:0,zone:"trial"});
+  spawners.push({rect:trial,types:["charger","summoner","revenant","wraith","volatile","revenant"],max:13,cool:3,t:0,zone:"trial"});
   // dressing — a ringed colosseum: pillars + bones + braziers for a grand arena feel.
   for(let i=0;i<22;i++){ const tx=trial.x+rr(2,trial.w-2), ty=trial.y+rr(2,trial.h-2);
     const x=tx*TS, y=ty*TS, k=srand();

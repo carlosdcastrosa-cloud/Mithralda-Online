@@ -47,6 +47,10 @@ export const CFG = {
   heroSpeed: 152, rollSpeed: 430, rollTime: 0.20, rollIFrame: 0.34, rollCD: 0.62,
   atkRange: 50, atkArc: Math.PI * 0.62, atkCD: 0.42, atkActive: 0.16,
   pickRange: 44, talkRange: 56, fountainRange: 60,
+  // CAS-210: souls-like RIPOSTE — a frame-perfect dodge opens a brief window during which
+  // the next hero hit is a guaranteed crit scaled by riposteMult (a crushing counter). The
+  // window is short enough that you must commit the counter immediately, not bank it.
+  riposteWindow: 1.4, riposteMult: 2.4,
 };
 
 // per-class basic attack (key J / 1 / click)
@@ -189,6 +193,13 @@ export const ETPL = {
   // range it freezes, telegraphs a growing blast ring, DETONATES a radial AoE and dies.
   // High dmg (one-shot threat) but tiny HP (kill it before it reaches you). Self-kill = no loot.
   volatile:{hp:26, dmg:23, spd:152, aggro:300, range:40, windup:0.7,  recover:0.1,  xp:16, gold:[3,8], sprite:"bat",  size:16, knock:60,  boss:false, gearChance:0.10, arch:"volatile", blast:80},
+  // CAS-210 — punisher (FOUNTAINS-style high-skill DUELIST / "boss seed"): a relentless
+  // COMBO attacker. It commits a chain of `combo` telegraphed swings — each follow-up winds
+  // up FASTER (`comboWindup` < `windup`), so a clean first dodge isn't enough: greedy re-
+  // engagement after the first swing eats the next hit. After the full chain it drops into a
+  // LONG `punishRecover` — the read-and-punish window where a perfect-dodge → riposte counter
+  // lands hardest. Tracks the hero through the chain (relentless), melee, deterministic.
+  revenant:{hp:120, dmg:22, spd:104, aggro:300, range:50, windup:0.62, recover:0.55, xp:64, gold:[16,28], sprite:"bandit", size:20, knock:120, boss:false, gearChance:0.32, arch:"punisher", combo:3, comboWindup:0.30, punishRecover:1.15},
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
 };
 
