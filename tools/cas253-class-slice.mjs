@@ -61,8 +61,16 @@ const ANIM_MANIFEST = {
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/3519035d-2d01-42c0-90f2-5bdb75345ee5/south/4.png",
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/3519035d-2d01-42c0-90f2-5bdb75345ee5/south/5.png",
     ],
-    attack: null, // pending ~92s
-    death:  null, // pending ~465s
+    attack: [
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/0.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/1.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/2.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/3.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/4.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/5.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/6.png",
+    ],
+    death:  null, // pending ~332s
   },
   priest: {
     charId: "18d8c76c-7361-4a82-8d6d-e0dd4cccb910",
@@ -72,7 +80,14 @@ const ANIM_MANIFEST = {
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/5947404f-e08c-4200-9da5-9cdb9d86dbeb/south/2.png",
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/5947404f-e08c-4200-9da5-9cdb9d86dbeb/south/3.png",
     ],
-    walk:   null, // pending ~110s
+    walk: [
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/0396f3ee-6354-4274-bf97-4b24b63b7fbf/south/0.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/0396f3ee-6354-4274-bf97-4b24b63b7fbf/south/1.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/0396f3ee-6354-4274-bf97-4b24b63b7fbf/south/2.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/0396f3ee-6354-4274-bf97-4b24b63b7fbf/south/3.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/0396f3ee-6354-4274-bf97-4b24b63b7fbf/south/4.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/0396f3ee-6354-4274-bf97-4b24b63b7fbf/south/5.png",
+    ],
     attack: [
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/89ff5918-b3d4-40df-820d-b1909d391bbf/south/0.png",
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/89ff5918-b3d4-40df-820d-b1909d391bbf/south/1.png",
@@ -100,8 +115,16 @@ const ANIM_MANIFEST = {
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/c0440edf-4571-41d0-827d-a4addb14a997/south/4.png",
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/c0440edf-4571-41d0-827d-a4addb14a997/south/5.png",
     ],
-    attack: null, // pending ~459s
-    death:  null, // pending ~461s
+    attack: [
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/4f02abe1-3fb8-4aca-b07e-df85ac2fbfe6/south/0.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/4f02abe1-3fb8-4aca-b07e-df85ac2fbfe6/south/1.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/4f02abe1-3fb8-4aca-b07e-df85ac2fbfe6/south/2.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/4f02abe1-3fb8-4aca-b07e-df85ac2fbfe6/south/3.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/4f02abe1-3fb8-4aca-b07e-df85ac2fbfe6/south/4.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/4f02abe1-3fb8-4aca-b07e-df85ac2fbfe6/south/5.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/92b13fdc-88c4-4e2f-a47e-980b78383f98/animations/4f02abe1-3fb8-4aca-b07e-df85ac2fbfe6/south/6.png",
+    ],
+    death:  null, // pending ~228s
   },
   paladin: {
     charId: "bb4f05b9-f34c-4b7f-8ba9-57edd1445f2a",
