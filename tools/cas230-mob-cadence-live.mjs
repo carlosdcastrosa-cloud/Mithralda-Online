@@ -55,8 +55,15 @@ try{
   const page = await browser.newPage();
   await page.setViewport({ width:960, height:640, deviceScaleFactor:1 });
   page.on("pageerror", e=>r.errors.push("pageerror: "+e.message));
-  page.on("console", m=>{ if(m.type()==="error") r.errors.push("console.error: "+m.text()); });
+  // A bare "Failed to load resource ... 404" console.error carries no URL, so we
+  // can't self-filter it here. The favicon 404 (sev-4, pre-existing, unrelated to
+  // cadence) is the only such error on this build — match it by message and skip it,
+  // consistent with the requestfailed/response handlers which filter favicon by URL.
+  page.on("console", m=>{ if(m.type()==="error"){ const t=m.text();
+    if(/Failed to load resource: the server responded with a status of 404/i.test(t)) return; // favicon 404 — benign
+    r.errors.push("console.error: "+t); } });
   page.on("requestfailed", q=>{ const u=q.url(); if(!/favicon/.test(u)) r.errors.push("reqfail: "+u); });
+  page.on("response", res=>{ const u=res.url(); if(res.status()>=400 && !/favicon/.test(u)) r.errors.push(`http ${res.status()}: ${u}`); });
 
   let booted=false;
   for(let a=0;a<3 && !booted;a++){ try{
