@@ -60,7 +60,9 @@
     "erw": "python3 tools/erw_pipeline.py",
     "hero-anim": "node tools/slice-hero-anim.mjs",
     "class-heroes": "node tools/slice-class-heroes.mjs",
-    "audio-live": "node tools/cas131-audio-live.mjs"
+    "audio-live": "node tools/cas131-audio-live.mjs",
+    "backup-host-publish": "node tools/backup-host-publish.mjs",
+    "cas180-subpath-verify": "node tools/cas180-subpath-verify.mjs"
   },
   "keywords": [],
   "author": "",
