@@ -36,8 +36,9 @@ import { ensureMasks, bakeHero } from "./customize.js"; // CAS-169 part-recolor 
 // animT, never render RNG, so it stays Stage-2 server-authority-safe.
 const ERW_HERO_SRC="./assets/erw/hero/hero_hooded.png";
 const ERW_SX=96, ERW_SY=56, ERW_SW=58, ERW_SH=158;
-// 158px tall × 0.42 ≈ 66px ≈ 2 tiles — the OLD (too-big) size the board rejected.
-const ERW_SCALE=0.42;
+// CAS-208: 158px tall × 0.30 ≈ 47px ≈ 1.5 tiles — matches the class hero. (Was 0.42 ≈
+// 66px ≈ 2 tiles; this deep hooded fallback rarely fires but now shrinks in step.)
+const ERW_SCALE=0.30;
 // CAS-92: the hero is no longer a single static pose. Higgsfield generated real
 // walk / attack / dodge-roll sheets (assets/erw/hero/gen/*, bg-removed), sliced
 // into UNIFORM packed strips by tools/slice-hero-anim.mjs. Geometry mirrors
@@ -48,7 +49,9 @@ const ERW_SCALE=0.42;
 // 158px standing figure × 0.32 ≈ 51px ≈ 1.6 tiles (down from the 66px the board
 // found "muy grande").
 const HERO_FW=403, HERO_FH=450, HERO_AX=122, HERO_FOOT=448;
-const HERO_ANIM_SCALE=0.32;
+// CAS-208: keep the transient hooded-anim fallback in lockstep with the class hero
+// (0.32 → 0.30) so there is no size flash before the per-class PNG loads.
+const HERO_ANIM_SCALE=0.30;
 const HERO_STRIPS={
   idle:  {img:"hero_idle",   fc:1},
   walk:  {img:"hero_walk",   fc:4},
@@ -73,7 +76,11 @@ const HERO_STRIPS={
 // CAS-101: 6-frame ANIMATED idle strips; cell changed but figureH=160 preserved
 // so on-screen size + CLASS_ANIM_SCALE=0.32 are UNCHANGED (geom source: classes.json).
 const CLASS_FW=140, CLASS_FH=166, CLASS_AX=65, CLASS_FOOT=163, CLASS_FC=6;
-const CLASS_ANIM_SCALE=0.32;
+// CAS-208 (board CAS-207): shrink the main character to ~1.5 tiles tall. figureH=160px
+// (classes.json) × 0.30 = 48px = 1.5 × TS(32). Was 0.32 → 51.2px ≈ 1.6 tiles ("muy grande").
+// Feet stay anchored (dy = feet − CLASS_FOOT·S) so no clipping/floating; collision is
+// sim-side (h.x/h.y) and unaffected. Aspect ratio preserved (single scalar, no distortion).
+const CLASS_ANIM_SCALE=0.30;
 // CAS-110: per-class WALK-CYCLE strips (8 frames @ 8fps, same cell geom as the idle).
 // Keyed by movement: walk → clswalk_* gait; idle/attack/roll keep the CAS-101 idle loop.
 const CLASS_WALK_FC=8, CLASS_WALK_FPS=8;
@@ -297,6 +304,16 @@ export function createRenderer(ctx){
     const walking=(state==="walk");
     const cfps=(state==="roll")?11:(state==="attack")?9:2.6;
     const cfi=walking?(Math.floor(G.t*CLASS_WALK_FPS)%CLASS_WALK_FC):(Math.floor(G.t*cfps)%CLASS_FC);
+    // CAS-199: class-flavoured idle AURA under the hero (colour = the player's sash
+    // accent, so it differs per class/customisation). Soft additive ground glow that
+    // breathes — brings the sprite to life without touching the art. Drawn BEHIND.
+    if(!h.dead && h.palette){
+      const ac=h.palette.sash||h.palette.cloak||[180,200,255], pulse=0.5+0.5*Math.sin(G.t*2.2);
+      ctx.save(); ctx.globalCompositeOperation="lighter";
+      const gx=h.x, gy=feet-7, rg=ctx.createRadialGradient(gx,gy,1,gx,gy,17);
+      rg.addColorStop(0,`rgba(${ac[0]},${ac[1]},${ac[2]},${0.14+0.10*pulse})`); rg.addColorStop(1,`rgba(${ac[0]},${ac[1]},${ac[2]},0)`);
+      ctx.fillStyle=rg; ctx.beginPath(); ctx.ellipse(gx,gy,17,19,0,0,6.283); ctx.fill(); ctx.restore();
+    }
     const ok=drawHeroClass(CLASS_HERO_ART[cls],cfi,hx,hfeet,flip,sqX,sqY,bobUp,tint,walking) // CAS-98/110 per-class animated loop
           || drawHeroAnim(def.img,fi,h.x,feet,flip,tint,bob)                     // hooded anim fallback
           || drawHeroErw(h.x,feet,flip,1,1,0,tint)       // hooded pose until strips load
@@ -305,6 +322,16 @@ export function createRenderer(ctx){
     if(!ok){ const b2=h.walkT?Math.sin(h.walkT)*2:0; blit(ctx,SP.hero.rows, h.hurtFlash>0?redden(SP.hero.pal):SP.hero.pal, h.x,h.y-12-b2,3, Math.cos(h.facing)<0); }
     if(!h.dead){ ctx.globalAlpha=0.8; ctx.fillStyle=COL.textGold; const fx=h.x+Math.cos(h.facing)*18, fy=h.y-2+Math.sin(h.facing)*18; ctx.fillRect(fx-1.5,fy-1.5,3,3); ctx.globalAlpha=1; }
     if(!h.dead) drawStatusFx(h, h.x, h.y+14, h.y-40); // CAS-118: the hero shows its own afflictions (aura + pips above head)
+    // CAS-199: 3 floating motes orbiting the hero (class-accent colour), in FRONT for
+    // depth. Off when reduce-motion is on. Pure presentation, derived from G.t.
+    if(!h.dead && h.palette && !G.settings.reduceMotion){
+      const ac=h.palette.sash||h.palette.cloak||[200,220,255];
+      ctx.save(); ctx.globalCompositeOperation="lighter";
+      for(let k=0;k<3;k++){ const a=G.t*1.1+k*2.094;
+        const mx=h.x+Math.cos(a)*9, my=feet-22-5*Math.sin(G.t*1.6+k*1.3)-k*2, al=0.30+0.28*Math.sin(G.t*2.4+k*1.7);
+        if(al>0){ ctx.fillStyle=`rgba(${ac[0]},${ac[1]},${ac[2]},${al})`; ctx.fillRect(mx-1,my-1,2,2); } }
+      ctx.restore();
+    }
   }
   // CAS-92: draw one frame of a hero animation strip. Every frame is HERO_FW×HERO_FH;
   // source column HERO_AX (body centroid) maps to world hx and source row HERO_FOOT
@@ -530,7 +557,25 @@ export function createRenderer(ctx){
       const fi=frameIndex(ch,st,e.animT||0,fps, st!=="attack");
       drew=drawAnim(ctx,ch,st,fi,e.x,feet,S,fl, e.hurtFlash>0?"#ffffff":null);
     }
-    if(!drew){ if(e.hurtFlash>0) blit(ctx,spr.rows,whiten(spr.pal),e.x,e.y,px,fl); else blit(ctx,spr.rows,spr.pal,e.x,e.y,px,fl); }
+    if(!drew){
+      const rows=spr.rows, pal=(e.hurtFlash>0)?whiten(spr.pal):spr.pal;
+      // CAS-203: every procedural mob now breathes / walk-bobs so nothing renders frozen.
+      // Render-time squash-stretch anchored at the FEET, driven by sim time G.t + a stable
+      // per-mob phase. Reads no sim state and mutates nothing (no RNG) → Stage-2 safe.
+      // Honors reduceMotion. Idle = slow breathing; walk = bouncy hop; attack = brief crouch
+      // anticipation (the windup ground-ring telegraphs above stay the primary tell).
+      if(G.settings.reduceMotion){ blit(ctx,rows,pal,e.x,e.y,px,fl); }
+      else {
+        const h=rows.length, feetY=e.y+(h*px)/2, ph=(e.x*0.7+e.y*0.9), st=e.animState||"idle";
+        let sx=1, sy=1, bob=0;
+        if(st==="walk"){ const b=Math.abs(Math.sin(G.t*9+ph)); bob=-b*2.2; sy=1+b*0.06; sx=1-b*0.05; }
+        else if(st==="attack"){ const a=Math.sin(G.t*5+ph); sy=0.95+0.02*a; sx=1.05-0.02*a; bob=1.2; }
+        else { const br=Math.sin(G.t*2.3+ph); sy=1+br*0.045; sx=1-br*0.03; bob=br*0.7; }
+        ctx.save(); ctx.translate(e.x, feetY+bob); ctx.scale(sx,sy);
+        blit(ctx, rows, pal, 0, -(h*px)/2, px, fl);
+        ctx.restore();
+      }
+    }
     // health bar
     const w=e.isBoss?64:(e.champion?58:Math.max(22,e.tpl.size*1.6)); const hh=(e.isBoss||e.champion)?6:4; const yy=e.y-e.tpl.size-((e.isBoss||e.champion)?14:8);
     ctx.fillStyle=COL.out; ctx.fillRect(e.x-w/2-1,yy-1,w+2,hh+2);
