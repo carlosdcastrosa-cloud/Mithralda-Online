@@ -43,6 +43,7 @@
     "cas276": "node tools/cas276-soak-live.mjs",
     "cas277": "node tools/cas277-recap.mjs",
     "cas279": "node tools/cas279-telemetry.mjs",
+    "cas280": "node tools/cas280-overlay-live.mjs",
     "onboarding": "node tools/cas128-onboarding.mjs",
     "onboarding-live": "node tools/cas128-onboarding-live.mjs",
     "audio": "node tools/cas131-audio.mjs",
