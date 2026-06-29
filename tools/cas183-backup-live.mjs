@@ -14,12 +14,18 @@
 // Run: node tools/cas183-backup-live.mjs
 // ---------------------------------------------------------------------------
 import puppeteer from "puppeteer-core";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
 
 const BASEURL = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 const URL = `${BASEURL}/index.html?dev`;
-const EXPECT_BUILD = "112f63203e18";
+// Track the committed HEAD build (deploy-verify semantics) rather than a frozen
+// build id, so this gate stays valid as the gh-pages path tracks master. The
+// original CAS-183/194 confirm build was 112f63203e18; it advanced to the
+// CAS-192 consumables superset 3210de07c8b5 once that landed + redeployed.
+const EXPECT_BUILD = process.env.EXPECT_BUILD
+  || JSON.parse(readFileSync(join(ROOT, "version.json"), "utf8")).build;
 
 let ok = true;
 const log = (m) => console.log(m);
@@ -150,21 +156,49 @@ try {
   (sig(dayA) !== sig(dayB) && sig(dayA) === sig(dayA2))
     ? pass("daily: deterministic rotation (different day → different set; same day → identical)")
     : fail("daily rotation not deterministic");
-  await page.evaluate(() => window.__daily._setDay(null));
-  // satisfy all 3 contracts via REAL kills/clears through the observer
+  // Re-PIN today's real set (b0.day, captured before the rotation churn) so the
+  // board is deterministically locked to today for the rest of the test. Subtlety:
+  // _setDay(null) only DROPS the override — it does NOT regenerate; the store stays
+  // on the last pinned test-day's contracts (e.g. 2026-06-28) until a sim tick()
+  // notices today != store.day and regenerates with prog reset. If we satisfy that
+  // stale set and a tick rolls the day mid-test, today's freshly regenerated
+  // contracts desync from what we cleared — the intermittent "first contract not
+  // done" failure on days whose set differs from the rotation pin. Pinning b0.day
+  // (a real day string) calls refreshDay → today's true set, held stable. [CAS-194]
+  await page.evaluate((d) => window.__daily._setDay(d), b0.day);
+  // satisfy all 3 contracts via REAL kills/clears through the observer.
+  // NOTE: the `clear` path must YIELD to the sim between spawns — the zone
+  // champion only materialises after a sim STEP once enough adds are down. A
+  // single synchronous spawn-burst (one page.evaluate) never lets the champion
+  // appear, so huntKillChampion() no-ops and the zone never clears. This bit the
+  // FIRST clear contract on a valid two-`clear` day (forest cleared 0/1 while
+  // caves passed only because later contracts had let the sim settle). Driving
+  // the kills from Node with awaits per spawn reproduces a real player's cadence.
+  // The live build is unaffected — purely a harness-timing correction. [CAS-194]
   async function satisfy(c) {
     if (c.obs === "slay") await page.evaluate((n) => { for (let i = 0; i < n; i++) window.__dev.spawnKill("wolf"); }, c.need + 2);
     else if (c.obs === "champion") await page.evaluate((n) => { for (let i = 0; i < n; i++) window.__dev.spawnKill("golem"); }, c.need + 1);
-    else if (c.obs === "clear") await page.evaluate((zone) => {
-      window.__dev.tpZone(zone);
-      const need = (window.__dev.huntState(zone) || {}).need || 20;
-      for (let i = 0; i < need + 1; i++) { if ((window.__dev.huntState(zone) || {}).champ) break; window.__dev.spawnKill("wolf"); }
-      window.__dev.huntKillChampion(zone);
-    }, c.zone);
+    else if (c.obs === "clear") {
+      await page.evaluate((zone) => window.__dev.tpZone(zone), c.zone);
+      const need = await page.evaluate((zone) => (window.__dev.huntState(zone) || {}).need || 20, c.zone);
+      for (let i = 0; i < need + 1; i++) {
+        if (await page.evaluate((zone) => (window.__dev.huntState(zone) || {}).champ, c.zone)) break;
+        await page.evaluate(() => window.__dev.spawnKill("wolf"));
+      }
+      // wait for the champion to actually spawn before killing it (sim-step gated)
+      await page.waitForFunction((zone) => (window.__dev.huntState(zone) || {}).champ, { timeout: 4000 }, c.zone).catch(() => {});
+      await page.evaluate((zone) => window.__dev.huntKillChampion(zone), c.zone);
+    }
   }
   const goldBefore = await page.evaluate(() => window.__dev.heroStats().gold);
   const todayBoard = await page.evaluate(() => window.__daily.board());
-  for (const c of todayBoard.contracts) await satisfy(c);
+  // Settle between contracts: the daily `tick()` observer records progress on a
+  // sim STEP. Bulk-satisfying back-to-back (esp. on a valid two-`clear` day where
+  // satisfy() teleports between zones) can starve the observer of a step before
+  // the next zone change, leaving the first clear unrecorded. A short yield per
+  // contract lets the loop tick — this is a harness-timing fix, the live build is
+  // unaffected (a real player always has steps between actions). [CAS-194]
+  for (const c of todayBoard.contracts) { await satisfy(c); await sleep(400); }
   await page.waitForFunction("window.__daily.board().contracts.every(c => c.done)", { timeout: 8000 })
     .then(() => pass("daily: real kills/clears advance ALL 3 contracts to done (observer)"))
     .catch(() => fail("daily contracts did not all reach done"));
