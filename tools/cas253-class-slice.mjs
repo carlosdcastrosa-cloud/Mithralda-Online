@@ -269,6 +269,14 @@ for (const [cls, manifest] of Object.entries(ANIM_MANIFEST)) {
   const clsReady = Object.entries(STATES).every(([st]) => manifest[st] !== null || st === "attack" || st === "death");
   // we write what we have; skip individual states that are null
   for (const [state, suffix] of Object.entries(STATES)) {
+    // A/B DECISION (CAS-253, Art Director): the PixelLab `falling-back-death`
+    // template ends with the figure prone/horizontal, which this bbox slicer
+    // anchors inconsistently (frames float / scale-jump, weak death read). The
+    // CAS-238 baseline death strips (stand->lean->collapse->prone, consistent
+    // scale+palette) are cleaner, so per the issue acceptance ("keep baseline
+    // where PixelLab isn't clearly better") we KEEP BASELINE DEATH and never
+    // overwrite *_death.png from PixelLab. Do not remove without a CEO call.
+    if (state === "death") { skipped.push(`${cls}.death (A/B: keep CAS-238 baseline)`); continue; }
     const frames = manifest[state];
     if (!frames) { skipped.push(`${cls}.${state}`); continue; }
     const outPath = join(OUT, cls + suffix + ".png");
