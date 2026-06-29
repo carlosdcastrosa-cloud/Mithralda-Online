@@ -86,6 +86,31 @@ export const GEAR = {
   ],
 };
 
+// ===========================================================================
+// CAS-237 — FORJA: data-driven equipment upgrade. The player spends gold + forge
+// material (h.mats, dropped by hunting/daily) to raise an EQUIPPED piece's forge
+// level (`fl`) 0 → FORGE.max. The bonus is a deterministic multiplier folded
+// straight into gearStat() — the SINGLE resolver every combat + UI reader already
+// routes through — so a forged piece moves REAL numbers, never a stored/baked stat,
+// and stays Stage-2 server-authority-ready (recomputable from {defId,rarity,fl}).
+// Zero RNG. The forge level rides on the gear INSTANCE (you forge a specific item;
+// swapping it out keeps its level), persisted with the instance — safeInst() clamps
+// `fl` on load so a corrupt/old save can never over-forge. Adding a tier curve =
+// editing this data block; no code path switches on a slot/level.
+export const FORGE = {
+  max: 5,
+  stepPct: 15,                          // each level adds +15% of the rarity-scaled base stat (legible step)
+  goldCost: [60, 120, 220, 360, 560],   // gold to go from forge level L → L+1 (index by current fl)
+  matCost:  [1, 2, 3, 4, 5],            // forge-material (h.mats) to go from level L → L+1
+};
+// Clamp a (possibly absent/corrupt) instance forge level into [0,FORGE.max].
+export function forgeLevel(inst){ const fl=(inst&&inst.fl)|0; return Math.max(0, Math.min(FORGE.max, fl)); }
+// The deterministic stat multiplier for a forge level — folded into gearStat().
+export function forgeMult(fl){ return 1 + FORGE.stepPct/100 * Math.max(0, Math.min(FORGE.max, (fl|0))); }
+// Cost to forge this instance ONE more level, or null if it's already maxed.
+export function forgeNextCost(inst){ const fl=forgeLevel(inst); if(fl>=FORGE.max) return null;
+  return { gold:FORGE.goldCost[fl], mats:FORGE.matCost[fl] }; }
+
 // Drop tier window per zone (difficulty). Per-enemy gearChance lives on ETPL
 // (sim/config.js). CAS-73: the window climbs in lockstep with ZONE_TIER difficulty
 // (forest 1-2 → ruins 2-3 → caves/arena 3-4), so a tougher zone literally drops
@@ -106,7 +131,7 @@ export const ZONE_LOOT = {
 
 // ---- pure gear helpers (no game state, no RNG; safe in sim or render) ----
 export function gearDef(slot,defId){ const arr=GEAR[slot]; if(!arr) return null; for(let i=0;i<arr.length;i++) if(arr[i].id===defId) return arr[i]; return null; }
-export function gearStat(inst){ if(!inst) return 0; const d=gearDef(inst.slot,inst.defId); if(!d) return 0; const base=(d.dmg!=null?d.dmg:d.def)||0; const r=RARITY[inst.rarity]||RARITY.common; return Math.round(base*r.mult); }
+export function gearStat(inst){ if(!inst) return 0; const d=gearDef(inst.slot,inst.defId); if(!d) return 0; const base=(d.dmg!=null?d.dmg:d.def)||0; const r=RARITY[inst.rarity]||RARITY.common; return Math.round(base*r.mult*forgeMult(inst.fl)); } // CAS-237: forge level folds in here (the one stat resolver)
 export function gearName(inst){ if(!inst) return "—"; const d=gearDef(inst.slot,inst.defId); return d?d.name:"?"; }
 export function gearCol(inst){ const r=inst&&RARITY[inst.rarity]; return r?r.col:RARITY.common.col; }
 export function rarityRank(k){ const r=RARITY[k]; return r?r.rank:0; }

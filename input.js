@@ -21,7 +21,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], classRects:[], talentRects:[], customRects:[], mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -50,7 +50,7 @@ function onKeyDown(e){
     e.preventDefault(); return; }
   if(BIND[e.code]) { keys.add(BIND[e.code]); e.preventDefault(); }
   edge(e.code);
-  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","KeyT","KeyV","KeyC","KeyQ","KeyR","Escape"].includes(e.code)) e.preventDefault();
+  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyG","KeyI","KeyM","KeyE","KeyT","KeyV","KeyC","KeyQ","KeyR","Escape"].includes(e.code)) e.preventDefault();
 }
 function onKeyUp(e){ if(BIND[e.code]) keys.delete(BIND[e.code]); }
 function edge(code){
@@ -77,6 +77,15 @@ function edge(code){
     else if((code==="Enter"||code==="Space")&&n){ sim.equipBag(G.invSel||0); }
     else if(code==="KeyP"){ sim.doPotionHP(); }
     else if(code==="KeyO"){ sim.doPotionMP(); }
+    else if(code==="KeyG"){ G.scene="forge"; G.forgeSel=G.forgeSel||0; } // CAS-237: jump from inventory to the forge
+    return; }
+  // CAS-237: FORJA panel — G/E/Escape close. ↑/↓ pick a slot; Enter/Space forges it one level
+  // through the sim authority. Pointer/touch use ui.forgeRects (tap).
+  if(G.scene==="forge"){ const n=3;
+    if(code==="KeyG"||code==="KeyE"||code==="Escape"){ G.scene="play"; }
+    else if(code==="ArrowUp"){ G.forgeSel=(((G.forgeSel||0)-1)+n)%n; }
+    else if(code==="ArrowDown"){ G.forgeSel=(((G.forgeSel||0)+1))%n; }
+    else if(code==="Enter"||code==="Space"){ sim.forgeUpgrade(["weapon","body","shield"][G.forgeSel||0]); }
     return; }
   // CAS-119: talent panel — T/Escape close. Keyboard players can spend on the focused
   // node with Enter/Space; arrows move focus. Pointer/touch use ui.talentRects (tap).
@@ -112,6 +121,7 @@ function edge(code){
     case "Digit4": sim.castSpell(3); break;
     case "KeyF": sim.tryPickup(); break;
     case "KeyI": G.scene="inventory"; break;
+    case "KeyG": G.scene="forge"; G.forgeSel=G.forgeSel||0; break; // CAS-237 forge equipment
     case "KeyT": G.scene="talents"; G.talFocus=G.talFocus||0; break; // CAS-119 talent panel
     case "KeyV": G.scene="mastery"; break; // CAS-150 elite-mastery reward track
     case "KeyC": G.scene="customize"; G.custFocus=G.custFocus||0; break; // CAS-169 wardrobe / character customization
@@ -200,6 +210,7 @@ function handleUITap(x,y){
   if(G.scene==="mastery"){ G.scene="play"; return true; } // CAS-150: tap anywhere closes the read-only track
   if(G.scene==="customize"){ return customTap(x,y); } // CAS-169 wardrobe
   if(G.scene==="shop"){ return shopTap(x,y); }
+  if(G.scene==="forge"){ return forgeTap(x,y); } // CAS-237
   if(G.scene==="bounty"){ return bountyTap(x,y); }
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -227,11 +238,19 @@ function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r
 // on the chip (drawn on top) and only selects the row otherwise.
 function bountyTap(x,y){ for(const r of ui.bountyRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.
-function invTap(x,y){ for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; sim.equipBag(r.idx); return true; } }
+function invTap(x,y){
+  // CAS-237: the Forja button opens the forge panel.
+  const fr=ui.invForgeRect; if(fr&&fr.w&&x>=fr.x&&x<=fr.x+fr.w&&y>=fr.y&&y<=fr.y+fr.h){ G.scene="forge"; G.forgeSel=G.forgeSel||0; return true; }
+  for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; sim.equipBag(r.idx); return true; } }
   // CAS-226: taps on the Tibia equip slots are consumed (equipping is driven
   // from the backpack list) so a slot tap doesn't accidentally close the panel.
   for(const r of (ui.invSlotRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h) return true; }
   G.scene="play"; return true; }
+// CAS-237: forge taps. Each slot's Forjar button rect is pushed AFTER its row-select rect,
+// then the row-select rects are unshifted to the FRONT in render — so a forward scan hits the
+// button first when the tap lands on it; otherwise a row tap just moves the selection.
+function forgeTap(x,y){ for(const r of (ui.forgeRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+    if(r.act) r.act(); else if(r.sel!=null) G.forgeSel=r.sel; return true; } } return true; }
 function menuPlayHit(x,y){ const r=ui.menuPlayRect; return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
 
 // ----------------------------- menu flow -------------------------------

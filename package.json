@@ -10,6 +10,7 @@
     "scale-compare": "node tools/scale-compare.mjs",
     "determinism": "node tools/determinism.mjs",
     "gear": "node tools/gear.mjs",
+    "forge": "node tools/forge.mjs",
     "spells": "node tools/spells.mjs",
     "classstats": "node tools/classstats.mjs",
     "field": "node tools/field-dot-check.mjs",
@@ -66,7 +67,8 @@
     "backup-host-publish": "node tools/backup-host-publish.mjs",
     "cas180-subpath-verify": "node tools/cas180-subpath-verify.mjs",
     "trial": "node tools/cas196-trial.mjs",
-    "cas226-inv": "node tools/cas226-inv-live.mjs"
+    "cas226-inv": "node tools/cas226-inv-live.mjs",
+    "cas240-gait": "node tools/cas240-gait-decouple.mjs"
   },
   "keywords": [],
   "author": "",

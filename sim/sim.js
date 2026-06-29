@@ -18,7 +18,7 @@ import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, 
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost } from "./gear.js";
 import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, sanitizeTalents, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
 // feedback floater palette (presentation hints carried by sim events)
@@ -136,6 +136,10 @@ function newHero(name,cls){
     equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
     bag:[],
     potHP:2, potMP:1, blessings:0,
+    // CAS-237: forge material ("mena"). The forge gold-sink's second currency — dripped by
+    // hunting (elites/champions/bosses + a trash trickle) and daily contracts (grantMats /
+    // applyMetaReward). Durable, persisted additively (no SAVE_VERSION bump). No RNG.
+    mats:0,
     // CAS-192: combat-consumable inventory (data-driven, CONSUMABLES). Quantities are
     // persisted additively; consumSel = the slot bound to the use key; consumCD = the
     // PER-CONSUMABLE cooldown map (id→seconds), so using furia never locks out antídoto.
@@ -224,7 +228,9 @@ function num(v,dflt){ return (typeof v==="number" && isFinite(v))?v:dflt; }
 // a corrupted/old save can never render or compute against a missing def.
 function safeInst(inst){ if(!(inst && inst.slot && gearDef(inst.slot,inst.defId))) return null;
   const o={slot:inst.slot,defId:inst.defId,rarity:RARITY_VALID(inst.rarity)};
-  const af=safeAffixes(inst.affixes); if(af) o.affixes=af; return o; }
+  const af=safeAffixes(inst.affixes); if(af) o.affixes=af;
+  const fl=forgeLevel(inst); if(fl>0) o.fl=fl;   // CAS-237: persist clamped forge level (0 omitted)
+  return o; }
 function RARITY_VALID(r){ return (r==="common"||r==="uncommon"||r==="rare"||r==="epic")?r:"common"; }
 // CAS-117: validate persisted affixes — drop anything unknown/malformed so a
 // corrupted/old save can never compute against a missing affix; cap at 2.
@@ -244,6 +250,10 @@ export function serializeSave(){
     maxHp:h.maxHp, maxMp:h.maxMp, baseDmg:h.baseDmg, dmgBonus:permDmg, defBonus:permDef,
     upg:{dmg:(h.upg&&h.upg.dmg)||0, hp:(h.upg&&h.upg.hp)||0, def:(h.upg&&h.upg.def)||0},
     potHP:h.potHP, potMP:h.potMP, blessings:h.blessings,
+    // CAS-237: durable forge material. Additive — old saves lack it → default 0 — so no
+    // SAVE_VERSION bump / progress wipe. Equipped/bag forge LEVELS persist on the gear
+    // instances themselves (equip/bag below, validated by safeInst on load).
+    mats:h.mats||0,
     // CAS-192: combat-consumable stash + selected slot. Additive — old saves lack these
     // and rehydrate from the newHero defaults, so no SAVE_VERSION bump / progress wipe.
     consum:Object.assign({},h.consum), consumSel:h.consumSel|0,
@@ -286,6 +296,7 @@ export function loadSave(d){
     h.baseDmg=num(d.baseDmg,h.baseDmg); h.dmgBonus=num(d.dmgBonus,0); h.defBonus=num(d.defBonus,0);
     if(d.upg) h.upg={dmg:Math.max(0,Math.floor(num(d.upg.dmg,0))), hp:Math.max(0,Math.floor(num(d.upg.hp,0))), def:Math.max(0,Math.floor(num(d.upg.def,0)))};
     h.potHP=Math.max(0,Math.floor(num(d.potHP,h.potHP))); h.potMP=Math.max(0,Math.floor(num(d.potMP,h.potMP))); h.blessings=Math.max(0,Math.floor(num(d.blessings,0)));
+    h.mats=Math.max(0,Math.floor(num(d.mats,0))); // CAS-237: forge material (absent in old saves → 0)
     // CAS-192: rehydrate the consumable stash (clamped per known id; unknown keys
     // ignored; absent in old saves → keep newHero defaults). Selection clamped in range.
     if(d.consum && typeof d.consum==="object"){ for(const c of CONSUMABLES) h.consum[c.id]=Math.max(0,Math.floor(num(d.consum[c.id], h.consum[c.id]||0))); }
@@ -353,6 +364,7 @@ function moveEnt(e,dx,dy,r){
 // ----------------------------- spawning --------------------------------
 function spawnEnemy(type,x,y){
   const tpl=ETPL[type]; const e={type, x,y, hp:tpl.hp, maxHp:tpl.hp, tpl, state:"idle", st:0,
+    gaitPhase:(x*0.7+y*0.9), // CAS-240: STATIC per-mob gait desync offset, frozen at spawn pos. Render must NOT recompute from live e.x/e.y (movement swamps gait.w/gait.fps → CAS-222 slowdown invisible while moving).
     vx:0,vy:0, facing:0, wt:0, hurtFlash:0, hitDone:false, phase:0, knockX:0,knockY:0, wanderX:x,wanderY:y, wanderT:0,
     stun:0, slow:1, slowT:0, dots:null}; // crowd-control sinks: stun freezes the AI, slow scales chase speed, dots = active DoTs (CAS-118); all time-based, no RNG
   G.enemies.push(e); return e;
@@ -502,6 +514,7 @@ function killEnemy(e){
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
     noteEliteKill(); // CAS-149: the final boss is an elite-class kill → feeds Elite Mastery
+    grantMats(3);    // CAS-237: a boss kill is a signature forge-material haul
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
     gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
   else if(e.champion){ onChampionKill(e); } // hunt climax — clears the zone, guaranteed payoff
@@ -514,6 +527,7 @@ function killEnemy(e){
     else if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
       dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1])); }
     huntKill(zone); // a normal kill in a hunt zone advances that zone's contract
+    if(G.hero && (G.hero.kills%4)===0) grantMats(1); // CAS-237: a steady forge-material trickle from hunting (deterministic off the kill counter, no RNG)
   }
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
@@ -589,6 +603,7 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   // reward params travel on the entity (set at spawn) so champion + capstone share
   // this one clear path — the capstone just carries a higher tier/floor.
   noteEliteKill(); // CAS-149: a hunt champion is an elite-class kill → feeds Elite Mastery (its own fixed payoff is unchanged)
+  grantMats(e.capstone?3:2); // CAS-237: champion/capstone clear yields a forge-material haul (capstone richer)
   const win=e.rwdTier||cfgH.tier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
   dropGear(e.x,e.y, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
   // CAS-196: a WORLD-BOSS (boss block carries `bonusDrop`) drops extra guaranteed pieces at
@@ -720,6 +735,7 @@ function noteEliteKill(){ const h=G.hero; if(!h) return;
 export function applyMetaReward(r){ const h=G.hero; if(!h||!r) return;
   if(r.gold>0){ h.gold+=r.gold|0; audio.sfx.coin(); floater(h.x,h.y-26,"+"+(r.gold|0)+" oro",C_GOLD); }
   if(r.potHP>0){ h.potHP+=r.potHP|0; }
+  if(r.mats>0){ grantMats(r.mats|0); floater(h.x,h.y-42,"+"+(r.mats|0)+" "+STR.forgeMat,"#cdb27a"); } // CAS-237: daily contracts feed the forge too
   if(r.xp>0){ gainXP(r.xp|0); } }
 // CAS-119: recompute the cached talent bundle after any change (alloc/respec/load)
 // and clamp current HP into the (possibly smaller) effective max so a respec that
@@ -1111,6 +1127,29 @@ export function doConsumable(){ const h=G.hero; if(!h||G.scene!=="play") return 
 // CAS-192: rotate which consumable the use-key fires (HUD slot). Pure UI state.
 export function cycleConsumable(dir){ const h=G.hero; if(!h) return; const n=CONSUMABLES.length;
   h.consumSel=(((h.consumSel|0)+(dir||1))%n+n)%n; if(audio.sfx.uiOpen) audio.sfx.uiOpen(); }
+// CAS-237 — FORJA: forge the EQUIPPED piece in `slot` (weapon/body/shield) up one level.
+// The sim is the authority (the UI only proposes): re-checks gold + material, deducts both,
+// bumps the instance forge level (`fl`), and the stat recomputes via gearStat — never a baked
+// stat. Deterministic, no RNG → Stage-2 server-authority ready. Loud, legible feedback (the
+// stat delta floater + a forge ding). Returns true on success.
+export function forgeUpgrade(slot){ const h=G.hero; if(!h) return false;
+  if(["weapon","body","shield"].indexOf(slot)<0) return false;
+  const inst=h.equip[slot]; if(!inst){ audio.sfx.deny(); toast(STR.forgeEmpty); return false; }
+  const cost=forgeNextCost(inst); if(!cost){ audio.sfx.deny(); toast(STR.forgeMax); return false; }
+  if(h.gold<cost.gold || (h.mats|0)<cost.mats){ audio.sfx.deny(); toast(STR.forgeCant); return false; }
+  const before=gearStat(inst);
+  h.gold-=cost.gold; h.mats=(h.mats|0)-cost.mats; inst.fl=forgeLevel(inst)+1;
+  const after=gearStat(inst);
+  const mhp=heroMaxHp(h); if(h.hp>mhp) h.hp=mhp;          // safety: stat changes never strand hp over max
+  audio.sfx.levelup(); addFx("lvlring",h.x,h.y,{life:0.6});
+  floater(h.x,h.y-40,"+"+(after-before)+" "+(slot==="weapon"?STR.statsDmg:STR.statsDef),"#ffd24d");
+  toast(STR.forgeDone(gearName(inst), inst.fl));
+  return true; }
+// CAS-237 — forge-material ("mena") drip. Granted ONLY at deterministic kill milestones so the
+// combat RNG stream (drops/affixes) is never perturbed — determinism baselines hold. Reads/writes
+// only h.mats. Daily contracts add mats through applyMetaReward (the meta-reward seam).
+function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n|0); }
+
 export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
   else { const mv=io.moveVec(); if(mv[0]===0&&mv[1]===0){ ax=Math.cos(h.facing); ay=Math.sin(h.facing);} else {[ax,ay]=mv;} }
@@ -1482,6 +1521,7 @@ function spawnAmbush(zone){
 // champions so nothing here re-rolls stats. Called from killEnemy's trash branch for elites.
 function onEliteKill(e, zone){
   noteEliteKill(); // CAS-149: the ambush elite is the headline elite-class kill → feeds Mastery
+  grantMats(2);    // CAS-237: an ambush elite drops forge material toward the next upgrade
   const win0=e.rwdTier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
   const ml=masteryLoot(G.hero, win0, e.rwdMinR||"uncommon"); // CAS-149: Mastery makes elite loot meaningful (floor up / tier bump)
   dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,ml.win[0],ml.win[1],ml.minR));
@@ -1812,6 +1852,18 @@ export const dev = {
     return { slot:cand.slot, equipped:{rarity:cur.rarity,stat:gearStat(cur),affixes:cur.affixes||[]},
       candidate:{rarity:cand.rarity,stat:gearStat(cand),affixes:cand.affixes||[]}, before, after }; },
   openInv(){ G.scene="inventory"; return G.scene; },
+  // --- CAS-237 forja harness hooks (tools/forge.mjs); additive ---
+  // Read the live forge state: currencies + each equip slot's piece, forge level, resolved
+  // stat and the next-level cost (null if maxed). Proves a forge moves real combat numbers.
+  forgeState(){ const h=G.hero; const slots=["weapon","body","shield"];
+    return { gold:h.gold, mats:h.mats|0, dmg:equippedDmg(h), def:equippedDef(h), max:FORGE.max,
+      slots:slots.map(s=>{ const inst=h.equip[s]; const cost=inst?forgeNextCost(inst):null;
+        return { slot:s, name:inst?gearName(inst):null, fl:inst?forgeLevel(inst):0,
+          stat:inst?gearStat(inst):0, next:cost }; }) }; },
+  // Forge through the REAL forgeUpgrade (gold+mat check + deduct + level bump), then snapshot.
+  forgeDo(slot){ const ok=forgeUpgrade(slot); return Object.assign({ok}, this.forgeState()); },
+  setMats(n){ const h=G.hero; h.mats=Math.max(0,n|0); return h.mats; },
+  openForge(){ G.scene="forge"; return G.scene; },
   // --- CAS-115 combat-archetype harness hooks (tools/archetypes.mjs); additive ---
   // Static archetype metadata straight off the data table (no sim step) so the test can
   // assert ≥3 distinct archetypes exist with their behaviour fields + danger reward.

@@ -13,7 +13,7 @@ import { zoneOf } from "../sim/world.js";
 import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
-import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
+import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
 import { TALENTS, talentNodes, talentNode, nodeRank, canAllocTalent, lockReason, talentSpent } from "../sim/talents.js";
 import { STR } from "../strings.js";
 import { audio } from "../audio.js";
@@ -170,6 +170,7 @@ export function createRenderer(ctx){
     if(G.scene==="mastery") renderMastery(); // CAS-150 elite-mastery reward track
     if(G.scene==="dialogue") renderDialogue();
     if(G.scene==="shop") renderShop();
+    if(G.scene==="forge") renderForge(); // CAS-237 equipment forge
     if(G.scene==="bounty") renderBounty();
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
@@ -642,7 +643,7 @@ export function createRenderer(ctx){
         // differ in tpl.size 36–50 — the generic size×3.4 mult would balloon the Coliseo
         // boss to ~5 tiles). Preserves the legacy ~3.6-tile "stone capstone" scale.
         const dh=(strip.tiles? strip.tiles*32 : e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4)), dw=dh*(fw/fh);
-        const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9);
+        const feetY=e.y+e.tpl.size*0.5, ph=(e.gaitPhase!==undefined?e.gaitPhase:(e.x*0.7+e.y*0.9)); // CAS-240: STATIC spawn-phase, not live pos
         const fps = st==="walk"?gait.fps : st==="attack"?10 : 6; // CAS-222 per-mob walk cadence
         const fi = G.settings.reduceMotion ? 0 : (Math.floor(G.t*fps+ph*7)%strip.fc+strip.fc)%strip.fc;
         ctx.save(); ctx.translate(e.x, feetY);
@@ -661,7 +662,7 @@ export function createRenderer(ctx){
     if(!drew){ const ik=ENEMY_IMG[e.tpl.sprite]; const eimg=ik&&IMG[ik];
       if(eimg && eimg.complete && eimg.naturalWidth){
         const dh=e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4), dw=dh*(eimg.naturalWidth/eimg.naturalHeight);
-        const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9), st=e.animState||"idle";
+        const feetY=e.y+e.tpl.size*0.5, ph=(e.gaitPhase!==undefined?e.gaitPhase:(e.x*0.7+e.y*0.9)), st=e.animState||"idle"; // CAS-240: STATIC spawn-phase
         let sx=1, sy=1, bob=0;
         if(!G.settings.reduceMotion){
           if(st==="walk"){ const b=Math.abs(Math.sin(G.t*gait.w+ph)); bob=-b*2.4; sy=1+b*0.06; sx=1-b*0.05; } // CAS-222 cadence
@@ -687,7 +688,7 @@ export function createRenderer(ctx){
       // anticipation (the windup ground-ring telegraphs above stay the primary tell).
       if(G.settings.reduceMotion){ blit(ctx,rows,pal,e.x,e.y,px,fl); }
       else {
-        const h=rows.length, feetY=e.y+(h*px)/2, ph=(e.x*0.7+e.y*0.9), st=e.animState||"idle";
+        const h=rows.length, feetY=e.y+(h*px)/2, ph=(e.gaitPhase!==undefined?e.gaitPhase:(e.x*0.7+e.y*0.9)), st=e.animState||"idle"; // CAS-240: STATIC spawn-phase
         let sx=1, sy=1, bob=0;
         if(st==="walk"){ const b=Math.abs(Math.sin(G.t*gait.w+ph)); bob=-b*2.2; sy=1+b*0.06; sx=1-b*0.05; } // CAS-222 cadence
         else if(st==="attack"){ const a=Math.sin(G.t*5+ph); sy=0.95+0.02*a; sx=1.05-0.02*a; bob=1.2; }
@@ -1149,7 +1150,12 @@ export function createRenderer(ctx){
     ctx.fillText(STR.statsDmg+": "+equippedDmg(h)+"   "+STR.statsDef+": "+equippedDef(h), x+18, ty);
     ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'";
     ctx.fillText("♥ "+heroMaxHp(h)+(af.atkspd?"  ⚔+"+af.atkspd+"%":"")+(af.movespd?"  »+"+af.movespd+"%":"")+(af.onhit?"  ✦+"+af.onhit:""), x+18, ty+16);
-    ctx.fillStyle=COL.cream; ctx.fillText("♥ x"+h.potHP+"   ◆ x"+h.potMP+"   ✦ x"+h.blessings, x+18, ty+32);
+    ctx.fillStyle=COL.cream; ctx.fillText("♥ x"+h.potHP+"   ◆ x"+h.potMP+"   ✦ x"+h.blessings+"   ⚒ x"+(h.mats|0), x+18, ty+32);
+    // CAS-237: open the Forja (forge equipment) panel — accessible from the inventory.
+    const fbw=104, fbh=22, fbx=x+bw-fbw-16, fby=y+12;
+    ctx.fillStyle="#3a2c1e"; ctx.fillRect(fbx,fby,fbw,fbh); ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(fbx+0.5,fby+0.5,fbw-1,fbh-1);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.invForge, fbx+fbw/2, fby+15);
+    ui.invForgeRect={x:fbx,y:fby,w:fbw,h:fbh};
     // ---- right: backpack list with compare arrows ----
     const rx=x+bw*0.50, rw=bw*0.46;
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(STR.backpack, rx, y+54);
@@ -1315,6 +1321,55 @@ export function createRenderer(ctx){
     // close
     const cy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,24); ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Cerrar (E)",VW/2,cy+17);
     ui.shopRects.push({x:x+bw/2-60,y:cy,w:120,h:24,act:()=>{G.scene="play";G.healShop=false;G.merchantShop=false;}});
+  }
+
+  // CAS-237 — FORJA panel. The equipment-progression sink: one clickable row per equipped
+  // slot (arma/cuerpo/escudo) showing its forge level, resolved stat, and the next-level cost
+  // (gold + mena). Forging routes through the sim authority (sim.forgeUpgrade); the panel is a
+  // pure view (no game logic) — it only reads forgeState data + writes click rects. The stat
+  // recomputes via gearStat the instant a level lands, so the increase is legible right here.
+  function renderForge(){ const h=G.hero; if(!h) return;
+    // pure view model built from the gear data helpers (no game logic here — forging routes
+    // through sim.forgeUpgrade on click). Mirrors the sim.dev.forgeState() shape.
+    const fs={ gold:h.gold, mats:h.mats|0, max:FORGE.max, slots:["weapon","body","shield"].map(slot=>{
+      const inst=h.equip[slot]; const cost=inst?forgeNextCost(inst):null;
+      return { slot, name:inst?gearName(inst):null, fl:inst?forgeLevel(inst):0, stat:inst?gearStat(inst):0, next:cost }; }) };
+    const bw=Math.min(VW*0.86,470), bh=Math.min(VH*0.78,360), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.forgeTitle,VW/2,y+30);
+    ctx.fillStyle=COL.gold; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.forgeHave(fs.gold, fs.mats),VW/2,y+50);
+    ui.forgeRects=[]; if(G.forgeSel==null) G.forgeSel=0; G.forgeSel=Math.max(0,Math.min(2,G.forgeSel|0));
+    const GLY={weapon:"⚔",body:"▣",shield:"◈"}, SLBL={weapon:STR.slotWeapon,body:STR.slotBody,shield:STR.slotShield};
+    const iy=y+70, ih=70;
+    for(let i=0;i<fs.slots.length;i++){ const s=fs.slots[i]; const ry=iy+i*ih; const sel=i===G.forgeSel;
+      ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(x+20,ry,bw-40,ih-10);
+      if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x+20,ry,bw-40,ih-10); }
+      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 15px 'Courier New'"; ctx.fillText(GLY[s.slot]+" "+SLBL[s.slot], x+34, ry+22);
+      if(s.name){
+        // current forge level + resolved stat
+        ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'";
+        ctx.fillText(s.name+"  "+STR.forgeLvl(s.fl, fs.max), x+34, ry+40);
+        ctx.fillStyle=COL.textGold; ctx.fillText((s.slot==="weapon"?STR.statsDmg:STR.statsDef)+": "+s.stat, x+34, ry+57);
+        // right side: next-level cost or MÁX tag + a forge button
+        if(s.next){
+          ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="12px 'Courier New'"; ctx.fillText(STR.forgeNeed(s.next.gold, s.next.mats), x+bw-110, ry+30);
+          const can=fs.gold>=s.next.gold && fs.mats>=s.next.mats;
+          const bx=x+bw-104, by=ry+12, bbw=80, bbh=30;
+          ctx.fillStyle=can?"#3a2c1e":"#23262c"; ctx.fillRect(bx,by,bbw,bbh);
+          ctx.strokeStyle=can?COL.textGold:"#3a4456"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,bbw-1,bbh-1);
+          ctx.textAlign="center"; ctx.fillStyle=can?COL.textGold:COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.forgeBtn, bx+bbw/2, by+20);
+          ui.forgeRects.unshift({x:bx,y:by,w:bbw,h:bbh,slot:s.slot,act:()=>{ G.forgeSel=i; sim.forgeUpgrade(s.slot); }}); // button to FRONT of scan → wins the tap over its row rect
+        } else {
+          ctx.textAlign="right"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.forgeMaxTag, x+bw-40, ry+34);
+        }
+      } else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.forgeEmpty, x+34, ry+44); }
+      // full-row select rect (keyboard/tap focus); pushed to the BACK so a button tap on the same row wins first
+      ui.forgeRects.push({x:x+20,y:ry,w:bw-40,h:ih-10, sel:i});
+    }
+    const cy=y+bh-28; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,22);
+    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText("Cerrar (G)",VW/2,cy+15);
+    ui.forgeRects.push({x:x+bw/2-60,y:cy,w:120,h:22,act:()=>{G.scene="play";}});
+    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.forgeHint,VW/2,y+bh-8);
   }
 
   // CAS-134: the Bounty Board — today's daily contracts (progress + claim) and the login

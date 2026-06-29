@@ -112,6 +112,8 @@ export function createGame(canvas, ctx, getView){
       bountyTP:()=>simDev.bountyTP(),
       heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
       // CAS-192 combat-consumable contract consumed by tools/cas192-consumables.mjs — additive
+      // CAS-237 forja contract consumed by tools/forge.mjs — additive
+      forgeState:()=>simDev.forgeState(), forgeDo:(slot)=>simDev.forgeDo(slot), setMats:(n)=>simDev.setMats(n), openForge:()=>simDev.openForge(),
       consumState:()=>simDev.consumState(), selectConsum:(i)=>simDev.selectConsum(i),
       useConsum:()=>simDev.useConsum(), atkCadence:()=>simDev.atkCadence(),
       setConsum:(id,n)=>simDev.setConsum(id,n), setHeroHp:(n)=>simDev.setHeroHp(n), clearConsumCD:()=>simDev.clearConsumCD(),

@@ -126,6 +126,20 @@ export const STR = {
   // CAS-117 equip-decision compare box (equipado vs nuevo) + affix tooltip chrome
   cmpEquipped: "Equipado",
   cmpNew: "Nuevo",
+  // CAS-237 — Forja (equipment upgrade): spend gold + mena to raise an equipped piece's tier.
+  forgeTitle: "FORJA",
+  forgeMat: "Mena",
+  invForge: "Forjar (G)",
+  forgeBtn: "Forjar",
+  forgeMaxTag: "MÁX",
+  forgeHint: "▲▼ elegir · Enter/tap forjar · G/E cerrar",
+  forgeNeed: (g, m) => g + " oro · " + m + " mena",
+  forgeHave: (g, m) => "Oro " + g + "   ⚒ Mena " + m,
+  forgeLvl: (l, max) => "Forja +" + l + "/" + max,
+  forgeMax: "Pieza ya al máximo de forja",
+  forgeCant: "Faltan oro o mena para forjar",
+  forgeEmpty: "No hay pieza equipada en esa ranura",
+  forgeDone: (n, l) => n + " forjada → +" + l,
 
   // CAS-119 — talent tree / class progression (build agency).
   talentTitle: "TALENTOS",
