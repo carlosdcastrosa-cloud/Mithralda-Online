@@ -546,7 +546,7 @@ export function createRenderer(ctx){
         // so the player reads the final blast size at a glance and steps OUT of it.
         const R=e.tpl.aoe||56, prog=clamp(1-(e.st||0)/(e.tpl.windup||0.8),0,1), cy=e.y+e.tpl.size*0.35;
         ctx.save();
-        ctx.globalAlpha=0.20+0.20*prog; ctx.fillStyle="#ff5230";
+        ctx.globalAlpha=0.20+0.20*prog; ctx.fillStyle="#b3242a"; // CAS-211 (d): AoE danger-fill crimson-locked (was warm orange), bright outline kept for legibility
         ctx.beginPath(); ctx.ellipse(e.x,cy,R*prog,R*prog*0.5,0,0,6.28); ctx.fill();
         ctx.globalAlpha=0.45+0.30*Math.abs(Math.sin(G.t*14)); ctx.strokeStyle=fl2?"#ffd24d":"#ff7a3a"; ctx.lineWidth=3;
         ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
@@ -569,7 +569,7 @@ export function createRenderer(ctx){
         const L=e.tpl.charge||300, a=e.facing, ca=Math.cos(a), sa=Math.sin(a);
         const w=e.tpl.size*0.9, nx=-sa*w, ny=ca*w, tx=e.x+ca*L, ty=e.y-4+sa*L;
         ctx.save();
-        ctx.globalAlpha=0.16+0.12*Math.abs(Math.sin(G.t*12)); ctx.fillStyle="#ff5230";
+        ctx.globalAlpha=0.16+0.12*Math.abs(Math.sin(G.t*12)); ctx.fillStyle="#b3242a"; // CAS-211 (d): charge-lane fill crimson-locked
         ctx.beginPath(); ctx.moveTo(e.x+nx,e.y-4+ny); ctx.lineTo(tx+nx,ty+ny); ctx.lineTo(tx-nx,ty-ny); ctx.lineTo(e.x-nx,e.y-4-ny); ctx.closePath(); ctx.fill();
         ctx.globalAlpha=fl2?0.9:0.55; ctx.strokeStyle=fl2?"#ffd24d":"#ff7a3a"; ctx.lineWidth=2.5; ctx.setLineDash([9,7]);
         ctx.beginPath(); ctx.moveTo(e.x+nx,e.y-4+ny); ctx.lineTo(tx+nx,ty+ny); ctx.moveTo(e.x-nx,e.y-4-ny); ctx.lineTo(tx-nx,ty-ny); ctx.stroke(); ctx.setLineDash([]);
@@ -599,15 +599,15 @@ export function createRenderer(ctx){
         // radius over the (short) windup — reads "it's about to blow, clear the circle / kill it".
         const R=e.tpl.blast||72, prog=clamp(1-(e.st||0)/(e.tpl.windup||0.7),0,1), cy=e.y+e.tpl.size*0.3;
         ctx.save();
-        ctx.globalAlpha=0.22+0.26*prog; ctx.fillStyle="#ff3b2e";
+        ctx.globalAlpha=0.22+0.26*prog; ctx.fillStyle="#d8403f"; // CAS-211 (d): volatile blast-fill crimson-locked (hotter crimson — about to detonate)
         ctx.beginPath(); ctx.ellipse(e.x,cy,R*prog,R*prog*0.5,0,0,6.28); ctx.fill();
         ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(G.t*20)); ctx.strokeStyle=fl2?"#ffe08a":"#ff5a3c"; ctx.lineWidth=3;
         ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
         ctx.restore();
       } else {
-        ctx.globalAlpha=0.5; ctx.fillStyle=fl2?"#ffd24d":"#ff6a3a";
+        ctx.globalAlpha=0.5; ctx.fillStyle=fl2?"#e8463f":"#b3242a"; // CAS-211 (d): basic attack danger-fill crimson-locked (bright crimson flash, was gold/orange)
         ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.range+6,0,6.28); ctx.fill(); ctx.globalAlpha=1;
-        ctx.fillStyle="rgba(255,120,60,0.35)"; ctx.beginPath(); ctx.moveTo(e.x,e.y);
+        ctx.fillStyle="rgba(179,36,42,0.38)"; ctx.beginPath(); ctx.moveTo(e.x,e.y);
         ctx.arc(e.x,e.y,e.tpl.range+12,e.facing-0.5,e.facing+0.5); ctx.closePath(); ctx.fill();
       }
       // CAS-109 special-slam tell: a red ring that GROWS over the (longer) windup so
@@ -787,11 +787,11 @@ export function createRenderer(ctx){
     else if(f.kind==="swing"){ const a0=(f.ang||0)-0.9+sw*1.3;
       if(f.fx==="thorns"){ ctx.globalAlpha=k; ctx.fillStyle="#8fd47a"; for(let i=0;i<11;i++){ const aa=(f.ang||0)+(i-5)*0.17, r=12+sw*42; ctx.fillRect(f.x+Math.cos(aa)*r-2,f.y+Math.sin(aa)*r-2,4,4);} ctx.globalAlpha=k*0.55; ctx.strokeStyle="#4f8f3a"; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(f.x,f.y,20+sw*26,(f.ang||0)-0.62,(f.ang||0)+0.62); ctx.stroke(); ctx.globalAlpha=1; }
       else { ctx.lineCap="round"; ctx.globalAlpha=k*0.5; ctx.strokeStyle="#bcd2ee"; ctx.lineWidth=13; ctx.beginPath(); ctx.arc(f.x,f.y,22+sw*16,a0,a0+1.25); ctx.stroke(); ctx.globalAlpha=k; ctx.strokeStyle="#ffffff"; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(f.x,f.y,22+sw*16,a0,a0+1.25); ctx.stroke(); ctx.globalAlpha=1; ctx.lineCap="butt"; } }
-    else if(f.kind==="holynova"){ const R=f.r||80, r2=sw*R;
-      ctx.globalAlpha=k; ctx.strokeStyle="#ffe39a"; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(f.x,f.y,r2,0,6.28); ctx.stroke();
-      ctx.globalAlpha=k*0.8; ctx.strokeStyle="#fff6d8"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y,r2,0,6.28); ctx.stroke();
-      ctx.globalAlpha=k*0.45; ctx.fillStyle="#fff6d8"; ctx.beginPath(); ctx.arc(f.x,f.y,k*22,0,6.28); ctx.fill();
-      ctx.globalAlpha=k*0.7; ctx.strokeStyle="#ffe39a"; ctx.lineWidth=3; for(let i=0;i<8;i++){ const a=i/8*6.28; ctx.beginPath(); ctx.moveTo(f.x+Math.cos(a)*r2*0.55,f.y+Math.sin(a)*r2*0.55); ctx.lineTo(f.x+Math.cos(a)*r2,f.y+Math.sin(a)*r2); ctx.stroke(); } ctx.globalAlpha=1; }
+    else if(f.kind==="holynova"){ const R=f.r||80, r2=sw*R; // CAS-211 (d): power/AoE signature leads CRIMSON + cold blue-white (palette-lock), not warm holy-gold — pairs with the shockring shell
+      ctx.globalAlpha=k; ctx.strokeStyle="#d8403f"; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(f.x,f.y,r2,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k*0.85; ctx.strokeStyle="#dbeeff"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y,r2,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k*0.45; ctx.fillStyle="#dbeeff"; ctx.beginPath(); ctx.arc(f.x,f.y,k*22,0,6.28); ctx.fill();
+      ctx.globalAlpha=k*0.7; ctx.strokeStyle="#b3242a"; ctx.lineWidth=3; for(let i=0;i<8;i++){ const a=i/8*6.28; ctx.beginPath(); ctx.moveTo(f.x+Math.cos(a)*r2*0.55,f.y+Math.sin(a)*r2*0.55); ctx.lineTo(f.x+Math.cos(a)*r2,f.y+Math.sin(a)*r2); ctx.stroke(); } ctx.globalAlpha=1; }
     else if(f.kind==="orbburst"){ const r=sw*42; ctx.globalAlpha=k*0.8; ctx.fillStyle="#9bef5a"; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,6.28); ctx.fill(); ctx.globalAlpha=k; ctx.fillStyle="#eafff0"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*18,0,6.28); ctx.fill(); ctx.fillStyle="#bcff8a"; for(let i=0;i<8;i++){ const a=i/8*6.28+f.t*4; const r3=sw*46; ctx.fillRect(f.x+Math.cos(a)*r3-2,f.y+Math.sin(a)*r3-2,4,4);} ctx.globalAlpha=1; }
     else if(f.kind==="impact"){ ctx.globalAlpha=k; ctx.strokeStyle="#ffffff"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y,sw*22,0,6.28); ctx.stroke(); ctx.fillStyle="#ffffff"; for(let i=0;i<6;i++){ const a=(f.ang||0)+i/6*6.28; const r=sw*20; ctx.fillRect(f.x+Math.cos(a)*r-1.5,f.y+Math.sin(a)*r-1.5,3,3);} ctx.globalAlpha=1; }
     // CAS-210: windup charge tell — orange→red ring that pulses outward while enemy winds up.
