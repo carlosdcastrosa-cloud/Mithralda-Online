@@ -86,7 +86,8 @@
     "cas256-live": "node tools/cas256-anims-live.mjs",
     "cas273": "node tools/cas273-juice.mjs",
     "cas275": "node tools/cas275-juice-live.mjs",
-    "cas287": "node tools/cas287-hud-scaffold.mjs"
+    "cas287": "node tools/cas287-hud-scaffold.mjs",
+    "cas287-impl": "node tools/cas287-hud-impl.mjs"
   },
   "keywords": [],
   "author": "",

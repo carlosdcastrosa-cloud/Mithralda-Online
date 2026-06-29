@@ -82,14 +82,14 @@ export function createGame(canvas, ctx, getView){
   // touches no sim/balance/input, so the HUD is soak-safe and reversible. The final visual
   // layer + UI assets come from the Art Director spec (CAS-286); the data path is wired now.
   function hudSnapshot(){
-    const h=G.hero; if(!h) return { scene:G.scene, reduceMotion:!!(G.settings&&G.settings.reduceMotion) };
-    return {
-      scene:G.scene, name:h.name, cls:h.cls, lvl:h.lvl|0, gold:h.gold|0,
+    const a11y={ reduceMotion:!!(G.settings&&G.settings.reduceMotion), colorblind:!!(G.settings&&G.settings.colorblind) };
+    const h=G.hero; if(!h) return Object.assign({ scene:G.scene, zone:G.zone||G.scene }, a11y);
+    return Object.assign({
+      scene:G.scene, zone:G.zone||G.scene, name:h.name, cls:h.cls, lvl:h.lvl|0, gold:h.gold|0,
       hp:h.hp, maxHp:h.maxHp, mp:h.mp, maxMp:h.maxMp, xp:h.xp, xpNext:h.xpNext,
-      equip:["weapon","body","shield"].map(sl=>{ const it=h.equip&&h.equip[sl]; return it?{slot:sl,label:String(sl[0]).toUpperCase()}:null; }),
-      bag:(h.bag||[]).map(b=>({ label:"·" })), bagCap:16,
-      reduceMotion:!!(G.settings&&G.settings.reduceMotion),
-    };
+      equip:["weapon","body","shield"].map(sl=>{ const it=h.equip&&h.equip[sl]; return it?{slot:sl,label:String(sl[0]).toUpperCase(),rarity:(it&&it.rarity)||0}:null; }),
+      bag:(h.bag||[]).map(b=>({ label:"·", rarity:(b&&b.rarity)||0 })), bagCap:16,
+    }, a11y);
   }
   hud.boot(hudSnapshot);
   // Read API for the analytics.html dashboard + QA harness (own anonymous device data).
