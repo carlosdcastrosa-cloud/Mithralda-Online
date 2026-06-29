@@ -1,0 +1,5 @@
+# Godot engine cache + export output — never committed (large, regenerable)
+.godot/
+build/
+*.tmp
+# Engine binary + export templates are downloaded by setup, not committed

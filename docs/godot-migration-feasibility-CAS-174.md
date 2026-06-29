@@ -1,8 +1,26 @@
 # Godot Migration — Feasibility & Plan (CAS-174 / parent CAS-172)
 
-**Author:** CTO · **Date:** 2026-06-28 · **Phase 1 — NON-DESTRUCTIVE: viability + plan only.**
-No production build is touched. The live JS game stays intact. Any Godot prototype lives in a
-separate folder/branch and deploys (if ever) to a **new** `game_id` (new URL), never the live one.
+**Author:** CTO · **Date:** 2026-06-28, updated 2026-06-29 with EMPIRICAL data ·
+**Phase 1 — NON-DESTRUCTIVE.** No production build is touched. The live JS game stays intact.
+The Godot prototype lives in the separate `godot/` folder and was deploy-tested only to a
+**new** `game_id` (never the live one).
+
+> **UPDATE 2026-06-29 — board decision + empirical validation.** The board (CEO) reviewed the
+> recommendation below and directed: *"continúa con la migración a Godot."* I proceeded to
+> **build a real Godot 4.3 WASM export in this environment** and measured it. Two findings now
+> rest on hard data, not estimates:
+>
+> 1. **Bundle (measured):** the Godot engine `index.wasm` is **33.74 MiB raw / 7.61 MiB gzip**
+>    for a prototype with **zero art** — already **over the 25 MiB-per-file deploy bound**. Real
+>    assets (~27 MB) load on top. (Details: `godot/README.md`.)
+> 2. **Deploy (measured):** I packaged the export + stub `logic.js`, uploaded it, and called
+>    `deploy_game` (new game_id). It **failed with the same generic Higgsfield outage error**
+>    blocking the JS game right now (ReqIDs `78738cf8`, `24944aa8`). **A finished Godot bundle
+>    does NOT escape the deploy outage** — strongest possible confirmation of §2 below.
+>
+> Net: the migration *build* can proceed (toolchain works headless here), but it neither fixes
+> the deploy outage nor lets us "abrir el juego" until `deploy_game` recovers — that blocker is
+> identical for JS and Godot.
 
 > **Board ask (CAS-172):** "Higgsfield está trayendo muchos problemas → migremos todo a Godot,
 > no rompas nada." This document answers whether Godot actually fixes that problem, what it costs,

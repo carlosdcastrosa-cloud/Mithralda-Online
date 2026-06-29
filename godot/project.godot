@@ -1,0 +1,26 @@
+; Mithralda — Godot migration prototype (CAS-174 / CAS-172)
+; NON-DESTRUCTIVE: separate from the live JS build. Web export uses the
+; GL Compatibility renderer + single-threaded web export (no SharedArrayBuffer,
+; no COOP/COEP headers required — we do not control Higgsfield response headers).
+
+config_version=5
+
+[application]
+
+config/name="Mithralda (Godot prototype)"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
