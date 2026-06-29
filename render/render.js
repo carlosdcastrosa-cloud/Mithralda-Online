@@ -1430,7 +1430,7 @@ export function createRenderer(ctx){
           ctx.fillStyle=can?"#3a2c1e":"#23262c"; ctx.fillRect(bx,by,bbw,bbh);
           ctx.strokeStyle=can?COL.textGold:"#3a4456"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,bbw-1,bbh-1);
           ctx.textAlign="center"; ctx.fillStyle=can?COL.textGold:COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.forgeBtn, bx+bbw/2, by+20);
-          ui.forgeRects.unshift({x:bx,y:by,w:bbw,h:bbh,slot:s.slot,act:()=>{ G.forgeSel=i; sim.forgeUpgrade(s.slot); }}); // button to FRONT of scan → wins the tap over its row rect
+          ui.forgeRects.unshift({x:bx,y:by,w:bbw,h:bbh,slot:s.slot,act:()=>{ G.forgeSel=i; return sim.forgeUpgrade(s.slot); }}); // button to FRONT of scan → wins the tap over its row rect (returns ok → CAS-279 forge telemetry in forgeTap)
         } else {
           ctx.textAlign="right"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.forgeMaxTag, x+bw-40, ry+34);
         }

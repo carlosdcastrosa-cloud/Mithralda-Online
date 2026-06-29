@@ -124,7 +124,7 @@ function edge(code){
     if(code==="KeyG"||code==="KeyE"||code==="Escape"){ G.scene="play"; }
     else if(code==="ArrowUp"){ G.forgeSel=(((G.forgeSel||0)-1)+n)%n; }
     else if(code==="ArrowDown"){ G.forgeSel=(((G.forgeSel||0)+1))%n; }
-    else if(code==="Enter"||code==="Space"){ sim.forgeUpgrade(["weapon","body","shield"][G.forgeSel||0]); }
+    else if(code==="Enter"||code==="Space"){ if(sim.forgeUpgrade(["weapon","body","shield"][G.forgeSel||0])) analytics.event("forge_upgrade"); } // CAS-279: count successful Forja upgrades (observation only)
     return; }
   // CAS-119: talent panel — T/Escape close. Keyboard players can spend on the focused
   // node with Enter/Space; arrows move focus. Pointer/touch use ui.talentRects (tap).
@@ -290,7 +290,8 @@ function invTap(x,y){
 // then the row-select rects are unshifted to the FRONT in render — so a forward scan hits the
 // button first when the tap lands on it; otherwise a row tap just moves the selection.
 function forgeTap(x,y){ for(const r of (ui.forgeRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
-    if(r.act) r.act(); else if(r.sel!=null) G.forgeSel=r.sel; return true; } } return true; }
+    if(r.act){ const ok=r.act(); if(ok===true && r.slot) analytics.event("forge_upgrade"); } // CAS-279: count successful Forja taps (observation only)
+    else if(r.sel!=null) G.forgeSel=r.sel; return true; } } return true; }
 function menuPlayHit(x,y){ const r=ui.menuPlayRect; return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
 
 // ----------------------------- menu flow -------------------------------

@@ -40,7 +40,9 @@ export function gitTracked(...paths) {
 // missing (a latent omission) and is added here for the same reason.
 // CAS-265: settings.js (the accessibility/QoL persistence controller) is a shipped
 // runtime module too — registered here AND in index.html's import map for the same reason.
-const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "analytics.js", "analytics.html", "daily.js", "persist.js", "settings.js"];
+// CAS-279: overlay.js (the opt-in retention telemetry HUD) is a shipped runtime module —
+// hashed here AND registered in index.html's import map so a returning player's cached copy busts on change.
+const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "analytics.js", "analytics.html", "overlay.js", "daily.js", "persist.js", "settings.js"];
 
 // The exact, sorted set of files whose bytes define the build id — tracked only.
 export function buildFileList() {

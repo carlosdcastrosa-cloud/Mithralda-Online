@@ -23,6 +23,7 @@ import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
 import { daily } from "./daily.js";
+import { overlay } from "./overlay.js";
 
 export function createGame(canvas, ctx, getView){
   // wire the simulation's injected dependencies (input intents, audio, viewport)
@@ -71,6 +72,10 @@ export function createGame(canvas, ctx, getView){
   // client-side, fork-neutral — reversible by deleting daily.js + its one localStorage key.
   daily.boot();
   daily.initFlush();
+  // CAS-279: opt-in retention telemetry overlay (F9, default OFF). Pure read-only HUD over
+  // analytics.js / daily.js so QA can read accumulated retention numbers off a live playtest.
+  // Touches no sim/balance/input — toggling it changes nothing in the game itself.
+  overlay.boot();
   // Read API for the analytics.html dashboard + QA harness (own anonymous device data).
   if(typeof window!=="undefined"){ window.__analytics=analytics.dev; window.__daily=daily.dev; }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
