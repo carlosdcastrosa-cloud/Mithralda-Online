@@ -99,6 +99,7 @@ export function createGame(canvas, ctx, getView){
       forceSpecial:(zone)=>simDev.forceSpecial(zone),
       // CAS-121 frost-biome carapace contract consumed by tools/cas121-frost.mjs — additive
       forceCarapace:(zone)=>simDev.forceCarapace(zone), frostGate:()=>simDev.frostGate(),
+      trialGate:()=>simDev.trialGate(), // CAS-196 — el Coliseo Eterno gate probe
       hitChamp:(zone)=>simDev.hitChamp(zone),
       // spell-identity contract consumed by tools/spells.mjs (CAS-52) — additive
       setClass:(cls)=>simDev.setClass(cls),

@@ -321,6 +321,11 @@ export const ZONE_TIER = {
   // sits ABOVE the abyss on the power curve (FROST_POWER_REQ > ABYSS_POWER_REQ), so it
   // is the next grind target once the abyss is on farm. Same pure-math scaling.
   frost:  { tier:6, hpMul:3.60, dmgMul:2.30, spdMul:1.22, xpMul:3.40 },
+  // CAS-196 — el Coliseo Eterno: a SEVENTH, post-finale CHALLENGE zone that strictly
+  // out-classes the Cripta. Its gauntlet roster is the hardest mix in the game and its
+  // capstone is the OPTIONAL WORLD-BOSS (Avatar del Coliseo). Pure endgame DEPTH past the
+  // Stage-1 win — NOT the win condition (that stays the Cripta's Guardián). Same scaling.
+  trial:  { tier:7, hpMul:4.60, dmgMul:2.70, spdMul:1.25, xpMul:4.20 },
 };
 
 // CAS-114 — power GATE for the Abismo. The hero's permanent power is a single legible
@@ -332,6 +337,10 @@ export const ABYSS_POWER_REQ = 8;
 // is the deeper, later unlock: clear the abyss → keep grinding upgrades + levels → the
 // town's frost gate opens. Same single legible heroPower() number drives both gates.
 export const FROST_POWER_REQ = 13;
+// CAS-196 — power GATE for el Coliseo Eterno (the challenge arena), set ABOVE the Cripta
+// so the trial is the DEEPEST unlock: clear the finale → keep grinding upgrades + levels →
+// the town's coliseo gate opens. Same single legible heroPower() number drives all gates.
+export const TRIAL_POWER_REQ = 18;
 
 // Hunt contracts (CAS-63): the per-hunt OBJECTIVE that gives a farm zone a point.
 // Cull `need` enemies in the zone -> a Champion is summoned (an ELITE of a zone mob,
@@ -418,6 +427,24 @@ export const HUNTS = {
            // so the "final boss" can be re-pointed to any capstone in one edit.
            final:true,
            tier:[4,4], minR:"epic", xp:820, gold:480 } },                          // new richest guaranteed top-tier sink
+  // CAS-196 — el Coliseo Eterno: the CHALLENGE-ARENA contract + the WORLD-BOSS. You first
+  // survive/clear the arena gauntlet (cull `need` of the hardest roster in the game), which
+  // SUMMONS the Avatar del Coliseo — an OPTIONAL post-finale world-boss that pairs the
+  // Cripta's CARAPACE status-gate (telegraphed shield → channel a Freeze Nova + 3 adds,
+  // shattered only by a CAS-118 status proc) with an aggressive ENRAGE phase (faster +
+  // tighter tells + the densest radial slam in the game), then pays a SIGNATURE double-epic
+  // haul (`bonusDrop`). It is NOT the Stage-1 win (no `final` flag — the Guardián keeps the
+  // win-condition; this is endgame DEPTH gated ABOVE the finale, TRIAL_POWER_REQ > FROST).
+  // Pure data: the shared capstone AI already reads enrage + carapace, so the two-phase
+  // world-boss is COMPOSITION of existing telegraphed mechanics, never a new code branch.
+  trial:  { need:20, base:"wraith",  name:"Centinela del Coliseo", hpMul:10, dmgMul:2.3, sizeMul:1.6, tier:[4,4], minR:"epic", xp:340, gold:190,
+    boss:{ base:"golem", sprite:"golem", name:"Avatar del Coliseo", hp:3000, dmg:64, size:50, spd:60, knock:92, windup:0.82, recover:0.6,
+           enrageAt:0.5, enrageSpd:1.45, enrageWindup:0.62,                         // phase 2: faster, tighter tells, densest slam
+           slam:{ count:20, spd:205, dmg:30, life:1.5 },                            // enraged radial shockwave (shared vocab)
+           carapace:{ every:3, channel:2.7, adds:3, addType:"wraith", shatterStun:1.7,
+                      nova:{ count:24, spd:155, dmg:32, life:1.5, slow:{ amt:0.5, dur:2.6 } } },
+           bonusDrop:1,                                                             // CAS-196: a SECOND guaranteed epic → signature world-boss haul
+           tier:[4,4], minR:"epic", xp:1000, gold:600 } },                         // richest payoff in the game
 };
 
 // CAS-123 — Stage-1 win-condition descriptor. The single legible GOAL the whole run

@@ -34,11 +34,17 @@ export function buildWorld(rng){
   // reached only by a (higher) power-gated town portal. Pale-blue ice floor (T_ICE)
   // sets it apart at a glance from the grass zones and the dark-stone abyss.
   const frost = {x:6,y:80,w:26,h:26};
+  // CAS-196 — el Coliseo Eterno: a self-contained challenge arena in the NE corner (clear
+  // of caves/forest), reached only by the deepest power-gated town portal. Flagstone floor
+  // (T_COBBLE — the same grand colosseum stone as the town plaza/ruins) reads as a built
+  // arena, distinct from the grass zones, the dark-stone abyss and the pale-ice Cripta.
+  const trial = {x:84,y:6,w:24,h:24};
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
     let t=T_GRASS;
     if(inRect(x,y,caves)) t=T_STONE;
     else if(inRect(x,y,abyss)) t=T_STONE;
     else if(inRect(x,y,frost)) t=T_ICE;
+    else if(inRect(x,y,trial)) t=T_COBBLE;
     else if(inRect(x,y,town)) t=townTile(x-town.x, y-town.y);  // CAS-80: data-driven hub tilemap
     else if(inRect(x,y,arena)) t=T_SAND;
     else if(inRect(x,y,forest)) t=T_GRASS;
@@ -219,7 +225,31 @@ export function buildWorld(rng){
   const fpx=tcx-5*TS, fpy=tcy-6*TS;                          // town gate, NW of plaza
   portals.push({x:fpx, y:fpy, to:"frost", dx:fcx, dy:fcy-TS*2, kind:"down"});
   portals.push({x:fcx, y:fcy, to:"town",  dx:fpx, dy:fpy+TS*2, kind:"up"});
-  return { terr, town, forest, caves, arena, ruins, abyss, frost, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
+  // ---- el Coliseo Eterno (CAS-196): the tier-7, post-finale challenge arena ----
+  // Same shared machinery as the abyss/Cripta: a tier-7 gauntlet pool (the hardest mix
+  // in the game — a CHARGER lane + a SUMMONER add-tide + a HEALER medic + status casters
+  // + a VOLATILE burst, every read-and-react verb at once) scaled by ZONE_TIER.trial, plus
+  // the WORLD-BOSS (Avatar del Coliseo) summoned by the HUNTS.trial contract. Clearing the
+  // gauntlet IS the gate to the boss — survive the arena, the Avatar answers.
+  spawners.push({rect:trial,types:["charger","summoner","healer","wraith","volatile","mage"],max:13,cool:3,t:0,zone:"trial"});
+  // dressing — a ringed colosseum: pillars + bones + braziers for a grand arena feel.
+  for(let i=0;i<22;i++){ const tx=trial.x+rr(2,trial.w-2), ty=trial.y+rr(2,trial.h-2);
+    const x=tx*TS, y=ty*TS, k=srand();
+    if(k<0.30) prop("prop_pillar",x,y,true,9);
+    else if(k<0.48) prop("prop_ruin_pillar2",x,y,true,9);
+    else if(k<0.64) prop("prop_bones",x,y,false);
+    else if(k<0.80) prop("prop_rock",x,y,true,11);
+    else prop("prop_barrel",x,y,true,9); }
+  for(let i=0;i<5;i++){ prop("prop_torch",(trial.x+2)*TS,(trial.y+4+i*4)*TS,false);
+    prop("prop_torch",(trial.x+trial.w-2)*TS,(trial.y+4+i*4)*TS,false); }
+  chests.push({x:(trial.x+3)*TS,y:(trial.y+3)*TS,opened:false,loot:"gold60"});
+  fragments.push({x:(trial.x+trial.w-3)*TS,y:(trial.y+trial.h-3)*TS,taken:false,kind:"mp"});
+  // ---- portal: the DEEPEST gated town gate down to the Coliseo + a return gate up ----
+  const ccx=(trial.x+5)*TS, ccy=(trial.y+trial.h-3)*TS;     // coliseo vestibule (near return gate)
+  const cpx=tcx,            cpy=tcy-6*TS;                     // town gate, N-centre of plaza (between abyss-NE + frost-NW)
+  portals.push({x:cpx, y:cpy, to:"trial", dx:ccx, dy:ccy-TS*2, kind:"down"});
+  portals.push({x:ccx, y:ccy, to:"town",  dx:cpx, dy:cpy+TS*2, kind:"up"});
+  return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
 }
 
 export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
@@ -229,5 +259,6 @@ export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
   if(world.ruins && inRect(tx,ty,world.ruins)) return "ruins";
   if(world.abyss && inRect(tx,ty,world.abyss)) return "abyss";  // CAS-114
   if(world.frost && inRect(tx,ty,world.frost)) return "frost";  // CAS-121
+  if(world.trial && inRect(tx,ty,world.trial)) return "trial";  // CAS-196
   if(inRect(tx,ty,world.forest)) return "forest";
   return "field"; }

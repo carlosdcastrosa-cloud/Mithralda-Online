@@ -20,7 +20,7 @@ export const STR = {
   huntChampApproaches: "¡CAMPEÓN!",
   huntZoneCleared: "ZONA DESPEJADA",
   huntChampion: (name) => "¡Aparece " + name + "! Derrótalo para despejar la zona.",
-  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada" }[zone] || "la zona") + "! Recompensa garantizada.",
+  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno" }[zone] || "la zona") + "! Recompensa garantizada.",
   // CAS-114 — the power-gated Abismo (second, harder hunt zone).
   abyssLocked: (pw, req) => "El Abismo te rechaza. Necesitas más poder (" + pw + "/" + req + "): mejora con el Mercader y sube de nivel.",
   enteredAbyss: "Has descendido al Abismo. Aquí todo golpea más fuerte… y paga mejor.",
@@ -28,13 +28,16 @@ export const STR = {
   // CAS-121 — the power-gated Cripta Helada (third gated biome, harder than the Abismo).
   frostLocked: (pw, req) => "La Cripta Helada está sellada. Necesitas más poder (" + pw + "/" + req + "): supera el Abismo, mejora y sube de nivel.",
   enteredFrost: "Entras en la Cripta Helada. El frío muerde y el Guardián vigila…",
+  // CAS-196 — the deepest gate: el Coliseo Eterno (the post-finale challenge arena + world-boss).
+  trialLocked: (pw, req) => "El Coliseo Eterno permanece cerrado. Necesitas más poder (" + pw + "/" + req + "): vence al Guardián, mejora y sube de nivel.",
+  enteredTrial: "Cruzas al Coliseo Eterno. La arena ruge: sobrevive y el Avatar del Coliseo despertará…",
   // CAS-121 — Coraza de Escarcha (status-vulnerability shield) telegraph + outcomes.
   bossShield: (name) => "¡" + name + " invoca la CORAZA DE ESCARCHA! Aplícale un efecto de estado para romperla.",
   bossShatter: (name) => "¡Coraza rota! " + name + " queda expuesto.",
   bossNova: (name) => "¡" + name + " libera la NOVA GÉLIDA! Te ralentiza.",
   immune: "INMUNE",
   // CAS-146 — elite ambush / pack event.
-  ambush: (zone) => "¡EMBOSCADA en " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada" }[zone] || "la zona") + "! Una élite y su jauría te rodean.",
+  ambush: (zone) => "¡EMBOSCADA en " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno" }[zone] || "la zona") + "! Una élite y su jauría te rodean.",
   eliteDown: "¡Élite abatida! Botín superior garantizado.",
   // CAS-149 — Elite Mastery (persistent progression hook).
   masteryUp: (n) => "¡Maestría de Élite " + n + "! +Vida máx · botín de élite mejorado.",
@@ -92,6 +95,7 @@ export const STR = {
   zoneRuins: "Ruinas de Eldath",
   zoneAbyss: "El Abismo",
   zoneFrost: "Cripta Helada",
+  zoneTrial: "Coliseo Eterno",
   zoneField: "Valdoria",
 
   invTitle: "INVENTARIO",

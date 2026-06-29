@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, AMBUSH, MASTERY, CUSTOMIZE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, AMBUSH, MASTERY, CUSTOMIZE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -524,6 +524,7 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
     // drives the cadence; shielded/shieldBroken are the live mechanic flags.
     e.carapace=B.carapace||null; e.shielded=false; e.shieldBroken=false; e.atkCount=0;
     e.final=!!B.final; // CAS-123: this capstone's death is the Stage-1 win-condition
+    e.bonusDrop=B.bonusDrop||0; // CAS-196: world-boss signature haul (extra guaranteed epic rolls)
     e.rwdTier=B.tier; e.rwdMinR=B.minR; e.rwdXp=B.xp; e.rwdGold=B.gold;
   } else {
     // Elite stat block layered on the base mob — reuses its sprite + telegraphed AI,
@@ -553,6 +554,10 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   noteEliteKill(); // CAS-149: a hunt champion is an elite-class kill → feeds Elite Mastery (its own fixed payoff is unchanged)
   const win=e.rwdTier||cfgH.tier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
   dropGear(e.x,e.y, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
+  // CAS-196: a WORLD-BOSS (boss block carries `bonusDrop`) drops extra guaranteed pieces at
+  // the same tier/floor — a SIGNATURE haul distinct from a single-zone capstone. Same loot
+  // system (rollGearInst on the sim RNG → deterministic), just N more rolls fanned out.
+  for(let b=0;b<(e.bonusDrop||0);b++) dropGear(e.x+(b%2?34:-34),e.y-18, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
   G.drops.push({x:e.x+18,y:e.y,kind:"gold",amt:e.rwdGold||cfgH.gold});
   if(srand()<0.5) G.drops.push({x:e.x-18,y:e.y,kind:"potionhp"});
   gainXP(e.rwdXp||cfgH.xp);
@@ -954,8 +959,10 @@ function usePortal(p){ const h=G.hero;
     if(pw<ABYSS_POWER_REQ){ toast(STR.abyssLocked(pw,ABYSS_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
   else if(p.to==="frost"){ const pw=heroPower(h);
     if(pw<FROST_POWER_REQ){ toast(STR.frostLocked(pw,FROST_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
+  else if(p.to==="trial"){ const pw=heroPower(h);  // CAS-196: the deepest gate (the challenge arena)
+    if(pw<TRIAL_POWER_REQ){ toast(STR.trialLocked(pw,TRIAL_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
   h.x=p.dx; h.y=p.dy; h.vx=h.vy=0; h.rolling=false; h.rollT=0; h.iframe=0.6;
-  audio.sfx.roll(); toast(p.to==="abyss"?STR.enteredAbyss:p.to==="frost"?STR.enteredFrost:STR.leftAbyss,3.0); return true;
+  audio.sfx.roll(); toast(p.to==="abyss"?STR.enteredAbyss:p.to==="frost"?STR.enteredFrost:p.to==="trial"?STR.enteredTrial:STR.leftAbyss,3.0); return true;
 }
 export function interact(){
   const p=nearestPortal();
@@ -1552,6 +1559,9 @@ export const dev = {
   // (higher) requirement, whether the frost portal would open, and the live zone.
   frostGate(){ const h=G.hero; const pw=heroPower(h); return { power:pw, req:FROST_POWER_REQ,
     unlocked:pw>=FROST_POWER_REQ, zone:zoneOf(world,h.x,h.y), upg:{...(h.upg||{})}, lvl:h.lvl }; },
+  // CAS-196: read the Coliseo Eterno power gate (mirrors frostGate, the DEEPEST gate).
+  trialGate(){ const h=G.hero; const pw=heroPower(h); return { power:pw, req:TRIAL_POWER_REQ,
+    unlocked:pw>=TRIAL_POWER_REQ, zone:zoneOf(world,h.x,h.y), upg:{...(h.upg||{})}, lvl:h.lvl }; },
   // --- CAS-123 Stage-1 finale harness hooks (tools/cas123-finale.mjs); additive ---
   // Read the win-condition arc: the final-boss config, the durable win flag, the run
   // stats and the live victory snapshot + scene. Proves the goal exists, persists and

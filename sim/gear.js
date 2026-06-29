@@ -101,6 +101,7 @@ export const ZONE_LOOT = {
   town:{tier:[1,1]}, field:{tier:[1,2]}, forest:{tier:[1,2]},
   ruins:{tier:[2,3]}, caves:{tier:[3,4]}, arena:{tier:[3,4]}, abyss:{tier:[4,4]},
   frost:{tier:[4,4]}, // CAS-121 — top-tier window (mirrors abyss); the capstone's higher rarity floor is what flexes builds
+  trial:{tier:[4,4]}, // CAS-196 — top-tier window (mirrors abyss/frost); the world-boss's guaranteed epic + bonusDrop is the flex
 };
 
 // ---- pure gear helpers (no game state, no RNG; safe in sim or render) ----
