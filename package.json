@@ -37,6 +37,7 @@
     "finale-live": "node tools/cas123-finale-live.mjs",
     "juice": "node tools/cas127-juice.mjs",
     "juice-live": "node tools/cas127-juice-live.mjs",
+    "cas267": "node tools/cas267-coachmark-binds.mjs",
     "onboarding": "node tools/cas128-onboarding.mjs",
     "onboarding-live": "node tools/cas128-onboarding-live.mjs",
     "audio": "node tools/cas131-audio.mjs",

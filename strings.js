@@ -297,24 +297,30 @@ export const STR = {
 
   fountainRest: "Descansaste en la Fuente. Vida y maná restaurados.",
   fountainSaved: "Punto de reaparición fijado en esta Fuente.",
-  controlsHintPC: "Mover WASD/flechas · Atacar clic o J · Rodar Espacio · Hechizos 1-4 · Recoger F · Inventario I · Mapa M · Hablar E · Pausa Esc",
+  // CAS-267: controls hint is bind-aware — `k(action)` resolves the player's LIVE
+  // keybinding (respects CAS-265 rebinds) so it never shows a stale hardcoded key.
+  controlsHintPC: (k) => "Mover " + k("up")+k("left")+k("down")+k("right") + "/flechas · Atacar clic o " + k("attack") + " · Rodar " + k("roll") + " · Hechizos " + k("skill2")+k("skill3")+k("skill4") + " · Recoger " + k("pickup") + " · Inventario " + k("inventory") + " · Mapa " + k("map") + " · Hablar " + k("interact") + " · Pausa " + k("pause"),
   tapToStart: "Toca o pulsa una tecla",
 
   // CAS-128 — first-session onboarding tutorial (pure UX layer). Coachmark text is
   // device-aware (pc / touch). headers are the short verb on each card.
+  // CAS-267 — the pc copy is bind-aware: each is a function of `k(action)` that
+  // resolves the player's CURRENT keybinding (CAS-265 rebind table) at render time,
+  // so a rebind is reflected immediately and no stale/hardcoded key is ever shown.
+  // touch copy stays a plain string (touch controls are not rebindable).
   tutTitle: "GUÍA",
   tutStepLabel: (i, n) => "Paso " + i + "/" + n,
   tutSkip: "Saltar ▸",
   tutReplay: "Repetir guía inicial",
   tutHead: { move:"MOVERSE", attack:"ATACAR", skill:"HABILIDAD", travel:"EXPLORAR", loot:"BOTÍN", equip:"EQUIPAR" },
   tutSteps: {
-    move:   { pc:"Muévete con WASD o las flechas.", touch:"Arrastra el lado izquierdo de la pantalla para moverte." },
-    attack: { pc:"Ataca con clic izquierdo o la tecla J.", touch:"Toca el botón ⚔ (abajo a la derecha) para atacar." },
-    skill:  { pc:"Lanza una habilidad con las teclas 2, 3 o 4 (gastan maná).", touch:"Toca los botones 2, 3 o 4 para lanzar habilidades." },
+    move:   { pc:(k)=>"Muévete con "+k("up")+k("left")+k("down")+k("right")+" o las flechas.", touch:"Arrastra el lado izquierdo de la pantalla para moverte." },
+    attack: { pc:(k)=>"Ataca con clic izquierdo o la tecla "+k("attack")+".", touch:"Toca el botón ⚔ (abajo a la derecha) para atacar." },
+    skill:  { pc:(k)=>"Lanza una habilidad con las teclas "+k("skill2")+", "+k("skill3")+" o "+k("skill4")+" (gastan maná).", touch:"Toca los botones 2, 3 o 4 para lanzar habilidades." },
     travel: { pc:"Sal de Puerto Solana hacia una zona de caza para hallar enemigos.", touch:"Sal de Puerto Solana hacia una zona de caza para hallar enemigos." },
-    loot:   { pc:"Derrota enemigos y recoge tu primer botín con la tecla F.", touch:"Derrota enemigos y recoge tu primer botín con el botón F." },
-    equip:  { pc:"Abre el inventario con I y equípate el botín que encuentres.", touch:"Toca el botón I (arriba) para abrir el inventario y equiparte." },
+    loot:   { pc:(k)=>"Derrota enemigos y recoge tu primer botín con la tecla "+k("pickup")+".", touch:"Derrota enemigos y recoge tu primer botín con el botón F." },
+    equip:  { pc:(k)=>"Abre el inventario con "+k("inventory")+" y equípate el botín que encuentres.", touch:"Toca el botón I (arriba) para abrir el inventario y equiparte." },
   },
   tutDoneHead: "¡LISTO PARA LA AVENTURA!",
-  tutDone: "Sigue el OBJETIVO de arriba para avanzar. Sube de nivel, gasta talentos (T) y mejora con el Mercader (E).",
+  tutDone: (k) => "Sigue el OBJETIVO de arriba para avanzar. Sube de nivel, gasta talentos ("+k("talents")+") y mejora con el Mercader ("+k("interact")+").",
 };

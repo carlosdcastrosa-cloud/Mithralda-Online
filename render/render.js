@@ -19,7 +19,7 @@ import { STR } from "../strings.js";
 import { audio } from "../audio.js";
 import { view, zoom } from "../view.js";
 import { COL } from "./palette.js";
-import { resetGame } from "../persist.js";   // CAS-113: pause-menu "Nueva partida"
+import { resetGame, clearTutSeen } from "../persist.js";   // CAS-113: pause-menu "Nueva partida"; CAS-267: re-arm onboarding
 import * as settings from "../settings.js";   // CAS-265: rebind table + settings persistence
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import {
@@ -1581,7 +1581,9 @@ export function createRenderer(ctx){
     // ---- pinned footer (Resume + replay guide + new game) ----
     let fy=y+bh-118;
     ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
-    ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ G.scene="play"; sim.startTutorial(); }}); fy+=30;
+    // CAS-267: "reset onboarding" — replay now AND re-arm the persisted first-load
+    // flag (clearTutSeen) so the coachmark also auto-shows again on the next fresh load.
+    ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ clearTutSeen(); G.scene="play"; sim.startTutorial(); }}); fy+=30;
     // CAS-113: "Nueva partida" — two-tap arm/confirm so a misclick can't nuke a run.
     if(G.resetArm){
       const half=(pw-8)/2;
@@ -1653,9 +1655,14 @@ export function createRenderer(ctx){
     for(const w of words){ const t=line?line+" "+w:w; if(ctx.measureText(t).width>maxW && line){ out.push(line); line=w; } else line=t; }
     if(line) out.push(line); return out; }
   function renderTutorial(){ const t=G.tut; if(!t) return; const step=sim.TUT_STEPS[t.i];
+    // CAS-267: resolve copy against the player's LIVE keybindings (CAS-265 rebind
+    // table) so the coachmark never shows a stale/hardcoded key. `pc` copy may be a
+    // function of this resolver; touch copy / legacy strings pass through unchanged.
+    const tutKey=(a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a]);
+    const bindAware=(v)=> typeof v==="function" ? v(tutKey) : v;
     let head, body, showSkip=true, prog=true;
-    if(step==="done"){ head=STR.tutDoneHead; body=STR.tutDone; showSkip=false; prog=false; }
-    else { head=STR.tutHead[step]||STR.tutTitle; const s=STR.tutSteps[step]; body=s?(isTouch?s.touch:s.pc):""; }
+    if(step==="done"){ head=STR.tutDoneHead; body=bindAware(STR.tutDone); showSkip=false; prog=false; }
+    else { head=STR.tutHead[step]||STR.tutTitle; const s=STR.tutSteps[step]; body=s?bindAware(isTouch?s.touch:s.pc):""; }
     const cw=Math.min(VW*0.86,460), cx=VW/2, x=cx-cw/2, y=VH*0.15, lh=17;
     ctx.font="13px 'Courier New'"; const lines=tutWrap(body, cw-28);
     const ch=44 + lines.length*lh + 14;
@@ -1715,7 +1722,7 @@ export function createRenderer(ctx){
     const bw=200,bh=52,bx=VW/2-bw/2,by=VH*0.62; ui.menuPlayRect={x:bx,y:by,w:bw,h:bh};
     ctx.fillStyle="#2e231a"; ctx.fillRect(bx,by,bw,bh); ctx.fillStyle=COL.panelB; ctx.fillRect(bx,by,bw,4); ctx.fillRect(bx,by+bh-4,bw,4);
     ctx.fillStyle=COL.textGold; ctx.font="bold 24px 'Courier New'"; ctx.fillText(STR.play,VW/2,by+34);
-    ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.controlsHintPC,VW/2,VH-40);
+    ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.controlsHintPC((a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a])),VW/2,VH-40);
     ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.version,VW/2,VH-18);
   }
   function renderClassSel(){
