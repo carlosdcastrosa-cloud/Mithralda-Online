@@ -1,0 +1,25 @@
+# CAS-177 backup static host — Netlify config.
+# `publish` points at the exported bundle. Headers mirror
+# tools/backup-host-policy.mjs (and hosting/_headers) rule-for-rule.
+
+[build]
+  publish = "deploy/backup-host"
+  command = ""   # zero-build: the game ships as static files
+
+# 1) version.json — CAS-58 freshness lever (must hit the network every boot).
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "no-store"
+
+# 2) HTML entry points revalidate so the cache-busting bootstrap reruns.
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# 3) Everything else is requested with ?v=<build> -> safe to cache hard.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

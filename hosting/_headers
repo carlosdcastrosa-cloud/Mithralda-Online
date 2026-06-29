@@ -1,0 +1,20 @@
+# CAS-177 backup static host — Cloudflare Pages / Netlify `_headers` format.
+# Mirrors tools/backup-host-policy.mjs rule-for-rule. Place this file at the
+# ROOT of the uploaded bundle (same level as index.html).
+#
+# Rule order matters: more specific paths first.
+
+# 1) version.json is the CAS-58 freshness lever — must always hit the network.
+/version.json
+  Cache-Control: no-store
+
+# 2) HTML entry points revalidate so the cache-busting bootstrap reruns.
+/index.html
+  Cache-Control: no-cache
+/*.html
+  Cache-Control: no-cache
+
+# 3) Everything else is always requested with ?v=<build> (a global content
+#    hash), so the URL changes whenever bytes change -> cache hard, load instant.
+/*
+  Cache-Control: public, max-age=31536000, immutable
