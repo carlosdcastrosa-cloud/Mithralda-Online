@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
@@ -121,11 +121,13 @@ export function createRenderer(ctx){
   let VW = view.VW, VH = view.VH;      // synced from the viewport each frame
   const rr = (a,b)=>rrng.rr(a,b);
 
-  // CAS-121: T_ICE (index 6) — pale-blue frozen floor for the Cripta Helada, drawn
-  // procedurally (no image) via the fallback fill path so the zone reads as colder.
-  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#9fc2d6"];
-  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#d6ecf6"];
-  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#7ba2b8"];
+  // CAS-121/224: T_ICE (index 6) — frozen Cripta Helada floor. Primary path draws the
+  // hi-fi FOUNTAINS dark flagstone with a cold wash (see renderWorld); these fallback
+  // tones are now DARK frozen-stone (not bright pale-blue) so the zone reads cold even
+  // before the image loads / in unit tooling.
+  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#2c3a48"];
+  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#4a6072"];
+  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#1a2632"];
 
   function render(alpha){
     VW=view.VW; VH=view.VH;
@@ -171,6 +173,21 @@ export function createRenderer(ctx){
       if(t===T_STONE){ const r=hash2(x,y); const img = (r<0.10?IMG.cave_blood:(r<0.65?IMG.cave_floor:IMG.cave_floor2)); // CAS-217: flagstone-dominant + void + rare war-torn blood accent
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
+          continue; } }
+      // CAS-224 (Art): Cripta Helada floor — was a flat bright-grey grid. Re-source the
+      // SAME hi-fi FOUNTAINS dark flagstone as caves/abyss (parity with CAS-217), then wash
+      // it cold: an UNEVEN near-black ambient (torch-pool falloff) + rime-blue tint so the
+      // crypt reads frozen-and-dark, not bright. Rime cracks/glints carry icy zone identity.
+      if(t===T_ICE){ const r=hash2(x,y); const img=(r<0.58?IMG.cave_floor:IMG.cave_floor2);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
+          const dk=(0.30+hash2(x*3,y*3)*0.24).toFixed(2);                 // 0.30–0.54 per-tile = torch falloff
+          ctx.fillStyle="rgba(8,16,28,"+dk+")"; ctx.fillRect(px,py,TS,TS); // near-black cold ambient
+          ctx.fillStyle="rgba(120,170,205,0.12)"; ctx.fillRect(px,py,TS,TS); // rime-blue chill tint
+          if(hash2(x+5,y)<0.42){ ctx.strokeStyle="rgba(196,224,238,0.45)"; ctx.lineWidth=1; // frozen crack
+            const ix=px+((hash2(x,y)*18)|0)+6, iy=py+((hash2(y,x)*18)|0)+6;
+            ctx.beginPath(); ctx.moveTo(ix,iy); ctx.lineTo(ix+5,iy+4); ctx.lineTo(ix+3,iy+10); ctx.stroke(); }
+          if(hash2(x,y+9)<0.20){ ctx.fillStyle="rgba(220,238,248,0.6)"; ctx.fillRect(px+((hash2(x+3,y)*22)|0)+4, py+((hash2(x,y+3)*22)|0)+4, 2,2); } // ice glint
+          if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.4)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
       // CAS-77: real EPIC RPG World — Ancient Ruins ground. Town plaza (T_COBBLE)
       // pays in flagstone; forest/ruins/field (T_GRASS) in grass. Two deterministic
@@ -989,7 +1006,7 @@ export function createRenderer(ctx){
   function renderMiniMap(){ const mw=120, mh=120; const x=VW-mw-12, y=VH-mh-12; if(isTouch) return;
     ctx.fillStyle="rgba(12,14,19,0.8)"; ctx.fillRect(x-2,y-2,mw+4,mh+4); ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"],[world.frost,"#9fc2d6"],[world.trial,"#c8a24a"]];
+    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"],[world.frost,"#3a4e5e"],[world.trial,"#c8a24a"]];
     for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
     // CAS-114 — portal blips on the minimap (violet)
     if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-1,y+p.y*sy-1,3,3); } }
@@ -999,7 +1016,7 @@ export function createRenderer(ctx){
   function renderBigMap(){ const mw=Math.min(VW*0.7,420), mh=mw; const x=(VW-mw)/2, y=(VH-mh)/2;
     panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins],[world.abyss,"#3a2350",STR.zoneAbyss],[world.frost,"#9fc2d6",STR.zoneFrost],[world.trial,"#c8a24a",STR.zoneTrial]];
+    const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins],[world.abyss,"#3a2350",STR.zoneAbyss],[world.frost,"#3a4e5e",STR.zoneFrost],[world.trial,"#c8a24a",STR.zoneTrial]];
     for(const [r,c,nm] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy);
       ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.fillText(nm,x+(r.x+r.w/2)*TS*sx,y+(r.y+r.h/2)*TS*sy); }
     // CAS-114 — portal markers on the world map (violet diamonds)
@@ -1042,22 +1059,53 @@ export function createRenderer(ctx){
   function deltaTok(d){ if(!d) return {t:"—",c:COL.textDim}; return d>0?{t:"+"+d,c:COL.heal}:{t:""+d,c:"#d05555"}; }
   function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,470), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
     panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28);
-    const colX=x+28;
-    // ---- left: equipment doll + equipped slots (with affixes) + totals ----
-    blit(ctx,SP.hero.rows,SP.hero.pal,colX+8,y+58,5,false);
-    ctx.textAlign="left"; ctx.font="12px 'Courier New'";
-    const slots=[[STR.slotWeapon,"weapon"],[STR.slotBody,"body"],[STR.slotShield,"shield"]];
-    let ry=y+62; for(const [label,slot] of slots){ const inst=h.equip[slot];
-      ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(label, colX+96, ry);
-      ctx.fillStyle=gearCol(inst); ctx.fillText(gearName(inst), colX+96, ry+14);
-      ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText((slot==="weapon"?STR.statsDmg:STR.statsDef)+" "+gearStat(inst), colX+96, ry+26);
-      const n=drawAffixLines(inst, colX+96, ry+38, 11); ry+=40+n*11; }
-    const af=affixTotals(h);
-    ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'";
-    ctx.fillText(STR.statsDmg+": "+equippedDmg(h)+"   "+STR.statsDef+": "+equippedDef(h), colX+8, ry+8);
+    // ---- left: Tibia-style equip slots flanking the LIVE animated portrait ----
+    // CAS-226. Only weapon/body/shield are functional (data-driven GEAR); the
+    // other 7 slots are empty placeholders (no content/art yet) drawn dim. The
+    // portrait shows the player's REAL class via the same baked per-state strip
+    // (clshero_<cls>) the world renderer uses — animated idle, not a placeholder.
+    const leftW=bw*0.50, SS=Math.min(40,Math.round(bh*0.085)), rgap=SS+19;
+    ui.invSlotRects=[];
+    function invSlot(sx,sy,ss,label,glyph,slotKey){
+      const inst=slotKey?h.equip[slotKey]:null;
+      ctx.fillStyle="#10141b"; ctx.fillRect(sx,sy,ss,ss);
+      ctx.strokeStyle=inst?gearCol(inst):"#3a4456"; ctx.lineWidth=inst?2:1; ctx.strokeRect(sx+0.5,sy+0.5,ss-1,ss-1);
+      ctx.textAlign="center";
+      if(inst){ ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(ss*0.5)+"px 'Courier New'"; ctx.fillText(glyph, sx+ss/2, sy+ss*0.64);
+        ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="right"; ctx.fillText(String(gearStat(inst)), sx+ss-3, sy+ss-3); }
+      else { ctx.fillStyle="#3f4856"; ctx.font="bold "+Math.round(ss*0.44)+"px 'Courier New'"; ctx.fillText(glyph, sx+ss/2, sy+ss*0.62); }
+      ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="8px 'Courier New'"; ctx.fillText(label, sx+ss/2, sy-3);
+      ui.invSlotRects.push({x:sx,y:sy,w:ss,h:ss,slot:slotKey,inst:!!inst});
+    }
+    const sy0=y+78, lx=x+18, rrx=x+leftW-18-SS;
+    const LCOL=[[STR.slotHead,"^",null],[STR.slotBody,"▣","body"],[STR.slotLegs,"Π",null],[STR.slotFeet,"▾",null]];
+    const RCOL=[[STR.slotNeck,"◆",null],[STR.slotBack,"≈",null],[STR.slotRing,"○",null],[STR.slotBag,"▦",null]];
+    for(let i=0;i<LCOL.length;i++){ const s=LCOL[i]; invSlot(lx, sy0+i*rgap, SS, s[0], s[1], s[2]); }
+    for(let i=0;i<RCOL.length;i++){ const s=RCOL[i]; invSlot(rrx, sy0+i*rgap, SS, s[0], s[1], s[2]); }
+    // portrait between the columns — REAL class, animated idle (CAS-209 strip)
+    const px=x+leftW/2, pTop=y+72, pW=Math.min(92,leftW-(SS*2)-72), pH=Math.min(150,Math.round(bh*0.34));
+    ctx.fillStyle="#0d1117"; ctx.fillRect(px-pW/2,pTop,pW,pH);
+    ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(px-pW/2,pTop,pW,pH);
+    const aimg=IMG["clshero_"+h.cls];
+    if(aimg&&aimg.complete&&aimg.naturalWidth){
+      const fitH=pH*0.84, fs=fitH/CLASS_FH, feetY=pTop+pH*0.93, fi=G.settings&&G.settings.reduceMotion?0:Math.floor(G.t*2.6)%CLASS_FC;
+      ctx.save(); ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(aimg, fi*CLASS_FW,0,CLASS_FW,CLASS_FH, px-CLASS_AX*fs, feetY-CLASS_FOOT*fs, CLASS_FW*fs, CLASS_FH*fs);
+      ctx.restore();
+    } else { blit(ctx,SP.hero.rows,SP.hero.pal,px-18,pTop+pH*0.5-22,3,false); }
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 11px 'Courier New'";
+    ctx.fillText((STR.classes&&STR.classes[h.cls]?STR.classes[h.cls].name:h.cls), px, pTop+pH+13);
+    // hands row below the portrait: Mano Izq (escudo) + Mano Der (arma)
+    const hy=pTop+pH+22, hgap=10;
+    invSlot(px-SS-hgap/2, hy, SS, STR.slotShield, "◈", "shield");
+    invSlot(px+hgap/2,    hy, SS, STR.slotWeapon, "⚔", "weapon");
+    // ---- combat totals (folds every equipped affix) ----
+    const af=affixTotals(h); const ty=y+bh-56;
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'";
+    ctx.fillText(STR.statsDmg+": "+equippedDmg(h)+"   "+STR.statsDef+": "+equippedDef(h), x+18, ty);
     ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'";
-    ctx.fillText("♥ "+heroMaxHp(h)+(af.atkspd?"  ⚔+"+af.atkspd+"%":"")+(af.movespd?"  »+"+af.movespd+"%":"")+(af.onhit?"  ✦+"+af.onhit:""), colX+8, ry+26);
-    ctx.fillStyle=COL.cream; ctx.fillText("♥ x"+h.potHP+"   ◆ x"+h.potMP+"   ✦ x"+h.blessings, colX+8, y+bh-20);
+    ctx.fillText("♥ "+heroMaxHp(h)+(af.atkspd?"  ⚔+"+af.atkspd+"%":"")+(af.movespd?"  »+"+af.movespd+"%":"")+(af.onhit?"  ✦+"+af.onhit:""), x+18, ty+16);
+    ctx.fillStyle=COL.cream; ctx.fillText("♥ x"+h.potHP+"   ◆ x"+h.potMP+"   ✦ x"+h.blessings, x+18, ty+32);
     // ---- right: backpack list with compare arrows ----
     const rx=x+bw*0.50, rw=bw*0.46;
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(STR.backpack, rx, y+54);
