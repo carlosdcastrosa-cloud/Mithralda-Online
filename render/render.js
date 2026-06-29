@@ -427,9 +427,25 @@ export function createRenderer(ctx){
       ctx.fillStyle=st[i].col; ctx.fillRect(px,topY,sz,sz); px+=sz+gap; }
     ctx.restore();
   }
+  // CAS-222: per-mob step cadence. CAS-219 board feedback — mob steps looked too
+  // fast/unreal. The walk-bob (procedural squash-stretch) AND the sliced / PixelLab
+  // walk strips all read as "stepping", so both are slowed to a realistic footfall
+  // and tuned per mob: quick critters (wolf/rat/bat) step faster, undead & heavy
+  // brutes plod slower. `w` = angular freq for |sin(G.t*w)| → footfall period = PI/w
+  // (wolf ~0.42s · medium ~0.52s · undead/heavy ~0.65s). `fps` = walk-strip frame
+  // rate (lower = slower, still smooth on 6-frame strips). Pure render-time, reads no
+  // sim state / RNG → Stage-2 deterministic; reduceMotion is gated at each call site.
+  const MOB_GAIT = {
+    wolf:{w:7.4,fps:9},  rat:{w:7.4,fps:9},  bat:{w:7.8,fps:9},  volatile:{w:7.8,fps:9},
+    bandit:{w:6.0,fps:7}, revenant:{w:6.4,fps:8}, adv:{w:6.0,fps:7}, healer:{w:5.6,fps:6},
+    orc:{w:4.4,fps:6},   moose:{w:4.4,fps:6}, charger:{w:5.0,fps:6},
+    skeleton:{w:4.8,fps:6}, spearman:{w:4.8,fps:6}, mage:{w:4.6,fps:6},
+    summoner:{w:4.6,fps:6}, wraith:{w:4.2,fps:6}, golem:{w:3.8,fps:6},
+  };
+  const mobGait = e => MOB_GAIT[e.type] || {w:6.0,fps:7};
   function drawEnemy(e){
     const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.champion?5:(e.tpl.size>20?4:3));
-    const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false;
+    const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false; const gait=mobGait(e);
     // champion aura — a pulsing ground ring marks the elite as the hunt climax.
     // Capstone (CAS-65): the ring runs orange and turns red + double-pulses once
     // the boss enrages, telegraphing the phase shift at a glance.
@@ -553,7 +569,7 @@ export function createRenderer(ctx){
     let drew=false; const ch=ENEMY_ANIM[e.type];
     if(ch && IMG[ch+"_walk"]){
       const ds=ANIM[ch]&&ANIM[ch].ds; const S=ds?ds*(e.isBoss?1.15:e.champion?1.0:0.82):(e.isBoss?1.3:0.85), feet=e.y+e.tpl.size*0.5, st=e.animState||"idle";
-      const fps = st==="attack"? (ANIM[ch].fc.attack/(e.tpl.windup+0.15)) : (st==="walk"?10:6);
+      const fps = st==="attack"? (ANIM[ch].fc.attack/(e.tpl.windup+0.15)) : (st==="walk"?gait.fps:6); // CAS-222 per-mob walk cadence
       const fi=frameIndex(ch,st,e.animT||0,fps, st!=="attack");
       drew=drawAnim(ctx,ch,st,fi,e.x,feet,S,fl, e.hurtFlash>0?"#ffffff":null);
     }
@@ -566,7 +582,7 @@ export function createRenderer(ctx){
         const fw=strip.fw, fh=strip.fh;
         const dh=e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4), dw=dh*(fw/fh);
         const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9);
-        const fps = st==="walk"?9 : st==="attack"?10 : 6;
+        const fps = st==="walk"?gait.fps : st==="attack"?10 : 6; // CAS-222 per-mob walk cadence
         const fi = G.settings.reduceMotion ? 0 : (Math.floor(G.t*fps+ph*7)%strip.fc+strip.fc)%strip.fc;
         ctx.save(); ctx.translate(e.x, feetY);
         if(fl) ctx.scale(-1,1);
@@ -587,7 +603,7 @@ export function createRenderer(ctx){
         const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9), st=e.animState||"idle";
         let sx=1, sy=1, bob=0;
         if(!G.settings.reduceMotion){
-          if(st==="walk"){ const b=Math.abs(Math.sin(G.t*9+ph)); bob=-b*2.4; sy=1+b*0.06; sx=1-b*0.05; }
+          if(st==="walk"){ const b=Math.abs(Math.sin(G.t*gait.w+ph)); bob=-b*2.4; sy=1+b*0.06; sx=1-b*0.05; } // CAS-222 cadence
           else if(st==="attack"){ const a=Math.sin(G.t*5+ph); sy=0.95+0.02*a; sx=1.05-0.02*a; bob=1.4; }
           else { const br=Math.sin(G.t*2.3+ph); sy=1+br*0.045; sx=1-br*0.03; bob=br*0.8; }
         }
@@ -612,7 +628,7 @@ export function createRenderer(ctx){
       else {
         const h=rows.length, feetY=e.y+(h*px)/2, ph=(e.x*0.7+e.y*0.9), st=e.animState||"idle";
         let sx=1, sy=1, bob=0;
-        if(st==="walk"){ const b=Math.abs(Math.sin(G.t*9+ph)); bob=-b*2.2; sy=1+b*0.06; sx=1-b*0.05; }
+        if(st==="walk"){ const b=Math.abs(Math.sin(G.t*gait.w+ph)); bob=-b*2.2; sy=1+b*0.06; sx=1-b*0.05; } // CAS-222 cadence
         else if(st==="attack"){ const a=Math.sin(G.t*5+ph); sy=0.95+0.02*a; sx=1.05-0.02*a; bob=1.2; }
         else { const br=Math.sin(G.t*2.3+ph); sy=1+br*0.045; sx=1-br*0.03; bob=br*0.7; }
         ctx.save(); ctx.translate(e.x, feetY+bob); ctx.scale(sx,sy);

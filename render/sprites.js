@@ -300,7 +300,7 @@ export const ENEMY_STRIPS={
   },
   bat:{
     idle: _s(9,"bat_idle"),
-    walk: _s(9,"bat_walk_strip"),
+    walk: _s(9,"bat_walk_flying"), // CAS-222: was "bat_walk_strip" (404 — file is bat_walk_flying.png, 9×64²)
   },
   wraith:{
     idle: _s(9,"wraith_idle"),
