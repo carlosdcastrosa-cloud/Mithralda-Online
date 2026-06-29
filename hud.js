@@ -74,8 +74,12 @@ export const hud = (()=>{
   function injectStyle(){
     if(styleEl) return;
     styleEl=document.createElement("style"); styleEl.id="hud-style";
+    // CAS-299: version the panel-art URLs with the build id (same ?v= scheme as
+    // render/sprites.js → window.__BUILD) so the deploy cache-bust covers HUD chrome too;
+    // without it a returning player could serve a stale border-image for a fresh build.
+    const V=(typeof window!=="undefined"&&window.__BUILD)?("?v="+window.__BUILD):"";
     const f=(k)=>"border-style:solid;border-width:"+FR[k].bw+"px;border-color:"+C.panelB+";"
-      +"border-image:url('"+ASSET+FR[k].img+"') "+FR[k].slice+" stretch;"; // border-color = graceful fallback
+      +"border-image:url('"+ASSET+FR[k].img+V+"') "+FR[k].slice+" stretch;"; // border-color = graceful fallback
     styleEl.textContent = [
       // root scale var drives crisp integer-ish scaling (§3)
       "#hud{ --s:1; font-family:'Courier New',monospace; }",
