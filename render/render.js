@@ -471,18 +471,29 @@ export function createRenderer(ctx){
       fc=CLASS_FC; const lf=(state==="attack")?9:(state==="roll")?11:2.6; fi=Math.floor(G.t*lf)%fc;
     }
     const img=IMG[key]; if(!img||!img.complete||!img.naturalWidth) return false;
-    const S=CLASS_ANIM_SCALE, dw=CLASS_FW*S*sqX, dh=CLASS_FH*S*sqY, sx=(fi||0)*CLASS_FW;
-    const dx=cx-CLASS_AX*S*sqX, dy=feet-CLASS_FOOT*S*sqY-(bobUp||0);
+    // CAS-282: per-strip frame geometry. The warrior's dynamic strips (attack/special/
+    // hurt/death) are re-baked WIDER — and the special TALLER — than the shared 140×166
+    // cell so their FX (the fiery sword sweep, the charge arc) is no longer clipped at
+    // the cell edge ("no se ve el efecto completo del sprite"). Derive the frame width
+    // from the image (naturalWidth/fc); WIDE strips (fw>CLASS_FW) centre the body
+    // (ax=fw/2, as they were baked); legacy 140px strips keep CLASS_AX=65. The feet row
+    // tracks the cell height (fh-BOTTOM_GAP), which equals CLASS_FOOT for legacy 166-tall
+    // strips, so the figure stays planted and the same on-screen size with zero change to
+    // idle/walk or the other classes' 140px strips.
+    const fw=Math.round(img.naturalWidth/fc), fh=img.naturalHeight;
+    const ax=(fw>CLASS_FW)?fw/2:CLASS_AX, foot=fh-(CLASS_FH-CLASS_FOOT);
+    const S=CLASS_ANIM_SCALE, dw=fw*S*sqX, dh=fh*S*sqY, sx=(fi||0)*fw;
+    const dx=cx-ax*S*sqX, dy=feet-foot*S*sqY-(bobUp||0);
     let src=img, ssx=sx, ssy=0;
-    if(tint && _heroBx){ _heroBuf.width=CLASS_FW; _heroBuf.height=CLASS_FH;
-      _heroBx.clearRect(0,0,CLASS_FW,CLASS_FH); _heroBx.imageSmoothingEnabled=false;
-      _heroBx.globalCompositeOperation="source-over"; _heroBx.drawImage(img,sx,0,CLASS_FW,CLASS_FH,0,0,CLASS_FW,CLASS_FH);
-      _heroBx.globalCompositeOperation="source-atop"; _heroBx.globalAlpha=0.85; _heroBx.fillStyle=tint; _heroBx.fillRect(0,0,CLASS_FW,CLASS_FH);
+    if(tint && _heroBx){ _heroBuf.width=fw; _heroBuf.height=fh;
+      _heroBx.clearRect(0,0,fw,fh); _heroBx.imageSmoothingEnabled=false;
+      _heroBx.globalCompositeOperation="source-over"; _heroBx.drawImage(img,sx,0,fw,fh,0,0,fw,fh);
+      _heroBx.globalCompositeOperation="source-atop"; _heroBx.globalAlpha=0.85; _heroBx.fillStyle=tint; _heroBx.fillRect(0,0,fw,fh);
       _heroBx.globalAlpha=1; _heroBx.globalCompositeOperation="source-over";
       src=_heroBuf; ssx=0; ssy=0; }
     ctx.save(); ctx.imageSmoothingEnabled=false;
-    if(flip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,CLASS_FW,CLASS_FH,0,0,dw,dh); }
-    else ctx.drawImage(src,ssx,ssy,CLASS_FW,CLASS_FH,dx,dy,dw,dh);
+    if(flip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,fw,fh,0,0,dw,dh); }
+    else ctx.drawImage(src,ssx,ssy,fw,fh,dx,dy,dw,dh);
     ctx.restore(); return true;
   }
   function redden(pal){ const o={}; for(const k in pal) o[k]="#ff9a8a"; o.o=pal.o; return o; }

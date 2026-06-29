@@ -2,7 +2,8 @@
 // CAS-256 — WARRIOR hurt + special anim wiring. Boots the REAL game headless and drives
 // the new states through the SAME sim paths the game runs (castSpell via __dev.cast,
 // damageHero via __dev.hurt — no shortcut), asserting:
-//   1) STRIPS: warrior_hurt.png (840×166=6·140) + warrior_special.png (1120×166=8·140)
+//   1) STRIPS: warrior_hurt.png + warrior_special.png present, evenly framed, and WIDE
+//      (>140px/frame) so their FX is not clipped at the cell edge (CAS-282 re-bake)
 //      are served and share the CAS-254 cell geometry (no size pulse).
 //   2) SPECIAL: a class-skill cast flips animState→"special" and the specialAnim timer is
 //      armed (~SPECIAL_ANIM_DUR), then it reverts. Purely visual — mp/cd still moved.
@@ -79,9 +80,13 @@ try {
     async function dim(u) { const r = await fetch(u); if (!r.ok) return { ok: false }; const b = new Uint8Array(await r.arrayBuffer());
       const dv = new DataView(b.buffer); return { ok: true, w: dv.getUint32(16), h: dv.getUint32(20) }; }
     return { hurt: await dim("./assets/erw/hero/classes/warrior_hurt.png"), special: await dim("./assets/erw/hero/classes/warrior_special.png") }; });
-  if (strips.hurt.ok && strips.hurt.w === 840 && strips.hurt.h === 166) pass(`[STRIPS] warrior_hurt 6f ${strips.hurt.w}×${strips.hurt.h}`);
+  // CAS-282: hurt/special are re-baked into WIDE (and special TALLER) cells so their FX is
+  // no longer clipped. Contract is now: frame count divides evenly, height ≥166, and the
+  // per-frame width EXCEEDS the legacy 140px cell (i.e. the wide re-bake is in place).
+  const okStrip = (s, fc) => s.ok && s.w % fc === 0 && s.h >= 166 && s.w / fc > 140;
+  if (okStrip(strips.hurt, 6)) pass(`[STRIPS] warrior_hurt 6f wide ${strips.hurt.w}×${strips.hurt.h} (${strips.hurt.w / 6}px/frame)`);
   else fail(`[STRIPS] hurt strip wrong: ${JSON.stringify(strips.hurt)}`);
-  if (strips.special.ok && strips.special.w === 1120 && strips.special.h === 166) pass(`[STRIPS] warrior_special 8f ${strips.special.w}×${strips.special.h}`);
+  if (okStrip(strips.special, 8)) pass(`[STRIPS] warrior_special 8f wide ${strips.special.w}×${strips.special.h} (${strips.special.w / 8}px/frame)`);
   else fail(`[STRIPS] special strip wrong: ${JSON.stringify(strips.special)}`);
 
   // (2) SPECIAL — class-skill cast flips state + arms the timer, then reverts.
