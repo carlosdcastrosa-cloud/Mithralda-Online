@@ -1283,6 +1283,10 @@ function updateEnemies(dt){ const h=G.hero;
       // CAS-126 charger COMMITS its facing at windup start — it does NOT track, so the
       // charge lane is fixed and the player can sidestep it (the whole point of the tell).
       e.st-=dt; if(e.tpl.arch!=="charger") e.facing=Math.atan2(h.y-e.y,h.x-e.x);
+      // CAS-210: FOUNTAINS-style windup charge tell — pulsing ring that grows from orange→red.
+      // fxRng-based so purely cosmetic (no sim determinism impact).
+      e._windupT=(e._windupT||0)+dt; if(e._windupT>=0.11){ e._windupT=0;
+        addFx("windupring",e.x,e.y,{ang:e.facing,life:0.22,r:12+frr(0,6)}); }
       if(e.st<=0){ e.state="strike";
         // strike-window length per archetype: rusher lunge + charger charge need a longer
         // window for the dash to read/travel; everyone else lands on the "now!" instant.

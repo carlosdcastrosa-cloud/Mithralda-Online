@@ -727,6 +727,13 @@ export function createRenderer(ctx){
       ctx.globalAlpha=k*0.7; ctx.strokeStyle="#ffe39a"; ctx.lineWidth=3; for(let i=0;i<8;i++){ const a=i/8*6.28; ctx.beginPath(); ctx.moveTo(f.x+Math.cos(a)*r2*0.55,f.y+Math.sin(a)*r2*0.55); ctx.lineTo(f.x+Math.cos(a)*r2,f.y+Math.sin(a)*r2); ctx.stroke(); } ctx.globalAlpha=1; }
     else if(f.kind==="orbburst"){ const r=sw*42; ctx.globalAlpha=k*0.8; ctx.fillStyle="#9bef5a"; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,6.28); ctx.fill(); ctx.globalAlpha=k; ctx.fillStyle="#eafff0"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*18,0,6.28); ctx.fill(); ctx.fillStyle="#bcff8a"; for(let i=0;i<8;i++){ const a=i/8*6.28+f.t*4; const r3=sw*46; ctx.fillRect(f.x+Math.cos(a)*r3-2,f.y+Math.sin(a)*r3-2,4,4);} ctx.globalAlpha=1; }
     else if(f.kind==="impact"){ ctx.globalAlpha=k; ctx.strokeStyle="#ffffff"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y,sw*22,0,6.28); ctx.stroke(); ctx.fillStyle="#ffffff"; for(let i=0;i<6;i++){ const a=(f.ang||0)+i/6*6.28; const r=sw*20; ctx.fillRect(f.x+Math.cos(a)*r-1.5,f.y+Math.sin(a)*r-1.5,3,3);} ctx.globalAlpha=1; }
+    // CAS-210: windup charge tell — orange→red ring that pulses outward while enemy winds up.
+    // Multiple overlapping pulses give a "charging" read so the player knows to dodge.
+    else if(f.kind==="windupring"){ const R=f.r||16, ease=sw*sw*(3-2*sw);
+      ctx.globalAlpha=k*0.75; ctx.strokeStyle=k>0.5?"#ff6600":"#ff2222"; ctx.lineWidth=2+k*2;
+      ctx.beginPath(); ctx.arc(f.x,f.y,R*(1+ease*0.6),0,6.28); ctx.stroke();
+      ctx.globalAlpha=k*0.35; ctx.strokeStyle="#ffddaa"; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(f.x,f.y,R*(1+ease*0.9),0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
     else if(f.kind==="strikeflash"){ ctx.globalAlpha=k*0.9; ctx.strokeStyle="#fff2c8"; ctx.lineWidth=4;
       if(f.range){ ctx.beginPath(); ctx.arc(f.x,f.y,(f.range)*(0.6+sw*0.5),(f.ang||0)-0.7,(f.ang||0)+0.7); ctx.stroke(); }
       ctx.globalAlpha=k; ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*10+2,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
