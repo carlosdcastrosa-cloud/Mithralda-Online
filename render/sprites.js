@@ -323,8 +323,14 @@ export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, pro
 export function loadAllAssets(){
   for(const ch in ANIM) for(const st in ANIM[ch].fc) loadImg(ch+"_"+st, "./assets/char/"+ch+"_"+st+".png");
   for(const cl in CLS) for(const dir of CLASS_DIRS) for(const st in CLS[cl].fc) loadImg("cls_"+cl+"_"+st+"_"+dir, "./assets/class/"+cl+"_"+st+"_"+dir+".png");
-  loadImg("cave_floor","./assets/tiles/cave_floor.png");
-  loadImg("cave_floor2","./assets/tiles/cave_floor2.png");
+  // CAS-217: high-fidelity FOUNTAINS dark-zone floor (CAS-209 art handoff). Re-source the
+  // T_STONE crypt/cave slots from the hi-fi 32x32 tileset (cracked cold flagstone + near-
+  // black void variant + war-torn blood accent). Re-points the slots only — CAS-201's
+  // canonical assets/tiles/cave_floor*.png files stay on disk untouched, so no art is
+  // stomped. Drop-in 32x32, same loader/collision (Stage-2 safe).
+  loadImg("cave_floor","./assets/pixellab/fountains/tilesets/floor_upper.png");
+  loadImg("cave_floor2","./assets/pixellab/fountains/tilesets/floor_lower.png");
+  loadImg("cave_blood","./assets/pixellab/fountains/tilesets/blood_upper.png");
   // CAS-77: real EPIC RPG World — Ancient Ruins ground. Flagstone paves the town
   // plaza (T_COBBLE); grass dresses forest/ruins/field (T_GRASS). Two variants each
   // so hash2() alternates them deterministically. Art only — collision unchanged.
