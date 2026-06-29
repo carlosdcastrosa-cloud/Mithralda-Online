@@ -76,6 +76,69 @@ const result = await page.evaluate(async (b64) => {
   const parts = {};
   for (const p of ["hood", "cloak", "sash", "legs"]) parts[p] = maskOf(p);
 
+  // CAS-199: the hood's face-cavity was pitch black → reads as a HOLE. Lift the
+  // INTERIOR dark pixels (those fully surrounded by opaque hood) to a coloured-dark
+  // floor so the cowl tints to a dark hood SHADOW; keep the silhouette outline (dark
+  // edge pixels touching transparency) crisp.
+  (function liftCowlInterior() {
+    const cx = parts.hood.getContext("2d"); const im = cx.getImageData(0, 0, fw, fh); const d = im.data;
+    const A = (i, j) => (i < 0 || j < 0 || i >= fw || j >= fh) ? 0 : d[(j * fw + i) * 4 + 3];
+    const out = new Uint8ClampedArray(d);
+    for (let j = 0; j < fh; j++) for (let i = 0; i < fw; i++) {
+      const o = (j * fw + i) * 4; if (d[o + 3] < 10 || d[o] >= 60) continue;
+      if (A(i - 1, j) > 10 && A(i + 1, j) > 10 && A(i, j - 1) > 10 && A(i, j + 1) > 10) { out[o] = out[o + 1] = out[o + 2] = 66; }
+    }
+    cx.putImageData(new ImageData(out, fw, fh), 0, 0);
+  })();
+
+  // ---- CAS-199: FACE ----------------------------------------------------------
+  // The canonical hero reads as a HEADLESS cowl: the hood part is a crown over a
+  // dark, empty face-cavity. Fill that cavity with a real face + glowing eyes so
+  // every class (all derived from this one figure) has an unmistakable head.
+  // Value-normalised gray+alpha like the other masks, but tinted at runtime by a
+  // FIXED skin tone (never the class palette) → "same person, different role".
+  function makeFace() {
+    const hx = parts.hood.getContext("2d"); const hd = hx.getImageData(0, 0, fw, fh).data;
+    // locate the dark face-cavity inside the head band (low luminance hood pixels)
+    let minx = fw, miny = fh, maxx = 0, maxy = 0, found = false;
+    for (let j = 0; j < HEAD_BOTTOM + 2; j++) for (let i = 0; i < fw; i++) {
+      const o = (j * fw + i) * 4; if (hd[o + 3] < 20) continue;
+      if (lum(hd[o], hd[o + 1], hd[o + 2]) < 78) { found = true; if (i < minx) minx = i; if (i > maxx) maxx = i; if (j < miny) miny = j; if (j > maxy) maxy = j; }
+    }
+    const c = document.createElement("canvas"); c.width = fw; c.height = fh; const cx = c.getContext("2d");
+    const id = cx.createImageData(fw, fh); const od = id.data;
+    if (!found) { cx.putImageData(id, 0, 0); return { canvas: c, box: null }; }
+    const cw = maxx - minx + 1, ch = maxy - miny + 1, ccx = (minx + maxx) / 2;
+    // INSET the face into the UPPER part of the cavity so the hood crown still frames
+    // it (rim of cowl visible at the top + sides) and the lower cavity stays dark as a
+    // neck/chest shadow. A face peering out of a hood, not a bald egg filling the cowl.
+    const fcx = ccx;
+    const faceTop = miny + Math.round(ch * 0.06);
+    const faceH = Math.max(7, Math.round(ch * 0.60));
+    const faceCy = faceTop + faceH / 2;
+    const rx = Math.max(3, cw * 0.44);                    // fill most of the cavity (hood rim shows ~1px each side)
+    const ry = faceH / 2;
+    const px = (i, j, v) => { if (i < 0 || j < 0 || i >= fw || j >= fh) return; const o = (j * fw + i) * 4; od[o] = od[o + 1] = od[o + 2] = v; od[o + 3] = 255; };
+    for (let j = faceTop; j <= faceTop + faceH; j++) for (let i = Math.round(fcx - rx) - 1; i <= Math.round(fcx + rx) + 1; i++) {
+      const nx = (i - fcx) / rx, ny = (j - faceCy) / ry; if (nx * nx + ny * ny > 1) continue;
+      const ty = (j - faceTop) / faceH;                   // 0 = brow … 1 = chin
+      let v = 178;                                        // lit cheek
+      if (ty < 0.26) v = 118;                             // brow in hood shadow
+      else if (ty > 0.70) v = 132;                        // jaw shadow → roundness
+      if (Math.abs(i - fcx) < 0.7 && ty > 0.34 && ty < 0.74) v = Math.min(214, v + 26); // nose-bridge highlight
+      px(i, j, v);
+    }
+    // eyes — a dark socket with a bright glint just under it, one each side of the nose
+    const eyeY = Math.round(faceTop + faceH * 0.40);
+    const eyeDX = Math.max(1, Math.round(rx * 0.55));
+    for (const ex of [Math.round(fcx - eyeDX), Math.round(fcx + eyeDX)]) {
+      px(ex, eyeY, 74);          // socket / brow shadow
+      px(ex, eyeY + 1, 250);     // glowing glint
+    }
+    cx.putImageData(id, 0, 0); return { canvas: c, box: { minx, miny, maxx, maxy } };
+  }
+  const faceR = makeFace(); parts.face = faceR.canvas;
+
   // ---- derived variation masks ----
   // helmet: hood footprint → solid dome (bright crown gray) + dark visor slit + crest
   function makeHelmet() {
@@ -156,10 +219,11 @@ const result = await page.evaluate(async (b64) => {
     cx.drawImage(tinted(opts.nocape ? parts.nocape : parts.cloak, pal.cloak), 0, 0);
     cx.drawImage(tinted(parts.sash, pal.sash), 0, 0);
     if (opts.helmet) cx.drawImage(tinted(parts.helmet, pal.hood), 0, 0);
-    else cx.drawImage(tinted(parts.hood, pal.hood), 0, 0);
+    else { cx.drawImage(tinted(parts.hood, pal.hood), 0, 0); cx.drawImage(tinted(parts.face, SKIN), 0, 0); } // CAS-199: face under the cowl (helmet has its own visor)
     return c;
   }
 
+  const SKIN = [226, 196, 162];   // CAS-199 fixed skin/glow tone for the face mask (class-independent)
   const BASE = { hood: [150, 174, 200], cloak: [150, 174, 200], sash: [200, 40, 60], legs: [40, 40, 46] };
   const Z = 3, pad = 10, cellW = fw * Z, cellH = fh * Z, labH = 22;
   const demos = [

@@ -117,6 +117,34 @@ const result = await page.evaluate(async (b64, CFG) => {
     return c;
   }
 
+  // CAS-199: paint a face into the hood's dark cavity so the static class strips
+  // (used on the CLASS-SELECT screen, before the part-mask bake runs) stop reading
+  // as a headless cowl. Mirrors tools/cas167-parts.mjs makeFace; SKIN is the same
+  // fixed class-independent tone, applied directly in RGB (value v → SKIN*(v/165)).
+  function paintFace(nat){
+    const SKIN=[226,196,162], MID=165, lum=(r,g,b)=>0.299*r+0.587*g+0.114*b;
+    const cx=nat.getContext("2d"); const im=cx.getImageData(0,0,fw,fh); const d=im.data;
+    const headBand=Math.round(fh*0.26);
+    let minx=fw,miny=fh,maxx=0,maxy=0,found=false;
+    for(let j=0;j<headBand;j++)for(let i=0;i<fw;i++){ const o=(j*fw+i)*4; if(d[o+3]<20) continue;
+      if(lum(d[o],d[o+1],d[o+2])<78){ found=true; if(i<minx)minx=i;if(i>maxx)maxx=i;if(j<miny)miny=j;if(j>maxy)maxy=j; } }
+    if(!found){ return; }
+    const cw=maxx-minx+1, ch=maxy-miny+1, fcx=(minx+maxx)/2;
+    const faceTop=miny+Math.round(ch*0.06), faceH=Math.max(7,Math.round(ch*0.60)), faceCy=faceTop+faceH/2;
+    const rx=Math.max(3,cw*0.44), ry=faceH/2;
+    const put=(i,j,v)=>{ if(i<0||j<0||i>=fw||j>=fh) return; const o=(j*fw+i)*4;
+      d[o]=Math.min(255,SKIN[0]*v/MID); d[o+1]=Math.min(255,SKIN[1]*v/MID); d[o+2]=Math.min(255,SKIN[2]*v/MID); d[o+3]=255; };
+    for(let j=faceTop;j<=faceTop+faceH;j++)for(let i=Math.round(fcx-rx)-1;i<=Math.round(fcx+rx)+1;i++){
+      const nx=(i-fcx)/rx, ny=(j-faceCy)/ry; if(nx*nx+ny*ny>1) continue;
+      const ty=(j-faceTop)/faceH; let v=178; if(ty<0.26)v=118; else if(ty>0.70)v=132;
+      if(Math.abs(i-fcx)<0.7 && ty>0.34 && ty<0.74) v=Math.min(214,v+26);
+      put(i,j,v);
+    }
+    const eyeY=Math.round(faceTop+faceH*0.40), eyeDX=Math.max(1,Math.round(rx*0.55));
+    for(const ex of [Math.round(fcx-eyeDX),Math.round(fcx+eyeDX)]){ put(ex,eyeY,74); put(ex,eyeY+1,250); }
+    cx.putImageData(im,0,0);
+  }
+
   // scale a native figure into CELL space at FIGURE_H, feet on FOOT, centroid on ANCHOR_X.
   // returns {canvas: figureLayer(CELL_W×CELL_H), legTopY} — legTopY in cell rows.
   function toCellLayer(nativeCanvas){
@@ -188,7 +216,7 @@ const result = await page.evaluate(async (b64, CFG) => {
   const out={};
   const previewRows=[];
   for(const cls of Object.keys(CLASSES)){
-    const nat=recolor(cls);
+    const nat=recolor(cls); paintFace(nat);   // CAS-199: give the static strips a head too
     const { canvas:layer, dx, dw } = toCellLayer(nat);
     const legTop=findLegTop(layer, dx, dw);
     const parts=split(layer, legTop);

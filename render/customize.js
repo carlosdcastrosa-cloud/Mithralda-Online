@@ -31,8 +31,9 @@ const CELL_W = 140, CELL_H = 166, ANCHOR_X = 65, FOOT = 163, FIGURE_H = 160;
 const FIG_W = 58, FIG_H = 158;                 // native part-mask figure dims
 const IDLE_FC = 6, WALK_FC = 8;
 const MID = 165;                               // tint mid-reference (value-normalised masks)
+const SKIN = [226, 196, 162];                  // CAS-199 fixed face tone (class-independent → "same person, different role")
 const PART_DIR = "./assets/erw/hero/parts/";
-const PART_NAMES = ["hood", "cloak", "sash", "legs", "helmet", "nocape", "longcape"];
+const PART_NAMES = ["hood", "cloak", "sash", "legs", "helmet", "nocape", "longcape", "face"];
 
 const _doc = (typeof document !== "undefined") ? document : null;
 const _masks = {};            // name -> HTMLImageElement
@@ -120,6 +121,9 @@ export function bakeHero(cls, palette, variation){
   bx.drawImage(toCell(tint(_masks[m.torso], palette.cloak)), 0, 0);
   bx.drawImage(toCell(tint(_masks.sash, palette.sash)), 0, 0);
   if(m.head) bx.drawImage(toCell(tint(_masks[m.head], palette.hood)), 0, 0);
+  // CAS-199: the face under the cowl — fixed skin tone, never the class palette, so
+  // the hero stops reading as a headless cloak. The helmet has its own visor → no face.
+  if(m.head !== "helmet" && _masks.face) bx.drawImage(toCell(tint(_masks.face, SKIN)), 0, 0);
   const back = m.back ? toCell(tint(_masks[m.back], palette.cloak)) : null;  // drawn BEHIND legs
   const { legL, legR } = splitLegs(toCell(tint(_masks.legs, palette.legs)));
 
