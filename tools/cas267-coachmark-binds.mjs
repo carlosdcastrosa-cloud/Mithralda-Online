@@ -65,11 +65,14 @@ check('[ARROWS] move card shows arrow glyphs ↑←↓→', pc("move", a).includ
 check('[ARROWS] move card no longer shows WASD', !pc("move", a).includes("WASD"));
 
 // ---- [DONE] final card + menu controls hint ------------------------------
-const td = defaultBinds(); td.talents = "KeyZ"; td.interact = "KeyX";
+const td = defaultBinds(); td.talents = "KeyZ"; td.interact = "KeyX"; td.forge = "KeyV"; td.pause = "KeyP";
 const doneCopy = typeof STR.tutDone === "function" ? STR.tutDone(resolver(td)) : STR.tutDone;
 check('[DONE] final card is bind-aware (function)', typeof STR.tutDone === "function");
 check('[DONE] final card reflects talents rebind Z', doneCopy.includes("(Z)"));
 check('[DONE] final card reflects interact rebind X', doneCopy.includes("(X)"));
+// CAS-270: the final card also surfaces the Forja + Opciones (Settings) keys, bind-aware.
+check('[DONE-270] final card reflects forge rebind V', doneCopy.includes("(V)"));
+check('[DONE-270] final card reflects pause/Opciones rebind P', doneCopy.includes("(P)"));
 const hint = typeof STR.controlsHintPC === "function" ? STR.controlsHintPC(resolver(r)) : STR.controlsHintPC;
 check('[DONE] menu controls hint is bind-aware (function)', typeof STR.controlsHintPC === "function");
 check('[DONE] menu hint reflects attack rebind K', hint.includes("Atacar clic o K"));

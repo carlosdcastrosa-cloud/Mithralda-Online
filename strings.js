@@ -322,5 +322,8 @@ export const STR = {
     equip:  { pc:(k)=>"Abre el inventario con "+k("inventory")+" y equípate el botín que encuentres.", touch:"Toca el botón I (arriba) para abrir el inventario y equiparte." },
   },
   tutDoneHead: "¡LISTO PARA LA AVENTURA!",
-  tutDone: (k) => "Sigue el OBJETIVO de arriba para avanzar. Sube de nivel, gasta talentos ("+k("talents")+") y mejora con el Mercader ("+k("interact")+").",
+  // CAS-270 — close the bind-aware loop by also surfacing the Forja and Opciones
+  // (Ajustes) keys on the final card, resolved live from the CAS-265 rebind table
+  // like every other step. Pure onboarding copy; no balance/economy touch.
+  tutDone: (k) => "Sigue el OBJETIVO de arriba. Gasta talentos ("+k("talents")+"), mejora con el Mercader ("+k("interact")+"), forja equipo ("+k("forge")+") y abre Opciones para reconfigurar controles ("+k("pause")+").",
 };
