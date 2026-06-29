@@ -57,23 +57,28 @@
   if (!build) build = "0";
   window.__BUILD = build; // consumed by render/sprites.js for asset URLs
 
-  // Every shipped ES module, keyed by its root-absolute path. The import map
-  // remaps the RESOLVED specifier, so internal `./sim/sim.js` imports (resolved
-  // to /sim/sim.js) are caught too — not just the entry.
-  // CAS-134: registered /daily.js (the daily return loop). Also added the pre-existing
-  // omissions /persist.js + /sim/talents.js so the WHOLE module graph is cache-busted on
+  // Every shipped ES module, keyed by its resolved path. The import map remaps the
+  // RESOLVED specifier, so internal `./sim/sim.js` imports (resolved relative to the
+  // entry's URL) are caught too — not just the entry.
+  // CAS-134: registered daily.js (the daily return loop). Also added the pre-existing
+  // omissions persist.js + sim/talents.js so the WHOLE module graph is cache-busted on
   // deploy (an unlisted module loaded at its plain URL could otherwise serve stale).
-  const MODS = ["/game.js","/audio.js","/view.js","/input.js","/strings.js","/analytics.js","/daily.js","/persist.js",
-    "/sim/sim.js","/sim/config.js","/sim/math.js","/sim/rng.js","/sim/world.js","/sim/gear.js","/sim/talents.js",
-    "/render/render.js","/render/sprites.js","/render/palette.js","/render/customize.js"];
+  // CAS-180: keys are built relative to BASE (this document's directory) instead of the
+  // server root, so the SAME bundle runs at any host root — "/" on Higgsfield/Cloudflare
+  // Pages, or "/<repo>/" on a GitHub Pages project site. At root BASE === "/", so the
+  // generated map is byte-identical to the previous root-absolute one (no behavior change).
+  const BASE = location.pathname.replace(/[^/]*$/, ""); // dir of this document, trailing "/"
+  const MODS = ["game.js","audio.js","view.js","input.js","strings.js","analytics.js","daily.js","persist.js",
+    "sim/sim.js","sim/config.js","sim/math.js","sim/rng.js","sim/world.js","sim/gear.js","sim/talents.js",
+    "render/render.js","render/sprites.js","render/palette.js","render/customize.js"];
   const imports = {};
-  for (const m of MODS) imports[m] = m + "?v=" + build;
+  for (const m of MODS) imports[BASE + m] = BASE + m + "?v=" + build;
   const im = document.createElement("script");
   im.type = "importmap";
   im.textContent = JSON.stringify({ imports });
   document.head.appendChild(im);
 
-  const { createGame } = await import("./game.js"); // -> /game.js?v=<build> via the map
+  const { createGame } = await import(BASE + "game.js"); // -> <base>game.js?v=<build> via the map
 
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d", { alpha: false });
