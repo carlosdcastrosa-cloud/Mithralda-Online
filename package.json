@@ -46,6 +46,7 @@
     "cas243": "node tools/cas243-return-hook.mjs",
     "variety": "node tools/cas146-variety.mjs",
     "cas247": "node tools/cas247-affixes.mjs",
+    "cas248-affix-live": "node tools/cas248-affix-live.mjs",
     "combat210": "node tools/cas210-combat.mjs",
     "progression149": "node tools/cas149-progression.mjs",
     "mastery": "node tools/cas150-mastery.mjs",
