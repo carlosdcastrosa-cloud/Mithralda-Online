@@ -88,6 +88,13 @@ const CLASS_WALK_FC=8, CLASS_WALK_FPS=8;
 // aliasing. archer/rogue strips stay in the folder as spare base art (not loaded).
 const CLASS_HERO_ART={ warrior:"warrior", paladin:"paladin", mage:"mage", druid:"druid", priest:"priest" };
 const CLASS_HERO_KEYS=["warrior","paladin","mage","druid","priest"];
+// CAS-223: the warrior is now "Clarice" — a distinct, fully-animated character from the
+// Art Director's Drive intake (CAS-221), baked into the class-cell strips by
+// tools/cas223-clarice-strips.mjs. Unlike the other (recolorable hooded) classes she
+// ships dedicated ATTACK + DEATH strips and is NOT driven by the part-mask bake.
+const CLARICE_CLASSES=new Set(["warrior"]);
+const CLASS_EXTRA_ANIM=["warrior"];          // classes with clsattack_/clsdeath_ strips
+const CLASS_ATTACK_FC=6, CLASS_DEATH_FC=6, CLASS_DEATH_DUR=0.7; // Clarice extra-anim frame counts
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 
@@ -98,6 +105,10 @@ export function createRenderer(ctx){
   for(const k in HERO_STRIPS) loadImg(HERO_STRIPS[k].img, `./assets/erw/hero/${HERO_STRIPS[k].img}.png`); // CAS-92 anim strips
   for(const k of CLASS_HERO_KEYS) loadImg("clshero_"+k, `./assets/erw/hero/classes/${k}.png`); // CAS-98 per-class clean cutouts
   for(const k of CLASS_HERO_KEYS) loadImg("clswalk_"+k, `./assets/erw/hero/classes/${k}_walk.png`); // CAS-110 per-class walk-cycle strips
+  // CAS-223: Clarice (warrior) ships dedicated ATTACK + DEATH strips. Other classes have
+  // no such file → the load 404s harmlessly and the state machine falls back to the idle
+  // loop + procedural lunge, exactly as before.
+  for(const k of CLASS_EXTRA_ANIM){ loadImg("clsattack_"+k, `./assets/erw/hero/classes/${k}_attack.png`); loadImg("clsdeath_"+k, `./assets/erw/hero/classes/${k}_death.png`); }
   // CAS-169: start loading the recolorable part masks; the baked look replaces the
   // class strips below once ready. Until then the CAS-167 PNG strips render (no blank).
   ensureMasks();
@@ -107,6 +118,11 @@ export function createRenderer(ctx){
   let _lookSig="";
   function syncHeroLook(){
     const h=G.hero; if(!h||!h.palette||!h.variation) return;
+    // CAS-223: Clarice (warrior) is fixed character art, NOT the recolorable hooded base.
+    // Skipping the bake keeps her loaded idle/walk strips on screen (the bake would
+    // otherwise overwrite clshero_/clswalk_warrior with the hooded part-mask figure
+    // every time the look signature changes).
+    if(CLARICE_CLASSES.has(h.cls)) return;
     const p=h.palette, v=h.variation;
     const sig=h.cls+"|"+p.hood+";"+p.cloak+";"+p.sash+";"+p.legs+"|"+v.headwear+","+v.cape;
     if(sig===_lookSig) return;
@@ -244,9 +260,16 @@ export function createRenderer(ctx){
     for(const d of world.deco) order.push({y:d.y,draw:()=>{
       if(d.kind && d.kind.startsWith("prop_")){ const img=IMG[d.kind]; if(img&&img.complete&&img.naturalWidth){
           const s=PROP_SCALE[d.kind]||1, w=img.naturalWidth*s, h=img.naturalHeight*s; ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h));
-          if(d.kind==="prop_torch"){ const fy=d.y-h+10; ctx.fillStyle=COL.flame; ctx.beginPath(); ctx.arc(d.x,fy,5+Math.sin(G.t*9+d.x)*1.5,0,6.28); ctx.fill();
-            ctx.fillStyle=COL.flameL; ctx.beginPath(); ctx.arc(d.x,fy,2.5,0,6.28); ctx.fill();
-            ctx.globalAlpha=0.18; ctx.fillStyle=COL.flame; ctx.beginPath(); ctx.arc(d.x,fy,22,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
+          if(d.kind==="prop_torch"){ const fy=d.y-h+10;
+            // CAS-224 (Art): the Cripta Helada burns COLD. Frost braziers were the last
+            // warm-amber fixture in the frozen biome (QA holdback on b-tiles); swap the
+            // procedural flame + glow to blue-white frostfire so fixtures match the cold
+            // palette. Other zones keep the warm torch. zoneOf is sim-derived (no RNG).
+            const cold=zoneOf(world,d.x,d.y)==="frost";
+            const fc=cold?"#57c4ec":COL.flame, fl=cold?"#dcf5ff":COL.flameL;
+            ctx.fillStyle=fc; ctx.beginPath(); ctx.arc(d.x,fy,5+Math.sin(G.t*9+d.x)*1.5,0,6.28); ctx.fill();
+            ctx.fillStyle=fl; ctx.beginPath(); ctx.arc(d.x,fy,2.5,0,6.28); ctx.fill();
+            ctx.globalAlpha=0.18; ctx.fillStyle=fc; ctx.beginPath(); ctx.arc(d.x,fy,22,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
         } return; }
       const spr=SP[d.kind]; if(!spr) return; const px=d.kind==="tree"?4:3; blit(ctx,spr.rows,spr.pal,d.x,d.y-(d.kind==="tree"?18:0),px,false);
     }});
@@ -315,12 +338,9 @@ export function createRenderer(ctx){
       hx=h.x+Math.cos(h.atkAng)*pop*5; hfeet=feet+Math.sin(h.atkAng)*pop*2.5;  // lunge
       sqY=1+0.09*pop; sqX=1-0.05*pop;               // stretch into the strike
     } else { bobUp=Math.sin(G.t*2)*0.6; sqY=1+0.012*Math.sin(G.t*2); }  // idle breathing
-    // CAS-110: when walking, play the dedicated 8-frame walk-cycle strip (real gait)
-    // at CLASS_WALK_FPS; otherwise cycle the CAS-98/101 idle loop (time-driven, always
-    // moving), a touch faster while rolling/attacking so the loop still reads as motion.
-    const walking=(state==="walk");
-    const cfps=(state==="roll")?11:(state==="attack")?9:2.6;
-    const cfi=walking?(Math.floor(G.t*CLASS_WALK_FPS)%CLASS_WALK_FC):(Math.floor(G.t*cfps)%CLASS_FC);
+    // CAS-223: the per-class strip is now state-driven inside drawHeroClass (idle/walk
+    // for all classes + attack/death for Clarice). Pass the sim state (dead overrides).
+    const cstate=h.dead?"dead":state;
     // CAS-199: class-flavoured idle AURA under the hero (colour = the player's sash
     // accent, so it differs per class/customisation). Soft additive ground glow that
     // breathes — brings the sprite to life without touching the art. Drawn BEHIND.
@@ -331,7 +351,7 @@ export function createRenderer(ctx){
       rg.addColorStop(0,`rgba(${ac[0]},${ac[1]},${ac[2]},${0.14+0.10*pulse})`); rg.addColorStop(1,`rgba(${ac[0]},${ac[1]},${ac[2]},0)`);
       ctx.fillStyle=rg; ctx.beginPath(); ctx.ellipse(gx,gy,17,19,0,0,6.283); ctx.fill(); ctx.restore();
     }
-    const ok=drawHeroClass(CLASS_HERO_ART[cls],cfi,hx,hfeet,flip,sqX,sqY,bobUp,tint,walking) // CAS-98/110 per-class animated loop
+    const ok=drawHeroClass(CLASS_HERO_ART[cls],cstate,h.animT||0,hx,hfeet,flip,sqX,sqY,bobUp,tint) // CAS-98/110/223 state-driven class anim
           || drawHeroAnim(def.img,fi,h.x,feet,flip,tint,bob)                     // hooded anim fallback
           || drawHeroErw(h.x,feet,flip,1,1,0,tint)       // hooded pose until strips load
           || drawClassFrame(ctx,cls,(state==="roll")?"walk":state,dir4FromAngle(ang),fi,h.x,feet,HERO_SPRITE_SCALE,tint);
@@ -377,13 +397,29 @@ export function createRenderer(ctx){
   // an optional silhouette tint (hurt flash). Scaled by CLASS_ANIM_SCALE → ~50px
   // (CAS-92 final size). Returns false until the strip loads (or for a class with
   // no art), so drawHero falls back to the hooded anim.
-  function drawHeroClass(art,fi,cx,feet,flip,sqX,sqY,bobUp,tint,walk){
-    // CAS-110: walk → dedicated clswalk_* strip (8 frames). Same cell geom as the idle,
-    // so the only difference is which image + how many columns; falls back to the idle
-    // strip (clamped to CLASS_FC) until the walk PNG loads → no blank frame.
-    let img=art?IMG[(walk?"clswalk_":"clshero_")+art]:null;
-    if(walk && (!img||!img.complete||!img.naturalWidth)){ img=art?IMG["clshero_"+art]:null; fi=(fi||0)%CLASS_FC; }
-    if(!img||!img.complete||!img.naturalWidth) return false;
+  // CAS-223: state-driven. `state` is the sim animState mapped to a strip:
+  //   dead   → clsdeath_* (Clarice; play once, hold last frame)
+  //   attack → clsattack_* (Clarice; play once across the swing)
+  //   walk   → clswalk_*  (8-frame gait, all classes)
+  //   else   → clshero_*  idle loop (also the fallback for roll / for classes that have
+  //            no attack/death strip — preserves the prior CAS-98/110 behaviour exactly).
+  // The attack/death branches only fire when that strip is loaded, so the four hooded
+  // classes (no such file) keep their old look with zero change.
+  function drawHeroClass(art,state,animT,cx,feet,flip,sqX,sqY,bobUp,tint){
+    if(!art) return false;
+    const has=k=>{ const m=IMG[k]; return m&&m.complete&&m.naturalWidth; };
+    let key,fc,fi;
+    if(state==="dead" && has("clsdeath_"+art)){
+      key="clsdeath_"+art; fc=CLASS_DEATH_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_DEATH_DUR)));
+    } else if(state==="attack" && has("clsattack_"+art)){
+      key="clsattack_"+art; fc=CLASS_ATTACK_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/Math.max(0.15,CFG.atkCD))));
+    } else if(state==="walk" && has("clswalk_"+art)){
+      key="clswalk_"+art; fc=CLASS_WALK_FC; fi=Math.floor(G.t*CLASS_WALK_FPS)%fc;
+    } else {
+      key="clshero_"+art; if(!has(key)) return false;
+      fc=CLASS_FC; const lf=(state==="attack")?9:(state==="roll")?11:2.6; fi=Math.floor(G.t*lf)%fc;
+    }
+    const img=IMG[key]; if(!img||!img.complete||!img.naturalWidth) return false;
     const S=CLASS_ANIM_SCALE, dw=CLASS_FW*S*sqX, dh=CLASS_FH*S*sqY, sx=(fi||0)*CLASS_FW;
     const dx=cx-CLASS_AX*S*sqX, dy=feet-CLASS_FOOT*S*sqY-(bobUp||0);
     let src=img, ssx=sx, ssy=0;
