@@ -28,6 +28,7 @@ const log = (m) => console.log(m);
 const fail = (m) => { ok = false; console.error(`✖ ${m}`); };
 const pass = (m) => log(`✔ ${m}`);
 const near = (a, b, eps = 0) => Math.abs(a - b) <= eps;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const exe = findChromium();
 if (!exe) { console.error("✖ No Chromium binary found."); process.exit(1); }
@@ -86,8 +87,13 @@ try {
   else fail("same-day contracts not deterministic");
 
   // (3) real progress on a fresh pinned day ------------------------------
-  // back to the natural day so claim/persistence runs on real `today()`.
-  await page.evaluate(() => window.__daily._setDay(null));
+  // CAS-194 fix (ported from cas183 live harness): `_setDay(null)` only DROPS the
+  // day override — it does NOT regenerate the board. The store keeps the last pinned
+  // test day's contracts until the next today()-check regenerates them. Re-pin to the
+  // ORIGINAL natural day (b0.day) so the contracts we satisfy are the ones we claim;
+  // pinning to null left them desynced → the intermittent "first contract not done"
+  // + gold-delta-short failure.
+  await page.evaluate((d) => window.__daily._setDay(d), b0.day);
   // make sure a champion contract can be satisfied: spawnKill('golem') flags isBoss →
   // bumps champKills; trash kills bump kills; clears go through huntKillChampion.
   async function satisfyContract(c) {
@@ -96,18 +102,26 @@ try {
     } else if (c.obs === "champion") {
       await page.evaluate((n) => { for (let i = 0; i < n; i++) window.__dev.spawnKill("golem"); }, c.need + 1);
     } else if (c.obs === "clear") {
-      // drive the REAL hunt quota in the zone, then kill the summoned champion.
-      await page.evaluate((zone) => {
-        window.__dev.tpZone(zone);
-        const need = (window.__dev.huntState(zone) || {}).need || 20;
-        for (let i = 0; i < need + 1; i++) { if ((window.__dev.huntState(zone) || {}).champ) break; window.__dev.spawnKill("wolf"); }
-        window.__dev.huntKillChampion(zone);
-      }, c.zone);
+      // CAS-194 fix: the `clear` path must YIELD to the sim between spawns. A bulk
+      // single-evaluate loop spawns faster than the game loop steps, so the champion
+      // never registers and huntKillChampion() no-ops → the zone never clears. Drive
+      // one kill per step, wait for the champ to appear, then kill it.
+      await page.evaluate((zone) => window.__dev.tpZone(zone), c.zone);
+      const need = await page.evaluate((zone) => (window.__dev.huntState(zone) || {}).need || 20, c.zone);
+      for (let i = 0; i < need + 2; i++) {
+        if (await page.evaluate((zone) => (window.__dev.huntState(zone) || {}).champ, c.zone)) break;
+        await page.evaluate((zone) => window.__dev.spawnKill("wolf"), c.zone);
+        await sleep(40);
+      }
+      await page.waitForFunction((zone) => (window.__dev.huntState(zone) || {}).champ, { timeout: 4000 }, c.zone).catch(() => {});
+      await page.evaluate((zone) => window.__dev.huntKillChampion(zone), c.zone);
     }
   }
   const goldBefore = await page.evaluate(() => window.__dev.heroStats().gold);
   const todayBoard = await page.evaluate(() => window.__daily.board());
-  for (const c of todayBoard.contracts) await satisfyContract(c);
+  // CAS-194 fix: yield to the observer (daily.tick in the game loop) between contracts
+  // so each satisfy() is delta-counted before the next one teleports zones.
+  for (const c of todayBoard.contracts) { await satisfyContract(c); await sleep(400); }
   // let the observer (daily.tick in the game loop) delta-count the kills to done.
   await page.waitForFunction("window.__daily.board().contracts.every(c => c.done)", { timeout: 8000 })
     .then(() => pass("driving real kills/clears advances ALL 3 contracts to done (observer)"))
