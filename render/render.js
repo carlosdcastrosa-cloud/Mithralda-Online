@@ -827,7 +827,18 @@ export function createRenderer(ctx){
     if(n.role==="quest" && G.quest.done && !G.quest.rewarded) mk="!";
     if(mk){ ctx.fillStyle=mk==="!"?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(mk,n.x,topY-6+Math.sin(G.t*4)*2); }
   }
-  function drawProjectile(p){ if(p.kind==="fire"){ ctx.fillStyle=COL.flameL; ctx.beginPath(); ctx.arc(p.x,p.y,6,0,6.28); ctx.fill(); ctx.fillStyle=COL.flame; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,6.28); ctx.fill(); }
+  function drawProjectile(p){
+    // CAS-304 (board CAS-302): mob directional ranged projectiles (spear/bolt) no longer draw
+    // their in-flight sprite. CAS-303 already removed the windup aim-line, but the travelling
+    // spear/bolt still gave away the shot's origin/path. Hiding the in-flight visual makes the
+    // ranged threat harder to read ("mas dificil ver de donde viene el golpe"). The windup ring
+    // (CAS-210/265) still signals that AN attack is coming. Presentation-only: damage, hit
+    // detection (sim.js updateProjectiles), timing, projspd and the hero hurt/impact flash are
+    // ALL untouched. Boss RADIAL AoE punish-rings (rune/frostnova) stay visible on purpose — they
+    // are non-directional telegraphs whose readability is core to a fair boss fight, and the bug
+    // is about hiding WHERE a directional shot comes from, which a radial burst has no single of.
+    if(p.enemy && (p.kind==="spear" || p.kind==="bolt")) return;
+    if(p.kind==="fire"){ ctx.fillStyle=COL.flameL; ctx.beginPath(); ctx.arc(p.x,p.y,6,0,6.28); ctx.fill(); ctx.fillStyle=COL.flame; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,6.28); ctx.fill(); }
     else if(p.kind==="rune"){ ctx.fillStyle=COL.rune; ctx.fillRect(p.x-4,p.y-4,8,8); ctx.fillStyle="#aac4ff"; ctx.fillRect(p.x-2,p.y-2,4,4); }
     // CAS-121 Freeze Nova shard — a pale-blue ice splinter (the boss's punish-ring).
     else if(p.kind==="frostnova"){ const a=Math.atan2(p.vy,p.vx);
