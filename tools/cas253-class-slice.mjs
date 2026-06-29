@@ -97,7 +97,15 @@ const ANIM_MANIFEST = {
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/89ff5918-b3d4-40df-820d-b1909d391bbf/south/5.png",
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/89ff5918-b3d4-40df-820d-b1909d391bbf/south/6.png",
     ],
-    death:  null, // pending ~204s
+    death: [
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/6a694e3b-a053-402a-9211-be5b0265f054/south/0.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/6a694e3b-a053-402a-9211-be5b0265f054/south/1.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/6a694e3b-a053-402a-9211-be5b0265f054/south/2.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/6a694e3b-a053-402a-9211-be5b0265f054/south/3.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/6a694e3b-a053-402a-9211-be5b0265f054/south/4.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/6a694e3b-a053-402a-9211-be5b0265f054/south/5.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/18d8c76c-7361-4a82-8d6d-e0dd4cccb910/animations/6a694e3b-a053-402a-9211-be5b0265f054/south/6.png",
+    ],
   },
   mage: {
     charId: "92b13fdc-88c4-4e2f-a47e-980b78383f98",
