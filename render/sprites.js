@@ -269,16 +269,17 @@ export const ENEMY_ANIM={ mage:"mage", golem:"golem", moose:"moose" };
 // the common mobs so the bestiary reads at FOUNTAINS fidelity. Falls back to SP rows
 // while the image loads or for mobs without a generated sprite.
 export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"enemy_wraith", orc:"enemy_orc" };
-// CAS-209/CAS-203: real PixelLab walk-cycle STRIPS for solid-bodied mobs. 4 frames
-// of 64×64 in a 256×64 horizontal strip (animate-with-text REST, tools/cas209-
-// pixellab-animate.mjs). drawEnemy plays these frame-by-frame off sim time —
+// CAS-209: real PixelLab walk-cycle STRIPS for solid-bodied mobs. 6 frames of
+// 64×64 in a 384×64 horizontal strip, baked from the PixelLab MCP 8-dir characters
+// (fountains-skel/bandit/orc) south walk via tools/cas209-build-strip.mjs.
+// drawEnemy plays these frame-by-frame off sim time —
 // replacing the procedural breathe/bob with a genuine PixelLab walk cycle. The
 // ethereal wraith stays on ENEMY_IMG + procedural float (frame-coherence breaks
 // down on a formless spectre — deliberate art call). Falls back to ENEMY_IMG.
 export const ENEMY_STRIP={
-  skel:  {key:"skel_walk_strip",   fc:4, fw:64, fh:64},
-  bandit:{key:"bandit_walk_strip", fc:4, fw:64, fh:64},
-  orc:   {key:"orc_walk_strip",    fc:4, fw:64, fh:64},
+  skel:  {key:"skel_walk_strip",   fc:6, fw:64, fh:64},
+  bandit:{key:"bandit_walk_strip", fc:6, fw:64, fh:64},
+  orc:   {key:"orc_walk_strip",    fc:6, fw:64, fh:64},
 };
 // animated, non-hostile town NPCs. Keyed by npc.sprite → ANIM strip; idle loop only.
 export const NPC_ANIM={ merchant:"merchant" };

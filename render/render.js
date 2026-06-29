@@ -558,7 +558,7 @@ export function createRenderer(ctx){
       drew=drawAnim(ctx,ch,st,fi,e.x,feet,S,fl, e.hurtFlash>0?"#ffffff":null);
     }
     // CAS-209: real PixelLab walk-cycle strip for solid-bodied mobs (skel/bandit/orc).
-    // 4-frame 64×64 strip; frame chosen off sim time G.t (+ stable per-mob phase) so
+    // 6-frame 64×64 strip; frame chosen off sim time G.t (+ stable per-mob phase) so
     // the legs actually step — a genuine animation, not the procedural bob. Bottom-
     // anchored, flip + hurt-flash honored, reduceMotion freezes to frame 0. Reads only
     // render state (G.t/e.x/e.y/tpl/animState/hurtFlash) and mutates nothing → Stage-2 safe.
