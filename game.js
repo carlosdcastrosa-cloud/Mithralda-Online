@@ -19,6 +19,7 @@ import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets } from "./render/sprites.js";
+import { rarityRank } from "./sim/gear.js";
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
@@ -87,8 +88,11 @@ export function createGame(canvas, ctx, getView){
     return Object.assign({
       scene:G.scene, zone:G.zone||G.scene, name:h.name, cls:h.cls, lvl:h.lvl|0, gold:h.gold|0,
       hp:h.hp, maxHp:h.maxHp, mp:h.mp, maxMp:h.maxMp, xp:h.xp, xpNext:h.xpNext,
-      equip:["weapon","body","shield"].map(sl=>{ const it=h.equip&&h.equip[sl]; return it?{slot:sl,label:String(sl[0]).toUpperCase(),rarity:(it&&it.rarity)||0}:null; }),
-      bag:(h.bag||[]).map(b=>({ label:"·", rarity:(b&&b.rarity)||0 })), bagCap:16,
+      // CAS-297: rarity is a STRING key ("common"/"uncommon"/"rare"/"epic") in the sim, but the
+      // HUD's colour-blind shape-cue (hud.js cue()) keys off a NUMERIC rank. Resolve it here via
+      // rarityRank() so the ◦/◆/★ glyphs actually render (a raw string|0 collapsed every item to 0).
+      equip:["weapon","body","shield"].map(sl=>{ const it=h.equip&&h.equip[sl]; return it?{slot:sl,label:String(sl[0]).toUpperCase(),rarity:rarityRank(it&&it.rarity)}:null; }),
+      bag:(h.bag||[]).map(b=>({ label:"·", rarity:rarityRank(b&&b.rarity) })), bagCap:16,
     }, a11y);
   }
   hud.boot(hudSnapshot);
