@@ -70,7 +70,15 @@ const ANIM_MANIFEST = {
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/5.png",
       "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/d66352ec-6bda-49e9-9c92-13852f8b1dc1/south/6.png",
     ],
-    death:  null, // pending ~332s
+    death: [
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/016ce5cb-9ff3-4abe-ad1b-ef2f00a7bcd4/south/0.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/016ce5cb-9ff3-4abe-ad1b-ef2f00a7bcd4/south/1.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/016ce5cb-9ff3-4abe-ad1b-ef2f00a7bcd4/south/2.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/016ce5cb-9ff3-4abe-ad1b-ef2f00a7bcd4/south/3.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/016ce5cb-9ff3-4abe-ad1b-ef2f00a7bcd4/south/4.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/016ce5cb-9ff3-4abe-ad1b-ef2f00a7bcd4/south/5.png",
+      "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/56d8490b-8d55-464a-a5de-d50d48a43184/animations/016ce5cb-9ff3-4abe-ad1b-ef2f00a7bcd4/south/6.png",
+    ],
   },
   priest: {
     charId: "18d8c76c-7361-4a82-8d6d-e0dd4cccb910",
