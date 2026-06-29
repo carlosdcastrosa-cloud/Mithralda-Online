@@ -78,10 +78,12 @@ export function createGame(canvas, ctx, getView){
   // analytics.js / daily.js so QA can read accumulated retention numbers off a live playtest.
   // Touches no sim/balance/input — toggling it changes nothing in the game itself.
   overlay.boot();
-  // CAS-287: redesigned Tibia-style HUD overlay (scaffold, default OFF — opt-in via `?hud`).
-  // hudSnapshot() is a PURE READ-ONLY view of G.hero used only to paint the overlay; it
-  // touches no sim/balance/input, so the HUD is soak-safe and reversible. The final visual
-  // layer + UI assets come from the Art Director spec (CAS-286); the data path is wired now.
+  // CAS-287/CAS-299: redesigned Tibia-style HUD overlay — now DEFAULT-ON (board-approved
+  // cutover a35ddd26). render.js suppresses the legacy on-canvas vitals while it is active so
+  // there is a single coherent UI (no double-UI). hudSnapshot() is a PURE READ-ONLY view of
+  // G.hero used only to paint the overlay; it touches no sim/balance/input, so the cutover is
+  // presentation-only and soak-safe. Escape hatch: `?nohud` / `__hud.hide()`. Visual layer +
+  // UI assets come from the Art Director spec (CAS-286).
   function hudSnapshot(){
     const a11y={ reduceMotion:!!(G.settings&&G.settings.reduceMotion), colorblind:!!(G.settings&&G.settings.colorblind) };
     const h=G.hero; if(!h) return Object.assign({ scene:G.scene, zone:G.zone||G.scene }, a11y);
@@ -93,6 +95,10 @@ export function createGame(canvas, ctx, getView){
       // rarityRank() so the ◦/◆/★ glyphs actually render (a raw string|0 collapsed every item to 0).
       equip:["weapon","body","shield"].map(sl=>{ const it=h.equip&&h.equip[sl]; return it?{slot:sl,label:String(sl[0]).toUpperCase(),rarity:rarityRank(it&&it.rarity)}:null; }),
       bag:(h.bag||[]).map(b=>({ label:"·", rarity:rarityRank(b&&b.rarity) })), bagCap:16,
+      // CAS-299: status afflictions for the HUD chip row — parity with the on-canvas chips the
+      // cutover now suppresses (h.dots = DoTs keyed by type; slowT / stun are scalar timers).
+      status:(()=>{ const out=[]; if(h.dots) for(const k in h.dots){ const d=h.dots[k]; if(d) out.push({type:k, dur:d.t}); }
+        if(h.slowT>0) out.push({type:"slow", dur:h.slowT}); if(h.stun>0) out.push({type:"stun", dur:h.stun}); return out; })(),
     }, a11y);
   }
   hud.boot(hudSnapshot);

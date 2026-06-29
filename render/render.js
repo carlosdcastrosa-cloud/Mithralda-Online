@@ -995,11 +995,21 @@ export function createRenderer(ctx){
   // ------------------------------- HUD -----------------------------------
   function bar(x,y,w,hh,frac,fg,bg,label){ ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,w+4,hh+4); ctx.fillStyle=bg; ctx.fillRect(x,y,w,hh);
     ctx.fillStyle=fg; ctx.fillRect(x,y,w*clamp(frac,0,1),hh); if(label){ ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(label,x+4,y+hh-2);} }
+  // CAS-299: is the redesigned Tibia HUD (hud.js DOM overlay) currently the active UI?
+  // When ON it OWNS the vitals/status/gold/name presentation, so the legacy on-canvas
+  // duplicates below are suppressed to avoid a double-UI; the still-functional readouts
+  // the HUD doesn't carry (consumable, spell bar, minimap, trackers, objective, progression
+  // badges) stay on canvas but reflow clear of the HUD frames. Reads a live, read-only flag.
+  function hudActive(){ try{ return !!(typeof window!=="undefined" && window.__hud && window.__hud.isOn()); }catch(e){ return false; } }
+
   function renderHUD(){ const h=G.hero; ctx.textAlign="left";
     const pad=12, bw=Math.min(220,VW*0.42);
+    const hudUI=hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
     // CAS-118: while the hero suffers a status, frame the screen with a pulsing edge
     // tint in that status's colour + a compact chip row (icon + label + seconds left),
     // so "el jugador también los sufre" reads instantly without crowding the HUD.
+    // CAS-299: the HUD overlay paints its own status chips, so suppress the canvas chip row
+    // when it is active (keep the screen-edge danger tint — that is ambient, not a chip dupe).
     { const chips=[];
       if(h.dots) for(const k in h.dots){ const s=STATUS[k]; if(s) chips.push({col:s.col,label:s.label,t:h.dots[k].t}); }
       if(h.slowT>0){ const s=STATUS.slow; chips.push({col:s.col,label:s.label,t:h.slowT}); }
@@ -1008,41 +1018,48 @@ export function createRenderer(ctx){
         const pulse=0.5+0.5*Math.abs(Math.sin(G.t*6));
         ctx.save(); ctx.globalAlpha=0.22+0.20*pulse; ctx.strokeStyle=chips[0].col; ctx.lineWidth=6;
         ctx.strokeRect(3,3,VW-6,VH-6); ctx.restore();
-        let cy=pad+ (G.skull.level>0?120:116);
-        ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
-        for(const c of chips){ ctx.fillStyle=COL.out; ctx.fillRect(pad-1,cy-1,9,9); ctx.fillStyle=c.col; ctx.fillRect(pad,cy,7,7);
-          ctx.fillStyle=c.col; ctx.fillText(c.label+" "+c.t.toFixed(1)+"s", pad+13, cy+8); cy+=15; }
+        if(!hudUI){ let cy=pad+ (G.skull.level>0?120:116);
+          ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
+          for(const c of chips){ ctx.fillStyle=COL.out; ctx.fillRect(pad-1,cy-1,9,9); ctx.fillStyle=c.col; ctx.fillRect(pad,cy,7,7);
+            ctx.fillStyle=c.col; ctx.fillText(c.label+" "+c.t.toFixed(1)+"s", pad+13, cy+8); cy+=15; } }
       }
     }
     const mhp=heroMaxHp(h); // CAS-117: bar reflects the +vida affix pool
-    bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
-    bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
-    bar(pad,pad+38,bw,10,h.xp/h.xpNext,COL.xpf,COL.xpb, STR.level(h.lvl));
-    // CAS-119: unspent talent-point badge beside the XP bar — pulses gold to prompt the
-    // player to open the tree (T). Disappears once all points are spent.
+    if(!hudUI){ // CAS-299: legacy vitals (HP/MP/XP bars · gold/potions · name/skull) — HUD owns these
+      bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
+      bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
+      bar(pad,pad+38,bw,10,h.xp/h.xpNext,COL.xpf,COL.xpb, STR.level(h.lvl));
+    }
+    // CAS-119: unspent talent-point badge — prompts the player to open the tree (T). CAS-299:
+    // when the HUD owns the top-left, the badge moves to the left column UNDER the HUD panel.
+    const badgeX = hudUI ? pad : pad+bw+8;
     if((h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
       ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="left";
-      ctx.fillText("★"+h.talentPts+" (T)", pad+bw+8, pad+47); ctx.restore(); ctx.textAlign="left"; }
+      ctx.fillText("★"+h.talentPts+" (T)", badgeX, hudUI?258:pad+47); ctx.restore(); ctx.textAlign="left"; }
     // CAS-149: Elite-Mastery badge — the persistent, cross-session progression read-out,
     // kept always-visible (even rank 0, with kills-to-next) so the long-term hook that grows
-    // across sessions is legible from minute one. Sits right of the HP bar (clear of the XP★).
+    // across sessions is legible from minute one. CAS-299: reflows under the HUD panel.
     { const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
       ctx.save(); ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
       const prog = nx!=null ? (" "+(h.eliteKills|0)+"/"+nx) : " MÁX";
       // CAS-150: "(V)" hint opens the reward-track panel — only while a milestone is still
       // pending (an unmet goal to chase), so a fully-unlocked track stays clean.
       const hint = sim.masteryNextMilestone(h.eliteKills|0) ? " (V)" : "";
-      ctx.fillText(STR.masteryHud(mr)+prog+hint, pad+bw+8, pad+14); ctx.restore(); ctx.textAlign="left"; }
-    // gold + potions
-    ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
-    ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
-    renderConsumableSlot(h); // CAS-192: selected combat consumable + cooldown + active-buff timer
-    // skull indicator
-    if(G.skull.level>0){ const sc=[null,COL.skullW,COL.skullY,COL.skullR][G.skull.level]; ctx.fillStyle=sc; ctx.font="bold 16px 'Courier New'"; ctx.fillText("☠ "+h.name, pad, pad+104); }
-    else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(h.name, pad, pad+102); }
-    // quest tracker (top-right under buttons)
+      ctx.fillText(STR.masteryHud(mr)+prog+hint, badgeX, hudUI?238:pad+14); ctx.restore(); ctx.textAlign="left"; }
+    if(!hudUI){ // gold + potions (HUD shows oro + carries equip/bag mirror)
+      ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
+      ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
+    }
+    renderConsumableSlot(h, hudUI); // CAS-192: selected combat consumable + cooldown + active-buff timer
+    // skull indicator / name — HUD shows the name in its vitals panel, so suppress when active.
+    if(!hudUI){
+      if(G.skull.level>0){ const sc=[null,COL.skullW,COL.skullY,COL.skullR][G.skull.level]; ctx.fillStyle=sc; ctx.font="bold 16px 'Courier New'"; ctx.fillText("☠ "+h.name, pad, pad+104); }
+      else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(h.name, pad, pad+102); }
+    }
+    // quest tracker (top-right under buttons). CAS-299: shift LEFT of the HUD right rail
+    // (minimapa/equipo/mochila) so the trackers never sit under the rail frames.
     ctx.textAlign="right"; ctx.font="bold 12px 'Courier New'";
-    const qx=VW-12, qy=isTouch?64:18;
+    const qx=VW-(hudUI?176:12), qy=isTouch?64:18;
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
     const qw=ctx.measureText(qt).width+12; ctx.fillRect(qx-qw,qy-2,qw,20); ctx.fillStyle=G.quest.done?COL.heal:COL.textGold; ctx.fillText(qt,qx-6,qy+13);
     // hunt-contract tracker (under the quest tracker) — only shows inside a hunt zone
@@ -1085,7 +1102,13 @@ export function createRenderer(ctx){
   // h.consumCD is live, and the [Q] use / [R] cycle key hints. An active timed buff
   // (furia) reads its remaining seconds as a shrinking bar above the slot, so the player
   // always knows the buff is up and roughly how long is left (duration telegraph).
-  function renderConsumableSlot(h){ if(isTouch) return; const s=44; const x=12, y=VH-12-s;
+  function renderConsumableSlot(h, hudUI){ if(isTouch) return; const s=44;
+    // CAS-299: the legacy slot lives bottom-left, where the HUD console now sits. When the
+    // HUD is active, reflow the quick-use slot to just LEFT of the spell bar (combat-coherent:
+    // potions beside spells) so it never overlaps the console frame.
+    let x=12, y=VH-12-s;
+    if(hudUI){ const sb=Math.min(46,VW*0.1); const sbTotal=4*sb+3*6; const sbx=VW/2-sbTotal/2;
+      x=Math.max(12, Math.round(sbx-s-16)); y=VH-14-s; }
     const c=CONSUMABLES[h.consumSel|0]||CONSUMABLES[0]; const qty=(h.consum&&h.consum[c.id])|0;
     // active fury buff timer (shrinking bar) above the slot
     if(h.atkspdBuffT>0){ const f=clamp(h.atkspdBuffT/6,0,1);

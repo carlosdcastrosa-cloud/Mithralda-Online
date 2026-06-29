@@ -180,12 +180,12 @@ export const hud = (()=>{
     nodes.drawerBtn.setAttribute("aria-label","Abrir equipo / mochila");
     nodes.drawerBtn.onclick=()=>{ drawerOpen=!drawerOpen; root.classList.toggle("draw",drawerOpen); };
 
-    // ===== Right rail: C minimap · D paper-doll · E backpack =====
+    // ===== Right rail: D paper-doll (EQUIPO) · E backpack (MOCHILA) =====
+    // CAS-299 cutover: the legacy on-canvas minimap (bottom-right, with real layout + portal
+    // blips) is the single minimap, so the HUD's decorative minimap STUB is dropped here to
+    // avoid a double-minimap. The rail now reuses ONLY the Tibia equip/inventory mirror.
     const rail=mk("div", ["position:absolute","right:12px","top:12px","width:152px","display:flex","flex-direction:column","gap:8px"].join(";"), root);
     rail.className="rail";
-    const mini=mk("div","padding:6px;height:118px", rail); mini.className="pnl fr-mini mini";
-    const ml=mk("div",null,mini); ml.className="lab"; ml.textContent="Minimapa";
-    nodes.minimap=mk("div","color:"+C.textDim+";font-size:11px;margin-top:4px;text-align:center;line-height:1.5", mini);
     const doll=mk("div","padding:6px", rail); doll.className="pnl fr-doll";
     const dl=mk("div",null,doll); dl.className="lab"; dl.textContent="Equipo";
     nodes.equip=mk("div","display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:4px", doll);
@@ -193,15 +193,15 @@ export const hud = (()=>{
     const bl=mk("div",null,bag); bl.className="lab"; bl.textContent="Mochila";
     nodes.inv=mk("div","display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:4px", bag);
 
-    // ===== Bottom: G console (left) · F action bar (right) =====
-    const bottom=mk("div", ["position:absolute","left:12px","right:12px","bottom:12px","display:flex","gap:8px","align-items:flex-end","justify-content:space-between","flex-wrap:wrap"].join(";"), root);
+    // ===== Bottom-left: G console (combat log) =====
+    // CAS-299 cutover: the legacy on-canvas SPELL BAR (bottom-centre, with real cooldowns +
+    // mp costs) is the single action surface, so the HUD's decorative 1-10 action-bar STUB is
+    // dropped to avoid a double action bar. Only the Tibia console remains here.
+    const bottom=mk("div", ["position:absolute","left:12px","right:12px","bottom:12px","display:flex","gap:8px","align-items:flex-end","justify-content:flex-start","flex-wrap:wrap"].join(";"), root);
     bottom.className="bottom";
-    const con=mk("div","padding:8px;flex:1 1 260px;max-width:420px;height:74px;overflow:hidden", bottom); con.className="pnl fr-console";
+    const con=mk("div","padding:8px;flex:0 1 360px;max-width:420px;height:74px;overflow:hidden", bottom); con.className="pnl fr-console";
     const cl=mk("div",null,con); cl.className="lab"; cl.textContent="Consola";
     nodes.log=mk("div","margin-top:3px;display:flex;flex-direction:column;gap:1px", con);
-    const act=mk("div","padding:8px;flex:0 0 auto", bottom); act.className="pnl fr-action";
-    nodes.hotkeys=mk("div","display:flex;gap:4px", act); nodes.hotkeys.className="hotrow";
-    for(let i=1;i<=10;i++){ const k=mk("div",null,nodes.hotkeys); k.className="slot"; k.tabIndex=-1; k.textContent=String(i%10); }
 
     document.body.appendChild(root);
     applyScale();
@@ -254,7 +254,8 @@ export const hud = (()=>{
       nodes.name.textContent="—"; nodes.cls.textContent="—"; nodes.lvl.textContent="Nv —"; nodes.gold.textContent="0 oro";
       fillBar(nodes.hp,0,1); fillBar(nodes.mp,0,1); fillBar(nodes.xp,0,1);
       paintSlots(nodes.equip,[],3); paintSlots(nodes.inv,[],16);
-      nodes.minimap.textContent=(s&&s.zone)?String(s.zone):"—"; nodes.chips.textContent=""; paintLog();
+      if(nodes.minimap) nodes.minimap.textContent=(s&&s.zone)?String(s.zone):"—";
+      nodes.chips.textContent=""; paintLog();
       prev=s||null; return;
     }
     deriveLog(s);
@@ -268,7 +269,7 @@ export const hud = (()=>{
     fillBar(nodes.xp, s.xp, s.xpNext);
     paintSlots(nodes.equip, s.equip||[], 3, cue);
     paintSlots(nodes.inv, s.bag||[], s.bagCap||16, cue);
-    nodes.minimap.textContent=(s.zone||"—")+"\n◆";
+    if(nodes.minimap) nodes.minimap.textContent=(s.zone||"—")+"\n◆";
     // §B status chips — data-driven; renders nothing when the hero carries no effects
     paintChips(s.status||[], cb);
     paintLog();
@@ -289,14 +290,23 @@ export const hud = (()=>{
   function toggle(){ on?hide():show(); }
 
   // boot(getState): getState is a READ-ONLY snapshot accessor injected by game.js.
-  // Default OFF; opt-in via `?hud` query flag or a restored localStorage pref. The
-  // HUD never reads input or mutates anything — safe to leave wired in a soak.
+  // CAS-299 — DEFAULT-ON cutover (board-approved a35ddd26): the redesigned HUD is the
+  // visible UI for every player. Precedence: an explicit URL override > a stored pref >
+  // default ON. Escape hatches: `?nohud` (or `?hud=0`) force it off; `__hud.hide()` (which
+  // persists "0") lets a player opt out durably. The HUD never reads input or mutates the
+  // sim — only its presentation changes, so the Stage-1 retention soak signal stays clean.
   function boot(getStateFn){
     if(booted || typeof window==="undefined") return; booted=true;
     getState = typeof getStateFn==="function" ? getStateFn : (()=>null);
     try{ const s0=getState&&getState(); reduce=!!(s0&&s0.reduceMotion); }catch(e){ reduce=false; }
-    let flag=false; try{ flag=new URLSearchParams(location.search).has("hud"); }catch(e){}
-    if(flag || readPref()) show();
+    let flag=null; // explicit URL override: true=force on, false=force off, null=unspecified
+    try{ const p=new URLSearchParams(location.search);
+      if(p.has("nohud")) flag=false;
+      else if(p.has("hud")) flag=(p.get("hud")!=="0" && p.get("hud")!=="off"); }catch(e){}
+    let want=true; // default-ON
+    try{ const pv=localStorage.getItem(KEY); want = (flag!=null) ? flag : (pv==null ? true : pv==="1"); }
+    catch(e){ want = (flag!=null) ? flag : true; }
+    if(want) show();
     // dev/QA hook — toggle + read the same snapshot the HUD paints, headlessly.
     window.__hud={ show, hide, toggle, isOn:()=>on, state:()=>{ try{ return getState(); }catch(e){ return null; } },
       drawer:(v)=>{ drawerOpen=(v==null?!drawerOpen:!!v); if(root) root.classList.toggle("draw",drawerOpen); return drawerOpen; },

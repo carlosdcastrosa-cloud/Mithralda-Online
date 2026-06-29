@@ -69,13 +69,16 @@ try {
   const assets = ["hud_statframe.png","hud_minimap_frame.png","hud_paperdoll.png","hud_backpack_grid.png","hud_actionbar.png","hud_console.png"];
   let a200 = 0;
   for (const a of assets) { const r = await page.evaluate((u) => fetch(u).then(x=>x.status).catch(()=>0), `assets/pixellab/ui/cas286/${a}`); if (r === 200) a200++; else fail(`[ASSETS] ${a} HTTP ${r}`); }
+  // CAS-299 cutover: the HUD now defers the minimap + action bar to the (functional) on-canvas
+  // versions, so the .fr-mini / .fr-action stub panels are intentionally GONE. The remaining 4
+  // chrome regions (stat · doll · bag · console) must still wire the approved CAS-286 art.
   const wired = await page.evaluate(() => {
-    const sel = [".fr-stat",".fr-mini",".fr-doll",".fr-bag",".fr-action",".fr-console"];
+    const sel = [".fr-stat",".fr-doll",".fr-bag",".fr-console"];
     return sel.filter(s => { const el = document.querySelector("#hud "+s); if (!el) return false;
       const bi = getComputedStyle(el).borderImageSource || ""; return /url\(/.test(bi) && /cas286/.test(bi); }).length;
   });
   if (a200 === assets.length) pass(`[ASSETS] all ${a200}/6 panel PNGs HTTP 200`); else fail(`[ASSETS] only ${a200}/6 PNGs 200`);
-  if (wired === 6) pass("[ASSETS] all 6 regions wire the approved art via border-image"); else fail(`[ASSETS] only ${wired}/6 regions use border-image`);
+  if (wired === 4) pass("[ASSETS] all 4 retained regions wire the approved art via border-image (CAS-299: minimap/action defer to canvas)"); else fail(`[ASSETS] only ${wired}/4 regions use border-image`);
 
   // [PALETTE] no warm-wood placeholder; locked iron present
   const pal = await page.evaluate(() => {
