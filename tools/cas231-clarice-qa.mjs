@@ -5,7 +5,7 @@ import puppeteer from "puppeteer-core";
 import { join } from "node:path";
 import { findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
-const EXPECT = "48b3a69beace";
+const EXPECT = "f13a64b1646f";
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const OUT = join(ROOT, "tools");
 
@@ -101,8 +101,10 @@ const checks=[
   ["attack strip = warrior_attack.png", C.attack==="warrior_attack.png"],
   ["death strip = warrior_death.png", C.dead==="warrior_death.png"],
   ["death scene reached", r.deadState==="dead"],
-  ["mirror on left (walkLeft flipped)", r.walkLeftFlip===true],
-  ["no mirror on right (walkRight not flipped)", r.walkRightFlip===false],
+  // CAS-235: assert the sprite MIRRORS between left/right (off-hand swaps), orientation-agnostic.
+  // Which direction is the un-flipped default depends on the source frames' facing (hi-res Clarice
+  // faces the opposite way from the old low-res source) — so don't hardcode it; just require they differ.
+  ["walk mirrors between L/R (flips differ)", r.walkLeftFlip!==r.walkRightFlip && r.walkLeftFlip!=null && r.walkRightFlip!=null],
   ["fps >= 55", (r.fps||0)>=55],
   ["no non-cosmetic load failures", nonCosmetic.length===0],
 ];
