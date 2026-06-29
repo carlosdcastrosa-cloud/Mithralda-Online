@@ -285,6 +285,16 @@ export const STATUS = {
 //            reuses the timed dmgBonus buff (applyBuff).
 //   purge  — clears the hero's active DoTs (veneno/quemadura) + slow (CAS-118 cleanse).
 //   healFrac — restores this fraction of MAX hp (scaled heal, above the base 50 potion).
+// CAS-197 — combined attack-speed COHESION CAP. Three INDEPENDENT systems add into the
+// one atkCD-shortening `atkspd` term: loot affixes (CAS-117, self-capped at AFFIX_CAP 40),
+// the talent tree (CAS-119, self-capped at TT_CAP.atkspd 30), and the "furia" consumable
+// (CAS-192, +50 for its buff window). Each caps itself, but nothing capped the SUM — so the
+// three could compound without a ceiling and break the swing cadence / frame budget. This is
+// the global ceiling on that sum. Set to 130 = the current theoretical max (40+30+50=120)
+// plus headroom, so EVERY shipped build is unchanged today (zero regression) while any future
+// affix/talent/consumable interaction can never race the gated world-boss past intent.
+export const ATKSPD_TOTAL_CAP = 130;
+
 export const CONSUMABLES = [
   { id:"fury",     name:"Poción de furia", short:"Furia",  icon:"⚔", col:"#ff7a3a",
     price:55, cd:14, buff:{stat:"atkspd", amt:50, dur:6}, sfx:"buff",

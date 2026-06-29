@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, AMBUSH, MASTERY, CUSTOMIZE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MASTERY, CUSTOMIZE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -369,6 +369,14 @@ function applyZoneScale(e, zone){
   return e;
 }
 
+// CAS-197 — the ONE place the three atkspd sources (affixes CAS-117 + talents CAS-119 +
+// the "furia" consumable CAS-192) are summed, clamped to the global cohesion ceiling
+// ATKSPD_TOTAL_CAP so the independently-capped systems can't compound past intent. Both
+// the swing formula and the harness read-out call this, so they can never drift apart.
+export function heroAtkspd(h){ h=h||G.hero; if(!h) return 0;
+  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0);
+  return s>ATKSPD_TOTAL_CAP?ATKSPD_TOTAL_CAP:s; }
+
 // ------------------------------ combat ---------------------------------
 function heroAttack(){
   const h=G.hero; if(h.atkCD>0||h.rolling||h.stun>0) return; // CAS-118: stun gates the swing
@@ -377,7 +385,7 @@ function heroAttack(){
   const dmg=equippedDmg(h)*cfg.dmgMul;
   // CAS-117 affix + CAS-119 talent + CAS-192 "furia" consumable all add into the same
   // atkspd term that shortens the swing cooldown — one legible, deterministic formula.
-  const atkspd=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0);
+  const atkspd=heroAtkspd(h);
   h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+atkspd/100); h._atkHits=new Set();
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
@@ -1708,11 +1716,24 @@ export const dev = {
   clearConsumCD(){ const h=G.hero; h.consumCD={}; return true; },
   setHeroHp(n){ const h=G.hero; h.hp=Math.max(1,Math.min(heroMaxHp(h),n|0)); return Math.round(h.hp); },
   useConsum(){ const ok=doConsumable(); return Object.assign({ok},this.consumState()); },
+  // --- CAS-197 balance-cohesion harness hooks (tools/cas197-balance.mjs); additive ---
+  // Give the weapon a real atkspd affix (affixTotals self-caps it at AFFIX_CAP 40) so the
+  // harness can drive the loot half of the combined atkspd sum through the real read path.
+  giveAtkspdWeapon(amt){ const w=G.hero.equip.weapon||(G.hero.equip.weapon={slot:"weapon",defId:"w_steel",rarity:"rare"});
+    w.affixes=[{id:"atkspd",amt:amt||30}]; return affixTotals(G.hero).atkspd; },
+  // Force the talent half of the sum to an arbitrary value (bypasses the per-class node
+  // ceiling) purely to PROVE the global ATKSPD_TOTAL_CAP clamp fires when the three systems
+  // compound past it — recomputed away by any real talent change, so it can't leak into play.
+  setTTAtkspd(v){ const h=G.hero; if(!h.tt) h.tt=zeroTT(); h.tt.atkspd=Math.max(0,v|0); return this.atkspdTotal(); },
   // measure the REAL swing cadence (cooldown the formula produces) — proves the fury
   // buff shortens it. Reads the same atkspd term heroAttack() builds.
   atkCadence(){ const h=G.hero; const cfg=ATK[h.cls||"warrior"];
-    const atkspd=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0);
+    const atkspd=heroAtkspd(h);                       // CAS-197: capped sum (single source)
     return +(cfg.cd/(1+atkspd/100)).toFixed(4); },
+  // CAS-197 — expose the capped combined atkspd + its cap so the balance harness can prove
+  // the three-system cohesion ceiling holds (drive affix+talent+fury past 130 → clamps).
+  atkspdTotal(){ return { total:heroAtkspd(), cap:ATKSPD_TOTAL_CAP,
+    raw:(affixTotals(G.hero).atkspd+(G.hero.tt?G.hero.tt.atkspd:0)+(G.hero.atkspdBuffT>0?G.hero.atkspdBuffAmt:0)) }; },
   // --- CAS-114 abyss power-gate harness hooks (tools/abyss.mjs); additive ---
   // Read the gate: current power, requirement, whether the portal would open, and the
   // live zone the hero stands in. Lets the test assert lock/unlock without guessing.

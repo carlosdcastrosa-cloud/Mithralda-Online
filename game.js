@@ -115,6 +115,8 @@ export function createGame(canvas, ctx, getView){
       consumState:()=>simDev.consumState(), selectConsum:(i)=>simDev.selectConsum(i),
       useConsum:()=>simDev.useConsum(), atkCadence:()=>simDev.atkCadence(),
       setConsum:(id,n)=>simDev.setConsum(id,n), setHeroHp:(n)=>simDev.setHeroHp(n), clearConsumCD:()=>simDev.clearConsumCD(),
+      // CAS-197 balance-cohesion contract consumed by tools/cas196-trial.mjs (B5) — additive
+      atkspdTotal:()=>simDev.atkspdTotal(), giveAtkspdWeapon:(amt)=>simDev.giveAtkspdWeapon(amt), setTTAtkspd:(v)=>simDev.setTTAtkspd(v),
       // CAS-114 abyss power-gate contract consumed by tools/abyss.mjs — additive
       abyssGate:()=>simDev.abyssGate(), setUpg:(d,hp,def)=>simDev.setUpg(d,hp,def), tryPortal:(to)=>simDev.tryPortal(to),
       // CAS-115 combat-archetype contract consumed by tools/archetypes.mjs — additive

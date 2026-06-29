@@ -22,6 +22,9 @@
 // ---------------------------------------------------------------------------
 import puppeteer from "puppeteer-core";
 import { startServer, findChromium, LAUNCH_ARGS } from "./harness.mjs";
+// CAS-197 balance-cohesion pass: pure config data is asserted directly (deterministic,
+// no browser round-trip) alongside the live-build checks below.
+import { HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CONSUMABLES, ATKSPD_TOTAL_CAP } from "../sim/config.js";
 
 const log = (m) => console.log(m);
 let ok = true;
@@ -200,7 +203,80 @@ try {
   if (gold && gold.amt >= 600) pass(`[AC1] richest bonus gold dropped (${gold.amt} >= frost 480)`);
   else fail(`[AC1] missing/low bonus gold: ${JSON.stringify(gold)}`);
 
+  // ====================================================================
+  // CAS-197 — BALANCE & COHESION tuning pass. The content above (consumables /
+  // daily-loop / world-boss) was QA'd in isolation; these assertions lock in the
+  // cross-system INVARIANTS so the deepened Stage-1 stays cohesive: a smooth power
+  // curve (no cliff, no trivialised gate), a proportionate reward ladder, a bounded
+  // combined attack-speed (the one place three systems compound), and a status-less
+  // build's consumable answer to the world-boss. Runs BEFORE the finale-kill regression
+  // check below (which flips the scene to victory). Pure config data → deterministic.
+  // ====================================================================
+  // (B1) power-curve spacing: gates strictly ascend AND are evenly spaced (smooth, no cliff)
+  if (ABYSS_POWER_REQ < FROST_POWER_REQ && FROST_POWER_REQ < TRIAL_POWER_REQ)
+    pass(`[B1] gates strictly ascend (abyss ${ABYSS_POWER_REQ} < frost ${FROST_POWER_REQ} < coliseo ${TRIAL_POWER_REQ})`);
+  else fail(`[B1] gate ordering broke: ${ABYSS_POWER_REQ}/${FROST_POWER_REQ}/${TRIAL_POWER_REQ}`);
+  const dAF = FROST_POWER_REQ - ABYSS_POWER_REQ, dFT = TRIAL_POWER_REQ - FROST_POWER_REQ;
+  if (dAF === dFT) pass(`[B1] gate spacing is EVEN (+${dAF} / +${dFT}) — no difficulty cliff between tiers`);
+  else fail(`[B1] uneven gate spacing risks a cliff: +${dAF} then +${dFT}`);
+
+  // (B2) zone-tier scaling climbs smoothly into the deepest zone (no scaling cliff frost→trial)
+  const hpJumpFA = ZONE_TIER.frost.hpMul / ZONE_TIER.abyss.hpMul;
+  const hpJumpFT = ZONE_TIER.trial.hpMul / ZONE_TIER.frost.hpMul;
+  if (ZONE_TIER.trial.hpMul > ZONE_TIER.frost.hpMul && hpJumpFT <= hpJumpFA + 0.05)
+    pass(`[B2] deepest-zone trash scales smoothly (frost→trial ×${hpJumpFT.toFixed(2)} ≤ abyss→frost ×${hpJumpFA.toFixed(2)})`);
+  else fail(`[B2] trial trash is a scaling cliff: ×${hpJumpFT.toFixed(2)} vs ×${hpJumpFA.toFixed(2)}`);
+
+  // (B3) world-boss reward ladder is monotonic AND proportionate (richest, but not a payout cliff)
+  const A = HUNTS.abyss.boss, F = HUNTS.frost.boss, T = HUNTS.trial.boss;
+  const mono = (a, b, c) => a < b && b < c;
+  if (mono(A.hp, F.hp, T.hp) && mono(A.gold, F.gold, T.gold) && mono(A.xp, F.xp, T.xp))
+    pass(`[B3] capstone ladder ascends on every axis (hp ${A.hp}<${F.hp}<${T.hp}, gold ${A.gold}<${F.gold}<${T.gold}, xp ${A.xp}<${F.xp}<${T.xp})`);
+  else fail(`[B3] capstone reward/HP ladder not monotonic`);
+  const rHp = T.hp / F.hp, rGold = T.gold / F.gold, rXp = T.xp / F.xp;
+  if (rHp <= 1.6 && rGold <= 1.6 && rXp <= 1.6)
+    pass(`[B3] optional world-boss out-rewards the finale PROPORTIONATELY (×${rHp.toFixed(2)} hp / ×${rGold.toFixed(2)} gold / ×${rXp.toFixed(2)} xp ≤ 1.6)`);
+  else fail(`[B3] world-boss reward jump too steep: hp×${rHp.toFixed(2)} gold×${rGold.toFixed(2)} xp×${rXp.toFixed(2)}`);
+  // signature double-epic + a top-tier loot window keeps the haul proportionate to the gate
+  if (T.bonusDrop >= 1 && T.minR === "epic" && T.tier[1] === 4)
+    pass(`[B3] world-boss signature haul is gated-tier appropriate (bonusDrop ${T.bonusDrop}, ${T.minR} tier-${T.tier[1]})`);
+  else fail(`[B3] world-boss haul mis-tiered: ${JSON.stringify({ b: T.bonusDrop, r: T.minR, t: T.tier })}`);
+
+  // (B4) consumable economy: priced in the "meaningful but not mandatory" band + CD gates spam
+  let econOk = true; const econDetail = [];
+  for (const c of CONSUMABLES) {
+    const inBand = c.price >= 20 && c.price <= 80;       // above a 15g basic potion, below a permanent power tier
+    const noSpam = c.cd >= 8 && c.cd <= 20;              // a real cooldown — tactical, not spammable
+    econDetail.push(`${c.id}:${c.price}g/${c.cd}s`);
+    if (!inBand || !noSpam) econOk = false;
+  }
+  if (econOk) pass(`[B4] consumables priced in-band + CD-gated (${econDetail.join(", ")})`);
+  else fail(`[B4] consumable economy out of band: ${econDetail.join(", ")}`);
+  // the status-less build's ANSWER to the carapace world-boss: an antídoto that purges the
+  // Nova slow exists, so a non-status build is never hard-walled (cross-system cohesion).
+  const purge = CONSUMABLES.find((c) => c.purge);
+  const novaSlow = HUNTS.trial.boss.carapace && HUNTS.trial.boss.carapace.nova && HUNTS.trial.boss.carapace.nova.slow;
+  if (purge && novaSlow) pass(`[B4] status-less answer intact: '${purge.id}' purges the world-boss Nova slow (${novaSlow.amt}×${novaSlow.dur}s)`);
+  else fail(`[B4] no consumable answer to the world-boss Nova slow: purge=${!!purge} novaSlow=${JSON.stringify(novaSlow)}`);
+
+  // (B5) the combined attack-speed COHESION CAP holds: affix + talent + fury can't compound
+  // past ATKSPD_TOTAL_CAP, so a fully-stacked build can't race the gated world-boss past intent.
+  const capProbe = await page.evaluate(() => {
+    window.__dev.giveAtkspdWeapon(60);   // loot half — affixTotals self-caps at 40
+    window.__dev.setTTAtkspd(60);        // talent half — forced past its node ceiling
+    window.__dev.selectConsum(0); window.__dev.setConsum("fury", 3); window.__dev.clearConsumCD();
+    window.__dev.useConsum();            // fury +50 for its buff window
+    const cadHi = window.__dev.atkCadence();
+    return { t: window.__dev.atkspdTotal(), cadHi, buff: window.__dev.consumState().atkspdBuffAmt };
+  });
+  if (capProbe.t.raw > capProbe.t.cap && capProbe.t.total === capProbe.t.cap)
+    pass(`[B5] combined atkspd CLAMPED to the cohesion cap (raw ${capProbe.t.raw} → ${capProbe.t.total}/${capProbe.t.cap})`);
+  else fail(`[B5] atkspd cap did not clamp: ${JSON.stringify(capProbe.t)} (const ${ATKSPD_TOTAL_CAP})`);
+  if (capProbe.buff === 50) pass(`[B5] fury is a BOUNDED burst window (+${capProbe.buff}% atkspd, timed — not a permanent stat)`);
+  else fail(`[B5] fury buff magnitude unexpected: ${capProbe.buff}`);
+
   // ---- (5) NO REGRESSION: the frost finale contract still summons + clears ----
+  // (runs LAST among gameplay checks — the final-boss kill flips the scene to victory)
   const noreg = await page.evaluate(() => {
     window.__dev.tpZone("frost"); window.__dev.seed(5);
     const need = window.__dev.huntState("frost").need;
@@ -227,7 +303,7 @@ try {
   else fail(`[AC4] JS errors: ${JSON.stringify(errors.slice(0, 4))}`);
 
   log("");
-  log(ok ? "✓ CAS-196 coliseo world-boss harness passed." : "✗ CAS-196 coliseo world-boss harness FAILED.");
+  log(ok ? "✓ CAS-196 coliseo world-boss + CAS-197 balance-cohesion harness passed." : "✗ CAS-196/197 harness FAILED.");
 } catch (e) {
   fail(`harness threw: ${e && e.stack ? e.stack : e}`);
 } finally {
