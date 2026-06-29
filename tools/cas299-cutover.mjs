@@ -23,7 +23,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const exe = findChromium();
 if (!exe) { console.error("✖ No Chromium binary found."); process.exit(1); }
-const srv = await startServer();
+// Pass a URL arg to test a LIVE deploy (e.g. the gh-pages build); omit to serve the local tree.
+const LIVE = (process.argv[2] || "").replace(/\/$/, "");
+const srv = LIVE ? null : await startServer();
+const BASE = LIVE || srv.url;
+if (LIVE) console.log(`… testing LIVE ${BASE}`);
 const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: LAUNCH_ARGS, protocolTimeout: 180000 });
 const key = (p, c) => p.evaluate((c) => window.dispatchEvent(new KeyboardEvent("keydown", { code: c, key: c, bubbles: true })), c);
 
@@ -34,7 +38,7 @@ async function fresh(query) {
   const errs = [];
   page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errs.push("console.error: " + m.text()); });
-  await page.goto(`${srv.url}/index.html${query || ""}`, { waitUntil: "load", timeout: 45000 });
+  await page.goto(`${BASE}/index.html${query || ""}`, { waitUntil: "load", timeout: 45000 });
   await page.evaluate(() => { try { localStorage.clear(); } catch (e) {} });
   await page.reload({ waitUntil: "load", timeout: 45000 });
   await page.waitForFunction("window.__hud && typeof window.__hud.isOn==='function'", { timeout: 25000 });
@@ -137,6 +141,6 @@ try {
 } catch (e) { fail("EXCEPTION " + (e && e.stack || e)); }
 
 await browser.close();
-await srv.close();
+if (srv) await srv.close();
 console.log(ok ? "\n✅ CAS-299 cutover verification PASS" : "\n❌ CAS-299 cutover verification FAIL");
 process.exit(ok ? 0 : 1);
