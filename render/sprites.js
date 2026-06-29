@@ -269,17 +269,39 @@ export const ENEMY_ANIM={ mage:"mage", golem:"golem", moose:"moose" };
 // the common mobs so the bestiary reads at FOUNTAINS fidelity. Falls back to SP rows
 // while the image loads or for mobs without a generated sprite.
 export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"enemy_wraith", orc:"enemy_orc" };
-// CAS-209: real PixelLab walk-cycle STRIPS for solid-bodied mobs. 6 frames of
-// 64×64 in a 384×64 horizontal strip, baked from the PixelLab MCP 8-dir characters
-// (fountains-skel/bandit/orc) south walk via tools/cas209-build-strip.mjs.
-// drawEnemy plays these frame-by-frame off sim time —
-// replacing the procedural breathe/bob with a genuine PixelLab walk cycle. The
-// ethereal wraith stays on ENEMY_IMG + procedural float (frame-coherence breaks
-// down on a formless spectre — deliberate art call). Falls back to ENEMY_IMG.
+// CAS-209: per-state PixelLab MCP animation strips for solid-bodied mobs.
+// Each mob has a map of animState → strip descriptor. drawEnemyStrip() picks the
+// correct state strip (falling back to "walk" if the state-specific strip is absent).
+// Frame size is always 64×64 (scaled to ~2 tiles in render). Wraith stays on ENEMY_IMG.
+//
+// Strip files: assets/pixellab/fountains/anim/{mob}_{state}_strip.png
+// Build tool:  tools/cas209-build-strip.mjs <mob> 64 <frameURL>...
+const _s=(fc,key)=>({key,fc,fw:64,fh:64});
+export const ENEMY_STRIPS={
+  skel:{
+    walk: _s(6,"skel_walk_strip"),
+    idle: _s(8,"skel_idle_strip"),
+  },
+  bandit:{
+    walk: _s(6,"bandit_walk_strip"),
+    idle: _s(8,"bandit_idle_strip"),
+  },
+  orc:{
+    walk: _s(6,"orc_walk_strip"),
+    idle: _s(8,"orc_idle_strip"),
+  },
+};
+// Resolve the best available strip for a mob + animState.
+// Falls back to "walk" strip if the specific state is absent or not yet loaded.
+export function resolveStrip(sprite, animState){
+  const states=ENEMY_STRIPS[sprite]; if(!states) return null;
+  return states[animState]||states.walk||null;
+}
+// Legacy single-strip map (still used by load path below until full state-strip wiring).
 export const ENEMY_STRIP={
-  skel:  {key:"skel_walk_strip",   fc:6, fw:64, fh:64},
-  bandit:{key:"bandit_walk_strip", fc:6, fw:64, fh:64},
-  orc:   {key:"orc_walk_strip",    fc:6, fw:64, fh:64},
+  skel:  ENEMY_STRIPS.skel.walk,
+  bandit:ENEMY_STRIPS.bandit.walk,
+  orc:   ENEMY_STRIPS.orc.walk,
 };
 // animated, non-hostile town NPCs. Keyed by npc.sprite → ANIM strip; idle loop only.
 export const NPC_ANIM={ merchant:"merchant" };
@@ -315,8 +337,13 @@ export function loadAllAssets(){
   for(const p of ["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"]) loadImg("prop_"+p,"./assets/props/"+p+".png");
   // CAS-206: FOUNTAINS-style PixelLab enemy cutouts (see ENEMY_IMG above).
   for(const k of new Set(Object.values(ENEMY_IMG))) loadImg(k,"./assets/pixellab/fountains/"+k+".png");
-  // CAS-209: PixelLab walk-cycle strips for solid mobs (see ENEMY_STRIP above).
-  for(const s in ENEMY_STRIP) loadImg(ENEMY_STRIP[s].key,"./assets/pixellab/fountains/anim/"+ENEMY_STRIP[s].key+".png");
+  // CAS-209: PixelLab per-state strips for solid mobs (walk+idle; see ENEMY_STRIPS).
+  // Missing state strips (file 404s) silently fall through to ENEMY_IMG procedural fallback.
+  const _loaded=new Set();
+  for(const mob in ENEMY_STRIPS) for(const st in ENEMY_STRIPS[mob]){
+    const {key}=ENEMY_STRIPS[mob][st]; if(_loaded.has(key)) continue; _loaded.add(key);
+    loadImg(key,"./assets/pixellab/fountains/anim/"+key+".png");
+  }
 }
 export function dir4FromAngle(a){ const p=Math.PI;
   if(a>p/4 && a<=3*p/4) return "down";

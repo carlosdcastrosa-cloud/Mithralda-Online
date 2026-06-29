@@ -23,7 +23,7 @@ import { resetGame } from "../persist.js";   // CAS-113: pause-menu "Nueva parti
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
-  ANIM, ENEMY_ANIM, ENEMY_IMG, ENEMY_STRIP, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
+  ANIM, ENEMY_ANIM, ENEMY_IMG, ENEMY_STRIP, ENEMY_STRIPS, resolveStrip, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
   dir4FromAngle, drawClassFrame, drawAnim, frameIndex,
 } from "./sprites.js";
 import { ensureMasks, bakeHero } from "./customize.js"; // CAS-169 part-recolor bake
@@ -557,20 +557,18 @@ export function createRenderer(ctx){
       const fi=frameIndex(ch,st,e.animT||0,fps, st!=="attack");
       drew=drawAnim(ctx,ch,st,fi,e.x,feet,S,fl, e.hurtFlash>0?"#ffffff":null);
     }
-    // CAS-209: real PixelLab walk-cycle strip for solid-bodied mobs (skel/bandit/orc).
-    // 6-frame 64×64 strip; frame chosen off sim time G.t (+ stable per-mob phase) so
-    // the legs actually step — a genuine animation, not the procedural bob. Bottom-
-    // anchored, flip + hurt-flash honored, reduceMotion freezes to frame 0. Reads only
-    // render state (G.t/e.x/e.y/tpl/animState/hurtFlash) and mutates nothing → Stage-2 safe.
-    if(!drew){ const strip=ENEMY_STRIP[e.tpl.sprite]; const simg=strip&&IMG[strip.key];
-      if(simg && simg.complete && simg.naturalWidth){
+    // CAS-209: per-state PixelLab MCP strips for solid-bodied mobs (skel/bandit/orc).
+    // resolveStrip picks the state-specific strip (idle/walk) or falls back to walk.
+    // Stage-2 safe: reads only render state, mutates nothing.
+    if(!drew){ const st=e.animState||"idle"; const strip=resolveStrip(e.tpl.sprite,st);
+      const simg=strip&&IMG[strip.key]&&IMG[strip.key].complete&&IMG[strip.key].naturalWidth?IMG[strip.key]:null;
+      if(simg){
         const fw=strip.fw, fh=strip.fh;
         const dh=e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4), dw=dh*(fw/fh);
-        const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9), st=e.animState||"idle";
-        const fps = st==="walk"?9 : st==="attack"?10 : 4;
+        const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9);
+        const fps = st==="walk"?9 : st==="attack"?10 : 6;
         const fi = G.settings.reduceMotion ? 0 : (Math.floor(G.t*fps+ph*7)%strip.fc+strip.fc)%strip.fc;
-        const bob = (!G.settings.reduceMotion && st==="idle") ? Math.sin(G.t*2.3+ph)*0.8 : 0;
-        ctx.save(); ctx.translate(e.x, feetY+bob);
+        ctx.save(); ctx.translate(e.x, feetY);
         if(fl) ctx.scale(-1,1);
         ctx.imageSmoothingEnabled=false;
         ctx.drawImage(simg, fi*fw,0,fw,fh, -dw/2,-dh,dw,dh);
