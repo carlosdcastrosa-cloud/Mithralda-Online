@@ -204,7 +204,7 @@ export const SP = {
     "oWdWdWo",
     "oWWWWWo",
     "ooooooo"]},
-  stall: { pal:{o:COL.out,p:"#7a3a2a",P:"#9a4838",w:"#6b4a2a",b:"#caa14e"}, rows:[
+  stall: { pal:{o:COL.out,p:"#3e2e2c",P:"#52403c",w:"#5a4230",b:"#8f7a44"}, rows:[
     ".ooooooooo.",
     "opPpPpPpPpo",
     "opPpPpPpPpo",
