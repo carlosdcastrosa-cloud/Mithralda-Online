@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, AMBUSH, MASTERY } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, AMBUSH, MASTERY, CUSTOMIZE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -74,6 +74,26 @@ export const G = {
 // see it (a loaded save jumps straight to play). Replay is on demand from the menu.
 let tutArmed = false;
 
+// ----------------------------- CAS-169 customization -----------------------
+// A deep clone of a class's default part palette ({hood,cloak,sash,legs} → [r,g,b]).
+// Falls back to the warrior look for an unknown class so a hero is never colorless.
+export function defaultPalette(cls){
+  const d = CUSTOMIZE.defaults[cls] || CUSTOMIZE.defaults.warrior;
+  const o={}; for(const s of CUSTOMIZE.slots) o[s]=d[s].slice(); return o;
+}
+// Coerce one untrusted color into a valid [r,g,b] of ints 0-255, else null.
+function safeColor(c){ if(!Array.isArray(c)||c.length<3) return null;
+  const o=[]; for(let i=0;i<3;i++){ const v=c[i]; if(typeof v!=="number"||!isFinite(v)) return null; o.push(Math.max(0,Math.min(255,Math.round(v)))); }
+  return o; }
+// Rebuild a LEGAL palette from an untrusted blob: each slot keeps a valid stored
+// color, otherwise falls back to the class default. Result always has all 4 slots.
+function sanitizePalette(p, cls){ const base=defaultPalette(cls); if(!p||typeof p!=="object") return base;
+  for(const s of CUSTOMIZE.slots){ const c=safeColor(p[s]); if(c) base[s]=c; } return base; }
+// Rebuild a LEGAL variation from an untrusted blob: each kind must be one of the
+// allowed option ids, else the class default.
+function sanitizeVariation(v){ const out=Object.assign({},CUSTOMIZE.variationDefault); if(!v||typeof v!=="object") return out;
+  for(const k in CUSTOMIZE.variations){ if(CUSTOMIZE.variations[k].indexOf(v[k])>=0) out[k]=v[k]; } return out; }
+
 function newHero(name,cls){
   cls = cls||"warrior";
   // CAS-100: base stats + per-level growth + mobility come from CLASS_STATS so each
@@ -93,6 +113,11 @@ function newHero(name,cls){
     // input, dots holds active DoTs. Transient — never serialized (rehydrated clean).
     slow:1, slowT:0, stun:0, dots:null,
     animState:"idle", animT:0, cls:cls||"warrior",
+    // CAS-169: character customization — recolorable part palette + headwear/cape
+    // variation. Pure presentation state the renderer bakes into the hero strips
+    // (never touches sim/combat). Boots on the class default look; persisted
+    // additively in serializeSave. Cloned so per-hero edits never alias the data.
+    palette:defaultPalette(cls), variation:Object.assign({},CUSTOMIZE.variationDefault),
     // CAS-119: talent progression. talents = {nodeId:rank} chosen by the player,
     // talentPts = unspent points (1 granted per level in gainXP). tt = the CACHED
     // aggregated combat bundle (recalcTalents) read by the hot path with no alloc.
@@ -219,6 +244,11 @@ export function serializeSave(){
     // permanent +maxHp granted at each rank-up is already baked into the saved maxHp above,
     // so the bonus is restored with maxHp and is NEVER re-applied on load (no double-count).
     eliteKills:h.eliteKills||0,
+    // CAS-169: durable character-customization look. Additive — old saves simply lack
+    // these and rehydrate on the class default look, so NO SAVE_VERSION bump / progress
+    // wipe (bumping would discard every live player's progress; an additive+guarded field
+    // preserves it and is fully reversible). Pure cosmetics: never read by sim/combat.
+    palette:Object.assign({},h.palette), variation:Object.assign({},h.variation),
     // CAS-128: persist an IN-PROGRESS tutorial so a first-run refresh resumes the
     // guided flow (only the step index — per-step counters re-derive). Additive/guarded;
     // absent in old saves → no tutorial, no SAVE_VERSION bump.
@@ -248,6 +278,7 @@ export function loadSave(d){
     h.stage1=!!d.stage1; h.playT=Math.max(0,num(d.playT,0)); h.deaths=Math.max(0,Math.floor(num(d.deaths,0)));
     h.kills=Math.max(0,Math.floor(num(d.kills,0))); h.champKills=Math.max(0,Math.floor(num(d.champKills,0))); // CAS-134
     h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
+    h.palette=sanitizePalette(d.palette, h.cls); h.variation=sanitizeVariation(d.variation); // CAS-169 cosmetics (validated, class-default fallback)
     recalcMastery(h);  // CAS-150: rebuild the reward-track perk bundle from the loaded count BEFORE heroMaxHp reads it
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
@@ -642,6 +673,31 @@ export function allocTalent(id){ const h=G.hero; if(!h||!h.talents) return false
 // Refund every spent point back into the pool and wipe the build. CAS-119 respec.
 export function respecTalents(){ const h=G.hero; if(!h||!h.talents) return 0; const n=talentSpent(h);
   if(n<=0) return 0; h.talentPts=(h.talentPts||0)+n; h.talents={}; recalcTalents(h); audio.sfx.rune(); toast(STR.talentRespec); return n; }
+
+// ----------------------------- CAS-169 customization API ----------------------
+// The customization SCENE (render/customize.js bake + input.js panel) drives the
+// live hero's look through these. All pure cosmetics: they only mutate h.palette /
+// h.variation, which the throttled autosave persists and the renderer dirty-checks +
+// re-bakes. No combat/sim/RNG touch — Stage-2-safe. Each returns the new state so a
+// caller (or harness) can confirm the change took.
+export function customizeState(){ const h=G.hero; if(!h) return null;
+  return { cls:h.cls,
+    palette:Object.assign({},h.palette), variation:Object.assign({},h.variation),
+    swatches:CUSTOMIZE.swatches.map(c=>c.slice()), slots:CUSTOMIZE.slots.slice(),
+    variations:{ headwear:CUSTOMIZE.variations.headwear.slice(), cape:CUSTOMIZE.variations.cape.slice() } }; }
+// Set one part's color. `color` may be an [r,g,b] (validated) or a swatch index.
+export function setPartColor(slot, color){ const h=G.hero; if(!h||CUSTOMIZE.slots.indexOf(slot)<0) return false;
+  let c=null;
+  if(typeof color==="number"){ const sw=CUSTOMIZE.swatches[color]; if(sw) c=sw.slice(); }
+  else c=safeColor(color);
+  if(!c) return false; h.palette[slot]=c; return true; }
+// Cycle a variation (headwear|cape) by dir (+1/-1) through its allowed options.
+export function cycleVariation(kind, dir){ const h=G.hero; const opts=CUSTOMIZE.variations[kind]; if(!h||!opts) return false;
+  const cur=Math.max(0,opts.indexOf(h.variation[kind])); const n=opts.length;
+  h.variation[kind]=opts[((cur+(dir||1))%n+n)%n]; return h.variation[kind]; }
+// Reset the hero's whole look back to its class default (the "restaurar" button).
+export function resetCustomize(){ const h=G.hero; if(!h) return false;
+  h.palette=defaultPalette(h.cls); h.variation=Object.assign({},CUSTOMIZE.variationDefault); return true; }
 
 function registerSkull(){ const s=G.skull;
   if(s.level===0){ s.level=1; s.t=60; }            // white
@@ -1393,6 +1449,12 @@ function updateFloaters(dt){ const a=G.floaters; let w=0; for(let i=0;i<a.length
 // --------------------------- dev hooks (wired only when ?dev) ----------
 export const dev = {
   spawn(type,dx,dy){ const e=spawnEnemy(type, G.hero.x+(dx||0), G.hero.y+(dy||0)); if(type==="golem"&&e) e.isBoss=true; return type; },
+  // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
+  customizeState(){ return customizeState(); },
+  setPartColor(slot,color){ return setPartColor(slot,color); },
+  cycleVariation(kind,dir){ return cycleVariation(kind,dir); },
+  resetCustomize(){ return resetCustomize(); },
+  defaultPalette(cls){ return defaultPalette(cls); },
   tp(tx,ty){ G.hero.x=tx*TS; G.hero.y=ty*TS; return [G.hero.x,G.hero.y]; },
   // --- gear/progression harness hooks (tools/gear.mjs); additive, see CAS-29 ---
   tpZone(zone){ const r=world[zone]; if(!r) return null; G.hero.x=(r.x+r.w/2)*TS; G.hero.y=(r.y+r.h/2)*TS; return zone; },

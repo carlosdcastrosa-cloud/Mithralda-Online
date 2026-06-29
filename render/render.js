@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, CUSTOMIZE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
@@ -26,6 +26,7 @@ import {
   ANIM, ENEMY_ANIM, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
   dir4FromAngle, drawClassFrame, drawAnim, frameIndex,
 } from "./sprites.js";
+import { ensureMasks, bakeHero } from "./customize.js"; // CAS-169 part-recolor bake
 
 // CAS-82: the board's main-character art is a single 256×256 hooded pose
 // (assets/erw/hero/hero_hooded.png) — a higher-fidelity match for our existing
@@ -90,6 +91,23 @@ export function createRenderer(ctx){
   for(const k in HERO_STRIPS) loadImg(HERO_STRIPS[k].img, `./assets/erw/hero/${HERO_STRIPS[k].img}.png`); // CAS-92 anim strips
   for(const k of CLASS_HERO_KEYS) loadImg("clshero_"+k, `./assets/erw/hero/classes/${k}.png`); // CAS-98 per-class clean cutouts
   for(const k of CLASS_HERO_KEYS) loadImg("clswalk_"+k, `./assets/erw/hero/classes/${k}_walk.png`); // CAS-110 per-class walk-cycle strips
+  // CAS-169: start loading the recolorable part masks; the baked look replaces the
+  // class strips below once ready. Until then the CAS-167 PNG strips render (no blank).
+  ensureMasks();
+  // Re-bake the hero's strips ONLY when the chosen look changes (class / palette /
+  // variation). A cheap signature dirty-check keeps the bake off the hot path: it runs
+  // on createHero, loadSave and every live customization edit, never per frame.
+  let _lookSig="";
+  function syncHeroLook(){
+    const h=G.hero; if(!h||!h.palette||!h.variation) return;
+    const p=h.palette, v=h.variation;
+    const sig=h.cls+"|"+p.hood+";"+p.cloak+";"+p.sash+";"+p.legs+"|"+v.headwear+","+v.cape;
+    if(sig===_lookSig) return;
+    const baked=bakeHero(h.cls, p, v);          // null until masks load → retry next frame
+    if(!baked) return;
+    IMG["clshero_"+h.cls]=baked.idle; IMG["clswalk_"+h.cls]=baked.walk;
+    _lookSig=sig;
+  }
   // offscreen buffer for the hero hurt-flash tint (only touched when flashing)
   const _heroBuf=(typeof document!=="undefined")?document.createElement("canvas"):null;
   const _heroBx=_heroBuf?_heroBuf.getContext("2d"):null;
@@ -108,8 +126,10 @@ export function createRenderer(ctx){
     let camX=G.cam.x, camY=G.cam.y;
     if(G.shake>0){ camX+=rr(-G.shake,G.shake)/Z; camY+=rr(-G.shake,G.shake)/Z; }
     ctx.fillStyle=COL.bg; ctx.fillRect(0,0,VW,VH);
+    syncHeroLook();   // CAS-169: re-bake the hero strips if the look changed (off hot path)
     if(G.scene==="menu"){ renderMenu(); return; }
     if(G.scene==="classsel"){ renderClassSel(); return; }
+    if(G.scene==="customize"){ renderCustomize(); return; }
     ctx.save(); ctx.scale(Z,Z); ctx.translate(-camX,-camY);
     renderWorld(camX,camY,Z);
     renderEntities();
@@ -1255,7 +1275,7 @@ export function createRenderer(ctx){
     rrng.seed(7); for(let i=0;i<50;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
     ctx.fillStyle=COL.textGold; ctx.font="bold 26px 'Courier New'"; ctx.fillText("Elige tu clase",VW/2,VH*0.15);
-    ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Toca una clase  ·  o usa 1-5 / ←→ + Enter",VW/2,VH*0.15+24);
+    ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Toca una clase  ·  1-5 / ←→ + Enter  ·  C personalizar",VW/2,VH*0.15+24);
     ui.classRects.length=0;
     const n=CLASS_LIST.length, gap=10, cw=Math.min(150,(VW-30)/n-gap), ch=Math.min(210,VH*0.52);
     const totalW=n*cw+(n-1)*gap, x0=(VW-totalW)/2, cy=VH*0.55;
@@ -1300,6 +1320,93 @@ export function createRenderer(ctx){
     if(info){ const hy=cy+ch/2+26;
       ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(info.name+" — "+info.role, VW/2, hy);
       ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(info.attack, VW/2, hy+20); }
+    // CAS-169: "Personalizar ▸" — open the wardrobe for the highlighted class before play.
+    const pbW=Math.min(220,VW*0.6), pbH=30, pbX=VW/2-pbW/2, pbY=Math.min(VH-46, cy+ch/2+40);
+    ctx.fillStyle="#262d3a"; ctx.fillRect(pbX,pbY,pbW,pbH); ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(pbX,pbY,pbW,pbH);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.customizeOpen+" ▸", VW/2, pbY+20);
+    const pc=ui.classCustomRect; pc.x=pbX; pc.y=pbY; pc.w=pbW; pc.h=pbH;
+  }
+  // CAS-169: the 6 customization rows (4 recolorable parts + 2 variation swaps) and
+  // their human labels / option display names. Order = keyboard up/down focus order.
+  const CUST_ROWS=[
+    {t:"color",key:"hood", label:"Capucha"},
+    {t:"color",key:"cloak",label:"Capa"},
+    {t:"color",key:"sash", label:"Banda"},
+    {t:"color",key:"legs", label:"Piernas"},
+    {t:"var",  key:"headwear",label:"Cabeza"},
+    {t:"var",  key:"cape",    label:"Estilo capa"},
+  ];
+  const CUST_VARNAME={ hood:"Capucha", helmet:"Casco", none:"Descubierto",
+    cape:"Capa corta", nocape:"Sin capa", longcape:"Capa larga" };
+  function colEq(a,b){ return a&&b&&a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2]; }
+  // Live wardrobe screen: a big animated preview of the player's actual baked hero +
+  // 4 color pickers + 2 variation selectors. Touch (rects) + keyboard (G.custFocus).
+  function renderCustomize(){
+    const h=G.hero; if(!h){ G.scene="play"; return; }
+    ui.customRects.length=0;
+    ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
+    rrng.seed(11); for(let i=0;i<40;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
+    ctx.textAlign="center";
+    ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.customizeTitle, VW/2, 34);
+    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(STR.customizeHint, VW/2, 54);
+
+    // ---- live preview (baked clshero strip, breathing idle loop) ----
+    const pvW=Math.min(150,VW*0.34), pvX=VW*0.5-VW*0.30, pvY=72, pvH=Math.min(190,VH*0.34);
+    ctx.fillStyle="#10141b"; ctx.fillRect(pvX-pvW/2,pvY,pvW,pvH);
+    ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(pvX-pvW/2,pvY,pvW,pvH);
+    const aimg=IMG["clshero_"+h.cls];
+    if(aimg&&aimg.complete&&aimg.naturalWidth){
+      const fitH=pvH*0.82, fs=fitH/CLASS_FH, feetY=pvY+pvH*0.93, fi=Math.floor(G.t*2.6)%CLASS_FC;
+      ctx.save(); ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(aimg, fi*CLASS_FW,0,CLASS_FW,CLASS_FH, pvX-CLASS_AX*fs, feetY-CLASS_FOOT*fs, CLASS_FW*fs, CLASS_FH*fs);
+      ctx.restore();
+    }
+
+    // ---- control rows on the right ----
+    const colX=VW*0.5-VW*0.10, colW=Math.min(300,VW*0.44), rowH=Math.min(40,(VH-pvY-60)/CUST_ROWS.length);
+    const sw=CUSTOMIZE.swatches; ctx.textAlign="left";
+    for(let r=0;r<CUST_ROWS.length;r++){
+      const row=CUST_ROWS[r], ry=pvY+r*rowH, foc=(G.custFocus===r);
+      ctx.fillStyle=foc?"#262d3a":"#181c24"; ctx.fillRect(colX,ry,colW,rowH-6);
+      ctx.strokeStyle=foc?COL.textGold:"#3a4456"; ctx.lineWidth=foc?2:1; ctx.strokeRect(colX,ry,colW,rowH-6);
+      ctx.fillStyle=foc?COL.textGold:COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.fillText(row.label, colX+8, ry+15);
+      if(row.t==="color"){
+        const cur=h.palette[row.key];
+        // current chip
+        ctx.fillStyle="rgb("+cur[0]+","+cur[1]+","+cur[2]+")"; ctx.fillRect(colX+8,ry+rowH-18,12,10);
+        ctx.strokeStyle="#0008"; ctx.lineWidth=1; ctx.strokeRect(colX+8,ry+rowH-18,12,10);
+        // swatch strip
+        const sx0=colX+28, cw=Math.max(9,Math.min(15,(colW-36)/sw.length)), cy=ry+rowH-19;
+        for(let c=0;c<sw.length;c++){ const cx=sx0+c*cw, on=colEq(sw[c],cur);
+          ctx.fillStyle="rgb("+sw[c][0]+","+sw[c][1]+","+sw[c][2]+")"; ctx.fillRect(cx,cy,cw-2,12);
+          if(on){ ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.strokeRect(cx-1,cy-1,cw,14); }
+          ui.customRects.push({kind:"swatch",slot:row.key,ci:c,x:cx,y:cy-1,w:cw,h:15});
+        }
+      } else {
+        const val=h.variation[row.key], opts=CUSTOMIZE.variations[row.key], idx=Math.max(0,opts.indexOf(val));
+        const aw=18, vy=ry+2, vh=rowH-10, rx=colX+colW-8;
+        // ‹  value  ›
+        ctx.textAlign="center";
+        ctx.fillStyle="#2b3340"; ctx.fillRect(colX+90,vy,aw,vh); ctx.fillRect(rx-aw,vy,aw,vh);
+        ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText("‹",colX+90+aw/2,vy+vh*0.7); ctx.fillText("›",rx-aw/2,vy+vh*0.7);
+        ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.fillText(CUST_VARNAME[val]||val,(colX+90+aw+rx-aw)/2,vy+vh*0.7);
+        ctx.textAlign="left";
+        ui.customRects.push({kind:"var",key:row.key,dir:-1,x:colX+90,y:vy,w:aw,h:vh});
+        ui.customRects.push({kind:"var",key:row.key,dir:1, x:rx-aw, y:vy,w:aw,h:vh});
+      }
+    }
+    // ---- buttons ----
+    ctx.textAlign="center";
+    const by=VH-46, bw=Math.min(150,VW*0.4), bh=32, gap=14;
+    const dX=VW/2+gap/2, sX=VW/2-gap/2-bw;
+    ctx.fillStyle="#1d3324"; ctx.fillRect(dX,by,bw,bh); ctx.strokeStyle=COL.heal; ctx.lineWidth=2; ctx.strokeRect(dX,by,bw,bh);
+    ctx.fillStyle=COL.heal; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.customizeDone, dX+bw/2, by+21);
+    ctx.fillStyle="#33301a"; ctx.fillRect(sX,by,bw,bh); ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(sX,by,bw,bh);
+    ctx.fillStyle=COL.textGold; ctx.fillText(STR.customizeReset, sX+bw/2, by+21);
+    ui.customRects.push({kind:"done",x:dX,y:by,w:bw,h:bh});
+    ui.customRects.push({kind:"reset",x:sX,y:by,w:bw,h:bh});
+    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.customizeKeys, VW/2, VH-8);
+    ctx.textAlign="left";
   }
   function drawMenuEmblem(x,y){ ctx.save(); ctx.translate(x,y);
     ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(0,0,26,0,6.28); ctx.fill(); ctx.fillStyle="#6b4a2a"; ctx.beginPath(); ctx.arc(0,0,22,0,6.28); ctx.fill();

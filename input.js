@@ -21,7 +21,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], classRects:[], talentRects:[], mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], classRects:[], talentRects:[], customRects:[], mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -45,11 +45,12 @@ function onKeyDown(e){
     else if(c==="Digit5"||c==="Numpad5") chooseClass(CLASS_LIST[4]);
     else if(c==="ArrowLeft"||c==="KeyA") G.classSel=(G.classSel+CLASS_LIST.length-1)%CLASS_LIST.length;
     else if(c==="ArrowRight"||c==="KeyD") G.classSel=(G.classSel+1)%CLASS_LIST.length;
+    else if(c==="KeyC") customizeNewHero(CLASS_LIST[G.classSel]); // CAS-169: personalize before play
     else if(c==="Enter"||c==="Space") chooseClass(CLASS_LIST[G.classSel]);
     e.preventDefault(); return; }
   if(BIND[e.code]) { keys.add(BIND[e.code]); e.preventDefault(); }
   edge(e.code);
-  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","KeyT","KeyV","Escape"].includes(e.code)) e.preventDefault();
+  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","KeyT","KeyV","KeyC","Escape"].includes(e.code)) e.preventDefault();
 }
 function onKeyUp(e){ if(BIND[e.code]) keys.delete(BIND[e.code]); }
 function edge(code){
@@ -86,6 +87,17 @@ function edge(code){
     else if(code==="KeyR"){ sim.respecTalents(); } return; }
   // CAS-150: elite-mastery reward-track panel — V/Escape close (read-only screen).
   if(G.scene==="mastery"){ if(code==="KeyV"||code==="Escape"){ G.scene="play"; } return; }
+  // CAS-169: wardrobe / customization — C/Escape/Enter close (changes are live + autosaved).
+  // ↑/↓ move the focused row; ←/→ change it (cycle swatch on a color row, swap a variation);
+  // R restores the class default. Pointer/touch use ui.customRects.
+  if(G.scene==="customize"){ const N=6;
+    if(code==="KeyC"||code==="Escape"||code==="Enter"){ G.scene="play"; }
+    else if(code==="ArrowUp"){ G.custFocus=((G.custFocus||0)-1+N)%N; }
+    else if(code==="ArrowDown"){ G.custFocus=((G.custFocus||0)+1)%N; }
+    else if(code==="ArrowLeft"){ custAdjust(-1); }
+    else if(code==="ArrowRight"){ custAdjust(1); }
+    else if(code==="KeyR"){ sim.resetCustomize(); }
+    return; }
   if(G.scene==="pause"){ if(code==="Escape"){ G.resetArm=false; G.scene="play"; }
     else if(code==="Digit1"){G.settings.shake=G.settings.shake>0?0:1;}
     else if(code==="Digit2"){G.settings.crt=!G.settings.crt;}
@@ -102,6 +114,7 @@ function edge(code){
     case "KeyI": G.scene="inventory"; break;
     case "KeyT": G.scene="talents"; G.talFocus=G.talFocus||0; break; // CAS-119 talent panel
     case "KeyV": G.scene="mastery"; break; // CAS-150 elite-mastery reward track
+    case "KeyC": G.scene="customize"; G.custFocus=G.custFocus||0; break; // CAS-169 wardrobe / character customization
     case "KeyM": G.showMap=!G.showMap; break;
     case "KeyE": sim.interact(); break;
     case "Escape": G.scene="pause"; break;
@@ -114,7 +127,8 @@ function edge(code){
 function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left, y=e.clientY-r.top;
   audio.resume();
   if(G.scene==="menu"){ if(menuPlayHit(x,y)) startGame(); return; }
-  if(G.scene==="classsel"){ for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
+  if(G.scene==="classsel"){ const pc=ui.classCustomRect; if(pc&&pc.w&&x>=pc.x&&x<=pc.x+pc.w&&y>=pc.y&&y<=pc.y+pc.h){ customizeNewHero(CLASS_LIST[G.classSel]); return; }
+    for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
   if(handleUITap(x,y)) return;
   if(G.scene==="play"){
     // touch zones: left half = move stick, right half handled by buttons; tap world = attack toward point
@@ -167,8 +181,9 @@ export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH)
   inv:{x:VW-14-b*0.5, y, r:b*0.5, label:"I", act:()=>{G.scene=G.scene==="inventory"?"play":"inventory";}},
   tal:{x:VW-14-b*1.6, y, r:b*0.5, label:"T", act:()=>{G.scene=G.scene==="talents"?"play":"talents";}}, // CAS-119
   mst:{x:VW-14-b*2.7, y, r:b*0.5, label:"✦", act:()=>{G.scene=G.scene==="mastery"?"play":"mastery";}}, // CAS-150 mastery track
-  map:{x:VW-14-b*3.8, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
-  pause:{x:VW-14-b*4.9, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
+  cst:{x:VW-14-b*3.8, y, r:b*0.5, label:"♟", act:()=>{G.scene=G.scene==="customize"?"play":"customize"; G.custFocus=G.custFocus||0;}}, // CAS-169 wardrobe
+  map:{x:VW-14-b*4.9, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
+  pause:{x:VW-14-b*6.0, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
 
 function handleUITap(x,y){
   // CAS-128: tutorial Skip button (pointer + touch). Checked before the play-scene
@@ -181,6 +196,7 @@ function handleUITap(x,y){
   if(G.scene==="inventory"){ return invTap(x,y); }
   if(G.scene==="talents"){ return talentTap(x,y); }
   if(G.scene==="mastery"){ G.scene="play"; return true; } // CAS-150: tap anywhere closes the read-only track
+  if(G.scene==="customize"){ return customTap(x,y); } // CAS-169 wardrobe
   if(G.scene==="shop"){ return shopTap(x,y); }
   if(G.scene==="bounty"){ return bountyTap(x,y); }
   if(G.scene==="play" && isTouch){
@@ -221,6 +237,30 @@ function startGame(){
 }
 function chooseClass(cls){ sim.createHero(G.pendingName||"Héroe",cls);
   audio.playMusic("town"); audio.setAmbient("town"); audio.start(); }
+// CAS-169: pick a class but open the wardrobe BEFORE play (createHero spawns the hero
+// in town + starts the run audio; we just hold on the customize scene first). "Listo"
+// in the wardrobe drops into play.
+function customizeNewHero(cls){ sim.createHero(G.pendingName||"Héroe",cls);
+  audio.playMusic("town"); audio.setAmbient("town"); audio.start(); G.scene="customize"; G.custFocus=0; }
+// CAS-169: the focus-row keys, mirroring render.js CUST_ROWS order (4 color slots, 2 vars).
+const CUST_KEYS=["hood","cloak","sash","legs","headwear","cape"];
+function isColorRow(k){ return CUST_KEYS.indexOf(k)<4; }
+// ←/→ on the focused row: cycle the swatch palette for a color slot, or swap a variation.
+function custAdjust(dir){ const st=sim.customizeState(); if(!st) return;
+  const key=CUST_KEYS[G.custFocus||0];
+  if(isColorRow(key)){ const sw=st.swatches, cur=st.palette[key];
+    let idx=sw.findIndex(c=>c[0]===cur[0]&&c[1]===cur[1]&&c[2]===cur[2]);
+    if(idx<0) idx = dir>0?-1:0;                 // off-palette → first step lands on an end
+    idx=((idx+dir)%sw.length+sw.length)%sw.length; sim.setPartColor(key, idx);
+  } else sim.cycleVariation(key, dir); }
+// Wardrobe taps: a swatch sets that slot's color (+ focuses the row), a ‹/› arrow swaps a
+// variation, Listo/Restaurar act. Tapping empty space keeps the panel open.
+function customTap(x,y){ for(const r of (ui.customRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+    if(r.kind==="swatch"){ G.custFocus=CUST_KEYS.indexOf(r.slot); sim.setPartColor(r.slot, r.ci); }
+    else if(r.kind==="var"){ G.custFocus=CUST_KEYS.indexOf(r.key); sim.cycleVariation(r.key, r.dir); }
+    else if(r.kind==="done"){ G.scene="play"; }
+    else if(r.kind==="reset"){ sim.resetCustomize(); }
+    return true; } } return true; }
 function toggleSound(){ audio.setEnabled(!audio.on); }
 
 export function positionNameInput(){ if(!nameWrap) return; const cy=view.VH*0.52; nameWrap.style.top=(cy-26)+"px"; }

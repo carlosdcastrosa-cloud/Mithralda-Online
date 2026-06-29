@@ -46,6 +46,13 @@ export const STR = {
   masteryPanelHint: (k) => "Élites abatidas: " + k + "  ·  cada élite, campeón y jefe cuenta",
   masteryNextHint: (rem, name) => "Próximo hito en " + rem + " élite" + (rem===1?"":"s") + ": " + name,
   masteryAllUnlocked: "Senda completa — todos los hitos desbloqueados.",
+  // CAS-169 character customization (wardrobe) screen.
+  customizeTitle: "PERSONALIZAR HÉROE",
+  customizeHint: "Recolorea cada parte y elige casco / capa  ·  los cambios se guardan",
+  customizeOpen: "Personalizar",
+  customizeDone: "Listo",
+  customizeReset: "Restaurar",
+  customizeKeys: "↑↓ parte  ·  ←→ cambiar  ·  R restaurar  ·  C / Esc cerrar",
   // CAS-65 capstone phase shift — fires when the boss crosses its enrage threshold.
   bossEnrage: (name) => "¡" + name + " SE ENFURECE! Esquiva la onda expansiva.",
   bossEnrageBanner: "¡ENFURECIDO!",

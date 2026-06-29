@@ -132,6 +132,10 @@ export function createGame(canvas, ctx, getView){
       statusOf:(who)=>simDev.statusOf(who), applyStatusTo:(who,type,opt)=>simDev.applyStatusTo(who,type,opt),
       weaponProcs:()=>simDev.weaponProcs(), giveBurnWeapon:(amt)=>simDev.giveBurnWeapon(amt),
       statusArena:(type,dx,dy)=>simDev.statusArena(type,dx,dy), heroHit:()=>simDev.heroHit(),
+      // CAS-169 character-customization contract consumed by tools/cas169-customize.mjs — additive
+      customizeState:()=>simDev.customizeState(), setPartColor:(s,c)=>simDev.setPartColor(s,c),
+      cycleVariation:(k,d)=>simDev.cycleVariation(k,d), resetCustomize:()=>simDev.resetCustomize(),
+      defaultPalette:(cls)=>simDev.defaultPalette(cls),
       // CAS-113 persistence contract consumed by tools/persist.mjs — additive
       saveBlob:()=>serializeSave(), saveNow:()=>persist.save(),
       hasSave:()=>persist.hasSave(), clearSave:()=>persist.clear(),

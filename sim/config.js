@@ -425,3 +425,35 @@ export const CLASS_STATS = {
 };
 
 export const CLASS_LIST = ["warrior", "paladin", "mage", "druid", "priest"];
+
+// CAS-169: character customization data — the GAMEPLAY/SAVE side of the recolor
+// system (the renderer owns the masks + bake geometry; this owns the values the
+// player picks + persists). `slots` are the 4 recolorable parts; `swatches` is the
+// palette the pickers offer per slot; `variations` are the headwear/cape swaps;
+// `defaults` mirrors assets/erw/hero/parts/parts.json.defaultPalettes so every class
+// boots on its canonical look before the player customizes. Plain data — no DOM,
+// deterministic, so sim/save stay Stage-2-safe.
+export const CUSTOMIZE = {
+  slots: ["hood", "cloak", "sash", "legs"],
+  // curated selectable colors (RGB) — broad hue wheel + neutrals so each part reads
+  // as a real choice. Index into this array is what the save stores per slot is NOT
+  // used (we store the RGB itself) — the array is the picker's offered set.
+  swatches: [
+    [200, 60, 60], [214, 130, 60], [220, 190, 90], [120, 190, 90],
+    [80, 170, 110], [70, 200, 200], [80, 150, 220], [120, 110, 220],
+    [180, 100, 210], [220, 120, 180], [235, 230, 220], [170, 178, 190],
+    [110, 120, 134], [60, 64, 74], [40, 40, 46], [150, 110, 60],
+  ],
+  variations: {
+    headwear: ["hood", "helmet", "none"],
+    cape: ["cape", "nocape", "longcape"],
+  },
+  variationDefault: { headwear: "hood", cape: "cape" },
+  defaults: {
+    warrior: { hood: [150, 174, 200], cloak: [150, 174, 200], sash: [200, 40, 60], legs: [40, 40, 46] },
+    paladin: { hood: [214, 176, 92],  cloak: [214, 176, 92],  sash: [180, 40, 50], legs: [40, 40, 46] },
+    mage:    { hood: [150, 96, 200],  cloak: [150, 96, 200],  sash: [70, 200, 225], legs: [40, 40, 46] },
+    druid:   { hood: [96, 168, 96],   cloak: [96, 168, 96],   sash: [150, 110, 60], legs: [40, 40, 46] },
+    priest:  { hood: [225, 222, 210], cloak: [225, 222, 210], sash: [220, 185, 90], legs: [40, 40, 46] },
+  },
+};

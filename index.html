@@ -65,7 +65,7 @@
   // deploy (an unlisted module loaded at its plain URL could otherwise serve stale).
   const MODS = ["/game.js","/audio.js","/view.js","/input.js","/strings.js","/analytics.js","/daily.js","/persist.js",
     "/sim/sim.js","/sim/config.js","/sim/math.js","/sim/rng.js","/sim/world.js","/sim/gear.js","/sim/talents.js",
-    "/render/render.js","/render/sprites.js","/render/palette.js"];
+    "/render/render.js","/render/sprites.js","/render/palette.js","/render/customize.js"];
   const imports = {};
   for (const m of MODS) imports[m] = m + "?v=" + build;
   const im = document.createElement("script");
