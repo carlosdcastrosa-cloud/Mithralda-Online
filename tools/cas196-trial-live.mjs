@@ -25,7 +25,8 @@ page.on("console", (m) => { if (m.type() !== "error") return;
 try {
   // live build id
   const ver = await (await fetch("https://carlosdcastrosa-cloud.github.io/Mithralda-Online/version.json")).json();
-  (ver.build === "1c34e3abd151") ? pass(`live build = ${ver.build}`) : fail(`unexpected live build ${ver.build}`);
+  // CAS-197 balance-cohesion pass deployed over CAS-196 → expect the newer build id.
+  (ver.build === "310fb63ca015") ? pass(`live build = ${ver.build}`) : fail(`unexpected live build ${ver.build}`);
 
   await page.goto(LIVE, { waitUntil: "load" });
   await page.waitForFunction("window.__dev && window.__dev.scene", { timeout: 20000 });
