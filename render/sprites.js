@@ -269,6 +269,17 @@ export const ENEMY_ANIM={ mage:"mage", golem:"golem", moose:"moose" };
 // the common mobs so the bestiary reads at FOUNTAINS fidelity. Falls back to SP rows
 // while the image loads or for mobs without a generated sprite.
 export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"enemy_wraith", orc:"enemy_orc" };
+// CAS-209/CAS-203: real PixelLab walk-cycle STRIPS for solid-bodied mobs. 4 frames
+// of 64×64 in a 256×64 horizontal strip (animate-with-text REST, tools/cas209-
+// pixellab-animate.mjs). drawEnemy plays these frame-by-frame off sim time —
+// replacing the procedural breathe/bob with a genuine PixelLab walk cycle. The
+// ethereal wraith stays on ENEMY_IMG + procedural float (frame-coherence breaks
+// down on a formless spectre — deliberate art call). Falls back to ENEMY_IMG.
+export const ENEMY_STRIP={
+  skel:  {key:"skel_walk_strip",   fc:4, fw:64, fh:64},
+  bandit:{key:"bandit_walk_strip", fc:4, fw:64, fh:64},
+  orc:   {key:"orc_walk_strip",    fc:4, fw:64, fh:64},
+};
 // animated, non-hostile town NPCs. Keyed by npc.sprite → ANIM strip; idle loop only.
 export const NPC_ANIM={ merchant:"merchant" };
 // player class sprites: directional (down/up/side, left=side mirrored), states idle/walk/attack
@@ -303,6 +314,8 @@ export function loadAllAssets(){
   for(const p of ["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"]) loadImg("prop_"+p,"./assets/props/"+p+".png");
   // CAS-206: FOUNTAINS-style PixelLab enemy cutouts (see ENEMY_IMG above).
   for(const k of new Set(Object.values(ENEMY_IMG))) loadImg(k,"./assets/pixellab/fountains/"+k+".png");
+  // CAS-209: PixelLab walk-cycle strips for solid mobs (see ENEMY_STRIP above).
+  for(const s in ENEMY_STRIP) loadImg(ENEMY_STRIP[s].key,"./assets/pixellab/fountains/anim/"+ENEMY_STRIP[s].key+".png");
 }
 export function dir4FromAngle(a){ const p=Math.PI;
   if(a>p/4 && a<=3*p/4) return "down";

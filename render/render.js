@@ -23,7 +23,7 @@ import { resetGame } from "../persist.js";   // CAS-113: pause-menu "Nueva parti
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
-  ANIM, ENEMY_ANIM, ENEMY_IMG, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
+  ANIM, ENEMY_ANIM, ENEMY_IMG, ENEMY_STRIP, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
   dir4FromAngle, drawClassFrame, drawAnim, frameIndex,
 } from "./sprites.js";
 import { ensureMasks, bakeHero } from "./customize.js"; // CAS-169 part-recolor bake
@@ -557,6 +557,29 @@ export function createRenderer(ctx){
       const fi=frameIndex(ch,st,e.animT||0,fps, st!=="attack");
       drew=drawAnim(ctx,ch,st,fi,e.x,feet,S,fl, e.hurtFlash>0?"#ffffff":null);
     }
+    // CAS-209: real PixelLab walk-cycle strip for solid-bodied mobs (skel/bandit/orc).
+    // 4-frame 64×64 strip; frame chosen off sim time G.t (+ stable per-mob phase) so
+    // the legs actually step — a genuine animation, not the procedural bob. Bottom-
+    // anchored, flip + hurt-flash honored, reduceMotion freezes to frame 0. Reads only
+    // render state (G.t/e.x/e.y/tpl/animState/hurtFlash) and mutates nothing → Stage-2 safe.
+    if(!drew){ const strip=ENEMY_STRIP[e.tpl.sprite]; const simg=strip&&IMG[strip.key];
+      if(simg && simg.complete && simg.naturalWidth){
+        const fw=strip.fw, fh=strip.fh;
+        const dh=e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4), dw=dh*(fw/fh);
+        const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9), st=e.animState||"idle";
+        const fps = st==="walk"?9 : st==="attack"?10 : 4;
+        const fi = G.settings.reduceMotion ? 0 : (Math.floor(G.t*fps+ph*7)%strip.fc+strip.fc)%strip.fc;
+        const bob = (!G.settings.reduceMotion && st==="idle") ? Math.sin(G.t*2.3+ph)*0.8 : 0;
+        ctx.save(); ctx.translate(e.x, feetY+bob);
+        if(fl) ctx.scale(-1,1);
+        ctx.imageSmoothingEnabled=false;
+        ctx.drawImage(simg, fi*fw,0,fw,fh, -dw/2,-dh,dw,dh);
+        if(e.hurtFlash>0){ ctx.globalAlpha=0.6*Math.min(1,e.hurtFlash*4); ctx.globalCompositeOperation="lighter";
+          ctx.drawImage(simg, fi*fw,0,fw,fh, -dw/2,-dh,dw,dh); ctx.globalCompositeOperation="source-over"; ctx.globalAlpha=1; }
+        ctx.restore();
+        drew=true;
+      }
+    }
     // CAS-206: FOUNTAINS-style PixelLab enemy cutout. Single-frame image drawn
     // bottom-anchored at the feet, sized to the mob's tpl.size, with the CAS-203
     // breathe/walk-bob applied so it never reads frozen. Hurt-flash brightens it.
@@ -761,9 +784,18 @@ export function createRenderer(ctx){
     // debris — chunky pixel chips thrown in a CONE along the knockback direction (not radial),
     // FOUNTAINS-stylized crimson gore so blood reads as launched, not sprayed in place.
     else if(f.kind==="debris"){ ctx.globalAlpha=k*0.95; const a0=f.ang||0;
-      for(let i=0;i<8;i++){ const a=a0+(((i*73)%100)/100-0.5)*1.1; const sp=14+((i*37)%40); const r=sw*sp;
-        const s=2+((i*5)%3); ctx.fillStyle=i%3===0?"#d8403f":(i%3===1?"#b3242a":"#6e1418");
-        ctx.fillRect(f.x+Math.cos(a)*r, f.y+Math.sin(a)*r + sw*sw*10, s,s); } ctx.globalAlpha=1; } // gravity droop via sw^2
+      for(let i=0;i<12;i++){ const a=a0+(((i*73)%100)/100-0.5)*1.1; const sp=12+((i*37)%44); const r=sw*sp;
+        const s=3+((i*5)%5); ctx.fillStyle=i%3===0?"#d8403f":(i%3===1?"#b3242a":"#6e1418");
+        ctx.fillRect(f.x+Math.cos(a)*r, f.y+Math.sin(a)*r + sw*sw*12, s,s); }
+      const bigs=6+((f.life*10|0)%3), abig=a0+(((f.life*7|0)*29%100)/100-0.5)*0.5;
+      ctx.fillStyle="#9b1a1f"; ctx.fillRect(f.x+Math.cos(abig)*sw*18-bigs*0.5, f.y+Math.sin(abig)*sw*18+sw*sw*8, bigs, bigs);
+      ctx.globalAlpha=1; }
+    // bloodstain — dark crimson pixel cluster at the hit location; lingers so violence reads as "was here".
+    else if(f.kind==="bloodstain"){ ctx.globalAlpha=k*0.50; const a0=f.ang||0;
+      const cols=["#3d0a0c","#5a1215","#6e1418","#4a0e10"];
+      for(let i=0;i<9;i++){ const a=a0+(((i*59)%100)/100-0.5)*3.14; const r=3+((i*11)%14);
+        const s=3+((i*7)%5); ctx.fillStyle=cols[i%4];
+        ctx.fillRect(f.x+Math.cos(a)*r-s*0.5, f.y+Math.sin(a)*r-s*0.5, s,s); } ctx.globalAlpha=1; }
     // shockring — the heavy-hit signature reserved for crits/finishers: twin rings race outward.
     else if(f.kind==="shockring"){ const R=f.r||44, ease=sw*sw*(3-2*sw);
       ctx.globalAlpha=k; ctx.strokeStyle="#fff2c8"; ctx.lineWidth=5-sw*4; ctx.beginPath(); ctx.arc(f.x,f.y,ease*R,0,6.28); ctx.stroke();
