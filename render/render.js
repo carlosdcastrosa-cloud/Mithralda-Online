@@ -98,7 +98,17 @@ const CLASS_HERO_KEYS=["warrior","paladin","mage","druid","priest"];
 // Listed here = SKIP the CAS-167/169 procedural part-mask re-bake (which would overwrite the
 // loaded source strips with the hooded base) AND load their dedicated attack/death strips.
 const CLARICE_CLASSES=new Set(["warrior","paladin","mage","druid","priest"]);
-const CLASS_EXTRA_ANIM=["warrior","paladin","mage","druid","priest"]; // classes with clsattack_/clsdeath_ strips
+// CAS-289 (board/jefe bug CAS-288 "salen diferentes sprites al golpear"): for
+// mage/paladin/druid/priest the PixelLab attack/death strips (CAS-253/260) are a
+// DIFFERENT character than their idle/walk strips (CAS-238 healer-pack-derived) —
+// e.g. the mage idles as a blue-robed wizard but attacks as a purple-robed one, and
+// the paladin idles as a female knight but attacks as a male fighter. On every swing
+// the hero visibly morphs into "otro personaje". Until Art re-bakes matching
+// attack/death art for the chosen (idle/portrait) character, drop those mismatched
+// strips so these classes fall back to their OWN idle/walk character + the procedural
+// lunge (the long-shipped pre-CAS-238 look) — the player keeps the sprite they picked.
+// Warrior (Clarice) is consistent across all states, so it keeps its dedicated strips.
+const CLASS_EXTRA_ANIM=["warrior"]; // classes with clsattack_/clsdeath_ strips (Clarice only; see CAS-289)
 const CLASS_ATTACK_FC=6, CLASS_DEATH_FC=6, CLASS_DEATH_DUR=0.7; // Clarice extra-anim frame counts
 // CAS-256: hit-react (hurt) + skill-cast (special) strips. Frame counts/durations MUST
 // match the bake (tools/cas256-warrior-clarice-anims.mjs: hurt 6f, special 8f) and the
