@@ -41,7 +41,7 @@ const OUT = join(ROOT, "assets", "erw", "hero", "classes");
 const b64 = readFileSync(SRC).toString("base64");
 
 // Cell geometry — MUST match render.js CLASS_FW/FH/AX/FOOT + classes.json.
-const CELL_W = 140, CELL_H = 166, ANCHOR_X = 65, FOOT = 163, FIGURE_H = 160;
+const CELL_W = 140, CELL_H = 166, ANCHOR_X = 65, FOOT = 163, FIGURE_H = 142; // CAS-199: shorter figure → headroom for tall class headgear (hats/mitres/antlers/plumes)
 const IDLE_FC = 6, WALK_FC = 8;
 
 // Per-class palette: cloak {hue 0-360, sat 0-1, light add -255..255} + sash accent.
@@ -145,6 +145,86 @@ const result = await page.evaluate(async (b64, CFG) => {
     cx.putImageData(im,0,0);
   }
 
+  // CAS-199 (CEO v2): per-class CLOTHING + ACCESSORIES, drawn on the SAME main-character
+  // hooded figure so every class shares the style but reads distinct: headgear over the
+  // hood crown (face stays visible below), shoulder pieces, and a side prop. Pixel colours
+  // are the main-char steel/leather/gold family. Runs AFTER recolor+face, BEFORE cell-scale.
+  // CAS-199 (CEO v2): bold per-class CLOTHING + ACCESSORIES drawn in CELL space (140px
+  // wide → room for side-props that extend the silhouette, which is what actually reads
+  // at game scale). Same hooded main-character figure underneath → shared style, distinct
+  // class. Headgear recolours the hood crown; props (sword/shield/staff/bow/relic) stick
+  // out; shoulders bulk up. Runs on the cell layer BEFORE leg-split, so it rides the body.
+  function paintClassCell(layer, cls){
+    const W=CELL_W, H=CELL_H, cx=layer.getContext("2d"); const im=cx.getImageData(0,0,W,H); const d=im.data;
+    const set=(i,j,c)=>{ i=Math.round(i); j=Math.round(j); if(i<0||j<0||i>=W||j>=H) return; const o=(j*W+i)*4; d[o]=c[0]; d[o+1]=c[1]; d[o+2]=c[2]; d[o+3]=255; };
+    const span=(j)=>{ let lo=W,hi=-1; for(let i=0;i<W;i++) if(d[(j*W+i)*4+3]>20){ if(i<lo)lo=i; if(i>hi)hi=i; } return hi<0?null:[lo,hi]; };
+    // head landmarks from the SKIN face (warm pixels) — excludes hood (blue) and sash (g<b)
+    const headBand=Math.round(H*0.34); let minx=W,miny=H,maxx=0,maxy=0,found=false;
+    for(let j=0;j<headBand;j++)for(let i=0;i<W;i++){ const o=(j*W+i)*4; if(d[o+3]<20) continue;
+      const r=d[o],g=d[o+1],b=d[o+2]; if(r>150 && r-b>20 && g>=b){ found=true; if(i<minx)minx=i;if(i>maxx)maxx=i;if(j<miny)miny=j;if(j>maxy)maxy=j; } }
+    let top=0; for(let j=0;j<H;j++){ if(span(j)){ top=j; break; } }
+    const hcx=found?Math.round((minx+maxx)/2):Math.round(W/2);
+    const faceTop=found?miny:top+8, faceBot=found?maxy:top+22, headHalf=found?Math.max(5,Math.round((maxx-minx)/2)+2):9;
+    const chest=span(faceBot+14)||[hcx-13,hcx+13], figL=chest[0], figR=chest[1];
+    const C={OUT:[18,20,26],STEEL:[150,166,186],STEELD:[92,102,118],STEELL:[206,218,234],
+      GOLD:[220,182,86],GOLDD:[150,120,44],WOOD:[120,86,52],WOODD:[74,52,32],WHITE:[228,228,218],
+      WHITED:[150,152,148],LEAF:[96,136,76],LEAFD:[56,86,48],FUR:[156,138,104],CYAN:[128,228,232],
+      PURP:[132,96,196],PURPD:[78,54,122],RED:[180,52,58]};
+    const fillCrown=(body,edge)=>{ for(let j=top;j<faceTop;j++){ const s=span(j); if(!s)continue;
+      for(let i=s[0];i<=s[1];i++) set(i,j,(i===s[0]||i===s[1])?edge:((j-top)<2?body:body)); } };
+    const pads=(col,edge)=>{ for(let k=0;k<8;k++){ const j=faceBot+1+k; const s=span(j); if(!s)continue;
+      const w=k<5?3:2; for(let t=0;t<w;t++){ set(s[0]+t,j,t===w-1?edge:col); set(s[1]-t,j,t===w-1?edge:col); } } };
+    const disc=(ccx,ccy,R,fill,rim,gem)=>{ for(let j=-R;j<=R;j++)for(let i=-R;i<=R;i++){ const dd=i*i+j*j;
+      if(dd<=R*R) set(ccx+i,ccy+j, dd>(R-1)*(R-1)?rim : (gem&&dd<4?gem:fill)); } };
+
+    // tall cone helper (point at top → wide at brimY); shape 'lin' or 'round'
+    const cone=(brimY,hgt,halfW,body,edge,shape)=>{ for(let j=brimY;j>=brimY-hgt;j--){ const t=(brimY-j)/hgt;
+      const f=shape==="round"?(1-t*t):(1-t); const hw=Math.max(0,Math.round(f*halfW));
+      for(let i=hcx-hw;i<=hcx+hw;i++) set(i,j,(i===hcx-hw||i===hcx+hw)?edge:body); } };
+
+    if(cls==="warrior"){                         // steel helm + tall fin crest + pauldrons + sword
+      fillCrown(C.STEEL,C.OUT);
+      for(let i=hcx-headHalf;i<=hcx+headHalf;i++) set(i,faceTop,C.STEELD);                  // brow ridge / visor
+      for(let j=top;j>=top-13;j--){ set(hcx,j,(j%2)?C.STEELL:C.STEEL); set(hcx-1,j,C.STEELD); } // mohawk fin crest
+      pads(C.STEEL,C.STEELD);
+      const bx=figR+3, by=faceBot+12;
+      for(let s=0;s<30;s++){ const i=bx+s*0.42, j=by-s; set(i,j,C.STEELL); set(i+1,j,C.STEEL); set(i+2,j,C.STEELD); } // 3px blade up-right
+      for(let i=-3;i<=3;i++) set(bx+i,by+1,C.GOLD); set(bx,by+2,C.WOOD); set(bx,by+3,C.WOOD); set(bx,by+4,C.GOLD); // guard+grip+pommel
+    } else if(cls==="paladin"){                  // gilded helm + tall plume + tabard + shield
+      fillCrown(C.STEELL,C.OUT);
+      for(let i=hcx-headHalf;i<=hcx+headHalf;i++) set(i,faceTop,C.GOLD);
+      for(let j=top;j>=top-15;j--){ const w=(top-j)<4; set(hcx,j,(j%2)?C.RED:[214,84,84]); if(w)set(hcx+1,j,C.RED); } // plume
+      set(hcx,top,C.GOLD); set(hcx-1,top,C.GOLD); set(hcx+1,top,C.GOLD);
+      pads(C.STEELL,C.GOLDD);
+      for(let j=faceBot+4;j<Math.round(H*0.62);j++){ const s=span(j); if(!s)continue; const c=Math.round((s[0]+s[1])/2);
+        for(let i=c-1;i<=c+1;i++) set(i,j,i===c?C.WHITE:C.GOLDD); }                          // tabard
+      set(hcx,faceBot+9,C.GOLD); for(let i=hcx-1;i<=hcx+1;i++) set(i,faceBot+10,C.GOLD); set(hcx,faceBot+11,C.GOLD); // cross
+      disc(figL-6, faceBot+18, 8, C.STEEL, C.GOLD, C.RED);                                  // shield (left)
+    } else if(cls==="mage"){                     // TALL pointed wizard hat + glowing staff
+      cone(faceTop-1, 18, headHalf+2, C.PURP, C.PURPD, "lin");
+      for(let i=hcx-headHalf-3;i<=hcx+headHalf+3;i++){ set(i,faceTop,C.GOLD); set(i,faceTop-1,C.PURPD); } // wide brim
+      set(hcx+1,faceTop-12,C.GOLD); set(hcx+1,faceTop-11,C.CYAN);                            // star on the hat
+      const stx=figR+5; for(let j=faceTop-4;j<Math.round(H*0.66);j++){ set(stx,j,j%2?C.WOOD:C.WOODD); set(stx+1,j,C.WOODD); } // staff
+      disc(stx, faceTop-6, 4, C.CYAN, [180,255,255], [240,255,255]);                        // big orb
+    } else if(cls==="druid"){                    // tall branching antlers + fur mantle + bow
+      for(const dir of [-1,1]){ let x=hcx+dir*3; for(let s=0;s<14;s++){ const y=top-s; set(x,y,C.WOOD); set(x,y,(s%2)?C.WOOD:C.WOODD);
+        if(s===4||s===8){ set(x+dir,y,C.WOOD); set(x+dir*2,y-1,C.WOOD); } x+=dir*0.28; } }                  // antlers w/ prongs
+      for(let k=0;k<9;k++){ const j=faceBot+1+k; const s=span(j); if(!s)continue;
+        for(let t=0;t<3;t++){ set(s[0]+t,j,(t+j)%2?C.LEAF:C.FUR); set(s[1]-t,j,(t+j)%2?C.LEAFD:C.FUR); } }     // fur/leaf mantle
+      const bx=figL-5; for(let j=faceTop-2;j<Math.round(H*0.66);j++){ const t=(j-(faceTop-2))/(H*0.66-(faceTop-2));
+        const off=Math.round(Math.sin(t*Math.PI)*6); set(bx-off,j,C.WOOD); set(bx-off+1,j,C.WOODD); }         // thick bow limb
+      const t0=faceTop-2, t1=Math.round(H*0.66); for(let j=t0;j<t1;j++) set(bx,j+0,[210,200,170]);            // bowstring
+    } else if(cls==="priest"){                   // tall white mitre + halo + mantle + relic
+      cone(faceTop, 15, headHalf+1, C.WHITE, C.WHITED, "round");
+      for(let j=faceTop;j>=faceTop-15;j--) set(hcx,j,C.GOLD);                               // mitre gold band
+      for(let a=0;a<20;a++){ const ang=a/20*Math.PI*2; set(hcx+Math.cos(ang)*6, faceTop-17+Math.sin(ang)*2, C.GOLD); } // halo ring
+      pads(C.WHITE,C.WHITED);
+      const rx=figR+5; for(let j=faceBot+4;j<faceBot+17;j++){ set(rx,j,C.GOLD); set(rx+1,j,C.GOLDD); }        // relic staff
+      for(let i=rx-2;i<=rx+2;i++) set(i,faceBot+8,C.GOLD); disc(rx,faceBot+2,2,C.CYAN,[230,255,255],null);    // crossbar + gem
+    }
+    cx.putImageData(im,0,0);
+  }
+
   // scale a native figure into CELL space at FIGURE_H, feet on FOOT, centroid on ANCHOR_X.
   // returns {canvas: figureLayer(CELL_W×CELL_H), legTopY} — legTopY in cell rows.
   function toCellLayer(nativeCanvas){
@@ -216,8 +296,9 @@ const result = await page.evaluate(async (b64, CFG) => {
   const out={};
   const previewRows=[];
   for(const cls of Object.keys(CLASSES)){
-    const nat=recolor(cls); paintFace(nat);   // CAS-199: give the static strips a head too
+    const nat=recolor(cls); paintFace(nat);   // CAS-199: head
     const { canvas:layer, dx, dw } = toCellLayer(nat);
+    paintClassCell(layer, cls);   // CAS-199: per-class clothing/accessories (bold, in cell space)
     const legTop=findLegTop(layer, dx, dw);
     const parts=split(layer, legTop);
 
