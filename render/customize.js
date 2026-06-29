@@ -139,41 +139,33 @@ function paintClassAccessories(layer, cls){
     for(let i=hcx-hw;i<=hcx+hw;i++) set(i,j,(i===hcx-hw||i===hcx+hw)?edge:bdy); } };
 
   if(cls==="warrior"){
-    fillCrown(C.STEEL,C.OUT);
-    for(let i=hcx-headHalf;i<=hcx+headHalf;i++) set(i,faceTop,C.STEELD);
-    for(let j=top;j>=top-13;j--){ set(hcx,j,(j%2)?C.STEELL:C.STEEL); set(hcx-1,j,C.STEELD); }
+    // CAS-203 (board feedback): removed the head-mounted steel crown + plume — the head
+    // reads as the clean hooded main-character. Side props (shoulders + sword) kept.
     pads(C.STEEL,C.STEELD);
     const bx=figR+3, by=faceBot+12;
     for(let s=0;s<30;s++){ const i=bx+s*0.42, j=by-s; set(i,j,C.STEELL); set(i+1,j,C.STEEL); set(i+2,j,C.STEELD); }
     for(let i=-3;i<=3;i++) set(bx+i,by+1,C.GOLD); set(bx,by+2,C.WOOD); set(bx,by+3,C.WOOD); set(bx,by+4,C.GOLD);
   } else if(cls==="paladin"){
-    fillCrown(C.STEELL,C.OUT);
-    for(let i=hcx-headHalf;i<=hcx+headHalf;i++) set(i,faceTop,C.GOLD);
-    for(let j=top;j>=top-15;j--){ const w=(top-j)<4; set(hcx,j,(j%2)?C.RED:[214,84,84]); if(w)set(hcx+1,j,C.RED); }
-    set(hcx,top,C.GOLD); set(hcx-1,top,C.GOLD); set(hcx+1,top,C.GOLD);
+    // CAS-203 (board feedback): removed the head crown + red plume. Shoulders, chest sigil
+    // and shield kept so the paladin still reads distinct.
     pads(C.STEELL,C.GOLDD);
     for(let j=faceBot+4;j<Math.round(H*0.62);j++){ const s=span(j); if(!s)continue; const c=Math.round((s[0]+s[1])/2);
       for(let i=c-1;i<=c+1;i++) set(i,j,i===c?C.WHITE:C.GOLDD); }
     set(hcx,faceBot+9,C.GOLD); for(let i=hcx-1;i<=hcx+1;i++) set(i,faceBot+10,C.GOLD); set(hcx,faceBot+11,C.GOLD);
     disc(figL-6, faceBot+18, 8, C.STEEL, C.GOLD, C.RED);
   } else if(cls==="mage"){
-    cone(faceTop-1, 18, headHalf+2, C.PURP, C.PURPD, "lin");
-    for(let i=hcx-headHalf-3;i<=hcx+headHalf+3;i++){ set(i,faceTop,C.GOLD); set(i,faceTop-1,C.PURPD); }
-    set(hcx+1,faceTop-12,C.GOLD); set(hcx+1,faceTop-11,C.CYAN);
+    // CAS-203 (board feedback): removed the pointed wizard hat on the head. Staff kept.
     const stx=figR+5; for(let j=faceTop-4;j<Math.round(H*0.66);j++){ set(stx,j,j%2?C.WOOD:C.WOODD); set(stx+1,j,C.WOODD); }
     disc(stx, faceTop-6, 4, C.CYAN, [180,255,255], [240,255,255]);
   } else if(cls==="druid"){
-    for(const dir of [-1,1]){ let x=hcx+dir*3; for(let s=0;s<14;s++){ const y=top-s; set(x,y,(s%2)?C.WOOD:C.WOODD);
-      if(s===4||s===8){ set(x+dir,y,C.WOOD); set(x+dir*2,y-1,C.WOOD); } x+=dir*0.28; } }
+    // CAS-203 (board feedback): removed the antlers on the head. Leaf mantle + staff kept.
     for(let k=0;k<9;k++){ const j=faceBot+1+k; const s=span(j); if(!s)continue;
       for(let t=0;t<3;t++){ set(s[0]+t,j,(t+j)%2?C.LEAF:C.FUR); set(s[1]-t,j,(t+j)%2?C.LEAFD:C.FUR); } }
     const bx=figL-5; for(let j=faceTop-2;j<Math.round(H*0.66);j++){ const t=(j-(faceTop-2))/(H*0.66-(faceTop-2));
       const off=Math.round(Math.sin(t*Math.PI)*6); set(bx-off,j,C.WOOD); set(bx-off+1,j,C.WOODD); }
     const t0=faceTop-2, t1=Math.round(H*0.66); for(let j=t0;j<t1;j++) set(bx,j,[210,200,170]);
   } else if(cls==="priest"){
-    cone(faceTop, 15, headHalf+1, C.WHITE, C.WHITED, "round");
-    for(let j=faceTop;j>=faceTop-15;j--) set(hcx,j,C.GOLD);
-    for(let a=0;a<20;a++){ const ang=a/20*Math.PI*2; set(hcx+Math.cos(ang)*6, faceTop-17+Math.sin(ang)*2, C.GOLD); }
+    // CAS-203 (board feedback): removed the mitre + halo on the head. Robe pads + scepter kept.
     pads(C.WHITE,C.WHITED);
     const rx=figR+5; for(let j=faceBot+4;j<faceBot+17;j++){ set(rx,j,C.GOLD); set(rx+1,j,C.GOLDD); }
     for(let i=rx-2;i<=rx+2;i++) set(i,faceBot+8,C.GOLD); disc(rx,faceBot+2,2,C.CYAN,[230,255,255],null);
