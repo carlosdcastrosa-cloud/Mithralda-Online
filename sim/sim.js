@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MASTERY, CUSTOMIZE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -386,6 +386,39 @@ function applyZoneScale(e, zone){
   return e;
 }
 
+// CAS-247 — roll a deterministic ELITE AFFIX onto an eligible freshly-spawned trash mob. About
+// MOB_AFFIX_RATE of eligible world spawns get exactly ONE affix (rolled on the sim RNG → fully
+// deterministic / Stage-2 server-authority ready). Excludes bosses / hunt champions / ambush
+// elites / neutrals / 0-dmg supports (summoner+healer) / the volatile bomber archetype — these
+// already own a role and an affix on them reads as noise or a degenerate carrier. The modifiers
+// bake onto a CLONE of the shared template (never the table row); the render hooks (e.affix +
+// e.affixGait) draw the tint/glow/scale with NO new art. Swift scales gait WITH speed in render
+// so footfalls stay natural (CAS-219/240). Reward boosts ride the cloned tpl through killEnemy's
+// existing trash branch (xp/gold/gearChance), so the loot path needs no change.
+function maybeAffix(e){
+  if(!e || e.elite || e.champion || e.isBoss || e.tpl.neutral) return e;
+  if((e.tpl.dmg||0)<=0 || e.tpl.arch==="volatile") return e;        // supports / bombers make degenerate carriers
+  if(srand()>=MOB_AFFIX_RATE) return e;                            // one srand per eligible spawn (only on the live world path, never in buildWorld → determinism fingerprint untouched)
+  let pool=MOB_AFFIX_IDS;
+  if(e.tpl.ranged) pool=MOB_AFFIX_IDS.filter(id=>!MOB_AFFIX[id].melee); // Vampiric needs contact → ranged kiters can't carry it
+  return applyAffix(e, pool[ri(0,pool.length-1)]);
+}
+// Bake a SPECIFIC affix's modifiers onto a mob (clones the template — never the shared row).
+// Split out of maybeAffix so the harness can force each affix deterministically (no RNG here).
+function applyAffix(e, id){
+  const A=MOB_AFFIX[id]; if(!e||!A) return e;
+  const b=e.tpl, t=Object.assign({},b);
+  if(A.spdMul)  t.spd=Math.max(1,Math.round(b.spd*A.spdMul));
+  if(A.sizeMul) t.size=Math.max(1,Math.round(b.size*A.sizeMul));     // the "scale" cue — every draw path reads tpl.size
+  t.hp=Math.round(b.hp*(A.hpMul||1.6));                              // a meatier, more-rewarding target
+  t.xp=Math.round(b.xp*(A.xpMul||1.6));
+  t.gold=[Math.round(b.gold[0]*(A.goldMul||1.6)), Math.round(b.gold[1]*(A.goldMul||1.6))];
+  t.gearChance=Math.min(1,(b.gearChance||0)+(A.gearBonus||0));       // higher Forja-gear drop chance (CAS-237 tie-in)
+  e.tpl=t; e.hp=e.maxHp=t.hp;
+  e.affix=id; e.affixGait=A.gaitMul||1;                              // render: tint/glow colour by id + swift gait scale
+  return e;
+}
+
 // CAS-197 — the ONE place the three atkspd sources (affixes CAS-117 + talents CAS-119 +
 // the "furia" consumable CAS-192) are summed, clamped to the global cohesion ceiling
 // ATKSPD_TOTAL_CAP so the independently-capped systems can't compound past intent. Both
@@ -467,6 +500,9 @@ function hitEnemy(e,dmg,ang){
   if(G.hero && G.hero.riposte>0){ riposted=true; crit=true; G.hero.riposte=0;
     dmg*=CFG.riposteMult*(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
   else if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
+  // CAS-247 ARMORED affix: a metallic-tinted elite absorbs a fixed fraction of EVERY incoming
+  // hero hit (post-crit, so even a crit is blunted) — a damage-soak that makes it a tankier kill.
+  { const af=e.affix&&MOB_AFFIX[e.affix]; if(af&&af.dmgReduce) dmg=Math.max(1,dmg*(1-af.dmgReduce)); }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
   // CAS-127: crits read LOUDER — distinct bright SFX, a bigger popping number, an extra
@@ -536,6 +572,14 @@ function killEnemy(e){
   const ka=frr(0,6.28); addFx("debris",e.x,e.y,{ang:ka,life:0.55}); addFx("debris",e.x,e.y,{ang:ka+3.14,life:0.48});
   addFx("bloodstain",e.x,e.y+e.tpl.size*0.4,{ang:ka,life:2.2});
   if(e.champion||e.isBoss) addFx("shockring",e.x,e.y,{r:52,life:0.46});
+  // CAS-247 VOLATILE affix: the corpse ERUPTS a small radial AoE on death — kill it at range or
+  // clear the blast. Damages the hero only if inside the radius (no telegraph: the orange aura
+  // it carried IS the warning). Deterministic except the cosmetic flame scatter (off frr).
+  { const af=e.affix&&MOB_AFFIX[e.affix]; if(af&&af.blast && G.hero && !G.hero.dead){ const R=af.blast;
+    const dd=Math.hypot(G.hero.x-e.x,G.hero.y-e.y);
+    if(dd<=R){ const a=Math.atan2(G.hero.y-e.y,G.hero.x-e.x); damageHero(Math.max(1,Math.round(e.tpl.dmg*(af.blastDmgMul||0.85))),a,null); }
+    addFx("novacast",e.x,e.y,{r:R,col:af.col,life:0.5}); addFx("shockring",e.x,e.y,{r:R*0.7,life:0.4});
+    for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-R*0.5,R*0.5),e.y+frr(-R*0.5,R*0.5)); shakeAdd(7); audio.sfx.fire(); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -1238,7 +1282,7 @@ export function update(dtMs){
       let tx,ty,tries=0; do{ tx=(sp.rect.x+rr(2,sp.rect.w-2))*TS; ty=(sp.rect.y+rr(2,sp.rect.h-2))*TS; tries++; }
         while((dist2(tx,ty,h.x,h.y)<300*300 || (world.wallSet&&world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS)))) && tries<10);
       const wallHere = world.wallSet && world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS));
-      if(!wallHere && dist2(tx,ty,h.x,h.y)>240*240) applyZoneScale(spawnEnemy(tp,tx,ty), sp.zone); } }
+      if(!wallHere && dist2(tx,ty,h.x,h.y)>240*240) maybeAffix(applyZoneScale(spawnEnemy(tp,tx,ty), sp.zone)); } } // CAS-247: a fraction of natural spawns roll an elite affix
 
   if(h.hp<=0) heroDie();
   // camera (presentation-only; reads plain viewport numbers, never the DOM)
@@ -1362,7 +1406,7 @@ function updateEnemies(dt){ const h=G.hero;
       if(e.tpl.arch==="rusher" && !e.specialNow){
         const lspd=(e.tpl.lunge||110)/0.2; moveEnt(e,Math.cos(e.facing)*lspd*dt,Math.sin(e.facing)*lspd*dt,e.tpl.size*0.6);
         if(!e.hitDone && d<=e.tpl.size+e.tpl.range*0.5){ e.hitDone=true;
-          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl);
+          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl,e); // CAS-247: pass src for Vampiric leech-on-hit
           addFx("spark",e.x+Math.cos(a)*14,e.y+Math.sin(a)*14); }
       }
       // CAS-126 charger CHARGE: barrel the full `charge` px along the LOCKED facing over
@@ -1371,7 +1415,7 @@ function updateEnemies(dt){ const h=G.hero;
       else if(e.tpl.arch==="charger" && !e.specialNow){
         const cspd=(e.tpl.charge||300)/0.36; moveEnt(e,Math.cos(e.facing)*cspd*dt,Math.sin(e.facing)*cspd*dt,e.tpl.size*0.6);
         if(!e.hitDone && d<=e.tpl.size+12){ e.hitDone=true;
-          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl);
+          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl,e); // CAS-247: pass src for Vampiric leech-on-hit
           addFx("spark",e.x+Math.cos(a)*16,e.y+Math.sin(a)*16); shakeAdd(5); }
       }
       else if(!e.hitDone){ e.hitDone=true;
@@ -1386,14 +1430,14 @@ function updateEnemies(dt){ const h=G.hero;
         // around) with heavy knock. The grown ground-ring during windup told the player
         // to step OUT of the `aoe` radius; standing inside it eats the full blow.
         else if(e.tpl.arch==="brute"){ const R=e.tpl.aoe||56;
-          if(d<=R+e.tpl.size*0.4){ const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl); }
+          if(d<=R+e.tpl.size*0.4){ const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl,e); } // CAS-247: src for Vampiric
           addFx("novacast",e.x,e.y+e.tpl.size*0.35,{r:R,col:"#ff7a3a",life:0.4}); shakeAdd(8);
         }
         else if(e.tpl.ranged){ const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a;
           G.projectiles.push({x:e.x+Math.cos(a)*16, y:e.y-4+Math.sin(a)*16, vx:Math.cos(a)*e.tpl.projspd, vy:Math.sin(a)*e.tpl.projspd, life:2.4, dmg:e.tpl.dmg, kind:e.tpl.proj||"spear", enemy:true, ang:a, infl:e.tpl.infl}); // CAS-118: bolt carries the slow infl
           addFx("spark",e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);
         } else {
-          if(d<=e.tpl.range+10){ const a=Math.atan2(h.y-e.y,h.x-e.x); if(Math.abs(angDiff(a,e.facing))<1.2) damageHero(e.tpl.dmg,a,e.tpl.infl); }
+          if(d<=e.tpl.range+10){ const a=Math.atan2(h.y-e.y,h.x-e.x); if(Math.abs(angDiff(a,e.facing))<1.2) damageHero(e.tpl.dmg,a,e.tpl.infl,e); } // CAS-247: src for Vampiric
           addFx("spark",e.x+Math.cos(e.facing)*e.tpl.range*0.6,e.y+Math.sin(e.facing)*e.tpl.range*0.6);
         }
       }
@@ -1568,13 +1612,13 @@ function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0
   h.riposte=CFG.riposteWindow; // arm the counter — consumed by the next hitEnemy connect
   floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.36});
   addFx("shockring",h.x,h.y,{r:30,life:0.34}); audio.sfx.roll(); }
-function damageHero(dmg,ang,infl){ const h=G.hero; if(h.dead) return;
-  if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return; } // only an active roll earns the dodge, not mercy i-frames
+function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
+  if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return false; } // only an active roll earns the dodge, not mercy i-frames
   // CAS-119: a dodge build (esquiva) can fully negate a connecting telegraphed strike
   // on a srand roll — reading the tell still beats it for free, this rewards investing
   // in evasion. srand consumed only when the build HAS dodge (baseline unchanged).
   const tt=h.tt; if(tt&&tt.dodge>0 && srand()*100<tt.dodge){ h.iframe=Math.max(h.iframe,0.2);
-    floater(h.x,h.y-34,STR.talentDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.32}); audio.sfx.roll(); return; }
+    floater(h.x,h.y-34,STR.talentDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.32}); audio.sfx.roll(); return false; }
   const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   h.iframe=0.25; // brief mercy invuln
@@ -1582,6 +1626,14 @@ function damageHero(dmg,ang,infl){ const h=G.hero; if(h.dead) return;
   // slow). It only lands when the hit lands — dodging the telegraph (i-frames above) skips
   // it entirely, so reading the tell avoids BOTH the damage and the state. AC #3.
   if(infl && infl.type) applyStatus(h, infl.type, infl);
+  // CAS-247 VAMPIRIC affix: when an affixed elite LANDS a hit, it leeches a fixed fraction of
+  // its OWN maxHp — heals only on a connect (a dodged/i-framed hit returned above, so reading
+  // the tell denies the lifesteal too). A red tick reads "it fed". Deterministic (no RNG).
+  if(src && src.hp>0 && !src.dead){ const af=src.affix&&MOB_AFFIX[src.affix];
+    if(af&&af.lifesteal){ const heal=Math.max(1,Math.round(src.maxHp*af.lifesteal));
+      if(src.hp<src.maxHp){ src.hp=Math.min(src.maxHp, src.hp+heal); src.hurtFlash=0.08;
+        floater(src.x,src.y-src.tpl.size,"+"+heal,af.col); addFx("spark",src.x,src.y); } } }
+  return true;
 }
 function updateProjectiles(dt){ const h=G.hero;
   for(const p of G.projectiles){ p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
@@ -1964,6 +2016,54 @@ export const dev = {
     e.elite=true; e.zone=zone||"caves"; e.rwdTier=(ZONE_LOOT[e.zone]||ZONE_LOOT.field).tier; e.rwdMinR=AMBUSH.elite.minR; e.rwdGold=AMBUSH.elite.goldBonus;
     e.hp=0; killEnemy(e);
     return G.drops.slice(before).map(d=>({ kind:d.kind, rarity:d.rarity, tier:d.tier, amt:d.amt||0 })); },
+  // --- CAS-247 elite-affix harness hooks (tools/cas247-affixes.mjs); additive, ?dev only ---
+  // Static affix table + roll rate straight off the data (no sim step) so the test can assert
+  // the 4 affixes exist with distinct modifier fields and the ~10-15% spawn rate.
+  affixMeta(){ return { rate:MOB_AFFIX_RATE, ids:MOB_AFFIX_IDS.slice(),
+    defs:MOB_AFFIX_IDS.map(id=>Object.assign({id},MOB_AFFIX[id])) }; },
+  // Roll-rate probe: spawn N eligible mobs off-screen through the REAL maybeAffix path (same
+  // sim RNG the world spawner uses) and tally how many got an affix → proves the ~10-15% band.
+  // Cleans up after itself. Reseed first for a repeatable count.
+  affixRollRate(n, type){ n=Math.max(1,n|0); const before=G.enemies.length; let affixed=0; const tally={};
+    for(let i=0;i<n;i++){ const e=maybeAffix(spawnEnemy(type||"skeleton", -9000-i, -9000));
+      if(e.affix){ affixed++; tally[e.affix]=(tally[e.affix]||0)+1; } }
+    G.enemies.length=before; // drop the throwaway probes
+    return { n, affixed, rate:+(affixed/n).toFixed(3), tally }; },
+  // Clean single-mob arena with a FORCED affix: clear entities, tanky hero, spawn ONE mob and
+  // bake `id` via the REAL applyAffix path, set it chasing. Returns base-vs-affixed stats so the
+  // test can assert the scale/speed/hp boosts without guessing internals. dx = spawn offset.
+  affixArena(id, type, dx){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=100000; h.hp=100000; h.cls="warrior";
+    const base=ETPL[type||"skeleton"]; const e=spawnEnemy(type||"skeleton", h.x+(dx||120), h.y);
+    if(!e) return null; applyAffix(e, id); e.state="chase";
+    return { id, type:e.type, affix:e.affix, affixGait:e.affixGait||1,
+      base:{hp:base.hp, spd:base.spd, size:base.size, xp:base.xp, gold:base.gold.slice(), gearChance:base.gearChance||0},
+      mod:{hp:e.tpl.hp, spd:e.tpl.spd, size:e.tpl.size, xp:e.tpl.xp, gold:e.tpl.gold.slice(), gearChance:+(e.tpl.gearChance||0).toFixed(3)} }; },
+  // Live snapshot of the arena mob (+ hero dmg taken + mob hp) for affix-behaviour probes.
+  affixSnap(){ const e=G.enemies[0], h=G.hero; if(!e) return null;
+    return { affix:e.affix||null, state:e.state, alive:!!(e.hp>0), hp:Math.round(e.hp), maxHp:Math.round(e.maxHp),
+      dist:Math.round(Math.hypot(e.x-h.x,e.y-h.y)), heroDmgTaken:Math.round(100000-h.hp), enemyCount:G.enemies.length }; },
+  // Land ONE real hitEnemy() of `baseDmg` on the arena mob (no crit/talents → deterministic) and
+  // return the HP delta. Two calls (armored vs plain) prove ARMORED soaks a fraction of the blow.
+  affixHit(baseDmg){ const e=G.enemies[0], h=G.hero; if(!e) return null;
+    h.tt=null; h.mperk=null; h.riposte=0; const ang=Math.atan2(e.y-h.y,e.x-h.x); h.facing=ang;
+    const before=e.hp; hitEnemy(e, baseDmg||100, ang); return { taken:Math.round(before-e.hp), hp:Math.round(e.hp), alive:!!(e.hp>0) }; },
+  // Kill the arena mob (index 0) THIS instant via the REAL killEnemy and report the hero damage
+  // taken — proves a VOLATILE affix erupts its on-death AoE only when the hero is in the blast
+  // radius (pair with affixArena(dx) to place the corpse in or out of range). archMoveHero can
+  // reposition the hero first; the burst reads the hero's live distance at the moment of death.
+  affixKill(){ const e=G.enemies[0], h=G.hero; if(!e) return null;
+    e.tpl=Object.assign({},e.tpl,{xp:0,gold:[0,0]}); // isolate the on-death BURST from the xp level-up full-heal
+    const before=h.hp; e.hp=0; killEnemy(e);          // measure across the kill instant only
+    return { heroDmgTaken:Math.max(0,Math.round(before-h.hp)), enemyCount:G.enemies.length }; },
+  // Spawn-kill a forced-affix mob THIS instant via the real killEnemy trash branch (gear roll
+  // forced by seeding so the elevated gearChance lands), returning the drops → proves the
+  // xp/gold/Forja-gear reward tie-in (AC: elites pay more, feed CAS-237/243).
+  affixSpawnKill(id, type, zone){ const h=G.hero; const before=G.drops.length; const baseXp=ETPL[type||"skeleton"].xp;
+    const e=spawnEnemy(type||"skeleton", h.x, h.y); applyAffix(e, id); e.scaleZone=zone||"field";
+    e.hp=0; killEnemy(e);
+    return { baseXp, xp:e.tpl.xp, gearChance:+(e.tpl.gearChance||0).toFixed(3),
+      drops:G.drops.slice(before).map(d=>({ kind:d.kind, rarity:d.rarity, tier:d.tier, amt:d.amt||0 })) }; },
   // --- CAS-149 Elite-Mastery harness hooks (tools/cas149-progression.mjs) ---
   // Live, read-only Mastery telemetry: lifetime elite kills, derived rank, next threshold,
   // and the player's current maxHp (so the test can assert the rank-up +maxHp baked in).

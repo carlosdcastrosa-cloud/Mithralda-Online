@@ -225,6 +225,34 @@ export const AMBUSH = {
   elite:{ hpMul:5.5, dmgMul:1.5, sizeMul:1.4, knockMul:1.3, xpMul:4, goldBonus:35, minR:"uncommon" },
 };
 
+// CAS-247 — ELITE AFFIXES. A fraction of ordinary world spawns roll exactly ONE deterministic
+// modifier that deepens the hunt loop with ZERO new art (sprite tint/glow/scale only — the
+// renderer reads `affix`/`affixGait` to draw a coloured aura+glow and a bigger silhouette; the
+// stat modifiers are baked onto a CLONE of the shared ETPL row so the template is never mutated).
+// Every affix is pure data on the existing AI: a server-authority-ready world modifier (no
+// client-only logic, all rolled on the sim RNG) that carries intact into the Stage-2 online
+// layer. Affixed mobs are tougher + pay MORE (xp/gold/Forja-gear chance) so they feed CAS-237/243.
+//   rate      — fraction of ELIGIBLE spawns that get an affix (~10-15% band per AC1)
+//   col       — the aura/glow/label colour (the at-a-glance read of WHICH affix)
+//   hpMul     — every affix makes the mob a meatier, more-rewarding target
+//   spdMul/gaitMul — Swift scales BOTH move speed AND the render gait cadence together, so steps
+//                    stay natural (regression-guard CAS-219/240 — never desync foot-speed again)
+//   dmgReduce — Armored: fraction of incoming hero damage absorbed (0.45 = takes 55%)
+//   lifesteal — Vampiric: heals this fraction of its OWN maxHp each time it lands a hit (melee only)
+//   blast/blastDmgMul — Volatile: a small AoE erupts on death, dmg = base dmg × blastDmgMul
+//   xpMul/goldMul/gearBonus — the reward tie-in (flows through killEnemy's existing trash branch,
+//                    which reads the cloned tpl.xp/gold/gearChance → no loot-path edits needed)
+//   sizeMul   — the "scale" visual cue; bumps tpl.size so ALL four draw paths render bigger at once
+//   melee     — gates the affix to contact attackers (Vampiric can't lifesteal from range)
+export const MOB_AFFIX_RATE = 0.13;
+export const MOB_AFFIX_IDS = ["swift","armored","vampiric","volatile"];
+export const MOB_AFFIX = {
+  swift:    { name:"Veloz",      col:"#5fd6ff", hpMul:1.5, spdMul:1.42, gaitMul:1.42, sizeMul:1.06, xpMul:1.6, goldMul:1.6, gearBonus:0.10 },
+  armored:  { name:"Acorazado",  col:"#c8d2e0", hpMul:1.9, spdMul:0.92, gaitMul:0.92, dmgReduce:0.45, sizeMul:1.16, xpMul:1.7, goldMul:1.7, gearBonus:0.12 },
+  vampiric: { name:"Vampírico",  col:"#ff5a6a", hpMul:1.8, lifesteal:0.10, sizeMul:1.12, xpMul:1.7, goldMul:1.7, gearBonus:0.12, melee:true },
+  volatile: { name:"Volátil",    col:"#ff9a3a", hpMul:1.6, blast:84, blastDmgMul:0.85, sizeMul:1.12, xpMul:1.7, goldMul:1.7, gearBonus:0.12 },
+};
+
 // CAS-149 — ELITE MASTERY: the persistent, cross-session progression HOOK that gives a
 // returning player a reason to come back. EVERY elite-class kill (ambush elites CAS-146 +
 // hunt champions + the final boss) ticks a monotonic lifetime counter (h.eliteKills, saved

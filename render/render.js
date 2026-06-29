@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
@@ -503,7 +503,10 @@ export function createRenderer(ctx){
   const mobGait = e => MOB_GAIT[e.type] || {w:6.0,fps:7};
   function drawEnemy(e){
     const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.champion?5:(e.tpl.size>20?4:3));
-    const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false; const gait=mobGait(e);
+    const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false;
+    // CAS-247: a Swift affix scales the WALK CADENCE (gait.w AND gait.fps) by the same factor as
+    // its move speed, so faster steps stay natural — never reintroduce the CAS-219/240 desync.
+    let gait=mobGait(e); if(e.affixGait && e.affixGait!==1) gait={w:gait.w*e.affixGait, fps:gait.fps*e.affixGait};
     // champion aura — a pulsing ground ring marks the elite as the hunt climax.
     // Capstone (CAS-65): the ring runs orange and turns red + double-pulses once
     // the boss enrages, telegraphing the phase shift at a glance.
@@ -520,6 +523,19 @@ export function createRenderer(ctx){
       ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
       ctx.globalAlpha=0.24; ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr+6,(pr+6)*0.42,0,0,6.28); ctx.stroke();
       ctx.restore(); }
+    // CAS-247 ELITE-AFFIX read (tint/glow only — NO new art): an affixed trash mob wears a
+    // coloured ground ring + an additive body halo in its affix colour, so the player reads
+    // "this one is special, and WHICH special" at a glance. The bigger silhouette (tpl.size
+    // bump from applyAffix) is the third cue. Skipped for elites/champions/boss (they own a
+    // louder aura already). Pure render off MOB_AFFIX[e.affix] — no sim state mutated, no RNG.
+    if(e.affix && !e.elite && !e.champion && !e.isBoss){ const A=MOB_AFFIX[e.affix];
+      if(A){ const col=A.col, pr=e.tpl.size*1.12 + Math.sin(G.t*6)*2; ctx.save();
+        ctx.globalAlpha=0.5; ctx.strokeStyle=col; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
+        // soft additive halo so the affix colour reads on the sprite mass itself (the "tint")
+        ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=0.12+0.05*(0.5+0.5*Math.sin(G.t*5));
+        ctx.fillStyle=col; ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.size*1.05,0,6.28); ctx.fill();
+        ctx.restore(); } }
     // CAS-121 CORAZA DE ESCARCHA telegraph: while the boss channels its Freeze Nova it
     // wears a pulsing ice shell (reads as IMMUNE) and a danger ring GROWS toward the nova
     // radius over the channel — the player reads "break it with a status, or roll out".
@@ -708,6 +724,8 @@ export function createRenderer(ctx){
     else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
       ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
     else if(e.elite){ ctx.fillStyle="#ff7a4d"; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("⚔ ÉLITE",e.x,yy-3); }
+    // CAS-247: name the affix above the HP bar in its colour, so the modifier is unmistakable.
+    else if(e.affix && MOB_AFFIX[e.affix]){ ctx.fillStyle=MOB_AFFIX[e.affix].col; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("✦ "+MOB_AFFIX[e.affix].name,e.x,yy-3); }
     // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
     drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
   }

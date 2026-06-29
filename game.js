@@ -133,6 +133,10 @@ export function createGame(canvas, ctx, getView){
       // CAS-146 enemy-variety + elite-ambush contract consumed by tools/cas146-variety.mjs — additive
       volatileProbe:(dx)=>simDev.volatileProbe(dx), volatileSnap:()=>simDev.volatileSnap(),
       forceAmbush:()=>simDev.forceAmbush(), ambushSnap:()=>simDev.ambushSnap(), eliteSpawnKill:(type,zone)=>simDev.eliteSpawnKill(type,zone),
+      // CAS-247 elite-affix contract consumed by tools/cas247-affixes.mjs — additive
+      affixMeta:()=>simDev.affixMeta(), affixRollRate:(n,type)=>simDev.affixRollRate(n,type),
+      affixArena:(id,type,dx)=>simDev.affixArena(id,type,dx), affixSnap:()=>simDev.affixSnap(),
+      affixHit:(d)=>simDev.affixHit(d), affixKill:()=>simDev.affixKill(), affixSpawnKill:(id,type,zone)=>simDev.affixSpawnKill(id,type,zone),
       // CAS-149 Elite-Mastery progression contract consumed by tools/cas149-progression.mjs — additive
       masterySnap:()=>simDev.masterySnap(), setEliteKills:(n)=>simDev.setEliteKills(n), bumpMastery:()=>simDev.bumpMastery(),
       masteryTrackSnap:()=>simDev.masteryTrackSnap(), // CAS-150 reward-track panel/harness read-out
