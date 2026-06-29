@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="'Courier New', monospace">
+  <defs>
+    <linearGradient id="iron" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1d26"/>
+      <stop offset="1" stop-color="#12141b"/>
+    </linearGradient>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- world / canvas backdrop -->
+  <rect width="1280" height="720" fill="#06070a"/>
+  <rect x="0" y="0" width="1280" height="720" fill="#0a0d12"/>
+  <text x="640" y="380" fill="#1c2128" font-size="40" text-anchor="middle" letter-spacing="6">· MUNDO / CANVAS ·</text>
+
+  <!-- panel helper style -->
+  <!-- ===================== A. VITALS (top-left) ===================== -->
+  <g filter="url(#sh)">
+    <rect x="14" y="14" width="320" height="112" rx="4" fill="url(#iron)" stroke="#3a3f49" stroke-width="2"/>
+    <rect x="15" y="15" width="318" height="110" rx="3" fill="none" stroke="#d8b25e" stroke-width="0.75" opacity="0.5"/>
+    <!-- portrait socket -->
+    <rect x="24" y="24" width="64" height="64" rx="3" fill="#0d1117" stroke="#a87f2e" stroke-width="2"/>
+    <circle cx="56" cy="50" r="13" fill="#3a4150"/>
+    <rect x="44" y="60" width="24" height="22" rx="3" fill="#3a4150"/>
+    <!-- name + level -->
+    <text x="100" y="36" fill="#d8b25e" font-size="15" font-weight="bold">Clarice</text>
+    <text x="322" y="36" fill="#d8b25e" font-size="13" text-anchor="end">Lv.14</text>
+    <!-- HP -->
+    <rect x="100" y="44" width="222" height="16" rx="2" fill="#2e1012"/>
+    <rect x="100" y="44" width="150" height="16" rx="2" fill="#b3242a"/>
+    <rect x="100" y="44" width="150" height="3" fill="#d8484e" opacity="0.7"/>
+    <text x="318" y="56" fill="#d8d3c4" font-size="12" text-anchor="end">148 / 210</text>
+    <!-- MP -->
+    <rect x="100" y="64" width="222" height="13" rx="2" fill="#101a30"/>
+    <rect x="100" y="64" width="178" height="13" rx="2" fill="#3f6bd0"/>
+    <text x="318" y="74" fill="#d8d3c4" font-size="11" text-anchor="end">64 / 80</text>
+    <!-- XP -->
+    <rect x="100" y="81" width="222" height="9" rx="2" fill="#231d0e"/>
+    <rect x="100" y="81" width="138" height="9" rx="2" fill="#d0aa44"/>
+    <text x="100" y="104" fill="#8a8678" font-size="10">XP</text>
+    <text x="318" y="104" fill="#8a8678" font-size="10" text-anchor="end">62%</text>
+    <!-- gold -->
+    <text x="24" y="118" fill="#e0b94a" font-size="11">◈ 1 240 oro</text>
+  </g>
+
+  <!-- B. status chips -->
+  <g filter="url(#sh)">
+    <rect x="14" y="134" width="44" height="22" rx="3" fill="#12141b" stroke="#8be04a" stroke-width="1.5"/>
+    <text x="36" y="149" fill="#8be04a" font-size="11" text-anchor="middle">☠4</text>
+    <rect x="62" y="134" width="44" height="22" rx="3" fill="#12141b" stroke="#7fd0ff" stroke-width="1.5"/>
+    <text x="84" y="149" fill="#7fd0ff" font-size="11" text-anchor="middle">❄2</text>
+    <rect x="110" y="134" width="44" height="22" rx="3" fill="#12141b" stroke="#ffe066" stroke-width="1.5"/>
+    <text x="132" y="149" fill="#ffe066" font-size="11" text-anchor="middle">✦8</text>
+  </g>
+
+  <!-- H. objective banner (top-center) -->
+  <g filter="url(#sh)">
+    <rect x="460" y="14" width="360" height="30" rx="4" fill="#12141b" stroke="#3a3f49" stroke-width="1.5"/>
+    <text x="640" y="34" fill="#d8b25e" font-size="13" text-anchor="middle">OBJETIVO: caza 5 lobos · 3/5</text>
+  </g>
+
+  <!-- ===================== C. MINIMAP (top-right) ===================== -->
+  <g filter="url(#sh)">
+    <rect x="1106" y="14" width="160" height="160" rx="4" fill="url(#iron)" stroke="#3a3f49" stroke-width="3"/>
+    <rect x="1108" y="16" width="156" height="156" rx="3" fill="none" stroke="#d8b25e" stroke-width="0.75" opacity="0.5"/>
+    <rect x="1118" y="26" width="136" height="136" fill="#0d1117"/>
+    <rect x="1118" y="26" width="136" height="136" fill="#142329" opacity="0.5"/>
+    <circle cx="1140" cy="50" r="4" fill="#3a4150"/>
+    <circle cx="1230" cy="120" r="4" fill="#3a4150"/>
+    <rect x="1180" y="86" width="8" height="8" fill="#d8b25e"/>
+    <!-- corner rivets -->
+    <circle cx="1114" cy="22" r="3" fill="#a87f2e"/><circle cx="1258" cy="22" r="3" fill="#a87f2e"/>
+    <circle cx="1114" cy="166" r="3" fill="#a87f2e"/><circle cx="1258" cy="166" r="3" fill="#a87f2e"/>
+  </g>
+
+  <!-- ===================== D. PAPER-DOLL (right rail) ===================== -->
+  <g filter="url(#sh)">
+    <rect x="1106" y="184" width="160" height="220" rx="4" fill="url(#iron)" stroke="#3a3f49" stroke-width="2"/>
+    <rect x="1107" y="185" width="158" height="218" rx="3" fill="none" stroke="#d8b25e" stroke-width="0.75" opacity="0.4"/>
+    <text x="1186" y="202" fill="#8a8678" font-size="10" text-anchor="middle">EQUIPO</text>
+    <!-- center figure -->
+    <rect x="1158" y="232" width="56" height="120" rx="3" fill="#0d1117" stroke="#22262e"/>
+    <circle cx="1186" cy="260" r="13" fill="#3a4150"/>
+    <rect x="1174" y="274" width="24" height="46" rx="3" fill="#3a4150"/>
+    <!-- left column slots -->
+    <g stroke="#3a3f49" stroke-width="1.5" fill="#10141b">
+      <rect x="1116" y="216" width="34" height="34" rx="3"/>
+      <rect x="1116" y="258" width="34" height="34" rx="3"/>
+      <rect x="1116" y="300" width="34" height="34" rx="3"/>
+      <rect x="1222" y="216" width="34" height="34" rx="3"/>
+      <rect x="1222" y="258" width="34" height="34" rx="3"/>
+      <rect x="1222" y="300" width="34" height="34" rx="3"/>
+    </g>
+    <!-- equipped slot (active state demo) -->
+    <rect x="1116" y="216" width="34" height="34" rx="3" fill="#10141b" stroke="#e0b94a" stroke-width="2"/>
+    <text x="1133" y="238" fill="#d8d3c4" font-size="16" text-anchor="middle">⛊</text>
+    <text x="1239" y="238" fill="#8a8678" font-size="14" text-anchor="middle">◈</text>
+    <!-- hand slots -->
+    <rect x="1150" y="356" width="34" height="34" rx="3" fill="#10141b" stroke="#3a3f49" stroke-width="1.5"/>
+    <text x="1167" y="378" fill="#d8d3c4" font-size="15" text-anchor="middle">⚔</text>
+    <rect x="1188" y="356" width="34" height="34" rx="3" fill="#10141b" stroke="#3a3f49" stroke-width="1.5"/>
+    <text x="1205" y="378" fill="#d8d3c4" font-size="15" text-anchor="middle">◈</text>
+  </g>
+
+  <!-- ===================== E. BACKPACK (right rail) ===================== -->
+  <g filter="url(#sh)">
+    <rect x="1106" y="414" width="160" height="150" rx="4" fill="url(#iron)" stroke="#3a3f49" stroke-width="2"/>
+    <text x="1186" y="432" fill="#8a8678" font-size="10" text-anchor="middle">MOCHILA</text>
+    <g stroke="#3a3f49" stroke-width="1.5" fill="#10141b">
+      <rect x="1118" y="440" width="32" height="32" rx="3"/><rect x="1154" y="440" width="32" height="32" rx="3"/>
+      <rect x="1190" y="440" width="32" height="32" rx="3"/><rect x="1226" y="440" width="32" height="32" rx="3"/>
+      <rect x="1118" y="476" width="32" height="32" rx="3"/><rect x="1154" y="476" width="32" height="32" rx="3"/>
+      <rect x="1190" y="476" width="32" height="32" rx="3"/><rect x="1226" y="476" width="32" height="32" rx="3"/>
+      <rect x="1118" y="512" width="32" height="32" rx="3"/><rect x="1154" y="512" width="32" height="32" rx="3"/>
+      <rect x="1190" y="512" width="32" height="32" rx="3"/><rect x="1226" y="512" width="32" height="32" rx="3"/>
+    </g>
+    <!-- a couple filled items w/ rarity cue -->
+    <rect x="1118" y="440" width="32" height="32" rx="3" fill="#10141b" stroke="#d0aa44" stroke-width="2"/>
+    <text x="1134" y="462" fill="#d0aa44" font-size="15" text-anchor="middle">♥</text>
+    <text x="1122" y="450" fill="#d8b25e" font-size="9">★</text>
+    <rect x="1154" y="440" width="32" height="32" rx="3" fill="#10141b" stroke="#5a8aff" stroke-width="1.5"/>
+    <text x="1170" y="462" fill="#5a8aff" font-size="14" text-anchor="middle">◆</text>
+  </g>
+
+  <!-- ===================== G. COMBAT LOG / CHAT (bottom-left) ===================== -->
+  <g filter="url(#sh)">
+    <rect x="14" y="600" width="460" height="106" rx="4" fill="url(#iron)" stroke="#3a3f49" stroke-width="2"/>
+    <rect x="15" y="601" width="458" height="104" rx="3" fill="none" stroke="#d8b25e" stroke-width="0.75" opacity="0.35"/>
+    <rect x="24" y="610" width="430" height="78" rx="2" fill="#0a0c10"/>
+    <text x="32" y="626" fill="#8a8678" font-size="11">· Entras en el Bosque Helado</text>
+    <text x="32" y="644" fill="#d8d3c4" font-size="11">· Golpeas al orco por 24</text>
+    <text x="32" y="662" fill="#4fbf6a" font-size="11">· Recoges: Poción menor ♥</text>
+    <text x="32" y="680" fill="#d8b25e" font-size="11">· ¡Subes a nivel 14!</text>
+    <text x="24" y="700" fill="#8a8678" font-size="9">REGISTRO / CHAT</text>
+  </g>
+
+  <!-- ===================== F. ACTION / HOTKEY BAR (bottom) ===================== -->
+  <g filter="url(#sh)">
+    <rect x="490" y="640" width="600" height="66" rx="4" fill="url(#iron)" stroke="#3a3f49" stroke-width="2"/>
+    <rect x="491" y="641" width="598" height="64" rx="3" fill="none" stroke="#d8b25e" stroke-width="0.75" opacity="0.4"/>
+    <g>
+      <!-- 10 slots -->
+      <g stroke="#3a3f49" stroke-width="1.5" fill="#10141b">
+        <rect x="502" y="650" width="46" height="46" rx="3"/>
+        <rect x="556" y="650" width="46" height="46" rx="3"/>
+        <rect x="610" y="650" width="46" height="46" rx="3"/>
+        <rect x="664" y="650" width="46" height="46" rx="3"/>
+        <rect x="718" y="650" width="46" height="46" rx="3"/>
+        <rect x="772" y="650" width="46" height="46" rx="3"/>
+        <rect x="826" y="650" width="46" height="46" rx="3"/>
+        <rect x="880" y="650" width="46" height="46" rx="3"/>
+        <rect x="934" y="650" width="46" height="46" rx="3"/>
+        <rect x="988" y="650" width="46" height="46" rx="3"/>
+      </g>
+      <!-- numbers -->
+      <g fill="#8a8678" font-size="9">
+        <text x="506" y="662">1</text><text x="560" y="662">2</text><text x="614" y="662">3</text>
+        <text x="668" y="662">4</text><text x="722" y="662">5</text><text x="776" y="662">6</text>
+        <text x="830" y="662">7</text><text x="884" y="662">8</text><text x="938" y="662">9</text><text x="992" y="662">0</text>
+      </g>
+      <!-- filled examples -->
+      <rect x="502" y="650" width="46" height="46" rx="3" fill="#10141b" stroke="#e0b94a" stroke-width="2"/>
+      <text x="525" y="680" fill="#ef8a2e" font-size="20" text-anchor="middle">🜂</text>
+      <text x="579" y="680" fill="#5a8aff" font-size="20" text-anchor="middle">❅</text>
+      <text x="633" y="680" fill="#4fbf6a" font-size="20" text-anchor="middle">✚</text>
+      <!-- cooldown demo on slot 4 -->
+      <rect x="664" y="650" width="46" height="20" rx="3" fill="#22262e" opacity="0.75"/>
+      <text x="687" y="680" fill="#8a8678" font-size="18" text-anchor="middle">⟳</text>
+      <!-- consumable on slot 0 -->
+      <text x="1011" y="680" fill="#b3242a" font-size="20" text-anchor="middle">♥</text>
+    </g>
+  </g>
+
+  <!-- legend -->
+  <g>
+    <text x="14" y="554" fill="#3a3f49" font-size="11">CAS-286 · HUD redesign mockup · estilo Tibia, mejor diseñado · paleta FOUNTAINS (sin colores nuevos)</text>
+    <text x="14" y="572" fill="#2b2f38" font-size="10">A Vitals · B Estados · C Minimapa · D Paper-doll · E Mochila · F Hotkeys 1-0 · G Registro/Chat · H Objetivo</text>
+  </g>
+</svg>
