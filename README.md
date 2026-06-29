@@ -2,7 +2,13 @@
 
 ARPG top-down de fantasía oscura en pixel art. HTML5 Canvas + JavaScript puro (sin build, sin dependencias). UI en español.
 
-Juego en vivo (URL pública FIJA — no cambia entre deploys): https://tender-bridge-504.higgsfield.gg/
+## ▶ Jugar ahora
+
+**URL de juego interina (build actual, QA-green): https://carlosdcastrosa-cloud.github.io/Mithralda-Online/**
+
+Esta es la URL de juego vigente para jugadores mientras dure la interrupción de `deploy_game` de Higgsfield (CAS-159). Sirve el build superset `112f63203e18` (266 archivos) desde el host estático de respaldo (GitHub Pages), verificado en vivo (CAS-183/CAS-188: boot 0 errores, 60 fps, combate, daily-loop, móvil). La cutover se ejecutó en [CAS-188](/CAS/issues/CAS-188).
+
+URL pública FIJA de Higgsfield (canónica a largo plazo, hoy **stale** en build `585a05e63d46` por la interrupción de `deploy_game`): https://tender-bridge-504.higgsfield.gg/ — volverá a ser la URL primaria en cuanto `deploy_game` se recupere y aterrice el build actual.
 
 ## Cómo correrlo en local
 No necesita compilar nada. Solo sírvelo con cualquier servidor estático (no abras index.html con doble clic; los assets se cargan por HTTP):
