@@ -1,0 +1,54 @@
+{
+  "name": "Mithralda — FOUNTAINS dark-fantasy palette",
+  "version": 1,
+  "supersedes": "palette.json (warm earthy medieval) — pending board sign-off + engineer wire-in (CAS-200)",
+  "note": "Palette-by-role for the FOUNTAINS dark-fantasy re-style. Same readability discipline as the warm palette but ~40-55% less saturated, darker ambient, cold-shifted shadows. Environment sinks into gloom; actors are pale steel/leather silhouettes that pop ONLY by cold contrast; signal hues are the only saturated glow and appear ONLY on hazards/FX/pickups. Single source of truth for both the runtime renderer COL{} and the asset pipeline once adopted.",
+  "roles": {
+    "environment": {
+      "_desc": "Ground/terrain. Cold, desaturated, dim so it recedes into shadow. base/light/dark = flat/highlight/shadow per tile.",
+      "moss":   { "base": "#26302a", "light": "#334036", "dark": "#19211c" },
+      "dirt":   { "base": "#2c2925", "light": "#3a352d", "dark": "#1c1a16" },
+      "stone":  { "base": "#2b2f38", "light": "#3a4150", "dark": "#1b1f26" },
+      "cobble": { "base": "#23303a", "light": "#33424f", "dark": "#161e26" },
+      "ash":    { "base": "#322f29", "light": "#423d33", "dark": "#1f1d18", "blood": "#3f1216" },
+      "water":  { "base": "#142329", "light": "#234048", "glint": "#5f8e90" },
+      "twig": "#2a2016",
+      "outline": "#0a0c10",
+      "bg": "#06070a",
+      "night": "#0a0d12"
+    },
+    "actors": {
+      "_desc": "Player classes + NPCs/enemies. Pale, cold, never bright — read by contrast against the dark, with a cold rim light. Shared parts keep the cast coherent; per-class accent gives identity within the family.",
+      "shared": {
+        "skin": "#a87f53", "skin_dark": "#7d5a38",
+        "blade": "#aab4c2", "blade_dark": "#6b7480", "gold": "#b08c44",
+        "leather": "#2c2d34", "boot": "#181920", "wood": "#5a4230", "bone": "#c7bc9c"
+      },
+      "classes": {
+        "warrior": { "body": "#525a68", "cape": "#6e2326", "accent": "#b08c44" },
+        "paladin": { "body": "#9aa0ab", "cape": "#c3bda8", "accent": "#b08c44" },
+        "mage":    { "body": "#263c47", "cape": "#1c2d35", "accent": "#6f86c8", "orb": "#79cdc6" },
+        "druid":   { "body": "#34503a", "cape": "#293f2c", "accent": "#9c8454", "orb": "#6fb072" },
+        "priest":  { "body": "#bdb8aa", "cape": "#a8a292", "accent": "#b08c44", "orb": "#e8d49a" }
+      }
+    },
+    "signal": {
+      "_desc": "Reserved hues for combat/hazards/pickups — the ONLY saturated/glowing colors. Must NOT appear on terrain or actors so the eye reads them instantly against the gloom.",
+      "flame": "#ef8a2e", "flame_light": "#ffc24d", "flame_core": "#fff0c2",
+      "heal": "#4fbf6a", "rune": "#5a8aff", "arcane": "#45c7c0", "spark": "#ffffff",
+      "blood": "#b3242a", "blood_dark": "#6e1418",
+      "soul": "#7fe0d0", "soul_dark": "#3f8f86",
+      "fragment": "#3fd0c0", "fragment_light": "#8fece0",
+      "loot_gold": "#e0b94a", "loot_gold_light": "#ffe39a", "loot_gold_dark": "#a87f2e",
+      "hp": "#b3242a", "mp": "#3f6bd0"
+    },
+    "ui": {
+      "_desc": "Frames, panels, text. Cold iron-and-stone framing over a near-black field — grimmer than the warm wood UI.",
+      "panel": "#12141b", "panel_border": "#3a3f49", "panel_border_dark": "#22262e",
+      "cream": "#d8d3c4", "text_gold": "#d8b25e", "text_dim": "#8a8678",
+      "hp_fill": "#b3242a", "hp_back": "#2e1012",
+      "mp_fill": "#3f6bd0", "mp_back": "#101a30",
+      "xp_fill": "#d0aa44", "xp_back": "#231d0e"
+    }
+  }
+}
