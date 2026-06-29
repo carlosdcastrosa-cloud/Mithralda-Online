@@ -1349,9 +1349,9 @@ export function createRenderer(ctx){
     ctx.fillText(""+sp[0].cost,tb.s2.x,tb.s2.y+tb.s2.r+10); ctx.fillText(""+sp[1].cost,tb.s3.x,tb.s3.y+tb.s3.r+10); ctx.fillText(""+sp[2].cost,tb.s4.x,tb.s4.y+tb.s4.r+10); ctx.globalAlpha=1;
   }
 
-  function renderCRT(){ ctx.globalAlpha=0.08; ctx.fillStyle="#000";
+  function renderCRT(){ ctx.globalAlpha=0.10; ctx.fillStyle="#000";
     for(let y=0;y<VH;y+=3){ ctx.fillRect(0,y,VW,1); } ctx.globalAlpha=1;
-    const g=ctx.createRadialGradient(VW/2,VH/2,VH*0.3,VW/2,VH/2,VH*0.8); g.addColorStop(0,"rgba(0,0,0,0)"); g.addColorStop(1,"rgba(0,0,0,0.5)");
+    const g=ctx.createRadialGradient(VW/2,VH/2,VH*0.25,VW/2,VH/2,VH*0.85); g.addColorStop(0,"rgba(0,0,0,0)"); g.addColorStop(1,"rgba(0,0,0,0.72)");
     ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH); }
 
   // ------------------------------- menu ----------------------------------

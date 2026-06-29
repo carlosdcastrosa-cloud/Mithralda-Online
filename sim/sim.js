@@ -55,7 +55,7 @@ export const G = {
   t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
   // CAS-127: reduceMotion is the accessibility off-switch — it gates screen shake and
   // trims flourish particle bursts (never changes balance/mechanics; purely cosmetic).
-  cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:false, rollAim:false, reduceMotion:false},
+  cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:true, rollAim:false, reduceMotion:false},
   quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0, bountySel:0,
   // CAS-146 — elite-ambush event clock: `t` counts down only while the hero is fighting in a
   // hunt zone; `active` is true from an ambush firing until its elite is cleared (auto-recovers).
@@ -113,6 +113,11 @@ function newHero(name,cls){
     // down in update(). Transient — never serialized (a fresh boot starts clean).
     atkspdBuffT:0, atkspdBuffAmt:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
+    // CAS-210: RIPOSTE focus window — a frame-perfect dodge (rolling THROUGH a connecting
+    // strike) arms this timer; the next hero hit while it's live is a guaranteed crushing
+    // counter. The skill-expression payoff that makes the souls-like read-and-punish loop
+    // land. Transient — never serialized (a fresh boot starts clean).
+    riposte:0,
     // CAS-118 status sinks (mirror the enemy fields): slow scales move speed, stun gates
     // input, dots holds active DoTs. Transient — never serialized (rehydrated clean).
     slow:1, slowT:0, stun:0, dots:null,
@@ -442,14 +447,25 @@ function hitEnemy(e,dmg,ang){
   // when the combined chance is >0, so a fresh hero (no talents, no milestones) stays byte-
   // identical for the determinism baseline.
   const critPct=(tt?tt.crit:0)+(mk?(mk.crit||0):0);
-  let crit=false; if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
+  let crit=false, riposted=false;
+  // CAS-210: a live RIPOSTE window (armed by a perfect dodge) converts THIS hit into a
+  // guaranteed crushing counter — forced crit × riposteMult — and is spent immediately. No
+  // srand is consumed on this path, so it stays deterministic and never double-rolls with
+  // the normal crit chance below. This is the souls-like read-and-punish payoff.
+  if(G.hero && G.hero.riposte>0){ riposted=true; crit=true; G.hero.riposte=0;
+    dmg*=CFG.riposteMult*(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
+  else if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
   // CAS-127: crits read LOUDER — distinct bright SFX, a bigger popping number, an extra
   // shake kick. Normal hits get a subtle number pop. Pure feel (damage already applied).
   if(crit){ audio.sfx.crit(); floater(e.x,e.y-e.tpl.size,"¡"+Math.round(dmg)+"!","#ff5d5d",{crit:true,pop:1.9,life:1.05}); addFx("spark",e.x,e.y); shakeAdd(3.5);
     // CAS-204: a crit is a FINISHER read — twin shockwave rings + a louder debris throw + a longer freeze.
-    addFx("shockring",e.x,e.y,{r:48,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5}); }
+    addFx("shockring",e.x,e.y,{r:48,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5});
+    // CAS-210: a RIPOSTE reads even LOUDER than a normal crit — a gold counter banner above
+    // the hero, an extra wide shockwave + debris fan, and a harder shake. The punish landed.
+    if(riposted){ floater(G.hero.x,G.hero.y-40,STR.riposte,"#ffd24d",{crit:true,pop:1.6,life:0.95});
+      addFx("shockring",e.x,e.y,{r:66,life:0.5}); addFx("debris",e.x,e.y,{ang,life:0.6}); shakeAdd(6); } }
   else floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d",{pop:1.3});
   // CAS-204 (FOUNTAINS crunch): every connect snaps a white-hot hitburst at the contact point and
   // throws chunky crimson debris along the knockback vector — the impact now reads as launched, not tapped.
@@ -1126,6 +1142,7 @@ export function update(dtMs){
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
   h._pdCD=Math.max(0,(h._pdCD||0)-dt); // perfect-dodge reward cooldown
+  h.riposte=Math.max(0,(h.riposte||0)-dt); // CAS-210: the riposte counter window decays if unused
   // spell cooldowns + timed buffs (in-place; no per-frame allocation)
   for(let s=1;s<4;s++){ if(h.spellCD[s]>0) h.spellCD[s]=Math.max(0,h.spellCD[s]-dt); }
   if(h.dmgBuffT>0){ h.dmgBuffT-=dt; if(h.dmgBuffT<=0){ h.dmgBonus-=h.dmgBuffAmt; h.dmgBuffAmt=0; } }
@@ -1252,6 +1269,9 @@ function updateEnemies(dt){ const h=G.hero;
             // windup (the growing-ring tell in render) then a ring of shards instead of
             // the melee hit. Punishes face-tanking; readable + dodgeable with the roll.
             e.specialNow = !!(e.special && e.special.slam && (e.atkCount % e.special.every === 0));
+            // CAS-210: a punisher arms its COMBO chain at the START of a fresh sequence — the
+            // follow-up swings re-enter windup directly from strike (below), never via chase.
+            if(e.tpl.arch==="punisher") e.comboLeft=(e.tpl.combo||2)-1;
             e.state="windup"; e.st=e.specialNow ? (e.special.windup || e.tpl.windup*1.6) : e.tpl.windup; e.hitDone=false;
             if(e.specialNow){ audio.sfx.boss(); }
           }
@@ -1329,7 +1349,18 @@ function updateEnemies(dt){ const h=G.hero;
           addFx("spark",e.x+Math.cos(e.facing)*e.tpl.range*0.6,e.y+Math.sin(e.facing)*e.tpl.range*0.6);
         }
       }
-      if(e.st<=0){ e.state="recover"; e.st=e.tpl.recover; e.specialNow=false; }
+      if(e.st<=0){
+        // CAS-210 punisher COMBO: while the chain has swings left, re-enter windup directly
+        // (a FASTER `comboWindup` follow-up that keeps tracking the hero) instead of recover —
+        // so a single clean dodge isn't enough and greedy re-engagement gets clipped. When the
+        // chain is spent, drop into a LONG `punishRecover`: the read-and-punish/riposte window.
+        if(e.tpl.arch==="punisher" && (e.comboLeft||0)>0){
+          e.comboLeft--; e.state="windup"; e.st=e.tpl.comboWindup||(e.tpl.windup*0.5); e.hitDone=false;
+          addFx("strikeflash",e.x,e.y,{ang:e.facing,range:0,life:0.12}); audio.sfx.ehurt();
+        } else {
+          e.state="recover"; e.st=(e.tpl.arch==="punisher")?(e.tpl.punishRecover||e.tpl.recover*1.8):e.tpl.recover; e.specialNow=false;
+        }
+      }
     } else if(e.state==="recover"){ e.st-=dt; if(e.st<=0) e.state=d<aggro?"chase":"idle"; }
     // CAS-121: CARAPACE CHANNEL — the boss holds position and channels the Freeze Nova.
     // A status break is resolved at the top of the loop (shatterCarapace). If the channel
@@ -1481,9 +1512,13 @@ function fireFrostNova(e){ const N=(e.carapace&&e.carapace.nova)||{count:18,spd:
   e.shielded=false; e.shieldBroken=false; e.state="recover"; e.st=e.tpl.recover;
 }
 // reward reading the telegraph: a hit negated mid-roll refunds MP + pops, not the post-hit mercy i-frame
+// CAS-210: a perfect dodge also ARMS the riposte window (CFG.riposteWindow) — the next hero
+// hit lands as a guaranteed crushing counter. A slightly longer focus-freeze sells the moment.
 function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0.5;
-  freeze(6); h.iframe=Math.max(h.iframe,0.20); h.mp=Math.min(h.maxMp,h.mp+8);
-  floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.34}); audio.sfx.roll(); }
+  freeze(8); h.iframe=Math.max(h.iframe,0.20); h.mp=Math.min(h.maxMp,h.mp+8);
+  h.riposte=CFG.riposteWindow; // arm the counter — consumed by the next hitEnemy connect
+  floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.36});
+  addFx("shockring",h.x,h.y,{r:30,life:0.34}); audio.sfx.roll(); }
 function damageHero(dmg,ang,infl){ const h=G.hero; if(h.dead) return;
   if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return; } // only an active roll earns the dodge, not mercy i-frames
   // CAS-119: a dodge build (esquiva) can fully negate a connecting telegraphed strike
@@ -1774,6 +1809,7 @@ export const dev = {
   archMeta(type){ const t=ETPL[type]; if(!t) return null;
     return { type, arch:t.arch||null, ranged:!!t.ranged, lunge:t.lunge||0, kite:t.kite||0, aoe:t.aoe||0,
       charge:t.charge||0, summon:t.summon||null, heal:t.heal||null, // CAS-126 new-archetype fields
+      combo:t.combo||0, comboWindup:t.comboWindup||0, punishRecover:t.punishRecover||0, recover:t.recover, // CAS-210 punisher fields
       hp:t.hp, dmg:t.dmg, spd:t.spd, xp:t.xp, gold:t.gold.slice(), windup:t.windup }; },
   // Clean single-mob arena for behaviour probing: clear all entities, park a tanky hero
   // at a fixed spot (so AoE/lunge damage is measurable, mercy-iframes off), spawn ONE
@@ -1784,13 +1820,32 @@ export const dev = {
     const e=spawnEnemy(type, h.x+(dx||0), h.y+(dy||0)); if(e){ e.state="chase"; } return e?type:null; },
   // Live behaviour snapshot of the single arena mob + hero damage taken so far.
   archSnap(){ const e=G.enemies[0], h=G.hero; if(!e) return null;
-    return { type:e.type, arch:e.tpl.arch||null, state:e.state,
+    return { type:e.type, arch:e.tpl.arch||null, state:e.state, comboLeft:e.comboLeft||0, // CAS-210: punisher chain counter
       dist:Math.round(Math.hypot(e.x-h.x,e.y-h.y)), ex:Math.round(e.x), ey:Math.round(e.y),
       heroDmgTaken:Math.round(100000-h.hp), enemyProj:G.projectiles.filter(p=>p.enemy).length }; },
   // Move the hero to a fixed offset from the arena mob (to test dodging out of an AoE /
   // sidestepping a lunge mid-windup) without touching its AI state.
   archMoveHero(dx,dy){ const e=G.enemies[0]; if(!e) return null; const h=G.hero;
     h.x=e.x+(dx||0); h.y=e.y+(dy||0); h.iframe=0; return { dist:Math.round(Math.hypot(e.x-h.x,e.y-h.y)) }; },
+  // --- CAS-210 punisher-combo + riposte harness hooks (tools/cas210-combat.mjs); additive ---
+  // riposteSnap: read the live counter window + cfg constants so the test can assert the
+  // perfect-dodge → riposte payoff math without guessing internals.
+  riposteSnap(){ const h=G.hero; return { riposte:+(h.riposte||0).toFixed(3), pdCD:+(h._pdCD||0).toFixed(3),
+    window:CFG.riposteWindow, mult:CFG.riposteMult }; },
+  // armRiposte: drive the REAL perfectDodge() path (same one a frame-perfect roll triggers),
+  // so the test proves the production code arms the window — not a back-door flag.
+  armRiposte(){ const h=G.hero; h._pdCD=0; perfectDodge(h.facing); return +(h.riposte||0).toFixed(3); },
+  // hitProbe: spawn ONE fresh dummy at a fixed offset, face it, then land a single real
+  // hitEnemy() at a fixed base dmg — optionally with the riposte window armed first — and
+  // return the HP delta. Two calls (with/without) prove the riposte multiplies the hit.
+  // Determinism baseline is untouched: no talents/crit, riposte path consumes no srand.
+  hitProbe(withRiposte, baseDmg){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.riposte=0; h.tt=null; h.mperk=null;
+    h.maxHp=100000; h.hp=100000; h.cls="warrior";
+    const e=spawnEnemy("revenant", h.x+40, h.y); if(!e) return null; e.state="idle"; e.maxHp=e.hp=1e9;
+    const ang=Math.atan2(e.y-h.y,e.x-h.x); h.facing=ang;
+    if(withRiposte){ h._pdCD=0; perfectDodge(ang); }
+    const before=e.hp; hitEnemy(e, baseDmg||100, ang); return { dmg:Math.round(before-e.hp), riposteAfter:+(h.riposte||0).toFixed(3) }; },
   // --- CAS-126 new-archetype + zone-identity harness hooks (tools/cas126-archetypes.mjs) ---
   // The per-zone spawner pool compositions, so the test can assert each zone fields a
   // DIFFERENT mix of archetypes (AC2: zona A ≠ zona B). Pure data off world.spawners.
