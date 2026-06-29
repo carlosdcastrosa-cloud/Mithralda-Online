@@ -346,7 +346,9 @@ export function createRenderer(ctx){
       // reads big), so a crit is distinguishable from a normal hit without relying on hue.
       const txt=(cb()&&f.crit)?("!"+f.txt):f.txt;
       ctx.font="bold "+sz+"px 'Courier New',monospace"; ctx.textAlign="center";
-      ctx.fillStyle=COL.out; ctx.fillText(txt,f.x+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(txt,f.x,f.y); ctx.globalAlpha=1; }
+      // CAS-273: apply the spawn-time anti-overlap lane offset (f.dx) so stacked numbers fan out.
+      const fx=f.x+(f.dx||0);
+      ctx.fillStyle=COL.out; ctx.fillText(txt,fx+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(txt,fx,f.y); ctx.globalAlpha=1; }
   }
 
   function drawHero(h){

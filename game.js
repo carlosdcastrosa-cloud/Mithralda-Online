@@ -178,6 +178,8 @@ export function createGame(canvas, ctx, getView){
       juiceState:()=>simDev.juiceState(), floaterDump:()=>simDev.floaterDump(), setReduceMotion:(v)=>simDev.setReduceMotion(v),
       clearFx:()=>simDev.clearFx(), juiceArena:(n)=>simDev.juiceArena(n), juiceSwing:()=>simDev.juiceSwing(),
       forceCritSwing:()=>simDev.forceCritSwing(),
+      // CAS-273 juice polish (kill-shake escalado por muerte + damage-number anti-overlap) — additive
+      killShakeProbe:()=>simDev.killShakeProbe(),
       // CAS-128 onboarding/tutorial contract consumed by tools/cas128-onboarding.mjs — additive
       tutState:()=>simDev.tutState(), tutArm:(v)=>simDev.tutArm(v), tutStart:()=>simDev.tutStart(),
       tutSkip:()=>simDev.tutSkip(), tutSetStep:(i)=>simDev.tutSetStep(i), tutSeen:()=>persist.tutSeen(),

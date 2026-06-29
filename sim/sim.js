@@ -345,12 +345,16 @@ export function toast(msg,dur){ G.toast=msg; G.toastT=dur||2.6; }
 // shape → zero steady-state alloc); FX are capped + compacted in place. Hard caps
 // evict the OLDEST so the newest feedback always reads. Pure presentation: no RNG,
 // no gameplay state — Stage-2 safe.
-const MAX_FLOATERS=64, MAX_FX=140, _floatPool=[];
+const MAX_FLOATERS=64, MAX_FX=140, _floatPool=[]; let _floatSeq=0;
 function floater(x,y,txt,col,opt){
   if(G.floaters.length>=MAX_FLOATERS) _floatPool.push(G.floaters.shift()); // recycle the oldest into the pool
   const f=_floatPool.pop()||{};
   f.x=x; f.y=y; f.txt=txt; f.col=col||C_CREAM; f.t=0;
   f.life=(opt&&opt.life)||0.9; f.pop=(opt&&opt.pop)||1; f.small=!!(opt&&opt.small); f.crit=!!(opt&&opt.crit);
+  // CAS-273: fan rapid stacked numbers across a fixed 3-lane offset so back-to-back hits
+  // on the same target stay readable instead of overprinting. Pure presentation: a render-only
+  // counter, not sim RNG/state → Stage-2 deterministic.
+  f.dx=((_floatSeq++ % 3) - 1) * 6;
   G.floaters.push(f);
 }
 function addFx(kind,x,y,opt){ if(G.fx.length>=MAX_FX) G.fx.shift(); G.fx.push(Object.assign({kind,x,y,t:0,life:0.4},opt)); }
@@ -568,6 +572,11 @@ function killEnemy(e){
     gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
   else if(e.champion){ onChampionKill(e); } // hunt climax — clears the zone, guaranteed payoff
   else { gainXP(tpl.xp);
+    // CAS-273: every kill now lands a subtle, size-scaled screen-shake (the requested
+    // "shake escalado por muerte" — previously only boss/champion/crit/volatile kills shook).
+    // reduceMotion-gated via shakeAdd; bosses/champions keep their larger shakes on their own
+    // paths so this never double-fires. Pure presentation — no damage/timing/drop change.
+    shakeAdd(clamp(tpl.size*0.09, 1.2, 3));
     const g=ri(tpl.gold[0],tpl.gold[1]); if(g>0){ G.drops.push({x:e.x,y:e.y,kind:"gold",amt:g}); }
     if(srand()<0.22) G.drops.push({x:e.x+frr(-8,8),y:e.y,kind:srand()<0.6?"potionhp":"potionmp"});
     // CAS-146: an ELITE (ambush leader) guarantees an elevated drop + bonus gold; a normal
@@ -2224,7 +2233,16 @@ export const dev = {
     sound:!!(audio&&audio.on), pool:_floatPool.length }; },
   // The most recent floaters (newest last) with their juice styling flags, so the test
   // can assert a crit number pops bigger/distinct and DoT ticks render small.
-  floaterDump(){ return G.floaters.slice(-12).map(f=>({ txt:f.txt, col:f.col, pop:+(f.pop||1).toFixed(2), small:!!f.small, crit:!!f.crit })); },
+  floaterDump(){ return G.floaters.slice(-12).map(f=>({ txt:f.txt, col:f.col, pop:+(f.pop||1).toFixed(2), small:!!f.small, crit:!!f.crit, dx:+(f.dx||0) })); },
+  // CAS-273: spawn a single normal-HP mob, zero shake, then drive the REAL kill path
+  // (killEnemy via a lethal hitEnemy) and report the shake the death produced — proves
+  // the "shake escalado por muerte" kick fires for ordinary kills and respects reduceMotion.
+  killShakeProbe(){ G.enemies.length=0; this.clearFx();
+    const h=G.hero; h.dead=false; h.iframe=0; h.maxHp=h.hp=100000;
+    const e=spawnEnemy("skeleton", h.x+22, h.y); if(!e) return null;
+    e.maxHp=e.hp=1; h.facing=Math.atan2(e.y-h.y,e.x-h.x);
+    const before=G.shake; hitEnemy(e, 99999, h.facing);
+    return { killed:!G.enemies.includes(e), shakeDelta:+(G.shake-before).toFixed(2), shake:+G.shake.toFixed(2), reduceMotion:!!G.settings.reduceMotion }; },
   setReduceMotion(v){ G.settings.reduceMotion=!!v; if(G.settings.reduceMotion) G.shake=0; return G.settings.reduceMotion; },
   clearFx(){ G.fx.length=0; G.floaters.length=0; G.shake=0; G.hitstop=0; return true; },
   // Clean juice arena: a tanky hero + N unscaled mobs packed in front, feedback cleared.
