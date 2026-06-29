@@ -89,7 +89,8 @@
     "cas287": "node tools/cas287-hud-scaffold.mjs",
     "cas287-impl": "node tools/cas287-hud-impl.mjs",
     "cas303": "node tools/cas303-ranged-trajectory-live.mjs",
-    "cas304": "node tools/cas304-mob-tracer.mjs"
+    "cas304": "node tools/cas304-mob-tracer.mjs",
+    "cas307": "node tools/cas307-mob-tracer-live.mjs"
   },
   "keywords": [],
   "author": "",
