@@ -629,12 +629,15 @@ export function createRenderer(ctx){
       if(cb()){ ctx.save(); ctx.globalAlpha=fl2?0.92:0.4; ctx.strokeStyle="#ffffff"; ctx.lineWidth=2; ctx.setLineDash([3,4]);
         ctx.beginPath(); ctx.arc(e.x, e.y, (e.tpl.size||16)*0.95+3, 0, 6.28); ctx.stroke();
         ctx.setLineDash([]); ctx.restore(); }
-      if(e.tpl.ranged){ const a=e.facing; const col=e.tpl.proj==="bolt"?"#9bef5a":"#ffd24d";
-        ctx.globalAlpha=0.55; ctx.strokeStyle=fl2?col:"#ff8a3a"; ctx.lineWidth=2; ctx.setLineDash([6,7]);
-        ctx.beginPath(); ctx.moveTo(e.x,e.y-6); ctx.lineTo(e.x+Math.cos(a)*240,e.y-6+Math.sin(a)*240); ctx.stroke();
-        ctx.setLineDash([]); ctx.globalAlpha=1;
-        const cx=e.x+Math.cos(a)*14, cy=e.y-8+Math.sin(a)*14; ctx.globalAlpha=0.9; ctx.fillStyle=col;
-        ctx.beginPath(); ctx.arc(cx,cy,3+(fl2?2:0),0,6.28); ctx.fill(); ctx.globalAlpha=1;
+      if(e.tpl.ranged){
+        // CAS-303 (board CAS-302): the ranged windup NO LONGER draws a directional aim-line or
+        // muzzle dot. That 240px dashed line pointed from the mob straight down its shot path and
+        // gave away exactly where the bolt/spear was coming from. Board wants the ranged threat
+        // harder to read ("mas dificil ver de donde viene el golpe"), so the trajectory tell is
+        // gone. The generic colour-blind "about to strike" ring above (cb-gated, non-directional)
+        // plus the windup flash/grow still signal that *an* attack is coming — just not its
+        // origin. Presentation-only: damage, range, cadence, projspd and hitbox are untouched
+        // (all in sim.js), and the projectile sprite (spear/bolt) still draws once fired.
       } else if(e.tpl.arch==="brute"){
         // CAS-115 brute GROUND-SLAM tell: a red danger ellipse on the ground that grows
         // toward the AoE radius over the (long) windup, plus a pulsing full-size outline
