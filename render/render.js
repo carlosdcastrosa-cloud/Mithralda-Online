@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, CUSTOMIZE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel } from "../sim/gear.js";
@@ -737,6 +737,7 @@ export function createRenderer(ctx){
     // gold + potions
     ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
     ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
+    renderConsumableSlot(h); // CAS-192: selected combat consumable + cooldown + active-buff timer
     // skull indicator
     if(G.skull.level>0){ const sc=[null,COL.skullW,COL.skullY,COL.skullR][G.skull.level]; ctx.fillStyle=sc; ctx.font="bold 16px 'Courier New'"; ctx.fillText("☠ "+h.name, pad, pad+104); }
     else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(h.name, pad, pad+102); }
@@ -778,6 +779,43 @@ export function createRenderer(ctx){
     ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(x-w/2,y-1,w,18);
     ctx.fillStyle=col; ctx.fillRect(x-w/2,y-1,3,18);                  // accent tick
     ctx.fillStyle=col; ctx.fillText(label, x, y+12);
+    ctx.textAlign="left";
+  }
+  // CAS-192: the combat-consumable slot — bottom-left HUD widget. Shows the SELECTED
+  // consumable (icon + short name), its remaining count, a top-down cooldown wipe while
+  // h.consumCD is live, and the [Q] use / [R] cycle key hints. An active timed buff
+  // (furia) reads its remaining seconds as a shrinking bar above the slot, so the player
+  // always knows the buff is up and roughly how long is left (duration telegraph).
+  function renderConsumableSlot(h){ if(isTouch) return; const s=44; const x=12, y=VH-12-s;
+    const c=CONSUMABLES[h.consumSel|0]||CONSUMABLES[0]; const qty=(h.consum&&h.consum[c.id])|0;
+    // active fury buff timer (shrinking bar) above the slot
+    if(h.atkspdBuffT>0){ const f=clamp(h.atkspdBuffT/6,0,1);
+      ctx.fillStyle=COL.out; ctx.fillRect(x-1,y-12,s+2,8);
+      ctx.fillStyle="#ff7a3a"; ctx.fillRect(x,y-11,s*f,6);
+      ctx.fillStyle=COL.cream; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="left";
+      ctx.fillText("⚔ "+h.atkspdBuffT.toFixed(1)+"s", x+s+6, y-5); }
+    // slot frame + body
+    ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
+    ctx.fillStyle=qty>0?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
+    // icon + short name (dimmed when empty)
+    ctx.globalAlpha=qty>0?1:0.4; ctx.textAlign="center";
+    ctx.fillStyle=c.col; ctx.font="bold 20px 'Courier New'"; ctx.fillText(c.icon,x+s/2,y+24);
+    ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.fillText(c.short,x+s/2,y+s-5);
+    ctx.globalAlpha=1;
+    // cooldown wipe (top-down) — per-consumable cd; the row's cd is the true denominator
+    const cd=(h.consumCD&&h.consumCD[c.id])||0;
+    if(cd>0){ const f=clamp(cd/(c.cd||1),0,1);
+      ctx.fillStyle="rgba(8,10,14,0.66)"; ctx.fillRect(x,y,s,s*f);
+      ctx.fillStyle=COL.cream; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText(Math.ceil(cd),x+s/2,y+s/2+5); }
+    // count badge (top-right)
+    ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-5,y+5,8,0,6.28); ctx.fill();
+    ctx.fillStyle=qty>0?COL.textGold:"#7a7f88"; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
+    ctx.fillText(qty,x+s-5,y+9);
+    // key hints
+    ctx.fillStyle=COL.out; ctx.fillRect(x-2,y+s+4,s+4,14);
+    ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="center";
+    ctx.fillText("[Q] usar  [R] ↻",x+s/2,y+s+14);
     ctx.textAlign="left";
   }
   function renderSpellBar(){ const h=G.hero; const n=4; const s=Math.min(46,VW*0.1); const gap=6; const total=n*s+(n-1)*gap;

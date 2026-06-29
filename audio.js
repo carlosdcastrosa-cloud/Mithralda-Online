@@ -147,6 +147,9 @@ export const audio = (()=>{
     boss(){ tone(80,0.5,"sawtooth",0.3,sfxGain,60); noise(0.4,0.2,400); },
     buy(){ tone(740,0.07,"square",0.16,sfxGain); tone(990,0.09,"square",0.14,sfxGain); },
     deny(){ tone(180,0.12,"square",0.16,sfxGain,120); },
+    // CAS-192: consumable "power-up" chime — a quick rising triad distinct from buy/heal
+    // so quaffing a furia/antídoto reads instantly by ear.
+    buff(){ [0,4,7].forEach((n,i)=>setTimeout(()=>tone(392*semis(n),0.12,"square",0.16,sfxGain,392*semis(n)*1.6),i*55)); },
     // CAS-131: missing feel SFX -------------------------------------------------
     // soft, low footfall (varied so it doesn't machine-gun); kept quiet on its own bus level.
     step(){ noise(0.05,0.05,420+Math.random()*180); },

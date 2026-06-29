@@ -50,7 +50,7 @@ function onKeyDown(e){
     e.preventDefault(); return; }
   if(BIND[e.code]) { keys.add(BIND[e.code]); e.preventDefault(); }
   edge(e.code);
-  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","KeyT","KeyV","KeyC","Escape"].includes(e.code)) e.preventDefault();
+  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyI","KeyM","KeyE","KeyT","KeyV","KeyC","KeyQ","KeyR","Escape"].includes(e.code)) e.preventDefault();
 }
 function onKeyUp(e){ if(BIND[e.code]) keys.delete(BIND[e.code]); }
 function edge(code){
@@ -120,6 +120,8 @@ function edge(code){
     case "Escape": G.scene="pause"; break;
     case "KeyP": sim.doPotionHP(); break;
     case "KeyO": sim.doPotionMP(); break;
+    case "KeyQ": sim.doConsumable(); break;        // CAS-192: use the selected combat consumable
+    case "KeyR": sim.cycleConsumable(1); break;    // CAS-192: rotate the consumable slot
   }
 }
 

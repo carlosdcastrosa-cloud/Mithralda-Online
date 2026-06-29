@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, AMBUSH, MASTERY, CUSTOMIZE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, AMBUSH, MASTERY, CUSTOMIZE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -108,6 +108,10 @@ function newHero(name,cls){
     // defBonus are the buff sinks (equippedDmg/Def read them), restored on expiry.
     spellCD:[0,0,0,0], spellCDmax:[0,0,0,0],
     dmgBuffT:0, dmgBuffAmt:0, defBuffT:0, defBuffAmt:0, hotT:0, hotRate:0,
+    // CAS-192: short timed attack-speed bonus from the "furia" consumable. Read by the
+    // attack-cooldown formula (alongside CAS-117 affix / CAS-119 talent atkspd); ticks
+    // down in update(). Transient — never serialized (a fresh boot starts clean).
+    atkspdBuffT:0, atkspdBuffAmt:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-118 status sinks (mirror the enemy fields): slow scales move speed, stun gates
     // input, dots holds active DoTs. Transient — never serialized (rehydrated clean).
@@ -127,6 +131,11 @@ function newHero(name,cls){
     equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
     bag:[],
     potHP:2, potMP:1, blessings:0,
+    // CAS-192: combat-consumable inventory (data-driven, CONSUMABLES). Quantities are
+    // persisted additively; consumSel = the slot bound to the use key; consumCD = the
+    // PER-CONSUMABLE cooldown map (id→seconds), so using furia never locks out antídoto.
+    // A small starter stash makes the slot legible from minute one. consumCD is transient.
+    consum:{fury:0, antidote:1, greater:1}, consumSel:0, consumCD:{},
     // CAS-112: persistent merchant-shop upgrade tiers (gold sink). Each bought tier
     // permanently bumps baseDmg / maxHp / defBonus — see shopItems()/buyItem().
     upg:{dmg:0, hp:0, def:0},
@@ -230,6 +239,9 @@ export function serializeSave(){
     maxHp:h.maxHp, maxMp:h.maxMp, baseDmg:h.baseDmg, dmgBonus:permDmg, defBonus:permDef,
     upg:{dmg:(h.upg&&h.upg.dmg)||0, hp:(h.upg&&h.upg.hp)||0, def:(h.upg&&h.upg.def)||0},
     potHP:h.potHP, potMP:h.potMP, blessings:h.blessings,
+    // CAS-192: combat-consumable stash + selected slot. Additive — old saves lack these
+    // and rehydrate from the newHero defaults, so no SAVE_VERSION bump / progress wipe.
+    consum:Object.assign({},h.consum), consumSel:h.consumSel|0,
     // CAS-119: durable build choices. Additive — old v1 saves simply lack these and
     // rehydrate with an empty tree (0 spent), so no SAVE_VERSION bump / progress wipe.
     talents:Object.assign({},h.talents), talentPts:h.talentPts||0,
@@ -269,6 +281,10 @@ export function loadSave(d){
     h.baseDmg=num(d.baseDmg,h.baseDmg); h.dmgBonus=num(d.dmgBonus,0); h.defBonus=num(d.defBonus,0);
     if(d.upg) h.upg={dmg:Math.max(0,Math.floor(num(d.upg.dmg,0))), hp:Math.max(0,Math.floor(num(d.upg.hp,0))), def:Math.max(0,Math.floor(num(d.upg.def,0)))};
     h.potHP=Math.max(0,Math.floor(num(d.potHP,h.potHP))); h.potMP=Math.max(0,Math.floor(num(d.potMP,h.potMP))); h.blessings=Math.max(0,Math.floor(num(d.blessings,0)));
+    // CAS-192: rehydrate the consumable stash (clamped per known id; unknown keys
+    // ignored; absent in old saves → keep newHero defaults). Selection clamped in range.
+    if(d.consum && typeof d.consum==="object"){ for(const c of CONSUMABLES) h.consum[c.id]=Math.max(0,Math.floor(num(d.consum[c.id], h.consum[c.id]||0))); }
+    h.consumSel=Math.min(CONSUMABLES.length-1, Math.max(0, Math.floor(num(d.consumSel,0))));
     if(d.equip){ for(const slot of ["weapon","body","shield"]){ const ok=safeInst(d.equip[slot]); if(ok) h.equip[slot]=ok; } }
     if(Array.isArray(d.bag)) h.bag=d.bag.map(safeInst).filter(Boolean).slice(0,16);
     // CAS-119: rebuild a LEGAL talent tree from the (untrusted) blob + recompute the
@@ -359,7 +375,10 @@ function heroAttack(){
   tutMark("atk"); // CAS-128: a real swing teaches the attack step
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const dmg=equippedDmg(h)*cfg.dmgMul;
-  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+(affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0))/100); h._atkHits=new Set(); // CAS-117 affix + CAS-119 talent +vel.ataque shorten the cooldown
+  // CAS-117 affix + CAS-119 talent + CAS-192 "furia" consumable all add into the same
+  // atkspd term that shortens the swing cooldown — one legible, deterministic formula.
+  const atkspd=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0);
+  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+atkspd/100); h._atkHits=new Set();
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
   else if(cfg.type==="nova"){ h.atkT=0; audio.sfx.rune();
@@ -981,6 +1000,10 @@ export function shopItems(){
       {name:"Vigor +30 vida máx ("+v.lbl+")",   price:v.price, act:hh=>{hh.maxHp+=30; hh.hp+=30; u.hp++;}, once: v.done?()=>true:null},
       {name:"Coraza +4 defensa ("+c.lbl+")",    price:c.price, act:hh=>{hh.defBonus+=4; u.def++;}, once: c.done?()=>true:null},
       {name:"Lote de pociones (+3 vida, +2 maná)", price:40, act:hh=>{hh.potHP+=3; hh.potMP+=2;}},
+      // CAS-192: the merchant also stocks the data-driven combat consumables — same gold
+      // sink, each buy +1 of that consumable into the hero's stash (used in combat via Q).
+      ...CONSUMABLES.map(cn=>({ name:cn.name+" — "+cn.desc, price:cn.price,
+        act:hh=>{ hh.consum[cn.id]=(hh.consum[cn.id]|0)+1; } })),
     ];
   }
   if(G.healShop) return [
@@ -1020,6 +1043,30 @@ export function buyItem(idx){ const h=G.hero; const it=shopItems()[idx]; if(!it)
 // --------------------- player commands (driven by input) ---------------
 export function doPotionHP(){ const h=G.hero; if(h.potHP>0&&h.hp<heroMaxHp(h)){ h.potHP--; h.hp=Math.min(heroMaxHp(h),h.hp+50); audio.sfx.heal(); floater(h.x,h.y-30,"+50","#5fd66a"); } }
 export function doPotionMP(){ const h=G.hero; if(h.potMP>0&&h.mp<h.maxMp){ h.potMP--; h.mp=Math.min(h.maxMp,h.mp+30); audio.sfx.cast(); floater(h.x,h.y-30,"+30","#7fb8e6"); } }
+// CAS-192: the consumable in the selected slot. The shared cooldown (h.consumCD) gates
+// spam; every effect is deterministic (no RNG) and reads/writes only sim state so it is
+// Stage-2 server-authority ready. Feedback is loud and legible: a buff-aura fx, a named
+// floater and a per-row sfx — and the fury buff posts its live duration to the HUD.
+export function doConsumable(){ const h=G.hero; if(!h||G.scene!=="play") return false;
+  const c=CONSUMABLES[h.consumSel|0]; if(!c) return false;
+  if((h.consumCD[c.id]||0)>0){ audio.sfx.deny(); return false; }       // this consumable on cooldown
+  if((h.consum[c.id]|0)<=0){ audio.sfx.deny(); toast(STR.consumEmpty(c.name)); return false; } // empty slot
+  // purge — antídoto cleans active DoTs (veneno/quemadura) + slow (CAS-118 cleanse)
+  if(c.purge){ h.dots=null; h.slowT=0; h.slow=1; floater(h.x,h.y-30,STR.consumPurged,c.col); }
+  // heal — poción mayor restores a fraction of MAX hp (scaled heal over the base 50)
+  if(c.healFrac){ const mhp=heroMaxHp(h); const amt=Math.round(mhp*c.healFrac); h.hp=Math.min(mhp,h.hp+amt); floater(h.x,h.y-30,"+"+amt,c.col); }
+  // buff — furia grants the short timed atkspd bonus the swing formula reads; dmg reuses applyBuff
+  if(c.buff){ if(c.buff.stat==="atkspd"){ h.atkspdBuffT=c.buff.dur; h.atkspdBuffAmt=c.buff.amt; }
+    else if(c.buff.stat==="dmg"){ applyBuff(h,"dmg",c.buff.amt,c.buff.dur); }
+    floater(h.x,h.y-46,c.short.toUpperCase()+"!",c.col); }
+  h.consum[c.id]--; h.consumCD[c.id]=c.cd;
+  addFx("buffaura",h.x,h.y,{life:0.55,col:c.col});
+  const sf=audio.sfx[c.sfx]||audio.sfx.buy; sf();
+  return true;
+}
+// CAS-192: rotate which consumable the use-key fires (HUD slot). Pure UI state.
+export function cycleConsumable(dir){ const h=G.hero; if(!h) return; const n=CONSUMABLES.length;
+  h.consumSel=(((h.consumSel|0)+(dir||1))%n+n)%n; if(audio.sfx.uiOpen) audio.sfx.uiOpen(); }
 export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
   else { const mv=io.moveVec(); if(mv[0]===0&&mv[1]===0){ ax=Math.cos(h.facing); ay=Math.sin(h.facing);} else {[ax,ay]=mv;} }
@@ -1059,6 +1106,10 @@ export function update(dtMs){
   // spell cooldowns + timed buffs (in-place; no per-frame allocation)
   for(let s=1;s<4;s++){ if(h.spellCD[s]>0) h.spellCD[s]=Math.max(0,h.spellCD[s]-dt); }
   if(h.dmgBuffT>0){ h.dmgBuffT-=dt; if(h.dmgBuffT<=0){ h.dmgBonus-=h.dmgBuffAmt; h.dmgBuffAmt=0; } }
+  // CAS-192: consumable timers — the "furia" atkspd buff winds down (the bonus stops
+  // applying the moment the timer expires) and each per-consumable cooldown ticks.
+  if(h.atkspdBuffT>0){ h.atkspdBuffT-=dt; if(h.atkspdBuffT<=0){ h.atkspdBuffT=0; h.atkspdBuffAmt=0; } }
+  if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+h.hotRate*dt); if(h.hotT<=0) h.hotRate=0; }
   // CAS-119: passive talent regeneration (regen build) — a slow always-on heal that
@@ -1634,6 +1685,24 @@ export const dev = {
     affix:af, moveSpeed:Math.round((h.moveSpeed||CFG.heroSpeed)*(1+af.movespd/100)),
     upg:{...(h.upg||{})}, scene:G.scene, merchant:!!G.merchantShop }; },
   setGold(n){ G.hero.gold=n>>>0; return G.hero.gold; },
+  // --- CAS-192 combat-consumable harness hooks (tools/cas192-consumables.mjs); additive ---
+  // Read the consumable state: stash quantities, selected slot, the shared use cooldown,
+  // and the live fury atkspd-buff timer + DoT/slow status the antídoto purges.
+  consumState(){ const h=G.hero; const selId=(CONSUMABLES[h.consumSel|0]||{}).id; return { consum:{...(h.consum||{})}, sel:h.consumSel|0,
+    selId, cd:+((h.consumCD&&h.consumCD[selId])||0).toFixed(2), cds:{...(h.consumCD||{})},
+    atkspdBuffT:+(h.atkspdBuffT||0).toFixed(2), atkspdBuffAmt:h.atkspdBuffAmt||0,
+    slowT:+(h.slowT||0).toFixed(2), dots:h.dots?Object.keys(h.dots):[], hp:Math.round(h.hp), maxHp:heroMaxHp(h),
+    list:CONSUMABLES.map(c=>({id:c.id,price:c.price,cd:c.cd})) }; },
+  selectConsum(i){ const h=G.hero; h.consumSel=Math.min(CONSUMABLES.length-1,Math.max(0,i|0)); return h.consumSel; },
+  setConsum(id,n){ const h=G.hero; if(h.consum&&id in h.consum) h.consum[id]=Math.max(0,n|0); return {...h.consum}; },
+  clearConsumCD(){ const h=G.hero; h.consumCD={}; return true; },
+  setHeroHp(n){ const h=G.hero; h.hp=Math.max(1,Math.min(heroMaxHp(h),n|0)); return Math.round(h.hp); },
+  useConsum(){ const ok=doConsumable(); return Object.assign({ok},this.consumState()); },
+  // measure the REAL swing cadence (cooldown the formula produces) — proves the fury
+  // buff shortens it. Reads the same atkspd term heroAttack() builds.
+  atkCadence(){ const h=G.hero; const cfg=ATK[h.cls||"warrior"];
+    const atkspd=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0);
+    return +(cfg.cd/(1+atkspd/100)).toFixed(4); },
   // --- CAS-114 abyss power-gate harness hooks (tools/abyss.mjs); additive ---
   // Read the gate: current power, requirement, whether the portal would open, and the
   // live zone the hero stands in. Lets the test assert lock/unlock without guessing.

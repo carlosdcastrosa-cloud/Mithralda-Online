@@ -110,6 +110,10 @@ export function createGame(canvas, ctx, getView){
       // CAS-134 daily-return-loop contract consumed by tools/cas134-daily.mjs — additive
       bountyTP:()=>simDev.bountyTP(),
       heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
+      // CAS-192 combat-consumable contract consumed by tools/cas192-consumables.mjs — additive
+      consumState:()=>simDev.consumState(), selectConsum:(i)=>simDev.selectConsum(i),
+      useConsum:()=>simDev.useConsum(), atkCadence:()=>simDev.atkCadence(),
+      setConsum:(id,n)=>simDev.setConsum(id,n), setHeroHp:(n)=>simDev.setHeroHp(n), clearConsumCD:()=>simDev.clearConsumCD(),
       // CAS-114 abyss power-gate contract consumed by tools/abyss.mjs — additive
       abyssGate:()=>simDev.abyssGate(), setUpg:(d,hp,def)=>simDev.setUpg(d,hp,def), tryPortal:(to)=>simDev.tryPortal(to),
       // CAS-115 combat-archetype contract consumed by tools/archetypes.mjs — additive

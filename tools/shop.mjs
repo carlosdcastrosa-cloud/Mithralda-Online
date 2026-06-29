@@ -74,11 +74,16 @@ try {
 
   // (2) shop contents
   const list = await page.evaluate(() => window.__dev.shopList());
-  if (list.length === 4) pass(`shop lists 4 lines: ${list.map((i) => i.name.split(" (")[0]).join(" | ")}`);
-  else fail(`expected 4 shop lines, got ${list.length}: ${JSON.stringify(list)}`);
+  // CAS-192: merchant now also stocks the 3 combat consumables AFTER the 4 upgrade
+  // lines (4 + 3 = 7). The first 4 lines (the CAS-112 economic loop) are unchanged.
+  if (list.length === 7) pass(`shop lists 7 lines (4 upgrades + 3 consumables): ${list.map((i) => i.name.split(" (")[0].split(" —")[0]).join(" | ")}`);
+  else fail(`expected 7 shop lines, got ${list.length}: ${JSON.stringify(list)}`);
   const namesOk = /Filo/.test(list[0]?.name) && /Vigor/.test(list[1]?.name) && /Coraza/.test(list[2]?.name) && /[Pp]ociones/.test(list[3]?.name);
-  if (namesOk) pass("lines are dmg / hp / def upgrades + potion bundle");
+  if (namesOk) pass("first 4 lines are dmg / hp / def upgrades + potion bundle");
   else fail(`unexpected shop line names: ${JSON.stringify(list.map((i) => i.name))}`);
+  const consumOk = /[Ff]uria/.test(list[4]?.name) && /Antídoto/.test(list[5]?.name) && /mayor/.test(list[6]?.name);
+  if (consumOk) pass("lines 5-7 are the combat consumables (furia / antídoto / mayor)");
+  else fail(`unexpected consumable line names: ${JSON.stringify(list.slice(4).map((i) => i.name))}`);
 
   // (3-4) each upgrade changes a REAL combat number and debits gold. Fund first.
   await page.evaluate(() => window.__dev.setGold(1000));

@@ -272,6 +272,31 @@ export const STATUS = {
   stun:   { dot:false, dur:0.9,                  col:"#ffe066", label:"aturdir" },
 };
 
+// CAS-192 — combat CONSUMABLES: a data-driven tactical lever layered on the systems
+// that already exist (merchant gold-sink CAS-112 + status effects CAS-118). Each row
+// is pure data: a shop `price` (gold sink), a short `cd` (the use cooldown), and ONE
+// deterministic effect — no RNG in the use path, nothing baked into render/UI, so the
+// whole thing is Stage-2 server-authority ready. The hero carries quantities in
+// `h.consum` (persisted, additive — no SAVE_VERSION bump), selects a slot, and uses it
+// with a dedicated key. Each carries its own LEGIBLE feedback (floater + sfx + the fury
+// buff shows a live duration on the HUD). Effect kinds (exactly one per row):
+//   buff   — {stat,amt,dur}: a short timed bonus. `atkspd` shortens the attack cooldown
+//            (read by the same formula as CAS-117 affixes / CAS-119 talents); `dmg`
+//            reuses the timed dmgBonus buff (applyBuff).
+//   purge  — clears the hero's active DoTs (veneno/quemadura) + slow (CAS-118 cleanse).
+//   healFrac — restores this fraction of MAX hp (scaled heal, above the base 50 potion).
+export const CONSUMABLES = [
+  { id:"fury",     name:"Poción de furia", short:"Furia",  icon:"⚔", col:"#ff7a3a",
+    price:55, cd:14, buff:{stat:"atkspd", amt:50, dur:6}, sfx:"buff",
+    desc:"+50% vel. de ataque · 6 s" },
+  { id:"antidote", name:"Antídoto",        short:"Antíd.", icon:"✚", col:"#7be07a",
+    price:35, cd:10, purge:true, sfx:"buff",
+    desc:"limpia veneno / quemadura / lentitud" },
+  { id:"greater",  name:"Poción mayor",    short:"Mayor",  icon:"♥", col:"#5fd66a",
+    price:50, cd:12, healFrac:0.6, sfx:"heal",
+    desc:"cura 60% de vida máx." },
+];
+
 // Per-zone difficulty TIER (CAS-73): the natural-spawn trash of each hunt zone is
 // scaled by these multipliers in the spawner loop, so the four zones form a rising
 // difficulty curve (forest = baseline → arena = pinnacle) and pushing deeper is the

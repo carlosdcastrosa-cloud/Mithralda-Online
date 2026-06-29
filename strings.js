@@ -184,6 +184,8 @@ export const STR = {
   bought: (t) => "Compraste: " + t,
   sold: (t) => "Vendiste: " + t,
   blessingOn: "Bendición activa",
+  consumEmpty: (n) => "Sin " + n,                 // CAS-192: tried to use an empty consumable slot
+  consumPurged: "¡Purgado!",                      // CAS-192: antídoto cleansed DoT/slow
   questReward: "Recompensa: 50 de oro + poción de vida",
   bossDefeated: "¡Gólem Ancestral derrotado!",
   enteredArena: "Arena de Sangre: atacar a aventureros activa el sistema de calaveras",

@@ -54,8 +54,9 @@ try {
   else fail(`live merchant shop did not open: ${JSON.stringify(opened)}`);
 
   const list = await fr.evaluate(() => window.__dev.shopList());
-  if (list.length === 4 && /Filo/.test(list[0].name) && /Vigor/.test(list[1].name) && /Coraza/.test(list[2].name))
-    pass(`live shop lists: ${list.map((i) => i.name.split(" (")[0]).join(" | ")}`);
+  // CAS-192: 4 upgrade lines + 3 consumable lines = 7. First 3 upgrades unchanged.
+  if (list.length === 7 && /Filo/.test(list[0].name) && /Vigor/.test(list[1].name) && /Coraza/.test(list[2].name))
+    pass(`live shop lists: ${list.map((i) => i.name.split(" (")[0].split(" —")[0]).join(" | ")}`);
   else fail(`unexpected live shop list: ${JSON.stringify(list)}`);
 
   await fr.evaluate(() => window.__dev.setGold(1000));
