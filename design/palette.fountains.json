@@ -1,7 +1,7 @@
 {
   "name": "Mithralda — FOUNTAINS dark-fantasy palette",
   "version": 1,
-  "supersedes": "palette.json (warm earthy medieval) — pending board sign-off + engineer wire-in (CAS-200)",
+  "supersedes": "palette.json (warm earthy medieval) — ADOPTED, board-approved 2026-06-29 (approval c360188d, CAS-200); integration CAS-201",
   "note": "Palette-by-role for the FOUNTAINS dark-fantasy re-style. Same readability discipline as the warm palette but ~40-55% less saturated, darker ambient, cold-shifted shadows. Environment sinks into gloom; actors are pale steel/leather silhouettes that pop ONLY by cold contrast; signal hues are the only saturated glow and appear ONLY on hazards/FX/pickups. Single source of truth for both the runtime renderer COL{} and the asset pipeline once adopted.",
   "roles": {
     "environment": {

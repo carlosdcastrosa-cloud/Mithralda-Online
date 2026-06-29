@@ -1,12 +1,12 @@
 # Mithralda — STYLE FORMULA · FOUNTAINS edition (dark-fantasy re-style)
 
-> **Status:** proposed frozen style for the FOUNTAINS re-style ([CAS-200]). This
-> SUPERSEDES the warm-earthy medieval formula in [`STYLE_FORMULA.md`](STYLE_FORMULA.md)
-> **only once the board signs off and the engineer wires the batch in.** Until then
-> the warm formula stays the shipped contract and this lives side-by-side as the
-> target. Re-deriving the art style is an explicit "change the art style" request
-> (this issue) — it is allowed and re-opens approval; existing warm assets are
-> invalidated as they are replaced, tile-by-tile, by this batch and its follow-ups.
+> **Status: ADOPTED — board-approved 2026-06-29 (approval `c360188d`, [CAS-200]).**
+> This is now the **frozen canonical art style** and **SUPERSEDES** the warm-earthy
+> medieval formula in [`STYLE_FORMULA.md`](STYLE_FORMULA.md) (kept in git as history).
+> The existing warm assets are invalidated and get replaced FOUNTAINS-style,
+> tile-by-tile / sprite-by-sprite, by the CAS-200 first batch (integration: CAS-201)
+> and the follow-up rollout batches. Re-deriving this formula again requires a fresh
+> explicit "change the art style" request + new board approval.
 
 Reference mood (CEO research): **FOUNTAINS** (Steam app 1841240) — top-down pixel
 art, dark-fantasy, gritty war-torn empire, Souls-like / Metroidvania tone,
