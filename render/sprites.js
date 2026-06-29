@@ -84,7 +84,7 @@ export const SP = {
     ".ouqqquo...",
     "..oq.qo....",
     "..oo.oo...."]},
-  golem: { pal:{o:COL.out,l:"#2e3038",L:"#3e4252",j:"#1a1c22",z:"#ef8a2e",Z:"#ffc24d",e:"#ffd24d"}, rows:[
+  golem: { pal:{o:COL.out,l:"#2e3038",L:"#3e4252",j:"#1a1c22",z:"#b3242a",Z:"#d8403f",e:"#d8403f"}, rows:[ // CAS-211 (c): cold stone + lone crimson-ember signal (was amber), FOUNTAINS war-machine
     "...oooooo...",
     "..oLllllLo..",
     ".olLzeezLlo.",
