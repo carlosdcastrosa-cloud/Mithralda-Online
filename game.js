@@ -24,6 +24,7 @@ import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
 import { daily } from "./daily.js";
 import { overlay } from "./overlay.js";
+import { hud } from "./hud.js";
 
 export function createGame(canvas, ctx, getView){
   // wire the simulation's injected dependencies (input intents, audio, viewport)
@@ -76,6 +77,21 @@ export function createGame(canvas, ctx, getView){
   // analytics.js / daily.js so QA can read accumulated retention numbers off a live playtest.
   // Touches no sim/balance/input — toggling it changes nothing in the game itself.
   overlay.boot();
+  // CAS-287: redesigned Tibia-style HUD overlay (scaffold, default OFF — opt-in via `?hud`).
+  // hudSnapshot() is a PURE READ-ONLY view of G.hero used only to paint the overlay; it
+  // touches no sim/balance/input, so the HUD is soak-safe and reversible. The final visual
+  // layer + UI assets come from the Art Director spec (CAS-286); the data path is wired now.
+  function hudSnapshot(){
+    const h=G.hero; if(!h) return { scene:G.scene, reduceMotion:!!(G.settings&&G.settings.reduceMotion) };
+    return {
+      scene:G.scene, name:h.name, cls:h.cls, lvl:h.lvl|0, gold:h.gold|0,
+      hp:h.hp, maxHp:h.maxHp, mp:h.mp, maxMp:h.maxMp, xp:h.xp, xpNext:h.xpNext,
+      equip:["weapon","body","shield"].map(sl=>{ const it=h.equip&&h.equip[sl]; return it?{slot:sl,label:String(sl[0]).toUpperCase()}:null; }),
+      bag:(h.bag||[]).map(b=>({ label:"·" })), bagCap:16,
+      reduceMotion:!!(G.settings&&G.settings.reduceMotion),
+    };
+  }
+  hud.boot(hudSnapshot);
   // Read API for the analytics.html dashboard + QA harness (own anonymous device data).
   if(typeof window!=="undefined"){ window.__analytics=analytics.dev; window.__daily=daily.dev; }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){

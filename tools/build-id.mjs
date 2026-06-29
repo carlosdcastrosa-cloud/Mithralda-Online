@@ -42,7 +42,8 @@ export function gitTracked(...paths) {
 // runtime module too — registered here AND in index.html's import map for the same reason.
 // CAS-279: overlay.js (the opt-in retention telemetry HUD) is a shipped runtime module —
 // hashed here AND registered in index.html's import map so a returning player's cached copy busts on change.
-const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "analytics.js", "analytics.html", "overlay.js", "daily.js", "persist.js", "settings.js"];
+// CAS-287: hud.js (the redesigned Tibia-style HUD overlay, default OFF) is a shipped runtime module too.
+const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "analytics.js", "analytics.html", "overlay.js", "hud.js", "daily.js", "persist.js", "settings.js"];
 
 // The exact, sorted set of files whose bytes define the build id — tracked only.
 export function buildFileList() {
