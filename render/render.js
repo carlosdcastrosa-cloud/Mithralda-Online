@@ -682,6 +682,30 @@ export function createRenderer(ctx){
     // in the item's rarity colour, so collecting an item reads with weight.
     else if(f.kind==="lootpop"){ const col=f.col||"#cfe0ff", r=sw*30; ctx.globalAlpha=k*0.85; ctx.strokeStyle=col; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,6.28); ctx.stroke();
       ctx.globalAlpha=k; ctx.fillStyle=col; for(let i=0;i<6;i++){ const a=i/6*6.28+f.t*5; const r3=sw*34; ctx.fillRect(f.x+Math.cos(a)*r3-1.5,f.y+Math.sin(a)*r3-1.5,3,3); } ctx.globalAlpha=1; }
+    // ---- CAS-204: FOUNTAINS-style impact crunch (stylized crimson blood + white-hot flash) ----
+    // hitburst — the white-hot pop at the moment of contact: a fast hard-edged ring that snaps
+    // outward in the first frames, a solid core flash, and a 4-point cross spark. Reads as "CLACK".
+    else if(f.kind==="hitburst"){ const ease=sw*sw*(3-2*sw); const r2=ease*26; // ease-out so it pops then settles
+      ctx.globalAlpha=k; ctx.strokeStyle="#ffffff"; ctx.lineWidth=4-sw*2.5; ctx.beginPath(); ctx.arc(f.x,f.y,r2,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k*k; ctx.fillStyle="#fff3e0"; ctx.beginPath(); ctx.arc(f.x,f.y,(1-sw)*10,0,6.28); ctx.fill();
+      ctx.globalAlpha=k; ctx.fillStyle="#ffffff"; const cl=(1-sw)*16+4; const a0=f.ang||0; // a 4-point star kicked toward the hit angle
+      for(let i=0;i<4;i++){ const a=a0+i*1.5708; ctx.fillRect(f.x+Math.cos(a)*cl-1.5,f.y+Math.sin(a)*cl-1.5,3,3); } ctx.globalAlpha=1; }
+    // debris — chunky pixel chips thrown in a CONE along the knockback direction (not radial),
+    // FOUNTAINS-stylized crimson gore so blood reads as launched, not sprayed in place.
+    else if(f.kind==="debris"){ ctx.globalAlpha=k*0.95; const a0=f.ang||0;
+      for(let i=0;i<8;i++){ const a=a0+(((i*73)%100)/100-0.5)*1.1; const sp=14+((i*37)%40); const r=sw*sp;
+        const s=2+((i*5)%3); ctx.fillStyle=i%3===0?"#d8403f":(i%3===1?"#b3242a":"#6e1418");
+        ctx.fillRect(f.x+Math.cos(a)*r, f.y+Math.sin(a)*r + sw*sw*10, s,s); } ctx.globalAlpha=1; } // gravity droop via sw^2
+    // shockring — the heavy-hit signature reserved for crits/finishers: twin rings race outward.
+    else if(f.kind==="shockring"){ const R=f.r||44, ease=sw*sw*(3-2*sw);
+      ctx.globalAlpha=k; ctx.strokeStyle="#fff2c8"; ctx.lineWidth=5-sw*4; ctx.beginPath(); ctx.arc(f.x,f.y,ease*R,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k*0.7; ctx.strokeStyle="#ffffff"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y,ease*R*1.35,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k*0.5; ctx.fillStyle="#b3242a"; for(let i=0;i<10;i++){ const a=i/10*6.28+f.t*3; const r=ease*R*1.1; ctx.fillRect(f.x+Math.cos(a)*r-2,f.y+Math.sin(a)*r-2,4,4);} ctx.globalAlpha=1; }
+    // slashArc — a bold directional crescent that sweeps through the hit on a melee connect:
+    // a wide crimson body trailing a white leading edge, swung along the attack angle.
+    else if(f.kind==="slashArc"){ const a0=(f.ang||0)-1.0+sw*1.5, R=18+(1-sw)*20; ctx.lineCap="round";
+      ctx.globalAlpha=k*0.55; ctx.strokeStyle=f.crit?"#ffd24d":"#b3242a"; ctx.lineWidth=11; ctx.beginPath(); ctx.arc(f.x,f.y,R,a0,a0+1.15); ctx.stroke();
+      ctx.globalAlpha=k; ctx.strokeStyle="#ffffff"; ctx.lineWidth=3.5; ctx.beginPath(); ctx.arc(f.x,f.y,R,a0+0.15,a0+1.15); ctx.stroke(); ctx.lineCap="butt"; ctx.globalAlpha=1; }
   }
   function drawAtkFx(cls,x,y,ang,p){ const a=Math.sin(Math.min(1,p)*Math.PI); if(a<=0.04) return;
     const dx=Math.cos(ang),dy=Math.sin(ang); ctx.save(); ctx.globalAlpha=a;

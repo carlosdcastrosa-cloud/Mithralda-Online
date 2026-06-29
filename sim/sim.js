@@ -392,7 +392,7 @@ function heroAttack(){
   else if(cfg.type==="nova"){ h.atkT=0; audio.sfx.rune();
     for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d<=cfg.range+e.tpl.size){ hitEnemy(e,dmg,Math.atan2(e.y-h.y,e.x-h.x)); } }
     if(cfg.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+cfg.heal); floater(h.x,h.y-30,"+"+cfg.heal,"#5fd66a"); }
-    addFx("holynova",h.x,h.y,{r:cfg.range,life:0.5}); shakeAdd(6); }
+    addFx("holynova",h.x,h.y,{r:cfg.range,life:0.5}); addFx("shockring",h.x,h.y,{r:cfg.range*0.8,life:0.4}); shakeAdd(6); }
   else { h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(2.6);
     addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.26}); }
 }
@@ -404,6 +404,9 @@ function applyHeroMelee(){
     const ang=Math.atan2(e.y-h.y,e.x-h.x);
     if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc/2){
       h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng); shakeAdd(5.5);
+      // CAS-204: a bold crimson→white crescent sweeps through the struck enemy on a melee connect,
+      // so the swing reads as cleaving INTO the target rather than next to it (FOUNTAINS slash juice).
+      addFx("slashArc",e.x,e.y,{ang:h.atkAng,life:0.2});
     }
   }
 }
@@ -444,10 +447,15 @@ function hitEnemy(e,dmg,ang){
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
   // CAS-127: crits read LOUDER — distinct bright SFX, a bigger popping number, an extra
   // shake kick. Normal hits get a subtle number pop. Pure feel (damage already applied).
-  if(crit){ audio.sfx.crit(); floater(e.x,e.y-e.tpl.size,"¡"+Math.round(dmg)+"!","#ff5d5d",{crit:true,pop:1.9,life:1.05}); addFx("spark",e.x,e.y); shakeAdd(3.5); }
+  if(crit){ audio.sfx.crit(); floater(e.x,e.y-e.tpl.size,"¡"+Math.round(dmg)+"!","#ff5d5d",{crit:true,pop:1.9,life:1.05}); addFx("spark",e.x,e.y); shakeAdd(3.5);
+    // CAS-204: a crit is a FINISHER read — twin shockwave rings + a louder debris throw + a longer freeze.
+    addFx("shockring",e.x,e.y,{r:48,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5}); }
   else floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d",{pop:1.3});
+  // CAS-204 (FOUNTAINS crunch): every connect snaps a white-hot hitburst at the contact point and
+  // throws chunky crimson debris along the knockback vector — the impact now reads as launched, not tapped.
   addFx("spark",e.x,e.y); addFx("blood",e.x,e.y,{ang}); addFx("impact",e.x,e.y,{ang,life:0.26});
-  freeze(Math.min(5, 2+Math.floor(dmg/14))); // hit pops harder the bigger the blow
+  addFx("hitburst",e.x,e.y,{ang,life:0.22}); addFx("debris",e.x,e.y,{ang,life:0.42});
+  freeze(Math.min(7, (crit?4:2)+Math.floor(dmg/14))); // hit pops harder the bigger the blow; crits bite deepest
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
   // affix decision now changes how combat FEELS, not just the damage panel.
@@ -787,7 +795,7 @@ function resolveSpell(h,sp){
       for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d<=sp.range+e.tpl.size){
         hitEnemy(e,sd,Math.atan2(e.y-h.y,e.x-h.x)); applySpellStatus(e,sp); } }
       if(sp.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a"); }
-      addFx(sp.fx||"novacast",h.x,h.y,{r:sp.range,col:sp.col,style:sp.style,life:0.5}); shakeAdd(6); break; }
+      addFx(sp.fx||"novacast",h.x,h.y,{r:sp.range,col:sp.col,style:sp.style,life:0.5}); addFx("shockring",h.x,h.y,{r:sp.range*0.85,life:0.4}); shakeAdd(6); break; }
     case "heal":
       h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a");
       addFx(sp.fx||"healburst",h.x,h.y,{col:sp.col,life:0.5}); for(let k=0;k<6;k++) addFx("heal",h.x+frr(-14,14),h.y+frr(-18,6)); break;
