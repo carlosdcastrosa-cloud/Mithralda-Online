@@ -765,7 +765,7 @@ export function createRenderer(ctx){
       ctx.beginPath(); ctx.arc(f.x,f.y,R*(1+ease*0.6),0,6.28); ctx.stroke();
       ctx.globalAlpha=k*0.35; ctx.strokeStyle="#ffddaa"; ctx.lineWidth=1;
       ctx.beginPath(); ctx.arc(f.x,f.y,R*(1+ease*0.9),0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
-    else if(f.kind==="strikeflash"){ ctx.globalAlpha=k*0.9; ctx.strokeStyle="#fff2c8"; ctx.lineWidth=4;
+    else if(f.kind==="strikeflash"){ ctx.globalAlpha=k*0.9; ctx.strokeStyle="#dbeeff"; ctx.lineWidth=4; // CAS-211 (d): cold blue-white, FOUNTAINS signal-lock
       if(f.range){ ctx.beginPath(); ctx.arc(f.x,f.y,(f.range)*(0.6+sw*0.5),(f.ang||0)-0.7,(f.ang||0)+0.7); ctx.stroke(); }
       ctx.globalAlpha=k; ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*10+2,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
     else if(f.kind==="dodgering"){ ctx.globalAlpha=k*0.8; ctx.strokeStyle="#bfeaff"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y,10+sw*30,0,6.28); ctx.stroke();
@@ -816,7 +816,7 @@ export function createRenderer(ctx){
     // outward in the first frames, a solid core flash, and a 4-point cross spark. Reads as "CLACK".
     else if(f.kind==="hitburst"){ const ease=sw*sw*(3-2*sw); const r2=ease*26; // ease-out so it pops then settles
       ctx.globalAlpha=k; ctx.strokeStyle="#ffffff"; ctx.lineWidth=4-sw*2.5; ctx.beginPath(); ctx.arc(f.x,f.y,r2,0,6.28); ctx.stroke();
-      ctx.globalAlpha=k*k; ctx.fillStyle="#fff3e0"; ctx.beginPath(); ctx.arc(f.x,f.y,(1-sw)*10,0,6.28); ctx.fill();
+      ctx.globalAlpha=k*k; ctx.fillStyle="#eaf2ff"; ctx.beginPath(); ctx.arc(f.x,f.y,(1-sw)*10,0,6.28); ctx.fill(); // CAS-211 (d): cold core, not warm peach
       ctx.globalAlpha=k; ctx.fillStyle="#ffffff"; const cl=(1-sw)*16+4; const a0=f.ang||0; // a 4-point star kicked toward the hit angle
       for(let i=0;i<4;i++){ const a=a0+i*1.5708; ctx.fillRect(f.x+Math.cos(a)*cl-1.5,f.y+Math.sin(a)*cl-1.5,3,3); } ctx.globalAlpha=1; }
     // debris — chunky pixel chips thrown in a CONE along the knockback direction (not radial),
@@ -836,7 +836,7 @@ export function createRenderer(ctx){
         ctx.fillRect(f.x+Math.cos(a)*r-s*0.5, f.y+Math.sin(a)*r-s*0.5, s,s); } ctx.globalAlpha=1; }
     // shockring — the heavy-hit signature reserved for crits/finishers: twin rings race outward.
     else if(f.kind==="shockring"){ const R=f.r||44, ease=sw*sw*(3-2*sw);
-      ctx.globalAlpha=k; ctx.strokeStyle="#fff2c8"; ctx.lineWidth=5-sw*4; ctx.beginPath(); ctx.arc(f.x,f.y,ease*R,0,6.28); ctx.stroke();
+      ctx.globalAlpha=k; ctx.strokeStyle="#cfe6ff"; ctx.lineWidth=5-sw*4; ctx.beginPath(); ctx.arc(f.x,f.y,ease*R,0,6.28); ctx.stroke(); // CAS-211 (d): crit/power/AoE signature leads cold blue-white + crimson, not warm cream
       ctx.globalAlpha=k*0.7; ctx.strokeStyle="#ffffff"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(f.x,f.y,ease*R*1.35,0,6.28); ctx.stroke();
       ctx.globalAlpha=k*0.5; ctx.fillStyle="#b3242a"; for(let i=0;i<10;i++){ const a=i/10*6.28+f.t*3; const r=ease*R*1.1; ctx.fillRect(f.x+Math.cos(a)*r-2,f.y+Math.sin(a)*r-2,4,4);} ctx.globalAlpha=1; }
     // slashArc — a bold directional crescent that sweeps through the hit on a melee connect:
