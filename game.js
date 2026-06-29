@@ -70,7 +70,7 @@ export function createGame(canvas, ctx, getView){
       scene:()=>G.scene,
       hero:()=>G.hero?{cls:G.hero.cls,x:G.hero.x,y:G.hero.y}:null,
       // CAS-92: read-only hero animation state, used by tools/hero-anim-shot.mjs
-      heroAnim:()=>G.hero?{state:G.hero.animState,rolling:!!G.hero.rolling,atk:G.hero.atkAnim>0}:null,
+      heroAnim:()=>G.hero?{state:G.hero.animState,rolling:!!G.hero.rolling,atk:G.hero.atkAnim>0,hurtAnim:+(G.hero.hurtAnim||0).toFixed(3),specialAnim:+(G.hero.specialAnim||0).toFixed(3)}:null,
       enemyCount:()=>G.enemies.length,
       worldFingerprint:(seed)=>simDev.worldFingerprint(seed),
       // gear/progression contract consumed by tools/gear.mjs (CAS-29) — additive
@@ -106,6 +106,8 @@ export function createGame(canvas, ctx, getView){
       // per-class base-stat contract consumed by tools/classstats.mjs (CAS-100) — additive
       classStats:(cls)=>simDev.classStats(cls),
       cast:(i)=>simDev.cast(i),
+      // CAS-256 hit-react contract consumed by tools/cas256-anims.mjs — additive
+      hurt:(n)=>simDev.hurt(n), clearSpellCD:()=>simDev.clearSpellCD(),
       // merchant-shop economic-loop contract consumed by tools/shop.mjs (CAS-112) — additive
       merchantTP:()=>simDev.merchantTP(), shopList:()=>simDev.shopList(), shopBuy:(i)=>simDev.shopBuy(i),
       // CAS-134 daily-return-loop contract consumed by tools/cas134-daily.mjs — additive

@@ -24,6 +24,11 @@ import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTa
 // feedback floater palette (presentation hints carried by sim events)
 const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
 
+// CAS-256: hit-react / skill-cast anim-state durations (seconds). MUST match the render
+// strip durations (render.js CLASS_HURT_DUR / CLASS_SPECIAL_DUR) so each strip plays once
+// and ends in sync with its animState. Presentation-only — they gate no gameplay logic.
+const HURT_ANIM_DUR = 0.28, SPECIAL_ANIM_DUR = 0.55;
+
 // private simulation RNG stream — isolated from render randomness
 const rng = createRNG();
 const { srand, seed, rr, ri } = rng;
@@ -113,6 +118,11 @@ function newHero(name,cls){
     // down in update(). Transient — never serialized (a fresh boot starts clean).
     atkspdBuffT:0, atkspdBuffAmt:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
+    // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
+    // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
+    // ONLY select which sprite renders (animState), never gate movement/attack, so combat
+    // mechanics + determinism are unchanged. Transient — never serialized.
+    hurtAnim:0, specialAnim:0,
     // CAS-210: RIPOSTE focus window — a frame-perfect dodge (rolling THROUGH a connecting
     // strike) arms this timer; the next hero hit while it's live is a guaranteed crushing
     // counter. The skill-expression payoff that makes the souls-like read-and-punish loop
@@ -841,6 +851,7 @@ export function castSpell(i){
   // CAS-119: a cooldown-reduction build (cdr) shortens the class-spell cooldown; the
   // HUD ring reads spellCDmax so the shorter wheel is visible.
   const cd=sp.cd*(1-(h.tt?h.tt.cdr:0)/100); h.mp-=sp.cost; h.spellCD[i]=cd; h.spellCDmax[i]=cd;
+  h.specialAnim=SPECIAL_ANIM_DUR; h.hurtAnim=0; // CAS-256: a class-skill cast plays the special-attack strip (must match render CLASS_SPECIAL_DUR)
   if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
   resolveSpell(h,sp);
   tutMark("skill"); // CAS-128: a successful class-skill cast teaches the skill step
@@ -1229,6 +1240,7 @@ export function update(dtMs){
 
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
+  h.hurtAnim=Math.max(0,(h.hurtAnim||0)-dt); h.specialAnim=Math.max(0,(h.specialAnim||0)-dt); // CAS-256 hit-react / skill-cast anim timers
   h._pdCD=Math.max(0,(h._pdCD||0)-dt); // perfect-dodge reward cooldown
   h.riposte=Math.max(0,(h.riposte||0)-dt); // CAS-210: the riposte counter window decays if unused
   // spell cooldowns + timed buffs (in-place; no per-frame allocation)
@@ -1263,7 +1275,10 @@ export function update(dtMs){
     else h.walkT=0;
   }
   if(!io.isTouch) io.aim();
-  { let ns = h.dead?"dead": h.rolling?"roll": h.atkAnim>0?"attack": h.moved?"walk":"idle";
+  // CAS-256: animState priority — special (deliberate cast) and hurt (hit-react) sit
+  // above locomotion/attack so they read clearly, but BELOW dead. Purely visual: this
+  // only chooses the rendered strip, it does not touch movement/attack/CD logic.
+  { let ns = h.dead?"dead": (h.specialAnim>0)?"special": (h.hurtAnim>0)?"hurt": h.rolling?"roll": h.atkAnim>0?"attack": h.moved?"walk":"idle";
     if(ns!==h.animState){ h.animState=ns; h.animT=0; } else h.animT+=dt; }
 
   // skull timers
@@ -1621,6 +1636,7 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
     floater(h.x,h.y-34,STR.talentDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.32}); audio.sfx.roll(); return false; }
   const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
+  h.hurtAnim=HURT_ANIM_DUR; // CAS-256: a landed hit plays the hit-react flinch strip (lower priority than an active cast)
   h.iframe=0.25; // brief mercy invuln
   // CAS-118: a mob's telegraphed strike can also INFLICT a status (bandit poison / wraith
   // slow). It only lands when the hit lands — dodging the telegraph (i-frames above) skips
@@ -1784,6 +1800,13 @@ export const dev = {
       atkCD:at.cd, atkType:at.type, hpGain:h.hpGain, mpGain:h.mpGain, dmgGain:h.dmgGain,
       lvl10:{ hp:mhp, mp:mmp, dmg } }; },
   cast(i){ castSpell(i); return { mp:Math.round(G.hero.mp), cd:G.hero.spellCD.slice() }; },
+  // CAS-256: drive a real incoming hit (deterministic angle) through damageHero so a
+  // harness can observe the hit-react state without choreographing a mob attack. Clears
+  // the mercy i-frame first so the blow always lands.
+  hurt(n){ const h=G.hero; h.iframe=0; h.rolling=false; damageHero(Math.max(1,n|0)||10,Math.PI,null); return { hp:Math.round(h.hp), hurtAnim:+h.hurtAnim.toFixed(3), animState:h.animState }; },
+  // CAS-256: clear skill cooldowns + top up mp so a harness can cast on demand (e.g. to
+  // test the cast-vs-flinch priority back-to-back). Dev-only.
+  clearSpellCD(){ const h=G.hero; h.spellCD=[0,0,0,0]; h.mp=h.maxMp||h.mp; return h.spellCD.slice(); },
   // Probe one class: cast each of slots 1-3 at a fresh dummy enemy in front and
   // return the OBSERVED effect of each, so the headless test can assert all 15
   // spells are mechanically distinguishable (not just differently labelled).

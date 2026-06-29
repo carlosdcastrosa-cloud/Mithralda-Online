@@ -99,6 +99,16 @@ const CLASS_HERO_KEYS=["warrior","paladin","mage","druid","priest"];
 const CLARICE_CLASSES=new Set(["warrior","paladin","mage","druid","priest"]);
 const CLASS_EXTRA_ANIM=["warrior","paladin","mage","druid","priest"]; // classes with clsattack_/clsdeath_ strips
 const CLASS_ATTACK_FC=6, CLASS_DEATH_FC=6, CLASS_DEATH_DUR=0.7; // Clarice extra-anim frame counts
+// CAS-256: hit-react (hurt) + skill-cast (special) strips. Frame counts/durations MUST
+// match the bake (tools/cas256-warrior-clarice-anims.mjs: hurt 6f, special 8f) and the
+// sim timers (sim.js HURT_ANIM_DUR / SPECIAL_ANIM_DUR). Played ONCE across the duration,
+// holding the last frame, like attack/death. Classes with no such strip fall back to idle.
+const CLASS_HURT_FC=6, CLASS_HURT_DUR=0.28, CLASS_SPECIAL_FC=8, CLASS_SPECIAL_DUR=0.55;
+// Only the classes that actually SHIP hurt/special strips are preloaded (warrior, from the
+// extended Clarice pack). Listing only real files avoids needless 404s on boot; other
+// classes simply fall back to the idle loop for those states. Add a class here when its
+// {cls}_hurt.png / {cls}_special.png are baked.
+const CLASS_HITREACT_ANIM=["warrior"];
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 
@@ -113,6 +123,9 @@ export function createRenderer(ctx){
   // no such file → the load 404s harmlessly and the state machine falls back to the idle
   // loop + procedural lunge, exactly as before.
   for(const k of CLASS_EXTRA_ANIM){ loadImg("clsattack_"+k, `./assets/erw/hero/classes/${k}_attack.png`); loadImg("clsdeath_"+k, `./assets/erw/hero/classes/${k}_death.png`); }
+  // CAS-256: hurt + special strips, loaded only for classes that ship them (warrior).
+  // Classes not listed fall back to the idle loop in drawHeroClass for those states.
+  for(const k of CLASS_HITREACT_ANIM){ loadImg("clshurt_"+k, `./assets/erw/hero/classes/${k}_hurt.png`); loadImg("clsspecial_"+k, `./assets/erw/hero/classes/${k}_special.png`); }
   // CAS-169: start loading the recolorable part masks; the baked look replaces the
   // class strips below once ready. Until then the CAS-167 PNG strips render (no blank).
   ensureMasks();
@@ -345,7 +358,11 @@ export function createRenderer(ctx){
     } else { bobUp=Math.sin(G.t*2)*0.6; sqY=1+0.012*Math.sin(G.t*2); }  // idle breathing
     // CAS-223: the per-class strip is now state-driven inside drawHeroClass (idle/walk
     // for all classes + attack/death for Clarice). Pass the sim state (dead overrides).
-    const cstate=h.dead?"dead":state;
+    // CAS-256: special (skill cast) + hurt (hit-react) are real sim animStates that
+    // drive their own Clarice strips; pass them straight through. They map to the idle
+    // procedural feel above (no special lunge), and gate on a loaded strip in drawHeroClass
+    // so non-warrior classes / the hooded hero keep their prior look unchanged.
+    const cstate=h.dead?"dead":(st==="special"||st==="hurt")?st:state;
     // CAS-199: class-flavoured idle AURA under the hero (colour = the player's sash
     // accent, so it differs per class/customisation). Soft additive ground glow that
     // breathes — brings the sprite to life without touching the art. Drawn BEHIND.
@@ -416,6 +433,12 @@ export function createRenderer(ctx){
     let key,fc,fi;
     if(state==="dead" && has("clsdeath_"+art)){
       key="clsdeath_"+art; fc=CLASS_DEATH_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_DEATH_DUR)));
+    } else if(state==="special" && has("clsspecial_"+art)){
+      // CAS-256: skill/ability cast — play the 8f special strip once across its duration.
+      key="clsspecial_"+art; fc=CLASS_SPECIAL_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_SPECIAL_DUR)));
+    } else if(state==="hurt" && has("clshurt_"+art)){
+      // CAS-256: hit-react flinch — play the 6f hurt strip once across its duration.
+      key="clshurt_"+art; fc=CLASS_HURT_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_HURT_DUR)));
     } else if(state==="attack" && has("clsattack_"+art)){
       key="clsattack_"+art; fc=CLASS_ATTACK_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/Math.max(0.15,CFG.atkCD))));
     } else if(state==="walk" && has("clswalk_"+art)){
