@@ -262,7 +262,10 @@ export const ANIM={
 };
 // enemy strips driven by drawEnemy (combat AI states). Town NPCs are kept OUT of this
 // map so they never aggro/attack — they animate via NPC_ANIM + drawNPC instead.
-export const ENEMY_ANIM={ mage:"mage", golem:"golem", moose:"moose" };
+// CAS-233: golem REMOVED — it now renders real FOUNTAINS PixelLab strips via
+// ENEMY_STRIPS/resolveStrip (keyed by tpl.sprite), not the legacy near-black
+// assets/char/golem_*.png blob. mage/moose keep the legacy ANIM path.
+export const ENEMY_ANIM={ mage:"mage", moose:"moose" };
 // CAS-206: FOUNTAINS-style single-frame enemy art (PixelLab REST, 64×64 transparent
 // cutouts). Keyed by tpl.sprite → IMG key. drawEnemy draws these bottom-anchored with
 // the CAS-203 procedural breathe/walk-bob, replacing the tiny procedural SP blobs for
@@ -304,6 +307,15 @@ export const ENEMY_STRIPS={
   },
   wraith:{
     idle: _s(9,"wraith_idle"),
+  },
+  // CAS-233: FOUNTAINS Stone Golem BOSS (PixelLab v3 d7f5577c — cracked grey-blue
+  // stone, crimson-ember cracks, mossy ruined plates). Larger 96px frames preserve
+  // the boss detail that 64px would crush. resolveStrip drives all 4 zone bosses
+  // (all share tpl.sprite="golem"); boss on-screen scale = e.tpl.size*3.4 in render.
+  golem:{
+    walk:   {key:"golem_walk_strip",   fc:6, fw:96, fh:96, tiles:3.6},
+    idle:   {key:"golem_idle_strip",   fc:8, fw:96, fh:96, tiles:3.6},
+    attack: {key:"golem_attack_strip", fc:9, fw:96, fh:96, tiles:3.6},
   },
 };
 // Resolve the best available strip for a mob + animState.

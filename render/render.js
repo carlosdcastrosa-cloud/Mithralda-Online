@@ -633,7 +633,11 @@ export function createRenderer(ctx){
       const simg=strip&&IMG[strip.key]&&IMG[strip.key].complete&&IMG[strip.key].naturalWidth?IMG[strip.key]:null;
       if(simg){
         const fw=strip.fw, fh=strip.fh;
-        const dh=e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4), dw=dh*(fw/fh);
+        // CAS-233: strip.tiles pins an absolute on-screen height (in 32px tiles) so the
+        // golem BOSS renders one consistent imposing size across all 4 zones (zone bosses
+        // differ in tpl.size 36–50 — the generic size×3.4 mult would balloon the Coliseo
+        // boss to ~5 tiles). Preserves the legacy ~3.6-tile "stone capstone" scale.
+        const dh=(strip.tiles? strip.tiles*32 : e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4)), dw=dh*(fw/fh);
         const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9);
         const fps = st==="walk"?gait.fps : st==="attack"?10 : 6; // CAS-222 per-mob walk cadence
         const fi = G.settings.reduceMotion ? 0 : (Math.floor(G.t*fps+ph*7)%strip.fc+strip.fc)%strip.fc;
