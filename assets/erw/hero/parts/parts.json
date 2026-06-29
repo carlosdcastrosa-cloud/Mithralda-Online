@@ -1,5 +1,7 @@
 {
   "_doc": "CAS-167 phase2: value-normalised (gray+alpha) recolorable part masks split from art-reference/main-character.png. Runtime tints each by the player's palette (multiply, mid-ref 165) and composites in z-order, then bakes into the 140x166 clshero_/clswalk_ cells. Variations swap a slot's mask.",
+  "static": "<part>.png — single static-pose mask (figure 58x158, for previews/UI swatches).",
+  "animated": "<part>_idle.png (6 cells) + <part>_walk.png (8 cells), each cell 140x166 (anchorX 65, foot 163, figureH 160) — body parts ride the footfall/breathing bob, legs split L/R and swing. SAME offset model as the class clshero_/clswalk_ strips so a tinted composite of the parts == an animated customizable hero. Bake: per frame, tint each part by the palette and drawImage in zOrder into the cell. Built by tools/cas167-parts-anim.mjs.",
   "figure": {
     "fw": 58,
     "fh": 158
