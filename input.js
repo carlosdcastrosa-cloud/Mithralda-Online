@@ -227,7 +227,11 @@ function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r
 // on the chip (drawn on top) and only selects the row otherwise.
 function bountyTap(x,y){ for(const r of ui.bountyRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.
-function invTap(x,y){ for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; sim.equipBag(r.idx); return true; } } G.scene="play"; return true; }
+function invTap(x,y){ for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; sim.equipBag(r.idx); return true; } }
+  // CAS-226: taps on the Tibia equip slots are consumed (equipping is driven
+  // from the backpack list) so a slot tap doesn't accidentally close the panel.
+  for(const r of (ui.invSlotRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h) return true; }
+  G.scene="play"; return true; }
 function menuPlayHit(x,y){ const r=ui.menuPlayRect; return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
 
 // ----------------------------- menu flow -------------------------------

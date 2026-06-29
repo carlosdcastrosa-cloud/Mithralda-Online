@@ -103,6 +103,15 @@ export const STR = {
   slotBody: "Cuerpo",
   slotWeapon: "Arma",
   slotShield: "Escudo",
+  // CAS-226 — Tibia-style equip slots. Only Arma/Cuerpo/Escudo are functional
+  // (data-driven gear); the rest are visual placeholders until their content
+  // lands (kept here so adding them later is a one-line label edit).
+  slotNeck: "Cuello",
+  slotBack: "Espalda",
+  slotLegs: "Piernas",
+  slotFeet: "Pies",
+  slotRing: "Anillo",
+  slotBag: "Bolsa",
   backpack: "Mochila",
   invHint: "I: cerrar",
   statsDmg: "Daño",

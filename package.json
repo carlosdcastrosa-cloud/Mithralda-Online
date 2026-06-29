@@ -65,7 +65,8 @@
     "audio-live": "node tools/cas131-audio-live.mjs",
     "backup-host-publish": "node tools/backup-host-publish.mjs",
     "cas180-subpath-verify": "node tools/cas180-subpath-verify.mjs",
-    "trial": "node tools/cas196-trial.mjs"
+    "trial": "node tools/cas196-trial.mjs",
+    "cas226-inv": "node tools/cas226-inv-live.mjs"
   },
   "keywords": [],
   "author": "",
