@@ -16,7 +16,7 @@ const save = (p, buf) => { writeFileSync(join(ROOT, "tools", p), buf); return p;
 
 try {
   const page = await browser.newPage();
-  await page.setViewport({ width: 1100, height: 720, deviceScaleFactor: 2 });
+  await page.setViewport({ width: 1100, height: 720, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
   page.on("console", (m) => { if (m.type() === "error") errors.push("console.error: " + m.text()); });
   await page.goto(`${srv.url}/index.html?dev`, { waitUntil: "load" });
@@ -42,7 +42,7 @@ try {
     await page.waitForFunction("window.__dev.scene()==='play'", { timeout: 10000 });
     await sleep(700);
     const hero = await page.evaluate(() => { const c = window.__dev.customizeState(); return { cls: c.cls, sash: c.palette.sash, cloak: c.palette.cloak }; });
-    const buf = await page.screenshot({ clip: { x: 478, y: 286, width: 150, height: 150 } });
+    const buf = await page.screenshot({ clip: { x: 470, y: 250, width: 170, height: 180 } });
     console.log(`${cls}: cls='${hero.cls}' cloak=${JSON.stringify(hero.cloak)} sash=${JSON.stringify(hero.sash)} ->`, save(`cas199-inworld-${cls}.png`, buf));
   }
   console.log(errors.length ? ("PAGE ERRORS:\n" + errors.join("\n")) : "zero page errors");
