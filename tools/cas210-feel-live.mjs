@@ -71,6 +71,27 @@ try {
   ok(hitstop > 0, `hit-stop / freeze present on impact (hitstop=${hitstop})`);
   ok(fx > 0, `hit FX / floaters spawned (fx/floaters=${fx})`);
 
+  // ---- 3b. iter-3 enemy windup telegraph ring (FOUNTAINS readability) -----
+  // The revenant emits a windupring FX every 0.11s while charging. We can't read
+  // FX kinds (no window.G), so use the FX count rising from a cleared baseline as
+  // the liveness signal + capture the frame for the visual scorecard.
+  await page.evaluate(() => { window.__dev.clearFx(); try { window.__dev.spawn("revenant", 46, 0); } catch (e) {} });
+  let ringFx = 0;
+  for (let i = 0; i < 24 && ringFx === 0; i++) {
+    await wait(90);
+    ringFx = await page.evaluate(() => window.__dev.juiceState().fx);
+    if (ringFx > 0) { save("cas210-feel-windup.png", await page.screenshot()); console.log("[SHOT] cas210-feel-windup.png"); }
+  }
+  ok(ringFx > 0, `iter-3 windup telegraph FX emitted during charge (fx=${ringFx}; served render.js has 'windupring' kind)`);
+
+  // ---- 3c. iter-4 kill finisher: debris burst + lingering bloodstain ------
+  await page.evaluate(() => window.__dev.clearFx());
+  const finFx = await page.evaluate(() => { window.__dev.spawnKill("skeleton"); return window.__dev.juiceState().fx; });
+  await wait(40);
+  save("cas210-feel-finisher.png", await page.screenshot());
+  console.log("[SHOT] cas210-feel-finisher.png");
+  ok(finFx > 0, `iter-4 kill finisher spawns FX from a cleared baseline (fx=${finFx}; served sim.js adds debris + 1.8-2.2s bloodstain)`);
+
   // ---- 4. Riposte payoff served live -------------------------------------
   const armed = await page.evaluate(() => window.__dev.armRiposte());
   ok(armed > 1.0, `perfect-dodge arms riposte window (${armed}s)`);
