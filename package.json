@@ -43,6 +43,7 @@
     "analytics132": "node tools/cas132-analytics.mjs",
     "analytics132-live": "node tools/cas132-analytics-live.mjs",
     "daily": "node tools/cas134-daily.mjs",
+    "cas243": "node tools/cas243-return-hook.mjs",
     "variety": "node tools/cas146-variety.mjs",
     "combat210": "node tools/cas210-combat.mjs",
     "progression149": "node tools/cas149-progression.mjs",

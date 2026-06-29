@@ -36,6 +36,9 @@ export const daily = (()=>{
   const fmtDay = (ts)=>{ const d=new Date(ts);
     return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
   const nextDay = (s)=>{ const [y,m,d]=s.split("-").map(Number); const t=new Date(y,m-1,d); t.setDate(t.getDate()+1); return fmtDay(t.getTime()); };
+  // Whole-day gap between two local day strings (b - a), calendar-correct across months.
+  const dayDiff = (a,b)=>{ const [ay,am,ad]=a.split("-").map(Number); const [by,bm,bd]=b.split("-").map(Number);
+    return Math.round((Date.UTC(by,bm-1,bd)-Date.UTC(ay,am-1,ad))/86400000); };
   // ms from now until the next local midnight (the contract/streak reset boundary).
   function msToReset(now){ const d=new Date(now); const t=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1,0,0,0,0); return Math.max(0, t.getTime()-now); }
 
@@ -91,9 +94,16 @@ export const daily = (()=>{
     return out;
   }
 
-  // Streak reward escalates over the week then loops; day 7 throws in a potion.
+  // Streak reward escalates over the week then loops (CAS-243 return-hook). Each day's
+  // reward grows with the cycle-day so consecutive returns pay off MORE the longer you
+  // keep the chain; from day 3 it also drips Forja material `mena` (the CAS-237 sink),
+  // escalating d3=1 … d7=5 so a full 7-day streak yields 1+2+3+4+5 = 15 mena — exactly
+  // one gear piece forged to MÁX. Day 7 is the milestone: the mena spike + 2 potions.
+  // Pure function of the streak count: deterministic, no RNG, Stage-2 portable.
   function streakReward(streak){ const c=((Math.max(1,streak)-1)%STREAK_CYCLE)+1;
-    return { gold:20+c*15, xp:30+c*20, potHP:c>=STREAK_CYCLE?2:0, cycleDay:c }; }
+    const milestone=c>=STREAK_CYCLE;
+    return { gold:20+c*15, xp:30+c*20, mena:c>=3?(c-2):0, potHP:milestone?2:0,
+      milestone, cycleDay:c }; }
 
   // --- store ----------------------------------------------------------------
   let store=null, lastPersist=0, booted=false;
@@ -103,16 +113,23 @@ export const daily = (()=>{
   function read(){ try{ const raw=localStorage.getItem(KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
   function write(){ try{ localStorage.setItem(KEY, JSON.stringify(store)); return true; }catch(e){ return false; } }
   function fresh(dayStr){ return { v:STORE_V, day:dayStr, contracts:genContracts(dayStr),
-    streak:1, lastLoginDay:dayStr, streakClaimedDay:null }; }
+    streak:1, lastLoginDay:dayStr, streakClaimedDay:null, comeback:false }; }
 
-  // Roll the store to `dayStr`: regenerate contracts (rotation), advance/break the
+  // Roll the store to `dayStr`: regenerate contracts (rotation), advance/soften/break the
   // streak chain, and arm today's streak claim. Idempotent for the same day.
+  //
+  // CAS-243 comeback catch-up: a SINGLE missed day no longer hard-resets the streak — it
+  // SOFTENS it (halve, floor, min 1) and flags `comeback` so the UI can reassure the
+  // player. Returning the very next day after a slip keeps a long chain meaningful instead
+  // of dropping it to 1; a gap of two or more missed days still resets (the chain is gone).
   function refreshDay(dayStr){
     if(!store){ store=fresh(dayStr); return true; }
     if(store.day===dayStr) return false;            // same day → nothing to roll
-    // streak chain: +1 if today directly follows the last login day, else reset to 1.
-    if(store.lastLoginDay && nextDay(store.lastLoginDay)===dayStr) store.streak=(store.streak|0)+1;
-    else store.streak=1;
+    const gap = store.lastLoginDay ? dayDiff(store.lastLoginDay, dayStr) : 1;
+    store.comeback=false;
+    if(gap===1) store.streak=(store.streak|0)+1;                       // consecutive → advance
+    else if(gap===2){ store.streak=Math.max(1, Math.floor((store.streak|0)/2)); store.comeback=true; } // missed 1 → soften
+    else store.streak=1;                                              // gap ≥3 days (or backwards) → reset
     store.lastLoginDay=dayStr;
     store.day=dayStr;
     store.contracts=genContracts(dayStr);           // fresh rotation, progress reset
@@ -168,9 +185,11 @@ export const daily = (()=>{
   function claimStreak(){ if(!store) return false;
     if(!streakClaimable()){ toast(STR.dailyAlready); return false; }
     const r=streakReward(store.streak); store.streakClaimedDay=store.day; write();
-    applyMetaReward({gold:r.gold, xp:r.xp, potHP:r.potHP});
-    toast(STR.dailyStreakClaimed(store.streak, r.gold));
-    analytics.event("daily_streak_claimed");
+    // CAS-243: streak rewards now also drip Forja material (mena) via the same seam.
+    applyMetaReward({gold:r.gold, xp:r.xp, potHP:r.potHP, mats:r.mena});
+    toast(r.milestone ? STR.dailyStreakMilestone(store.streak, r.gold, r.mena)
+                      : STR.dailyStreakClaimed(store.streak, r.gold, r.mena));
+    analytics.event(r.milestone ? "daily_streak_milestone" : "daily_streak_claimed");
     return true;
   }
 
@@ -181,7 +200,9 @@ export const daily = (()=>{
     return {
       day:store.day,
       resetMs:msToReset(Date.now()),
-      streak:{ n:store.streak|0, reward:streakReward(store.streak), claimable:streakClaimable() },
+      streak:{ n:store.streak|0, reward:streakReward(store.streak),
+        next:streakReward((store.streak|0)+1),   // CAS-243: tomorrow's reward preview (the return hook)
+        comeback:!!store.comeback, claimable:streakClaimable() },
       contracts:store.contracts.map(c=>({ id:c.id, obs:c.obs, zone:c.zone,
         title:contractTitle(c), prog:c.prog|0, need:c.need|0, done:!!c.done, claimed:!!c.claimed,
         gold:c.gold|0, xp:c.xp|0 })),

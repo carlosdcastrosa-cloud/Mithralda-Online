@@ -1388,14 +1388,20 @@ export function createRenderer(ctx){
     // gold readout (top-left)
     ctx.textAlign="left"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.gold(G.hero.gold), x+16, y+24);
 
-    // ----- streak banner -----
-    const sy=y+40, sh=44;
+    // ----- streak banner (CAS-243: escalating return hook — today's reward, tomorrow's preview) -----
+    const sy=y+40, sh=58;
     ctx.fillStyle="#241d12"; ctx.fillRect(x+16,sy,bw-32,sh);
     ctx.fillStyle=COL.panelB; ctx.fillRect(x+16,sy,bw-32,3);
-    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.bountyStreak(b.streak.n), x+28, sy+20);
-    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.bountyStreakReward(b.streak.reward.gold)+(b.streak.reward.potHP?"  (+poción)":""), x+28, sy+37);
+    const sr=b.streak.reward, snx=b.streak.next;
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.bountyStreak(b.streak.n), x+28, sy+18);
+    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.bountyStreakReward(sr.gold, sr.mena)+(sr.potHP?" · +poción":""), x+28, sy+35);
+    // tomorrow's escalating reward preview (the "come back" hook) — or milestone/comeback flag
+    ctx.font="11px 'Courier New'";
+    if(sr.milestone){ ctx.fillStyle=COL.heal; ctx.fillText(STR.bountyStreakMilestone, x+28, sy+51); }
+    else if(b.streak.comeback){ ctx.fillStyle=COL.textGold; ctx.fillText(STR.bountyComeback, x+28, sy+51); }
+    else { ctx.fillStyle=COL.textDim; ctx.fillText(STR.bountyStreakNext(snx.gold, snx.mena)+(snx.potHP?" · +poción":""), x+28, sy+51); }
     // streak claim chip
-    drawClaimChip(x+bw-128, sy+11, 100, 24, b.streak.claimable, !b.streak.claimable,
+    drawClaimChip(x+bw-128, sy+17, 100, 24, b.streak.claimable, !b.streak.claimable,
       ()=>{ daily.claimStreak(); }, b.streak.claimable?STR.bountyClaim:STR.bountyClaimed);
 
     // ----- contracts -----

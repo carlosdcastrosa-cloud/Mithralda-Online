@@ -259,7 +259,12 @@ export const STR = {
   bountyTitle: "TABLÓN DE CACERÍAS",
   bountyContracts: "Contratos de hoy",
   bountyStreak: (n) => "Racha diaria: " + n + (n === 1 ? " día" : " días"),
-  bountyStreakReward: (g) => "Recompensa de hoy: +" + g + " oro",
+  // CAS-243: today's streak reward — gold always, mena from day 3 (feeds la Forja).
+  bountyStreakReward: (g, mena) => "Hoy: +" + g + " oro" + (mena > 0 ? " · +" + mena + " mena" : ""),
+  // CAS-243: tomorrow's reward preview — the escalating return hook.
+  bountyStreakNext: (g, mena) => "Mañana: +" + g + " oro" + (mena > 0 ? " · +" + mena + " mena" : ""),
+  bountyStreakMilestone: "¡HITO! Día 7: gran botín de mena + pociones",
+  bountyComeback: "Racha amortiguada — ¡bienvenido de vuelta!",
   bountyClaim: "Reclamar",
   bountyClaimed: "Cobrado",
   bountyResetIn: (t) => "Rota en " + t,
@@ -269,7 +274,8 @@ export const STR = {
   dailyChampion: (n) => "Derrota " + n + (n === 1 ? " campeón" : " campeones"),
   dailyClear: (zone) => "Despeja: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada" }[zone] || "la zona"),
   dailyClaimed: (g, xp) => "¡Contrato cobrado! +" + g + " oro, +" + xp + " XP",
-  dailyStreakClaimed: (n, g) => "¡Racha de " + n + "! +" + g + " oro",
+  dailyStreakClaimed: (n, g, mena) => "¡Racha de " + n + "! +" + g + " oro" + (mena > 0 ? ", +" + mena + " mena" : ""),
+  dailyStreakMilestone: (n, g, mena) => "¡HITO de racha (" + n + ")! +" + g + " oro, +" + mena + " mena y pociones",
   dailyNotDone: "Aún no has cumplido este contrato",
   dailyAlready: "Ya lo has cobrado hoy",
 
