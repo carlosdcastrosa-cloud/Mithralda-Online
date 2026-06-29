@@ -1,15 +1,22 @@
 // ===========================================================================
 // render/palette.js — the locked STYLE-FORMULA colour palette (presentation).
 // ===========================================================================
+// CAS-209 (FOUNTAINS parity, priority A): environment terrain + ambient re-skinned to
+// the board-adopted FOUNTAINS dark-fantasy palette (design/palette.fountains.json,
+// roles.environment — approval c360188d / CAS-200). Cold, desaturated, gloom-soaked so
+// terrain RECEDES into shadow; the live procedural floor (render.js tileBase/L/D) now
+// matches the committed tiles_fountains/ tileset instead of the old warm sandstone.
+// Signal (flame/heal/rune/blood/loot) + UI + HP/MP/XP kept saturated per the formula
+// (they are the only glow) — this edit is terrain/ambient only.
 export const COL = {
-  bg:"#0c0e13", night:"#10141b",
-  grass:"#2c3a2a", grassL:"#37492f", grassD:"#1f2a1d", twig:"#3d2f1d",
-  dirt:"#4a3a28", dirtL:"#5a4632", dirtD:"#382a1c",
-  stone:"#3a4047", stoneL:"#49505a", stoneD:"#2a2f35",
-  cobble:"#34464a", cobbleL:"#415559", cobbleD:"#27353a",
-  sand:"#6a5a3c", sandL:"#7d6c48", sandD:"#4a3d28", bloodSand:"#5a1f1f",
-  water:"#1d3a4a", waterL:"#2e5e72", waterGlint:"#7fb8c8",
-  out:"#14171c",
+  bg:"#06070a", night:"#0a0d12",
+  grass:"#26302a", grassL:"#334036", grassD:"#19211c", twig:"#2a2016",
+  dirt:"#2c2925", dirtL:"#3a352d", dirtD:"#1c1a16",
+  stone:"#2b2f38", stoneL:"#3a4150", stoneD:"#1b1f26",
+  cobble:"#23303a", cobbleL:"#33424f", cobbleD:"#161e26",
+  sand:"#322f29", sandL:"#423d33", sandD:"#1f1d18", bloodSand:"#3f1216",
+  water:"#142329", waterL:"#234048", waterGlint:"#5f8e90",
+  out:"#0a0c10",
   hpf:"#c83b3b", hpb:"#3a1416", mpf:"#3f6bd0", mpb:"#14203a",
   xpf:"#e0b94a", xpb:"#2a2410",
   gold:"#f2c14e", goldL:"#ffe39a", goldD:"#b88a2e",
