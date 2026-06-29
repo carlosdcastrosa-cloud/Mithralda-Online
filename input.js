@@ -17,12 +17,13 @@ import { view, zoom } from "./view.js";
 import { COL } from "./render/palette.js";
 import { daily } from "./daily.js";   // CAS-134: bounty-board claim actions
 import * as settings from "./settings.js"; // CAS-265: key-rebinding table + persistence
+import { analytics } from "./analytics.js"; // CAS-277: fire the CAS-132 retry/return funnel events
 
 const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -87,7 +88,12 @@ function onKeyDown(e){
 }
 function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md); }
 function edge(code){
-  if(G.scene==="dead"){ if(code==="Space"||code==="Enter") sim.respawn(); return; }
+  // CAS-277: end-of-run recap — PRIMARY "otra ronda" (Space/Enter or the bound attack key)
+  // → fresh run; SECONDARY "pueblo/menú" (Escape) → respawn into the calm pause hub.
+  if(G.scene==="dead"){ const b=G.settings.binds;
+    if(code==="Space"||code==="Enter"||(b&&code===b.attack)) deadRetry();
+    else if(code==="Escape") deadHub();
+    return; }
   if(G.scene==="victory"){ if(code==="Space"||code==="Enter"||code==="Escape") sim.dismissVictory(); return; } // CAS-123
   if(G.scene==="dialogue"){ if(code==="KeyE"||code==="Space"||code==="Enter") sim.advanceDialogue(); else if(code==="Escape"){G.dialog=null;G.scene="play";} return; }
   if(G.scene==="shop"){ if(code==="Escape"||code==="KeyE"){G.scene="play";G.healShop=false;G.merchantShop=false;}
@@ -216,11 +222,22 @@ export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH)
   map:{x:VW-14-b*4.9, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
   pause:{x:VW-14-b*6.0, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
 
+// CAS-277: the two end-of-run recap actions. Each fires its CAS-132 funnel event (so the
+// "one more run" hook is measurable) then drives the existing sim respawn flow — no new
+// game state, no balance touch.
+function deadRetry(){ analytics.event("recap_retry"); sim.respawn(); }
+function deadHub(){ analytics.event("recap_hub"); sim.returnToHub(); }
+
 function handleUITap(x,y){
   // CAS-128: tutorial Skip button (pointer + touch). Checked before the play-scene
   // attack so a click on Skip never also triggers a swing.
   if(G.scene==="play" && G.tut && G.tut.active){ const r=ui.tutSkipRect; if(r && r.w && x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ sim.tutSkip(); return true; } }
-  if(G.scene==="dead"){ sim.respawn(); return true; }
+  // CAS-277: recap taps route through ui.deadRects (primary=retry, secondary=hub). A tap
+  // that misses both buttons falls through to retry — preserving the "tap anywhere to go
+  // again" feel of the old death screen.
+  if(G.scene==="dead"){ for(const r of (ui.deadRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+        if(r.act==="hub") deadHub(); else deadRetry(); return true; } }
+    deadRetry(); return true; }
   if(G.scene==="victory"){ sim.dismissVictory(); return true; } // CAS-123: tap to free play
   if(G.scene==="dialogue"){ sim.advanceDialogue(); return true; }
   if(G.scene==="pause"){ return pauseTap(x,y); }

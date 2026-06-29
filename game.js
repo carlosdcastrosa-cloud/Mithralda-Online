@@ -16,7 +16,7 @@
 import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
-import { io, initInput, syncMenuDom, positionNameInput } from "./input.js";
+import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets } from "./render/sprites.js";
 import * as persist from "./persist.js";
@@ -40,6 +40,9 @@ export function createGame(canvas, ctx, getView){
     const s=G.scene; if(s!==prevScene){
       const into=MENU_SCENES.has(s), from=MENU_SCENES.has(prevScene);
       if(into&&!from) audio.sfx.uiOpen(); else if(from&&!into) audio.sfx.uiClose();
+      // CAS-277: fire the CAS-132 funnel event when the end-of-run recap first appears,
+      // so its "one more run" impact is measurable (retry events fire from input.js).
+      if(s==="dead") analytics.event("recap_shown");
       prevScene=s; } }
   function render(alpha){ renderer.render(alpha); }
   function onResize(w,h){ view.VW=w; view.VH=h; if(G.scene==="menu") positionNameInput(); }
@@ -174,6 +177,10 @@ export function createGame(canvas, ctx, getView){
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-132 analytics funnel QA: drive the real hero-death path (additive, dev-only)
       killHero:()=>simDev.killHero(),
+      // CAS-277 end-of-run recap contract consumed by tools/cas277-recap.mjs — additive
+      recapState:()=>simDev.recapState(), runBase:()=>simDev.runBase(),
+      retryRun:()=>simDev.retryRun(), returnToHub:()=>simDev.returnToHub(),
+      recapRects:()=>(ui.deadRects||[]).map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,act:r.act})),
       // CAS-127 game-feel/juice contract consumed by tools/cas127-juice.mjs — additive
       juiceState:()=>simDev.juiceState(), floaterDump:()=>simDev.floaterDump(), setReduceMotion:(v)=>simDev.setReduceMotion(v),
       clearFx:()=>simDev.clearFx(), juiceArena:(n)=>simDev.juiceArena(n), juiceSwing:()=>simDev.juiceSwing(),

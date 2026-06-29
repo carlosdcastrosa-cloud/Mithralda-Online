@@ -167,6 +167,18 @@ export const STR = {
   deathTitle: "HAS CAÍDO",
   deathSub: "Renaces en el templo de Puerto Solana",
   deathContinue: "Continuar",
+  // CAS-277 — end-of-run RECAP. A concise "this run" summary that turns death into
+  // "one more run". `recapRetry` is bind-aware (the rebindable attack/confirm key);
+  // the labels read existing counters only (no new economy).
+  recapHead: "RESUMEN DE LA RONDA",
+  recapTime: (t) => "Tiempo con vida: " + t,
+  recapKills: (n) => "Enemigos derrotados: " + n,
+  recapGold: (n) => "Oro conseguido: " + n,
+  recapElites: (n) => "Élites abatidos: " + n,
+  recapLevel: (n) => "Nivel: " + n,
+  recapLevelUp: (lvl, up) => "Nivel: " + lvl + " (+" + up + ")",
+  recapRetry: (k) => "OTRA RONDA  [" + k + "]",
+  recapHub: "Pueblo / Menú  [Esc]",
 
   // CAS-123 — Stage-1 objective tracker (HUD) + victory / run-completion screen.
   // The single legible GOAL, shown from minute one so a new player knows where the run

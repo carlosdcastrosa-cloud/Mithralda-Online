@@ -1602,10 +1602,44 @@ export function createRenderer(ctx){
     ui.pauseRects.push({x:VW/2-90,y:fy,w:180,h:30,act:()=>{ G.resetArm=false; G.rebind=null; G.scene="play"; }});
   }
 
-  function renderDeath(){ ctx.fillStyle="rgba(40,8,8,0.6)"; ctx.fillRect(0,0,VW,VH);
-    ctx.textAlign="center"; ctx.fillStyle=COL.skullR; ctx.font="bold 40px 'Courier New'"; ctx.fillText(STR.deathTitle,VW/2,VH/2-30);
-    ctx.fillStyle=COL.cream; ctx.font="16px 'Courier New'"; ctx.fillText(STR.deathSub,VW/2,VH/2+6);
-    ctx.fillStyle="#3a2c1e"; ctx.fillRect(VW/2-90,VH/2+30,180,40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.fillText(STR.deathContinue,VW/2,VH/2+56);
+  // CAS-277: end-of-run RECAP. The death terminal now shows a concise "this run" summary
+  // (READ from the frozen G.recap delta — no new economy) and turns the moment into "one
+  // more run": a prominent OTRA RONDA primary + a calm Pueblo/Menú secondary. Keyboard +
+  // touch (writes ui.deadRects). Honors reduce-motion (no drifting sparks) and is hue-safe.
+  function renderDeath(){ ui.deadRects=[];
+    ctx.fillStyle="rgba(40,8,8,0.66)"; ctx.fillRect(0,0,VW,VH);
+    const cx=VW/2; let y=VH*0.16;
+    ctx.textAlign="center";
+    ctx.fillStyle=COL.skullR; ctx.font="bold 38px 'Courier New'"; ctx.fillText(STR.deathTitle,cx,y); y+=28;
+    ctx.fillStyle=COL.cream; ctx.font="14px 'Courier New'"; ctx.fillText(STR.deathSub,cx,y); y+=34;
+    // recap summary panel — reads the frozen delta snapshot built at death (G.recap)
+    const r=G.recap;
+    if(r){
+      ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.recapHead,cx,y); y+=10;
+      const lines=[ STR.recapTime(fmtTime(r.time)), STR.recapKills(r.kills|0), STR.recapGold(r.gold|0),
+        STR.recapElites(r.elites|0), (r.lvlUp>0?STR.recapLevelUp(r.lvl|0,r.lvlUp|0):STR.recapLevel(r.lvl|0)) ];
+      const pw=Math.min(VW*0.7,340), ph=lines.length*22+18, px=cx-pw/2;
+      ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(px,y,pw,ph);
+      ctx.fillStyle=COL.panelB; ctx.fillRect(px,y,pw,3);
+      ctx.font="14px 'Courier New'"; ctx.textAlign="left"; ctx.fillStyle=COL.cream;
+      let ly=y+24; for(const ln of lines){ ctx.fillText(ln, px+16, ly); ly+=22; }
+      ctx.textAlign="center"; y+=ph+24;
+    }
+    // PRIMARY — Otra ronda (bind-aware: surfaces the player's attack/confirm key)
+    const binds=(G.settings&&G.settings.binds)||settings.defaultBinds();
+    const retryKey=keyLabel(binds.attack)+"/Espacio";
+    const bw=Math.min(VW*0.7,300), bx=cx-bw/2;
+    ctx.fillStyle="#3a2c1e"; ctx.fillRect(bx,y,bw,44);
+    ctx.fillStyle=COL.textGold; ctx.fillRect(bx,y,bw,3);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.fillText(STR.recapRetry(retryKey),cx,y+28);
+    ui.deadRects.push({x:bx,y:y,w:bw,h:44,act:"retry"});
+    y+=56;
+    // SECONDARY — Pueblo / Menú (calm regroup at the fountain)
+    const sw=Math.min(VW*0.55,240), sx=cx-sw/2;
+    ctx.fillStyle="rgba(20,20,28,0.85)"; ctx.fillRect(sx,y,sw,34);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.recapHub,cx,y+22);
+    ui.deadRects.push({x:sx,y:y,w:sw,h:34,act:"hub"});
+    ctx.textAlign="left";
   }
 
   // CAS-123: the Stage-1 VICTORY / run-completion screen. Reads the frozen G.victory

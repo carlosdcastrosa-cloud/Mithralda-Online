@@ -56,6 +56,13 @@ export const G = {
   // renderVictory(). null until the win fires. Cleared scene-side only (the win persists
   // on the hero), so re-opening it is harmless.
   victory:null,
+  // CAS-277: per-RUN bookkeeping for the end-of-run recap. `run` is the baseline snapshot
+  // of the lifetime counters taken at run start (beginRun); `recap` is the FROZEN delta
+  // snapshot built when the run terminates (heroDie). Both are presentation-only and
+  // transient (never serialized) — the sim NEVER reads them, so balance/determinism and
+  // the Stage-2 authority are untouched. The recap READS existing counters only; it adds
+  // no new economy. Cleared scene-side on retry/return.
+  run:null, recap:null,
   talFocus:0,   // CAS-119: keyboard-focused talent node index (talents panel)
   t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
   // CAS-127: reduceMotion is the accessibility off-switch — it gates screen shake and
@@ -189,6 +196,7 @@ function initHunts(){ const o={}; for(const z in HUNTS) o[z]={kills:0, champ:nul
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
 export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; G.scene="play"; G.started=true;
+  beginRun();                                                   // CAS-277: first run baseline for the recap
   if(tutArmed){ startTutorial(); tutArmed=false; } }            // CAS-128: first-run guided flow
 
 // --------------------- CAS-128: onboarding tutorial ---------------------
@@ -332,6 +340,7 @@ export function loadSave(d){
     G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false};
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
     G.scene="play"; G.started=true;
+    beginRun();                                               // CAS-277: baseline this resumed session's run
     return true;
   }catch(e){ return false; }
 }
@@ -710,7 +719,7 @@ function buildVictorySummary(h, firstWin){
 }
 // Dismiss the victory screen → resume free play with the same hero (no reset).
 export function dismissVictory(){ if(G.scene!=="victory") return; G.victory=null; const h=G.hero;
-  if(h){ h.dead=false; h.vx=h.vy=0; h.iframe=0.6; } G.scene="play"; }
+  if(h){ h.dead=false; h.vx=h.vy=0; h.iframe=0.6; } G.scene="play"; beginRun(); }
 function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; // CAS-100: per-class growth → archetypes diverge as you climb
     h.maxHp+=(h.hpGain||18); h.maxMp+=(h.mpGain||8); h.baseDmg+=(h.dmgGain||3); h.hp=heroMaxHp(h); h.mp=h.maxMp;
@@ -1040,9 +1049,25 @@ export function tryPickup(){
   }}
 }
 
+// ------------------------------ run recap (CAS-277) --------------------
+// Snapshot the lifetime counters at the start of a run so the end-of-run recap can show
+// THIS run's deltas. Called at every run-start seam (new hero, save load, respawn, post-
+// victory free play). Presentation-only — additive, transient, read-only on the sim.
+export function beginRun(){ const h=G.hero; if(!h) return;
+  G.run={ pT0:h.playT||0, kills0:h.kills|0, gold0:h.gold|0, elite0:h.eliteKills|0,
+          champ0:h.champKills|0, lvl0:h.lvl|0 };
+  G.recap=null; }
+// Build the FROZEN recap delta from current counters minus the run baseline. Time uses
+// playT (active-play seconds) so menu/pause time never inflates it. Deltas clamp at 0
+// (gold can dip if spent mid-run). Pure read — invents no economy.
+function buildRecap(){ const h=G.hero, r=G.run; if(!h) return null; const b=r||{};
+  return { time:Math.max(0,(h.playT||0)-(b.pT0||0)), kills:Math.max(0,(h.kills|0)-(b.kills0||0)),
+    gold:Math.max(0,(h.gold|0)-(b.gold0||0)), elites:Math.max(0,(h.eliteKills|0)-(b.elite0||0)),
+    lvl:h.lvl|0, lvlUp:Math.max(0,(h.lvl|0)-(b.lvl0||0)) }; }
+
 // ------------------------------ death ----------------------------------
 function heroDie(){
-  const h=G.hero; if(h.dead) return; h.dead=true; h.animState="dead"; h.animT=0; G.scene="dead"; audio.sfx.death();
+  const h=G.hero; if(h.dead) return; G.recap=buildRecap(); h.dead=true; h.animState="dead"; h.animT=0; G.scene="dead"; audio.sfx.death();
   h.deaths=(h.deaths||0)+1; // CAS-123: a run attempt for the victory summary
   const red=G.skull.level>=3;
   let frac = h.blessings>0 && !red ? 0.10 : 0.30;
@@ -1053,7 +1078,12 @@ function heroDie(){
 export function respawn(){
   const h=G.hero; h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
+  G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
 }
+// CAS-277: the death recap's secondary action — respawn at the safe fountain but land in
+// the calm pause/management hub (gear/talents/settings) instead of straight into combat,
+// so the player can regroup. Same respawn mechanics; only the landing scene differs.
+export function returnToHub(){ respawn(); G.scene="pause"; }
 
 // ------------------------------ NPCs / shop ----------------------------
 function nearestNPC(){ const h=G.hero; let best=null,bd=CFG.talkRange*CFG.talkRange;
@@ -1763,6 +1793,12 @@ export const dev = {
   // analytics funnel's "primera muerte" step can be QA-verified headlessly. Dev-only,
   // additive — no balance/gameplay change (the live game never calls this).
   killHero(){ heroDie(); return { deaths:G.hero.deaths, scene:G.scene }; },
+  // CAS-277: end-of-run recap contract consumed by tools/cas277-recap.mjs — read-only.
+  // recapState = the frozen recap delta (null until a death); runBase = the live baseline.
+  recapState(){ return G.recap?Object.assign({},G.recap):null; },
+  runBase(){ return G.run?Object.assign({},G.run):null; },
+  retryRun(){ respawn(); return { scene:G.scene, recap:G.recap }; },
+  returnToHub(){ returnToHub(); return { scene:G.scene, recap:G.recap }; },
   // CAS-109: arm the live Champion so its NEXT in-range strike is the telegraphed
   // radial slam (sets atkCount to one below the cadence). The REAL windup→strike AI
   // then fires the special — no shortcut around the slam emission. Pair with poke()
