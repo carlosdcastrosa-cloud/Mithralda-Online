@@ -92,8 +92,12 @@ const CLASS_HERO_KEYS=["warrior","paladin","mage","druid","priest"];
 // Art Director's Drive intake (CAS-221), baked into the class-cell strips by
 // tools/cas223-clarice-strips.mjs. Unlike the other (recolorable hooded) classes she
 // ships dedicated ATTACK + DEATH strips and is NOT driven by the part-mask bake.
-const CLARICE_CLASSES=new Set(["warrior"]);
-const CLASS_EXTRA_ANIM=["warrior"];          // classes with clsattack_/clsdeath_ strips
+// CAS-238: all 5 classes are now fixed, hand-authored-source character art (warrior=Clarice;
+// mage/druid/priest/paladin = healer-pack & Clarice-derived strips, CEO-approved hybrid).
+// Listed here = SKIP the CAS-167/169 procedural part-mask re-bake (which would overwrite the
+// loaded source strips with the hooded base) AND load their dedicated attack/death strips.
+const CLARICE_CLASSES=new Set(["warrior","paladin","mage","druid","priest"]);
+const CLASS_EXTRA_ANIM=["warrior","paladin","mage","druid","priest"]; // classes with clsattack_/clsdeath_ strips
 const CLASS_ATTACK_FC=6, CLASS_DEATH_FC=6, CLASS_DEATH_DUR=0.7; // Clarice extra-anim frame counts
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
