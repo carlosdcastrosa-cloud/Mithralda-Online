@@ -518,6 +518,10 @@ function killEnemy(e){
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
   addFx("poof",e.x,e.y);
+  // CAS-210: FOUNTAINS-style kill pop — chunky gore burst so a kill reads as a finisher.
+  const ka=frr(0,6.28); addFx("debris",e.x,e.y,{ang:ka,life:0.55}); addFx("debris",e.x,e.y,{ang:ka+3.14,life:0.48});
+  addFx("bloodstain",e.x,e.y+e.tpl.size*0.4,{ang:ka,life:2.2});
+  if(e.champion||e.isBoss) addFx("shockring",e.x,e.y,{r:52,life:0.46});
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
