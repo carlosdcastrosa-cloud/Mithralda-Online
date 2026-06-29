@@ -16,6 +16,7 @@ import { audio } from "./audio.js";
 import { view, zoom } from "./view.js";
 import { COL } from "./render/palette.js";
 import { daily } from "./daily.js";   // CAS-134: bounty-board claim actions
+import * as settings from "./settings.js"; // CAS-265: key-rebinding table + persistence
 
 const G = sim.G;
 
@@ -28,13 +29,43 @@ let aimActive = false;
 let mouseX = view.VW/2, mouseY = view.VH/2;
 
 const keys = new Set();
-const BIND = {KeyW:"up",KeyS:"down",KeyA:"left",KeyD:"right",ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right"};
+// CAS-265: arrow keys are a PERMANENT movement fallback (never rebindable) so a bad
+// remap can't strand a player. WASD (or whatever the player bound) comes from
+// G.settings.binds via moveDir(); the two are unioned in onKeyDown/onKeyUp.
+const ARROW = {ArrowUp:"up", ArrowDown:"down", ArrowLeft:"left", ArrowRight:"right"};
+// Map a keydown code → movement direction ("up"/"down"/"left"/"right"), honouring the
+// live rebind table plus the fixed arrow fallback. null if the code isn't a move key.
+function moveDir(code){ if(ARROW[code]) return ARROW[code];
+  const b = G.settings.binds; if(b){ if(code===b.up)return"up"; if(code===b.down)return"down"; if(code===b.left)return"left"; if(code===b.right)return"right"; }
+  return null; }
+// CAS-265: the rebindable play-scene action verbs. Resolved from the live bind table
+// (playAction) so a remap takes effect with no other code change. Movement is handled
+// separately (held state, not edge-triggered) and is NOT in this table.
+const ACTIONS = {
+  attack:()=>sim.castSpell(0), roll:()=>sim.doRoll(),
+  skill2:()=>sim.castSpell(1), skill3:()=>sim.castSpell(2), skill4:()=>sim.castSpell(3),
+  pickup:()=>sim.tryPickup(), interact:()=>sim.interact(),
+  useConsumable:()=>sim.doConsumable(), cycleConsumable:()=>sim.cycleConsumable(1),
+  potionHP:()=>sim.doPotionHP(), potionMP:()=>sim.doPotionMP(),
+  inventory:()=>{ G.scene="inventory"; }, forge:()=>{ G.scene="forge"; G.forgeSel=G.forgeSel||0; },
+  talents:()=>{ G.scene="talents"; G.talFocus=G.talFocus||0; }, mastery:()=>{ G.scene="mastery"; },
+  customize:()=>{ G.scene="customize"; G.custFocus=G.custFocus||0; }, map:()=>{ G.showMap=!G.showMap; },
+  pause:()=>{ G.scene="pause"; },
+};
+// Reverse-resolve a keydown code → its bound play-scene action verb (or null).
+function playAction(code){ const b=G.settings.binds; if(!b) return null;
+  for(const a in ACTIONS){ if(b[a]===code) return a; } return null; }
 const press = {}; // edge-triggered
 
 let canvas = null, nameWrap = null, nameInput = null;
 
 // ----------------------------- keyboard --------------------------------
 function onKeyDown(e){
+  // CAS-265: rebind CAPTURE — when the Controls tab is waiting for a key, the next
+  // press (other than Escape, which cancels) becomes that action's binding.
+  if(G.rebind){ const code=e.code;
+    if(code!=="Escape" && code!=="Tab") settings.setBind(G.rebind, code);
+    G.rebind=null; e.preventDefault(); return; }
   if(G.scene==="menu"){ if(document.activeElement===nameInput && e.code!=="Enter") return;
     if(e.code==="Enter") startGame(); return; }
   if(G.scene==="classsel"){ const c=e.code;
@@ -48,11 +79,13 @@ function onKeyDown(e){
     else if(c==="KeyC") customizeNewHero(CLASS_LIST[G.classSel]); // CAS-169: personalize before play
     else if(c==="Enter"||c==="Space") chooseClass(CLASS_LIST[G.classSel]);
     e.preventDefault(); return; }
-  if(BIND[e.code]) { keys.add(BIND[e.code]); e.preventDefault(); }
+  const md=moveDir(e.code); if(md){ keys.add(md); e.preventDefault(); }
   edge(e.code);
-  if(["Space","KeyJ","Digit1","Digit2","Digit3","Digit4","KeyF","KeyG","KeyI","KeyM","KeyE","KeyT","KeyV","KeyC","KeyQ","KeyR","Escape"].includes(e.code)) e.preventDefault();
+  // swallow the browser default for any key the game consumes (movement, a bound
+  // play action, or the numeric attack alias) so scrolling / find-on-page don't fire.
+  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape") e.preventDefault();
 }
-function onKeyUp(e){ if(BIND[e.code]) keys.delete(BIND[e.code]); }
+function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md); }
 function edge(code){
   if(G.scene==="dead"){ if(code==="Space"||code==="Enter") sim.respawn(); return; }
   if(G.scene==="victory"){ if(code==="Space"||code==="Enter"||code==="Escape") sim.dismissVictory(); return; } // CAS-123
@@ -107,32 +140,15 @@ function edge(code){
     else if(code==="ArrowRight"){ custAdjust(1); }
     else if(code==="KeyR"){ sim.resetCustomize(); }
     return; }
-  if(G.scene==="pause"){ if(code==="Escape"){ G.resetArm=false; G.scene="play"; }
-    else if(code==="Digit1"){G.settings.shake=G.settings.shake>0?0:1;}
-    else if(code==="Digit2"){G.settings.crt=!G.settings.crt;}
-    else if(code==="Digit3"){G.settings.rollAim=!G.settings.rollAim;}
-    else if(code==="Digit4"){toggleSound();} return; }
+  // CAS-265: the pause/settings panel is tab + tap driven (see render.renderPause /
+  // pauseTap). Escape closes it (also cancels a pending rebind); everything else is
+  // routed through the panel hit-rects so it works identically on touch.
+  if(G.scene==="pause"){ if(code==="Escape"){ G.resetArm=false; G.rebind=null; G.scene="play"; } return; }
   if(G.scene!=="play") return;
-  switch(code){
-    case "Space": sim.doRoll(); break;
-    case "KeyJ": case "Digit1": sim.castSpell(0); break;
-    case "Digit2": sim.castSpell(1); break;
-    case "Digit3": sim.castSpell(2); break;
-    case "Digit4": sim.castSpell(3); break;
-    case "KeyF": sim.tryPickup(); break;
-    case "KeyI": G.scene="inventory"; break;
-    case "KeyG": G.scene="forge"; G.forgeSel=G.forgeSel||0; break; // CAS-237 forge equipment
-    case "KeyT": G.scene="talents"; G.talFocus=G.talFocus||0; break; // CAS-119 talent panel
-    case "KeyV": G.scene="mastery"; break; // CAS-150 elite-mastery reward track
-    case "KeyC": G.scene="customize"; G.custFocus=G.custFocus||0; break; // CAS-169 wardrobe / character customization
-    case "KeyM": G.showMap=!G.showMap; break;
-    case "KeyE": sim.interact(); break;
-    case "Escape": G.scene="pause"; break;
-    case "KeyP": sim.doPotionHP(); break;
-    case "KeyO": sim.doPotionMP(); break;
-    case "KeyQ": sim.doConsumable(); break;        // CAS-192: use the selected combat consumable
-    case "KeyR": sim.cycleConsumable(1); break;    // CAS-192: rotate the consumable slot
-  }
+  // CAS-265: rebindable play-scene actions resolve from G.settings.binds first.
+  const act=playAction(code); if(act){ ACTIONS[act](); return; }
+  // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
+  if(code==="Digit1"){ sim.castSpell(0); }
 }
 
 // ----------------------------- pointer ---------------------------------
@@ -176,7 +192,10 @@ function pollPad(){ const gp=(navigator.getGamepads&&navigator.getGamepads()[0])
 // ------------------------- on-screen touch UI --------------------------
 export function tbtns(){ // returns button rects for current scene
   const VW=view.VW, VH=view.VH;
-  const s=Math.min(VW,VH); const bs=Math.max(50,s*0.11); const m=14;
+  // CAS-265 touch-comfort pass: raise the base-size floor (50→56) so every action button
+  // clears a ~44px comfortable tap target even on the smallest phones; the layout scales
+  // uniformly off `bs` (this is the single source render reads too), so spacing is preserved.
+  const s=Math.min(VW,VH); const bs=Math.max(56,s*0.115); const m=14;
   const right=VW-m;
   return {
     attack:{x:right-bs/2, y:VH-m-bs/2, r:bs*0.62, label:"⚔", act:()=>sim.castSpell(0)},
@@ -189,7 +208,7 @@ export function tbtns(){ // returns button rects for current scene
     bs
   };
 }
-export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(34,s*0.072); const y=14+b/2; return {
+export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(38,s*0.075); const y=14+b/2; return {
   inv:{x:VW-14-b*0.5, y, r:b*0.5, label:"I", act:()=>{G.scene=G.scene==="inventory"?"play":"inventory";}},
   tal:{x:VW-14-b*1.6, y, r:b*0.5, label:"T", act:()=>{G.scene=G.scene==="talents"?"play":"talents";}}, // CAS-119
   mst:{x:VW-14-b*2.7, y, r:b*0.5, label:"✦", act:()=>{G.scene=G.scene==="mastery"?"play":"mastery";}}, // CAS-150 mastery track
@@ -231,7 +250,11 @@ function talentTap(x,y){ for(const r of (ui.talentRects||[])){ if(x>=r.x&&x<=r.x
     else if(r.act) r.act();
     return true; } } return true; }
 function pauseTap(x,y){ for(const r of ui.pauseRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
-  if(r.slider){ r.set(Math.max(0,Math.min(1,(x-r.x)/r.w))); } else r.act(); return true; } } return true; }
+  if(r.slider){ r.set(Math.max(0,Math.min(1,(x-r.x)/r.w))); }
+  else if(r.tab){ G.setTab=r.tab; G.rebind=null; }                       // CAS-265: switch settings tab
+  else if(r.rebind){ G.rebind = (G.rebind===r.rebind)?null:r.rebind; }   // CAS-265: arm/cancel a key rebind
+  else if(r.act){ r.act(); }
+  return true; } } return true; }
 function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 // CAS-134: bounty board taps. Each contract pushes its CLAIM-chip rect BEFORE its
 // row-select rect, so a first-match-wins forward scan fires the claim when the tap lands
@@ -286,7 +309,6 @@ function customTap(x,y){ for(const r of (ui.customRects||[])){ if(x>=r.x&&x<=r.x
     else if(r.kind==="done"){ G.scene="play"; }
     else if(r.kind==="reset"){ sim.resetCustomize(); }
     return true; } } return true; }
-function toggleSound(){ audio.setEnabled(!audio.on); }
 
 export function positionNameInput(){ if(!nameWrap) return; const cy=view.VH*0.52; nameWrap.style.top=(cy-26)+"px"; }
 // keep the hero-name input visible on the menu (DOM, owned by the controller)

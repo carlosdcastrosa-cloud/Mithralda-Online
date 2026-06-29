@@ -60,7 +60,10 @@ export const G = {
   t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
   // CAS-127: reduceMotion is the accessibility off-switch — it gates screen shake and
   // trims flourish particle bursts (never changes balance/mechanics; purely cosmetic).
-  cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:true, rollAim:false, reduceMotion:false},
+  // CAS-265: colorblind adds shape/text cues (rarity marks, crit glyph, telegraph ring)
+  // so signal never relies on hue alone; binds is the persisted key-rebinding table
+  // (filled by settings.boot()). All settings are presentation-only — Stage-2 safe.
+  cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:true, rollAim:false, reduceMotion:false, colorblind:false, binds:null},
   quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0, bountySel:0,
   // CAS-146 — elite-ambush event clock: `t` counts down only while the hero is fighting in a
   // hunt zone; `active` is true from an ambush firing until its elite is cleared (auto-recovers).

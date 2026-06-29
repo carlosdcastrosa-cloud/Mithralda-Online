@@ -20,6 +20,7 @@ import { audio } from "../audio.js";
 import { view, zoom } from "../view.js";
 import { COL } from "./palette.js";
 import { resetGame } from "../persist.js";   // CAS-113: pause-menu "Nueva partida"
+import * as settings from "../settings.js";   // CAS-265: rebind table + settings persistence
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
@@ -115,6 +116,23 @@ import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 export function createRenderer(ctx){
   const G = sim.G, world = sim.world;
   const rrng = createRNG();            // presentation-only RNG (isolated from sim)
+  // CAS-265: colour-blind cues — true when the player has enabled the accessibility
+  // option. Used to add SHAPE / TEXT signals so meaning never rides on hue alone:
+  // a rarity glyph per tier, a "!" on crit damage, and a high-contrast windup ring.
+  const cb = ()=> !!(G.settings && G.settings.colorblind);
+  // Per-rarity shape mark (ascending tiers). Empty for common so plain drops stay clean.
+  const RARITY_MARK = { common:"", uncommon:"◦ ", rare:"◆ ", epic:"★ " };
+  const rarityMark = (inst)=> (cb() && inst) ? (RARITY_MARK[inst.rarity] || "") : "";
+  // Human-readable label for a KeyboardEvent.code (settings → Controls tab).
+  const keyLabel = (code)=>{ if(!code) return "—";
+    if(code==="Space") return "Espacio";
+    if(code==="Escape") return "Esc";
+    if(code.startsWith("Key")) return code.slice(3);
+    if(code.startsWith("Digit")) return code.slice(5);
+    if(code.startsWith("Numpad")) return "Num"+code.slice(6);
+    if(code==="ArrowUp") return "↑"; if(code==="ArrowDown") return "↓";
+    if(code==="ArrowLeft") return "←"; if(code==="ArrowRight") return "→";
+    return code; };
   loadImg("hero_erw", ERW_HERO_SRC);   // CAS-82: hooded pose (now the load-time fallback)
   for(const k in HERO_STRIPS) loadImg(HERO_STRIPS[k].img, `./assets/erw/hero/${HERO_STRIPS[k].img}.png`); // CAS-92 anim strips
   for(const k of CLASS_HERO_KEYS) loadImg("clshero_"+k, `./assets/erw/hero/classes/${k}.png`); // CAS-98 per-class clean cutouts
@@ -324,8 +342,11 @@ export function createRenderer(ctx){
     // Pure presentation off pooled floater flags; no allocation, no sim state touched.
     for(const f of G.floaters){ const k=clamp(1-f.t/f.life,0,1); ctx.globalAlpha=k;
       const base=f.small?10:13; const pk=(f.pop&&f.pop>1)?1+(f.pop-1)*clamp(1-f.t/0.16,0,1):1; const sz=Math.round(base*pk);
+      // CAS-265: in colour-blind mode crits carry a "!" shape cue (the size-pop already
+      // reads big), so a crit is distinguishable from a normal hit without relying on hue.
+      const txt=(cb()&&f.crit)?("!"+f.txt):f.txt;
       ctx.font="bold "+sz+"px 'Courier New',monospace"; ctx.textAlign="center";
-      ctx.fillStyle=COL.out; ctx.fillText(f.txt,f.x+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(f.txt,f.x,f.y); ctx.globalAlpha=1; }
+      ctx.fillStyle=COL.out; ctx.fillText(txt,f.x+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(txt,f.x,f.y); ctx.globalAlpha=1; }
   }
 
   function drawHero(h){
@@ -578,6 +599,12 @@ export function createRenderer(ctx){
       ctx.restore(); }
     // windup telegraph: flashing warning + slight grow
     if(e.state==="windup"){ const fl2=Math.floor(G.t*16)%2===0;
+      // CAS-265: colour-blind universal "about to strike" cue — a flashing high-contrast
+      // white dashed ring around any winding-up enemy, so the threat reads by SHAPE +
+      // motion regardless of the (colour-coded) attack-specific telegraph below it.
+      if(cb()){ ctx.save(); ctx.globalAlpha=fl2?0.92:0.4; ctx.strokeStyle="#ffffff"; ctx.lineWidth=2; ctx.setLineDash([3,4]);
+        ctx.beginPath(); ctx.arc(e.x, e.y, (e.tpl.size||16)*0.95+3, 0, 6.28); ctx.stroke();
+        ctx.setLineDash([]); ctx.restore(); }
       if(e.tpl.ranged){ const a=e.facing; const col=e.tpl.proj==="bolt"?"#9bef5a":"#ffd24d";
         ctx.globalAlpha=0.55; ctx.strokeStyle=fl2?col:"#ff8a3a"; ctx.lineWidth=2; ctx.setLineDash([6,7]);
         ctx.beginPath(); ctx.moveTo(e.x,e.y-6); ctx.lineTo(e.x+Math.cos(a)*240,e.y-6+Math.sin(a)*240); ctx.stroke();
@@ -1208,7 +1235,9 @@ export function createRenderer(ctx){
       ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(rx,ay,rw,rowH-4);
       if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=1.5; ctx.strokeRect(rx,ay,rw,rowH-4); }
       ctx.textAlign="left"; ctx.fillStyle=gearCol(inst); ctx.font="12px 'Courier New'";
-      ctx.fillText(gearName(inst)+" ("+gearStat(inst)+")", rx+8, ay+16);
+      // CAS-265: prepend a per-rarity SHAPE mark (◦/◆/★) in colour-blind mode so rarity
+      // reads without depending on the name's hue (empty for common → unchanged otherwise).
+      ctx.fillText(rarityMark(inst)+gearName(inst)+" ("+gearStat(inst)+")", rx+8, ay+16);
       const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="10px 'Courier New'"; ctx.fillText("◈".repeat(na), rx+8, ay+rowH-7); }
       const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+16);
       ui.invRects.push({x:rx,y:ay,w:rw,h:rowH-4, idx:i});
@@ -1218,7 +1247,7 @@ export function createRenderer(ctx){
     if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
       const eq=h.equip[sel.slot];
       ctx.textAlign="left"; ctx.font="10px 'Courier New'"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
-      ctx.fillStyle=gearCol(eq); ctx.fillText(gearName(eq)+" ("+gearStat(eq)+")", rx+6, cy+25);
+      ctx.fillStyle=gearCol(eq); ctx.fillText(rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")", rx+6, cy+25);
       drawAffixLines(eq, rx+10, cy+36, 10);
       const midX=rx+rw*0.52;
       ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpNew, midX, cy+13);
@@ -1482,47 +1511,91 @@ export function createRenderer(ctx){
     if(on) ui.bountyRects.push({x:cx,y:cy,w:cw,h:ch,act});
   }
 
-  function renderPause(){ const bw=Math.min(VW*0.8,400), bh=Math.min(VH-20,560), x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.pauseTitle,VW/2,y+34);
-    ctx.fillStyle=COL.textDim; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingsTitle,VW/2,y+58);
+  // CAS-265: the pause / settings panel, reorganised into three grouped TABS
+  // (Audio · Accesibilidad · Controles) for cohesion. All controls are tap-driven so
+  // they behave identically on touch; every persistent toggle writes through
+  // settings.save() so it survives a reload. A pinned footer keeps Resume / replay-guide
+  // / new-game reachable from any tab.
+  function renderPause(){ const bw=Math.min(VW*0.86,440), bh=Math.min(VH-20,580), x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
+    if(!G.setTab) G.setTab="access";
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.pauseTitle,VW/2,y+30);
     ui.pauseRects=[];
-    // CAS-131: a labelled, draggable/tappable mix slider (master / music / sfx). The
-    // tap x sets the fill fraction; pauseTap routes slider rows through r.set(frac).
-    function slider(label,oy,get,set,dim){ const sx=x+30, sw=bw-60, sh=22;
-      ctx.textAlign="left"; ctx.fillStyle=dim?COL.textDim:COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(label,sx,oy-2);
-      const bx=sx, by=oy+4, bwd=sw, bhd=sh-8;
+    const px=x+24, pw=bw-48;
+    // ---- tab strip ----
+    const tabs=[["audio",STR.setTabAudio],["access",STR.setTabAccess],["controls",STR.setTabControls]];
+    const tw=pw/tabs.length, ty=y+44, th=26;
+    tabs.forEach(([id,label],i)=>{ const tx=px+i*tw, on=G.setTab===id;
+      ctx.fillStyle=on?"#2e3647":"#191e26"; ctx.fillRect(tx,ty,tw-3,th);
+      if(on){ ctx.fillStyle=COL.textGold; ctx.fillRect(tx,ty+th-2,tw-3,2); }
+      ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(label,tx+(tw-3)/2,ty+17);
+      ui.pauseRects.push({x:tx,y:ty,w:tw-3,h:th,tab:id}); });
+    // ---- shared row widgets ----
+    function toggle(label,on,act,oy){ ctx.textAlign="left"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,26);
+      ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,px+10,oy+17);
+      const bx=px+pw-52, bon=!!on; ctx.fillStyle=bon?"#2e5a3a":"#3a2222"; ctx.fillRect(bx,oy+5,42,16);
+      ctx.textAlign="center"; ctx.fillStyle=bon?"#9be7a0":"#e0a0a0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText(bon?"ON":"OFF",bx+21,oy+17);
+      ui.pauseRects.push({x:px,y:oy,w:pw,h:26,act}); }
+    function slider(label,oy,get,set,dim){ const sh=22;
+      ctx.textAlign="left"; ctx.fillStyle=dim?COL.textDim:COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(label,px,oy-2);
+      const bx=px, by=oy+4, bwd=pw, bhd=sh-8;
       ctx.fillStyle="#20262f"; ctx.fillRect(bx,by,bwd,bhd);
       const f=Math.max(0,Math.min(1,get())); ctx.fillStyle=dim?"#46505f":COL.textGold; ctx.fillRect(bx,by,bwd*f,bhd);
       ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,bwd,bhd);
       ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(Math.round(f*100)+"%",bx+bwd-3,oy-2);
       ui.pauseRects.push({x:bx,y:oy-6,w:bwd,h:sh+6,slider:true,set}); }
-    const opts=[
-      [STR.settingShake+": "+(G.settings.shake>0?"ON":"OFF"),()=>{G.settings.shake=G.settings.shake>0?0:1;}],
-      // CAS-127: accessibility off-switch — kills screen shake + trims flourish particles.
-      [STR.settingReduceMotion+": "+(G.settings.reduceMotion?"ON":"OFF"),()=>{G.settings.reduceMotion=!G.settings.reduceMotion; if(G.settings.reduceMotion) G.shake=0;}],
-      [STR.settingCRT+": "+(G.settings.crt?"ON":"OFF"),()=>{G.settings.crt=!G.settings.crt;}],
-      [STR.settingRollDir+": "+(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove),()=>{G.settings.rollAim=!G.settings.rollAim;}],
-      // CAS-131: mute kills all audio; the 3 sliders below are the persisted mix.
-      [STR.settingMute+": "+(audio.muted?"ON":"OFF"),()=>audio.toggleMute()],
-      // CAS-128: replay the onboarding guide on demand (returning players never auto-get it).
-      [STR.tutReplay,()=>{ G.scene="play"; sim.startTutorial(); }],
-    ];
-    let oy=y+78; for(const [label,act] of opts){
-      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(x+30,oy,bw-60,26); ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,VW/2,oy+18); ui.pauseRects.push({x:x+30,y:oy,w:bw-60,h:26,act}); oy+=32; }
-    // mix sliders (dim when muted to show they're inactive)
-    oy+=4;
-    slider(STR.settingMaster,oy,()=>audio.master,(f)=>audio.setMaster(f),audio.muted); oy+=30;
-    slider(STR.settingMusic,oy,()=>audio.music,(f)=>audio.setMusic(f),audio.muted); oy+=30;
-    slider(STR.settingSfx,oy,()=>audio.sfxVol,(f)=>audio.setSfx(f),audio.muted); oy+=34;
-    // CAS-113: "Nueva partida" — wipes the localStorage save + restarts clean.
-    // Two-tap arm/confirm so an accidental click can't nuke a run.
-    const reset=[]; if(G.resetArm){
-      reset.push(["⚠ ¿Borrar progreso? — SÍ, BORRAR", ()=>{ G.resetArm=false; resetGame(); }]);
-      reset.push(["Cancelar", ()=>{ G.resetArm=false; }]);
-    } else { reset.push(["Nueva partida (borrar guardado)", ()=>{ G.resetArm=true; }]); }
-    ctx.textAlign="center"; for(const [label,act] of reset){ const danger=/BORRAR|Nueva partida/.test(label);
-      ctx.fillStyle=danger?"#3a2222":"#20262f"; ctx.fillRect(x+30,oy,bw-60,26); ctx.fillStyle=danger?"#f0a0a0":COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,VW/2,oy+18); ui.pauseRects.push({x:x+30,y:oy,w:bw-60,h:26,act}); oy+=32; }
-    ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-80,oy+4,160,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,oy+24); ui.pauseRects.push({x:x+bw/2-80,y:oy+4,w:160,h:30,act:()=>{G.resetArm=false;G.scene="play";}});
+    // ---- tab body ----
+    const save=()=>settings.save();
+    let oy=ty+th+16;
+    if(G.setTab==="audio"){
+      toggle(STR.settingMute, audio.muted, ()=>audio.toggleMute(), oy); oy+=34;
+      slider(STR.settingMaster,oy,()=>audio.master,(f)=>audio.setMaster(f),audio.muted); oy+=32;
+      slider(STR.settingMusic,oy,()=>audio.music,(f)=>audio.setMusic(f),audio.muted); oy+=32;
+      slider(STR.settingSfx,oy,()=>audio.sfxVol,(f)=>audio.setSfx(f),audio.muted); oy+=32;
+    } else if(G.setTab==="access"){
+      // reduce-motion is the master juice off-switch (gates shake + trims particles).
+      toggle(STR.settingReduceMotion, G.settings.reduceMotion, ()=>{ G.settings.reduceMotion=!G.settings.reduceMotion; if(G.settings.reduceMotion) G.shake=0; save(); }, oy); oy+=32;
+      toggle(STR.settingColorblind, G.settings.colorblind, ()=>{ G.settings.colorblind=!G.settings.colorblind; save(); }, oy); oy+=32;
+      toggle(STR.settingShake, G.settings.shake>0, ()=>{ G.settings.shake=G.settings.shake>0?0:1; save(); }, oy); oy+=32;
+      toggle(STR.settingCRT, G.settings.crt, ()=>{ G.settings.crt=!G.settings.crt; save(); }, oy); oy+=32;
+      // roll-direction is a two-value preference, not on/off — show its current value.
+      ctx.textAlign="left"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,26);
+      ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingRollDir,px+10,oy+17);
+      ctx.textAlign="right"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'"; ctx.fillText(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove,px+pw-10,oy+17);
+      ui.pauseRects.push({x:px,y:oy,w:pw,h:26,act:()=>{ G.settings.rollAim=!G.settings.rollAim; save(); }}); oy+=34;
+    } else { // controls — 2-column rebind grid + reset
+      ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.controlsHint,px,oy); oy+=14;
+      const binds=G.settings.binds||settings.defaultBinds();
+      const colW=pw/2, rh=21, gridY=oy;
+      settings.REBINDS.forEach((rb,i)=>{ const col=i%2, row=(i-col)/2; const cx0=px+col*colW, cy0=gridY+row*rh;
+        const arming=G.rebind===rb.a;
+        ctx.fillStyle=arming?"#3a2c1e":"#191e26"; ctx.fillRect(cx0,cy0,colW-4,rh-3);
+        ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="10px 'Courier New'"; ctx.fillText((STR.bindLabel[rb.a]||rb.a),cx0+6,cy0+14);
+        ctx.textAlign="right"; ctx.fillStyle=arming?COL.textGold:"#9be7ff"; ctx.font="bold 10px 'Courier New'";
+        ctx.fillText(arming?"…":keyLabel(binds[rb.a]), cx0+colW-10, cy0+14);
+        ui.pauseRects.push({x:cx0,y:cy0,w:colW-4,h:rh-3,rebind:rb.a}); });
+      oy=gridY + Math.ceil(settings.REBINDS.length/2)*rh + 6;
+      if(G.rebind){ ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'"; ctx.fillText(STR.bindPressKey,VW/2,oy+10); oy+=18; }
+      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.bindResetDefaults,VW/2,oy+16);
+      ui.pauseRects.push({x:px,y:oy,w:pw,h:24,act:()=>{ settings.resetBinds(); G.rebind=null; }}); oy+=30;
+    }
+    // ---- pinned footer (Resume + replay guide + new game) ----
+    let fy=y+bh-118;
+    ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
+    ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ G.scene="play"; sim.startTutorial(); }}); fy+=30;
+    // CAS-113: "Nueva partida" — two-tap arm/confirm so a misclick can't nuke a run.
+    if(G.resetArm){
+      const half=(pw-8)/2;
+      ctx.fillStyle="#3a2222"; ctx.fillRect(px,fy,half,24); ctx.fillStyle="#f0a0a0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText("SÍ, BORRAR",px+half/2,fy+16);
+      ui.pauseRects.push({x:px,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; resetGame(); }});
+      ctx.fillStyle="#20262f"; ctx.fillRect(px+half+8,fy,half,24); ctx.fillStyle=COL.cream; ctx.fillText("Cancelar",px+half+8+half/2,fy+16);
+      ui.pauseRects.push({x:px+half+8,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; }});
+    } else {
+      ctx.fillStyle="#2a1c14"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle="#caa07a"; ctx.font="12px 'Courier New'"; ctx.fillText("Nueva partida (borrar guardado)",VW/2,fy+16);
+      ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ G.resetArm=true; }});
+    }
+    fy+=32;
+    ctx.fillStyle="#3a2c1e"; ctx.fillRect(VW/2-90,fy,180,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,fy+20);
+    ui.pauseRects.push({x:VW/2-90,y:fy,w:180,h:30,act:()=>{ G.resetArm=false; G.rebind=null; G.scene="play"; }});
   }
 
   function renderDeath(){ ctx.fillStyle="rgba(40,8,8,0.6)"; ctx.fillRect(0,0,VW,VH);

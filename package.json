@@ -71,6 +71,9 @@
     "cas180-subpath-verify": "node tools/cas180-subpath-verify.mjs",
     "trial": "node tools/cas196-trial.mjs",
     "cas226-inv": "node tools/cas226-inv-live.mjs",
+    "cas265": "node tools/cas265-accessibility.mjs",
+    "cas265-live": "node tools/cas265-accessibility.mjs --live",
+    "cas265-shots": "node tools/cas265-shots.mjs",
     "cas240-gait": "node tools/cas240-gait-decouple.mjs",
     "cas256": "node tools/cas256-anims.mjs",
     "cas256-live": "node tools/cas256-anims-live.mjs"

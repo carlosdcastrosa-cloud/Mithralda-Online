@@ -202,6 +202,22 @@ export const STR = {
   settingMaster: "Volumen",
   settingMusic: "Música",
   settingSfx: "Efectos",
+  // CAS-265: accessibility & quality-of-life polish — grouped settings tabs, colour-blind
+  // cues and key rebinding.
+  settingColorblind: "Modo daltónico",
+  setTabAudio: "Audio",
+  setTabAccess: "Accesibilidad",
+  setTabControls: "Controles",
+  controlsHint: "Toca una acción y pulsa la tecla nueva.",
+  bindPressKey: "… pulsa una tecla (Esc cancela)",
+  bindResetDefaults: "Restaurar predeterminados",
+  bindLabel: {
+    up:"Arriba", down:"Abajo", left:"Izquierda", right:"Derecha",
+    attack:"Atacar", roll:"Rodar", skill2:"Habilidad 2", skill3:"Habilidad 3", skill4:"Habilidad 4",
+    pickup:"Recoger", interact:"Interactuar", useConsumable:"Usar consumible", cycleConsumable:"Rotar consumible",
+    potionHP:"Poción de vida", potionMP:"Poción de maná", inventory:"Inventario", forge:"Forja",
+    talents:"Talentos", mastery:"Maestría", customize:"Vestuario", map:"Mapa", pause:"Pausa",
+  },
 
   perfectDodge: "¡ESQUIVA!",
   riposte: "¡CASTIGO!",                              // CAS-210: the perfect-dodge → counter payoff banner

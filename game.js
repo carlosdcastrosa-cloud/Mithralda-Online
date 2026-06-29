@@ -20,6 +20,7 @@ import { io, initInput, syncMenuDom, positionNameInput } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets } from "./render/sprites.js";
 import * as persist from "./persist.js";
+import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
 import { daily } from "./daily.js";
 
@@ -47,6 +48,11 @@ export function createGame(canvas, ctx, getView){
 
   // boot
   loadAllAssets();
+  // CAS-265: load persisted accessibility / QoL settings (reduce-motion, colour-blind
+  // cues, screen-shake, key rebindings) BEFORE input + the first frame so a returning
+  // player's preferences are live from frame 0. Separate localStorage key from the save,
+  // so wiping a character never resets accessibility prefs. Defaults preserve behaviour.
+  settings.boot();
   // CAS-113: rehydrate a saved run BEFORE the menu DOM syncs — a valid save jumps
   // straight into play (skipping name/class); no/invalid save leaves the menu flow.
   persist.boot();
@@ -177,6 +183,13 @@ export function createGame(canvas, ctx, getView){
       tutSkip:()=>simDev.tutSkip(), tutSetStep:(i)=>simDev.tutSetStep(i), tutSeen:()=>persist.tutSeen(),
       clearTutSeen:()=>persist.clearTutSeen(),
       setSound:(v)=>audio.setEnabled(v),
+      // CAS-265 accessibility/QoL contract consumed by tools/cas265-accessibility.mjs — additive
+      settingsState:()=>({shake:G.settings.shake, crt:G.settings.crt, rollAim:G.settings.rollAim,
+        reduceMotion:G.settings.reduceMotion, colorblind:G.settings.colorblind, binds:Object.assign({},G.settings.binds)}),
+      setColorblind:(v)=>{ G.settings.colorblind=!!v; settings.save(); },
+      setReduceMotionPref:(v)=>{ G.settings.reduceMotion=!!v; if(v) G.shake=0; settings.save(); },
+      setBind:(a,c)=>settings.setBind(a,c), resetBinds:()=>settings.resetBinds(),
+      settingsSaved:()=>{ try{ return JSON.parse(localStorage.getItem("mithralda.settings.v1")||"null"); }catch(e){ return null; } },
       // CAS-131 audio/soundscape contract consumed by tools/cas131-audio.mjs — additive
       audioState:()=>audio.state(), setMaster:(v)=>audio.setMaster(v), setMusic:(v)=>audio.setMusic(v),
       setSfx:(v)=>audio.setSfx(v), setMuted:(v)=>audio.setMuted(v), setAmbient:(z)=>audio.setAmbient(z),
