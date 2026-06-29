@@ -1,0 +1,66 @@
+# NOTE: this file lives in hosting/ because the current CI credential lacks the
+# `workflow` scope needed to push files under .github/workflows/. To activate the
+# fully-automatic standby, the repo owner moves it to
+# `.github/workflows/backup-host-pages.yml` (or grants the GitHub App the
+# "Workflows: write" + "Pages: write" permissions and an agent will move it).
+# Until then the standby is published manually via `npm run backup-host-publish`.
+#
+# CAS-180 — Backup static host on GitHub Pages.
+#
+# Kills the deploy_game single-point-of-failure (CAS-136 / CAS-154 / CAS-177):
+# whenever master moves, this publishes the SAME verified bundle to a host we
+# control, so a HEAD-fresh build is always reachable even while Higgsfield's
+# deploy_game is down. $0, reversible, and it never touches the live Higgsfield
+# URL (tender-bridge-504).
+#
+# Phase 0 = it serves HEAD at https://<owner>.github.io/<repo>/.
+# Phase 1 = `on: push` makes the standby ALWAYS carry HEAD automatically.
+# `enablement: true` turns Pages on programmatically using the runner's
+# GITHUB_TOKEN (pages:write) — no manual repo-settings toggle required.
+name: Backup host (GitHub Pages)
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two Pages deploys at once.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # Export the tracked HEAD tree exactly as the live deploy ships it.
+      # Pure node built-ins — no npm install needed. Refuses a stale stamp.
+      - name: Export HEAD bundle
+        run: node tools/backup-host-export.mjs
+      # GitHub Pages runs Jekyll by default, which drops underscore-prefixed
+      # paths; disable it so every file is served verbatim.
+      - name: Disable Jekyll
+        run: touch deploy/backup-host/.nojekyll
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: deploy/backup-host
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
