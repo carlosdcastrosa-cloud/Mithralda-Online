@@ -36,7 +36,11 @@ export const SP = {
     ".oss sso.",
     ".od. .do.",
     ".oo. .oo."]},
-  wolf: { pal:{o:COL.out,g:"#6a6e76",G:"#878c95",x:"#43474e",e:"#ffcf4d",f:"#e8e0d0"}, rows:[
+  // CAS-215 (FOUNTAINS roster regen, priority B — remaining mobs/NPCs): cold-gloom reskin
+  // of every sprite the CAS-209 batch left warm/over-saturated. Geometry strings & keys are
+  // untouched (byte-for-byte drop-in); only hex values shift to the locked palette roles in
+  // design/palette.fountains.json. Eyes/flame stay the lone signal glow per the formula.
+  wolf: { pal:{o:COL.out,g:"#454d57",G:"#5c6671",x:"#2b323b",e:"#ffcf4d",f:"#c7bc9c"}, rows:[
     "..o.....o..",
     ".oxo...oxo.",
     ".oGgo.oGgo.",
@@ -58,7 +62,7 @@ export const SP = {
     "orrrRRrrro.",
     ".orrrrrro..",
     "..o.rr.o..."]},
-  skel: { pal:{o:COL.out,n:"#d8cdb8",N:"#efe6cf",m:"#a89a7d",e:"#8fd0ff",w:"#b9c0c8"}, rows:[
+  skel: { pal:{o:COL.out,n:"#c7bc9c",N:"#d8cdb8",m:"#8f8268",e:"#7fe0d0",w:"#aab4c2"}, rows:[
     "..ooo..",
     ".onNno.",
     ".oeneo.",
@@ -92,7 +96,7 @@ export const SP = {
     ".oljllllljo.",
     ".oll o llo.",
     ".ooo. .ooo."]},
-  npcBram: { pal:{o:COL.out,a:"#7a4a2a",A:"#9a6038",b:"#d8b894",h:"#3a2c1e",w:"#cfc4ad"}, rows:[
+  npcBram: { pal:{o:COL.out,a:"#4a3a28",A:"#5e4a34",b:"#a87f53",h:"#3a2c1e",w:"#bdb8aa"}, rows:[
     "..ohho..",
     ".obbbbo.",
     ".obbbbo.",
@@ -102,7 +106,7 @@ export const SP = {
     ".oAAAAo.",
     ".oa..ao.",
     ".oo..oo."]},
-  npcRolf: { pal:{o:COL.out,s:"#7d838c",S:"#9aa0a9",b:"#d8b894",a:"#5a626e",p:"#8a6a3a"}, rows:[
+  npcRolf: { pal:{o:COL.out,s:"#6b7480",S:"#8a93a0",b:"#a87f53",a:"#4a525e",p:"#5a4230"}, rows:[
     "..oSSo..p",
     ".osssso.p",
     ".obbbbo.p",
@@ -112,7 +116,7 @@ export const SP = {
     ".oSssSo..",
     ".oa..ao..",
     ".oo..oo.."]},
-  npcLina: { pal:{o:COL.out,g:"#2f6a44",G:"#3f8a58",b:"#d8b894",h:"#234d33"}, rows:[
+  npcLina: { pal:{o:COL.out,g:"#34503a",G:"#446a4d",b:"#a87f53",h:"#293f2c"}, rows:[
     "..oGGo..",
     ".oghhgo.",
     ".ogbbgo.",
@@ -122,7 +126,7 @@ export const SP = {
     "ogGggGgo",
     ".oGGGGo.",
     ".oo..oo."]},
-  adv: { pal:{o:COL.out,s:"#7a6a8c",S:"#998aa9",b:"#d8b894",a:"#5a4e6e"}, rows:[
+  adv: { pal:{o:COL.out,s:"#4a525e",S:"#626c78",b:"#a87f53",a:"#32373f"}, rows:[
     "..oSSo..",
     ".osbbso.",
     ".obbbbo.",
@@ -131,7 +135,7 @@ export const SP = {
     ".oSssSo.",
     ".oa..ao.",
     ".oo..oo."]},
-  tree: { pal:{o:COL.out,g:"#243a22",G:"#33522f",d:"#1a2c19",t:"#3a2c1c",T:"#4a3a26"}, rows:[
+  tree: { pal:{o:COL.out,g:"#26302a",G:"#334036",d:"#19211c",t:"#3a2c1e",T:"#5a4230"}, rows:[
     "....oggo....",
     "...ogGGgo...",
     "..ogGGGGgo..",
@@ -144,7 +148,7 @@ export const SP = {
     ".....oTo....",
     ".....oTo....",
     "....otTto..."]},
-  rock: { pal:{o:COL.out,s:"#4a505a",S:"#626a76",d:"#343a42"}, rows:[
+  rock: { pal:{o:COL.out,s:"#2b2f38",S:"#3a4150",d:"#1b1f26"}, rows:[
     "..oooo..",
     ".oSSSSo.",
     "oSSSSdSo",
@@ -161,7 +165,7 @@ export const SP = {
     "oWdWWdWo",
     ".oooooo."]},
   // --- new mob variety (CAS-60): forest flyer, ruins rogue, caves ghost ---
-  bat: { pal:{o:COL.out,k:"#4a4150",K:"#6a5f78",e:"#ff6b6b"}, rows:[
+  bat: { pal:{o:COL.out,k:"#2c2d34",K:"#46485a",e:"#b3242a"}, rows:[
     "oo.......oo",
     "oKko...okKo",
     "oKkko.okkKo",
@@ -192,7 +196,7 @@ export const SP = {
     ".oGo.oGo.",
     "..o...o.."]},
   // --- town deco (CAS-60): market/city variety, drawn like other SP deco ---
-  crate: { pal:{o:COL.out,W:"#8a6038",d:"#3a2c1c"}, rows:[
+  crate: { pal:{o:COL.out,W:"#5a4230",d:"#2c2925"}, rows:[
     "ooooooo",
     "oWWWWWo",
     "oWdWdWo",
@@ -259,6 +263,12 @@ export const ANIM={
 // enemy strips driven by drawEnemy (combat AI states). Town NPCs are kept OUT of this
 // map so they never aggro/attack — they animate via NPC_ANIM + drawNPC instead.
 export const ENEMY_ANIM={ mage:"mage", golem:"golem", moose:"moose" };
+// CAS-206: FOUNTAINS-style single-frame enemy art (PixelLab REST, 64×64 transparent
+// cutouts). Keyed by tpl.sprite → IMG key. drawEnemy draws these bottom-anchored with
+// the CAS-203 procedural breathe/walk-bob, replacing the tiny procedural SP blobs for
+// the common mobs so the bestiary reads at FOUNTAINS fidelity. Falls back to SP rows
+// while the image loads or for mobs without a generated sprite.
+export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"enemy_wraith", orc:"enemy_orc" };
 // animated, non-hostile town NPCs. Keyed by npc.sprite → ANIM strip; idle loop only.
 export const NPC_ANIM={ merchant:"merchant" };
 // player class sprites: directional (down/up/side, left=side mirrored), states idle/walk/attack
@@ -291,6 +301,8 @@ export function loadAllAssets(){
   loadImg("wall","./assets/tiles/wall.png");
   loadImg("wall2","./assets/tiles/wall2.png");
   for(const p of ["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"]) loadImg("prop_"+p,"./assets/props/"+p+".png");
+  // CAS-206: FOUNTAINS-style PixelLab enemy cutouts (see ENEMY_IMG above).
+  for(const k of new Set(Object.values(ENEMY_IMG))) loadImg(k,"./assets/pixellab/fountains/"+k+".png");
 }
 export function dir4FromAngle(a){ const p=Math.PI;
   if(a>p/4 && a<=3*p/4) return "down";

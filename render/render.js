@@ -23,7 +23,7 @@ import { resetGame } from "../persist.js";   // CAS-113: pause-menu "Nueva parti
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
-  ANIM, ENEMY_ANIM, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
+  ANIM, ENEMY_ANIM, ENEMY_IMG, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
   dir4FromAngle, drawClassFrame, drawAnim, frameIndex,
 } from "./sprites.js";
 import { ensureMasks, bakeHero } from "./customize.js"; // CAS-169 part-recolor bake
@@ -556,6 +556,29 @@ export function createRenderer(ctx){
       const fps = st==="attack"? (ANIM[ch].fc.attack/(e.tpl.windup+0.15)) : (st==="walk"?10:6);
       const fi=frameIndex(ch,st,e.animT||0,fps, st!=="attack");
       drew=drawAnim(ctx,ch,st,fi,e.x,feet,S,fl, e.hurtFlash>0?"#ffffff":null);
+    }
+    // CAS-206: FOUNTAINS-style PixelLab enemy cutout. Single-frame image drawn
+    // bottom-anchored at the feet, sized to the mob's tpl.size, with the CAS-203
+    // breathe/walk-bob applied so it never reads frozen. Hurt-flash brightens it.
+    if(!drew){ const ik=ENEMY_IMG[e.tpl.sprite]; const eimg=ik&&IMG[ik];
+      if(eimg && eimg.complete && eimg.naturalWidth){
+        const dh=e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4), dw=dh*(eimg.naturalWidth/eimg.naturalHeight);
+        const feetY=e.y+e.tpl.size*0.5, ph=(e.x*0.7+e.y*0.9), st=e.animState||"idle";
+        let sx=1, sy=1, bob=0;
+        if(!G.settings.reduceMotion){
+          if(st==="walk"){ const b=Math.abs(Math.sin(G.t*9+ph)); bob=-b*2.4; sy=1+b*0.06; sx=1-b*0.05; }
+          else if(st==="attack"){ const a=Math.sin(G.t*5+ph); sy=0.95+0.02*a; sx=1.05-0.02*a; bob=1.4; }
+          else { const br=Math.sin(G.t*2.3+ph); sy=1+br*0.045; sx=1-br*0.03; bob=br*0.8; }
+        }
+        ctx.save(); ctx.translate(e.x, feetY+bob); ctx.scale(sx,sy);
+        if(fl) ctx.scale(-1,1);
+        ctx.imageSmoothingEnabled=false;
+        ctx.drawImage(eimg, -dw/2, -dh, dw, dh);
+        if(e.hurtFlash>0){ ctx.globalAlpha=0.6*Math.min(1,e.hurtFlash*4); ctx.globalCompositeOperation="lighter";
+          ctx.drawImage(eimg,-dw/2,-dh,dw,dh); ctx.globalCompositeOperation="source-over"; ctx.globalAlpha=1; }
+        ctx.restore();
+        drew=true;
+      }
     }
     if(!drew){
       const rows=spr.rows, pal=(e.hurtFlash>0)?whiten(spr.pal):spr.pal;
