@@ -47,7 +47,10 @@ export const SP = {
     ".ogggggggo.",
     "..o.gg.o...",
     "...o..o...."]},
-  rat: { pal:{o:COL.out,r:"#7a5a3a",R:"#946f48",t:"#4a3626",e:"#d24b4b"}, rows:[
+  // CAS-209 (FOUNTAINS parity, priority B): mob procedural palettes re-skinned to
+  // the board-adopted cold dark-fantasy palette. Signal colours (e=hurt flash/eye)
+  // kept saturated — they are the ONLY glow per the FOUNTAINS formula.
+  rat: { pal:{o:COL.out,r:"#352e28",R:"#4a413a",t:"#1e1b18",e:"#d24b4b"}, rows:[
     "...o...o..t",
     "..oRo.oRott",
     ".orRrrrRrt.",
@@ -66,7 +69,7 @@ export const SP = {
     ".onnno.",
     ".om.mo.",
     ".oo.oo."]},
-  orc: { pal:{o:COL.out,q:"#4a6a3a",Q:"#5d7d47",u:"#324a26",e:"#e05bd0",T:"#e8e0d0",c:"#6b4a2a"}, rows:[
+  orc: { pal:{o:COL.out,q:"#26302a",Q:"#334036",u:"#19211c",e:"#b3242a",T:"#c7bc9c",c:"#2c2925"}, rows:[
     "..ooooo....",
     ".oQqqqQo...",
     ".oqeqeqo.cc",
@@ -77,7 +80,7 @@ export const SP = {
     ".ouqqquo...",
     "..oq.qo....",
     "..oo.oo...."]},
-  golem: { pal:{o:COL.out,l:"#5a5550",L:"#77716a",j:"#3a3631",z:"#ff8a2a",Z:"#ffd24d",e:"#ffd24d"}, rows:[
+  golem: { pal:{o:COL.out,l:"#2e3038",L:"#3e4252",j:"#1a1c22",z:"#ef8a2e",Z:"#ffc24d",e:"#ffd24d"}, rows:[
     "...oooooo...",
     "..oLllllLo..",
     ".olLzeezLlo.",
@@ -149,7 +152,7 @@ export const SP = {
     "oSSSdSSo",
     ".odSSdo.",
     "..oooo.."]},
-  chest: { pal:{o:COL.out,w:"#6b4a2a",W:"#8a6038",i:"#caa14e",d:"#3a2c1c"}, rows:[
+  chest: { pal:{o:COL.out,w:"#2a2420",W:"#3a322a",i:"#b08c44",d:"#16130e"}, rows:[
     ".oooooo.",
     "oWiWWiWo",
     "oWWWWWWo",
@@ -166,7 +169,7 @@ export const SP = {
     ".oKeKkKeKo.",
     "..okkkkko..",
     "...o.k.o..."]},
-  bandit: { pal:{o:COL.out,l:"#5a3f2a",L:"#7a5638",m:"#2a2420",e:"#ffd24d",s:"#9aa0a9"}, rows:[
+  bandit: { pal:{o:COL.out,l:"#2c2d34",L:"#3e404c",m:"#181920",e:"#ffd24d",s:"#6b7480"}, rows:[
     "..ooooo..",
     ".olLLLlo.",
     ".olmmmlo.",

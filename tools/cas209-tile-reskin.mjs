@@ -96,5 +96,35 @@ for (const rel of TILES) {
   await reskin(p, p, rel);   // in place
 }
 
+// Animated mob strips that render as warm-toned baked images (assets/char/*.png).
+// These are the dominant mobs visible in hunt biomes (stone golem, mage skeleton,
+// moose boss). Reskin in-place so they read as cold dark-fantasy against the dark terrain.
+const MOB_STRIPS = [
+  "assets/char/golem_idle.png",    "assets/char/golem_walk.png",    "assets/char/golem_attack.png",
+  "assets/char/mage_idle.png",     "assets/char/mage_walk.png",     "assets/char/mage_attack.png",
+  "assets/char/moose_idle.png",    "assets/char/moose_walk.png",    "assets/char/moose_attack.png",
+  "assets/char/merchant_idle.png",
+];
+for (const rel of MOB_STRIPS) {
+  const p = join(ROOT, rel);
+  if (!existsSync(p)) { console.warn(`skip (missing): ${rel}`); continue; }
+  await reskin(p, p, rel);
+}
+
+// World props visible as environmental deco in biomes (ruins statues/obelisks,
+// barrel, pillar, bones, rock, spear — things that still read warm against the cold floor).
+// barrel/rock/bones kept as-is (they're already dark enough); focus on the warm-stone props.
+const PROPS = [
+  "assets/props/ruin_statue.png",   "assets/props/ruin_obelisk.png",
+  "assets/props/ruin_arch.png",     "assets/props/ruin_pillar2.png",
+  "assets/props/pillar.png",        "assets/props/barrel.png",
+  "assets/props/torch.png",
+];
+for (const rel of PROPS) {
+  const p = join(ROOT, rel);
+  if (!existsSync(p)) { console.warn(`skip (missing): ${rel}`); continue; }
+  await reskin(p, p, rel);
+}
+
 await browser.close();
-console.log("done — warm baked tiles reskinned to FOUNTAINS in place");
+console.log("done — warm baked tiles + mob strips + props reskinned to FOUNTAINS in place");
