@@ -40,6 +40,7 @@
     "cas267": "node tools/cas267-coachmark-binds.mjs",
     "cas268": "node tools/cas268-coachmark-live.mjs",
     "cas271": "node tools/cas271-coachmark-live.mjs",
+    "cas276": "node tools/cas276-soak-live.mjs",
     "onboarding": "node tools/cas128-onboarding.mjs",
     "onboarding-live": "node tools/cas128-onboarding-live.mjs",
     "audio": "node tools/cas131-audio.mjs",
