@@ -127,3 +127,57 @@ natively, zero-build static upload, instant rollback.
 
 Until those are granted, this stays a spike: everything is ready, nothing is
 published.
+
+---
+
+## CAS-180 — go-live execution (CEO-approved Phase 0 + Phase 1)
+
+Host chosen: **GitHub Pages** (free, $0, repo already exists + authenticated)
+instead of Cloudflare Pages, because CF Pages requires an interactive Cloudflare
+login this environment does not have, whereas the GitHub remote is already
+authenticated — so Pages is fully agent-drivable and unblocks the SPOF fix now.
+CF Pages stays the documented option if header-level control is ever needed.
+
+### What shipped
+
+- **Base-path-relative bootstrap** (`index.html`, commit `35d1a24`): import-map
+  keys are built from `BASE` (the document's directory) instead of the server
+  root, so the SAME bundle runs at any host root. At root `BASE === "/"` →
+  byte-identical to the old map (no behavior change on the live Higgsfield URL);
+  under `/<repo>/` (a GitHub Pages project site) the `?v=<build>` cache-busting
+  still resolves. Verified both ways:
+  - `npm run backup-host-verify` → PASS (root, build `112f63203e18`).
+  - `npm run cas180-subpath-verify` → PASS (served under `/Mithralda-Online/`,
+    0 errors, every cacheable asset carries `?v=`).
+- **Publish recipe** `npm run backup-host-publish` (`tools/backup-host-publish.mjs`):
+  exports a fresh HEAD bundle (refuses a stale stamp) + adds `.nojekyll` + force-
+  pushes it to the `gh-pages` branch of `origin`. **This is the Phase-1 "standby
+  always carries HEAD" recipe** — re-run it after any deploy. Already run:
+  `gh-pages` on origin carries HEAD `bc35ef8` / build `112f63203e18`.
+
+### Cache headers on GitHub Pages (CAS-58)
+
+GitHub Pages does not honor `_headers`, but CAS-58 freshness does **not** depend
+on server headers here: `index.html` fetches `version.json?_=<ts>` with
+`cache:'no-store'` (client-side), and every module/asset is fetched with
+`?v=<build>`. So a returning player always re-reads the build id and a new build
+changes every cache key — the stale-build hole is structurally closed regardless
+of host headers. (Cloudflare Pages would additionally enforce it at the header
+layer; not required for correctness.)
+
+### One remaining step — enable Pages (repo-owner action, ~30 s, $0)
+
+The installation token can push but lacks the **Pages:write** permission, so the
+final activation toggle must be done once by the repo owner:
+
+> GitHub → `carlosdcastrosa-cloud/Mithralda-Online` → **Settings → Pages** →
+> **Source: "Deploy from a branch"** → Branch **`gh-pages`** / **`/ (root)`** → **Save**.
+
+Within ~1 min the backup URL goes live at:
+
+**https://carlosdcastrosa-cloud.github.io/Mithralda-Online/**
+
+After it is live, verify with:
+`npm run deploy-verify -- --base=https://carlosdcastrosa-cloud.github.io/Mithralda-Online`
+
+The live Higgsfield URL `tender-bridge-504` is untouched throughout.
