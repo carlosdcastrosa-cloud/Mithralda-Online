@@ -42,9 +42,14 @@ function moveDir(code){ if(ARROW[code]) return ARROW[code];
 // CAS-265: the rebindable play-scene action verbs. Resolved from the live bind table
 // (playAction) so a remap takes effect with no other code change. Movement is handled
 // separately (held state, not edge-triggered) and is NOT in this table.
+// CAS-347: on desktop a keyboard attack/skill still aims at the cursor (face the mouse the
+// instant it fires) — combat aim is unchanged. Only plain locomotion now faces the movement
+// vector instead of the cursor. (Mouse-click attacks already faceMouse() in onPointerDown;
+// gamepad uses its own dispatch.) On touch, castSpell uses the current movement facing.
+const kbCast=(i)=>{ if(!isTouch) faceMouse(); sim.castSpell(i); };
 const ACTIONS = {
-  attack:()=>sim.castSpell(0), roll:()=>sim.doRoll(),
-  skill2:()=>sim.castSpell(1), skill3:()=>sim.castSpell(2), skill4:()=>sim.castSpell(3),
+  attack:()=>kbCast(0), roll:()=>sim.doRoll(),
+  skill2:()=>kbCast(1), skill3:()=>kbCast(2), skill4:()=>kbCast(3),
   pickup:()=>sim.tryPickup(), interact:()=>sim.interact(),
   useConsumable:()=>sim.doConsumable(), cycleConsumable:()=>sim.cycleConsumable(1),
   potionHP:()=>sim.doPotionHP(), potionMP:()=>sim.doPotionMP(),
@@ -154,7 +159,7 @@ function edge(code){
   // CAS-265: rebindable play-scene actions resolve from G.settings.binds first.
   const act=playAction(code); if(act){ ACTIONS[act](); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
-  if(code==="Digit1"){ sim.castSpell(0); }
+  if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
 
 // ----------------------------- pointer ---------------------------------
@@ -173,7 +178,7 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
 function onPointerMove(e){ const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left,y=e.clientY-r.top;
   mouseX=x; mouseY=y; ui.mouseX=x; ui.mouseY=y; // CAS-119: feed the talent panel's hover
   if(stick.active && e.pointerId===stick.id){ stick.x=x; stick.y=y; }
-  else if(!isTouch && G.scene==="play"){ faceMouse(); }
+  else if(!isTouch && G.scene==="play" && aimActive){ faceMouse(); } // CAS-347: only re-aim to cursor while the mouse is held (aiming); a plain hover no longer swivels the hero — facing follows movement
 }
 function onPointerUp(e){ if(stick.active&&e.pointerId===stick.id){ stick.active=false; } aimActive=false; }
 function faceMouse(){ const h=G.hero; if(!h) return; const wx=G.cam.x+mouseX/zoom(), wy=G.cam.y+mouseY/zoom(); h.facing=Math.atan2(wy-h.y,wx-h.x); }

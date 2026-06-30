@@ -1357,10 +1357,16 @@ export function update(dtMs){
       h.dustT=(h.dustT||0)+dt; if(h.dustT>0.15){ h.dustT=0; addFx("dust", h.x-h.vx*0.03, h.y+15-h.vy*0.02); }
       // CAS-131: footstep SFX on a walk cadence (decoupled from the dust pulse).
       h.stepT=(h.stepT||0)+dt; if(h.stepT>0.30){ h.stepT=0; audio.sfx.step(); }
-      if(!io.aimActive && io.isTouch) h.facing=Math.atan2(mv[1],mv[0]); }
+      // CAS-347 (board CAS-346): the sprite always faces where it WALKS. While moving and
+      // not actively aiming (mouse/skill button held), facing tracks the movement vector for
+      // EVERY input type (was touch-only) — so on desktop the hero no longer stares at the
+      // cursor while strolling. Combat aim is preserved: holding the mouse sets io.aimActive
+      // (faceMouse below), so clicks/casts still point at the cursor. Idle keeps the last
+      // facing (we only write it inside this h.moved branch → no reset to front). Zero-balance.
+      if(!io.aimActive) h.facing=Math.atan2(mv[1],mv[0]); }
     else h.walkT=0;
   }
-  if(!io.isTouch) io.aim();
+  if(!io.isTouch && io.aimActive) io.aim(); // CAS-347: steer to cursor ONLY while aiming (mouse held); plain walking faces movement (above)
   // CAS-256: animState priority — special (deliberate cast) and hurt (hit-react) sit
   // above locomotion/attack so they read clearly, but BELOW dead. Purely visual: this
   // only chooses the rendered strip, it does not touch movement/attack/CD logic.
