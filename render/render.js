@@ -121,6 +121,10 @@ const CLASS_HURT_FC=6, CLASS_HURT_DUR=0.28, CLASS_SPECIAL_FC=8, CLASS_SPECIAL_DU
 // classes simply fall back to the idle loop for those states. Add a class here when its
 // {cls}_hurt.png / {cls}_special.png are baked.
 const CLASS_HITREACT_ANIM=["warrior"];
+// CAS-329: dodge-roll (sim animState "roll") dash strip. Only classes that ship a
+// {cls}_dash.png are preloaded; others fall back to the idle-loop roll (unchanged).
+// 8f, shared 140×166 cell — canonical Clarice dash-VFX (CAS-326).
+const CLASS_DASH_ANIM=["warrior"]; const CLASS_DASH_FC=8;
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 
@@ -155,6 +159,8 @@ export function createRenderer(ctx){
   // CAS-256: hurt + special strips, loaded only for classes that ship them (warrior).
   // Classes not listed fall back to the idle loop in drawHeroClass for those states.
   for(const k of CLASS_HITREACT_ANIM){ loadImg("clshurt_"+k, `./assets/erw/hero/classes/${k}_hurt.png`); loadImg("clsspecial_"+k, `./assets/erw/hero/classes/${k}_special.png`); }
+  // CAS-329: dodge-roll dash strip (warrior). Classes without one keep the idle-loop roll.
+  for(const k of CLASS_DASH_ANIM){ loadImg("clsdash_"+k, `./assets/erw/hero/classes/${k}_dash.png`); }
   // CAS-169: start loading the recolorable part masks; the baked look replaces the
   // class strips below once ready. Until then the CAS-167 PNG strips render (no blank).
   ensureMasks();
@@ -476,6 +482,10 @@ export function createRenderer(ctx){
       key="clshurt_"+art; fc=CLASS_HURT_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_HURT_DUR)));
     } else if(state==="attack" && has("clsattack_"+art)){
       key="clsattack_"+art; fc=CLASS_ATTACK_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/Math.max(0.15,CFG.atkCD))));
+    } else if(state==="roll" && has("clsdash_"+art)){
+      // CAS-329: dodge-roll dash — play the 8f dash strip once across the roll duration.
+      // Gated on the strip so non-warrior classes keep today's idle-loop roll (regression-safe).
+      key="clsdash_"+art; fc=CLASS_DASH_FC; fi=Math.min(fc-1, Math.floor((animT||0)*(fc/Math.max(0.12, CFG.rollTime||0.2))));
     } else if(state==="walk" && has("clswalk_"+art)){
       key="clswalk_"+art; fc=CLASS_WALK_FC; fi=Math.floor(G.t*CLASS_WALK_FPS)%fc;
     } else {
