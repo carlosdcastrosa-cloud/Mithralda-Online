@@ -36,7 +36,12 @@ try {
   await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
   const ignore = (u) => /favicon\.ico/.test(u); // browser-default request, not a game asset
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  page.on("console", (m) => { if (m.type() === "error" && !ignore(m.text())) errors.push(`console.error: ${m.text()}`); });
+  page.on("console", (m) => {
+    // Chrome logs every failed sub-resource as a generic "Failed to load resource ... 404"
+    // console.error with NO url — the response/requestfailed handlers below carry the real
+    // url and already filter favicon, so this generic line is redundant noise. Gate on those.
+    if (m.type() === "error" && !ignore(m.text()) && !/Failed to load resource/.test(m.text())) errors.push(`console.error: ${m.text()}`);
+  });
   page.on("requestfailed", (r) => { if (!ignore(r.url())) errors.push(`requestfailed: ${r.url()} (${r.failure()?.errorText})`); });
   page.on("response", (r) => {
     const u = r.url();
