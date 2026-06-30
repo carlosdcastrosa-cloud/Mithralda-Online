@@ -126,8 +126,12 @@ const CLASS_HITREACT_ANIM=["warrior"];
 // 8f, shared 140×166 cell — canonical Clarice dash-VFX (CAS-326).
 const CLASS_DASH_ANIM=["warrior"]; const CLASS_DASH_FC=8;
 // CAS-345a (CAS-357): 8-DIRECTION dash strip (warrior). 9 frames/row, 8 rows (cell 140×166).
-// Preferred over the single-dir clsdash_ strip when loaded; same CLASS_DASH_ANIM set ships it.
-const CLASS_DASH8_FC=9;
+// Preferred over the single-dir clsdash_ strip when loaded.
+// CAS-365: warrior_dash8.png is a PixelLab REGEN of a different hero (tall pointed wizard hat,
+// grey cloak) — same morph defect the board rejected for the hooded classes (CAS-350) and for
+// the warrior idle8/walk8 (CAS-358 QA FAIL). DROPPED to []: the roll falls back to the approved
+// single-dir clsdash_ strip (canonical Clarice dash-VFX, CAS-326) → correct character, no morph.
+const CLASS_DASH8_ANIM=[]; const CLASS_DASH8_FC=9;
 // CAS-333 (CAS-301a, board CAS-300/CAS-301): 8-DIRECTION idle/walk strips for the four
 // hooded classes (warrior=Clarice keeps her single-facing+flip path, unchanged). Each
 // strip stacks 8 rows (cell 140×166, same CLASS_* geometry); row index == facing bucket
@@ -143,9 +147,15 @@ const CLASS_DASH8_FC=9;
 // from the 8-dir set: every state falls back to the approved single-facing clshero_/clswalk_
 // sprites, and facing-toward-movement (CAS-347) is delivered via the L/R flip below
 // (flip=Math.cos(facing)<0) — correct character, no morph, zero balance change.
-// WARRIOR is EXEMPT (CAS-345/357): its idle8/walk8/dash8 are SAME-sprite bakes from the live
-// Clarice frame (not a regen) → no morph → its true 8-dir path stays intact.
-const CLASS_DIR8_ANIM=["warrior"];
+// CAS-365 (CAS-358 QA FAIL): the warrior was thought EXEMPT (CAS-345/357) on the belief its
+// idle8/walk8/dash8 were SAME-sprite bakes — but QA proved they are PixelLab REGENERATIONS of a
+// DIFFERENT hero (tall pointed wizard hat, grey beard/cloak) while attack/hurt/death keep the
+// canonical wide-straw-hat Clarice → the warrior MORPHS exactly like the rejected hooded set.
+// So WARRIOR is now DROPPED too: every state falls back to the approved single-facing
+// clshero_/clswalk_/clsdash_ Clarice sprites, and facing-toward-movement (CAS-347) rides the L/R
+// flip (flip=Math.cos(facing)<0) — correct character, no morph, zero balance change. The set is
+// now empty (all five classes use the canonical sprite + flip path).
+const CLASS_DIR8_ANIM=[];
 const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=7, CLASS_WALK8_FPS=8; // 7f@8fps → cycle ≈0.88s (footfall ≈0.44s, in CAS-219/240 0.4–0.6s band)
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
 function dir8FromAngle(ang){ return ((Math.round(ang/(Math.PI/4))%8)+8)%8; }
@@ -187,7 +197,7 @@ export function createRenderer(ctx){
   for(const k of CLASS_DASH_ANIM){ loadImg("clsdash_"+k, `./assets/erw/hero/classes/${k}_dash.png`); }
   // CAS-345a (CAS-357): 8-direction dash strip (warrior). Missing file 404s harmlessly and the
   // roll falls back to the single-dir clsdash_ strip, then the idle-loop roll (zero regression).
-  for(const k of CLASS_DASH_ANIM){ loadImg("clsdash8_"+k, `./assets/erw/hero/classes/${k}_dash8.png`); } // CAS-359: warrior (CLASS_DASH_ANIM=["warrior"]) keeps its same-sprite 8-dir dash; hooded classes never had one
+  for(const k of CLASS_DASH8_ANIM){ loadImg("clsdash8_"+k, `./assets/erw/hero/classes/${k}_dash8.png`); } // CAS-365: empty — warrior_dash8 was a regen morph; roll falls back to the canonical clsdash_ (CAS-326)
   // CAS-333 (CAS-301a): 8-direction idle/walk strips for the hooded classes. A missing file
   // 404s harmlessly and drawHeroClass falls back to the single-facing clshero_/clswalk_ path.
   for(const k of CLASS_DIR8_ANIM){ loadImg("clsidle8_"+k, `./assets/erw/hero/classes/${k}_idle8.png`); loadImg("clswalk8_"+k, `./assets/erw/hero/classes/${k}_walk8.png`); }
