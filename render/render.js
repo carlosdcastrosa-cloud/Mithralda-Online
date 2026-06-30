@@ -120,21 +120,11 @@ const CLASS_HURT_FC=6, CLASS_HURT_DUR=0.28, CLASS_SPECIAL_FC=8, CLASS_SPECIAL_DU
 // extended Clarice pack). Listing only real files avoids needless 404s on boot; other
 // classes simply fall back to the idle loop for those states. Add a class here when its
 // {cls}_hurt.png / {cls}_special.png are baked.
-// CAS-369 (board CAS-368): the warrior was reverted from the dark wide-straw-hat "extended
-// Clarice" (CAS-254) back to the prior brown-haired adventurer Clarice (CAS-235). The hurt/
-// special strips (CAS-256) are straw-hat-only art → keeping them would MORPH the brown-haired
-// hero on hit/cast. Dropped to []: hurt/special fall back to the idle loop (exactly the
-// pre-CAS-254 state, which shipped only idle/walk/attack/death). Re-bake brown-haired hurt/
-// special and re-add here if those dedicated states are wanted back.
-const CLASS_HITREACT_ANIM=[];
+const CLASS_HITREACT_ANIM=["warrior"];
 // CAS-329: dodge-roll (sim animState "roll") dash strip. Only classes that ship a
 // {cls}_dash.png are preloaded; others fall back to the idle-loop roll (unchanged).
 // 8f, shared 140×166 cell — canonical Clarice dash-VFX (CAS-326).
-// CAS-369: warrior_dash.png (CAS-326 dash-VFX) is straw-hat "extended Clarice" art. With the
-// brown-haired revert it would morph the dodge-roll → dropped to []. The roll falls back to the
-// idle-loop roll (pre-CAS-326 behaviour, like every other class). Re-bake a brown-haired dash
-// strip and re-add to restore the dedicated dash-VFX.
-const CLASS_DASH_ANIM=[]; const CLASS_DASH_FC=8;
+const CLASS_DASH_ANIM=["warrior"]; const CLASS_DASH_FC=8;
 // CAS-345a (CAS-357): 8-DIRECTION dash strip (warrior). 9 frames/row, 8 rows (cell 140×166).
 // Preferred over the single-dir clsdash_ strip when loaded.
 // CAS-365: warrior_dash8.png is a PixelLab REGEN of a different hero (tall pointed wizard hat,
