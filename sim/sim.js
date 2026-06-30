@@ -401,11 +401,11 @@ function spawnEnemy(type,x,y){
     stun:0, slow:1, slowT:0, dots:null}; // crowd-control sinks: stun freezes the AI, slow scales chase speed, dots = active DoTs (CAS-118); all time-based, no RNG
   G.enemies.push(e); return e;
 }
-// CAS-317: the caves boss is now the dracónic 6-anim BOSS (was the golem blob). Arm its
-// `special` (heavy combo → attack2 animState + telegraphed windup) the same way champions
-// do at spawn, so the shared windup→strike AI drives it with no per-boss branch.
-function spawnBoss(){ const e=spawnEnemy("dragon",(world.caves.x+world.caves.w/2)*TS,(world.caves.y+5)*TS);
-  e.isBoss=true; e.special=e.tpl.special||null; e.atkCount=0; e.specialNow=false; }
+// CAS-342: the legacy positional caves boss (spawnBoss) is removed — the dragon is now the caves
+// ZONE CAPSTONE (HUNTS.caves.boss), summoned by spawnChampion when the kill quota is met, and
+// carries its 6-anim rich rendering + breath through the shared capstone path. The dev.spawn hook
+// still boss-ifies a directly-spawned dragon (isBoss path) for legacy harnesses; live play only
+// ever sees the capstone. See HUNTS.caves in config.js.
 // CAS-73 — apply a zone's difficulty TIER to a freshly-spawned trash mob. Clones the
 // shared ETPL row (never mutate the template) and scales hp/dmg/spd/xp by ZONE_TIER,
 // so the four hunt zones rise in difficulty. Pure math (no RNG) → deterministic /
@@ -669,6 +669,11 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
     e.carapace=B.carapace||null; e.shielded=false; e.shieldBroken=false; e.atkCount=0;
     e.final=!!B.final; // CAS-123: this capstone's death is the Stage-1 win-condition
     e.bonusDrop=B.bonusDrop||0; // CAS-196: world-boss signature haul (extra guaranteed epic rolls)
+    // CAS-342: a capstone may carry its OWN recurring `special` (the dragon's breath) on top of
+    // the shared windup→strike AI — it fires through the proven CAS-109 channel (telegraphed
+    // growing-ring tell → radial shard slam every Nth strike), independent of the enrage slam.
+    // Golem/carapace capstones define no B.special → null, so their behaviour is byte-identical.
+    e.special=B.special||null; e.specialNow=false;
     e.rwdTier=B.tier; e.rwdMinR=B.minR; e.rwdXp=B.xp; e.rwdGold=B.gold;
   } else {
     // Elite stat block layered on the base mob — reuses its sprite + telegraphed AI,
@@ -1313,7 +1318,10 @@ export function update(dtMs){
   // CAS-131: per-biome ambient soundscape crossfades under the music on zone change.
   if(z!==G._ambZone){ G._ambZone=z; if(audio&&audio.setAmbient) audio.setAmbient(z); }
   if(z==="arena" && !G.arenaWarned){ G.arenaWarned=true; toast(STR.enteredArena,3.5); }
-  if(z==="caves" && !G.bossSpawned && h.y<(world.caves.y+10)*TS){ G.bossSpawned=true; spawnBoss(); }
+  // CAS-342: the caves dragon is no longer a positional deep-walk spawn — it is now the caves
+  // ZONE CAPSTONE (HUNTS.caves.boss), summoned deliberately by spawnChampion when the kill quota
+  // is met. The old `z==="caves" && !G.bossSpawned … spawnBoss()` trigger is removed so the dragon
+  // appears EXACTLY once, only as the earned end-of-zone climax (never a random high-HP ambush).
   updateAmbush(dt, z, inDanger); // CAS-146: elite-ambush event clock (deterministic, in-zone only)
 
   // timers
@@ -1880,6 +1888,16 @@ export const dev = {
     if(!H.champ && !H.cleared){ H.kills=HUNTS[zone].need; spawnChampion(zone); }
     const e=H.champ; if(!e) return null; const h=G.hero; h.x=e.x+18; h.y=e.y; h.maxHp=8000; h.hp=8000; h.iframe=0;
     return { name:e.tpl.champName, final:!!e.final, hp:Math.round(e.hp) }; },
+  // CAS-342: arm ANY hunt zone's capstone/champion for the QA harness (mirrors armFinalBoss but
+  // zone-parametric). Meets the kill quota so spawnChampion summons the REAL capstone (no shortcut
+  // around the windup→strike/special AI or the onChampionKill reward path), then parks + tops the
+  // hero on it. Returns the live capstone identity so the gate can assert sprite/richAnim/special.
+  armHunt(zone){ const H=G.hunts&&G.hunts[zone]; if(!H||!HUNTS[zone]) return null;
+    if(!H.champ && !H.cleared){ H.kills=HUNTS[zone].need; spawnChampion(zone); }
+    const e=H.champ; if(!e) return null; const h=G.hero; h.x=e.x+18; h.y=e.y; h.maxHp=4000; h.hp=4000; h.iframe=0;
+    return { name:e.tpl.champName, capstone:!!e.capstone, richAnim:!!e.tpl.richAnim, sprite:e.tpl.sprite,
+      hasSpecial:!!e.special, specialSlam:e.special&&e.special.slam?e.special.slam.count:0,
+      tiers:e.rwdTier||null, minR:e.rwdMinR||null, hp:Math.round(e.hp) }; },
   // Dismiss the victory screen → free play (mirrors the input handler).
   ackVictory(){ dismissVictory(); return G.scene; },
   // CAS-132: drive the REAL hero-death path (heroDie → deaths++, scene "dead") so the

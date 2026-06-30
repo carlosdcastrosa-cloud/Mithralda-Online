@@ -447,8 +447,25 @@ export const HUNTS = {
   // (telegraphed melee → readable) scaled hard; reward window jumps to tier 3-4 so its
   // drop strictly out-classes ruins, keeping the climb worth it. Capstone stays the
   // only GUARANTEED epic, so arena remains the pinnacle.
+  // CAS-342 (board CAS-341 / canonical CAS-89) — the caves zone now CAPSTONES on the dracónic
+  // BOSS instead of a positional deep-walk spawn. The dragon (CAS-317/331: 6 rich-anim strips,
+  // grounded footPad, breath special) is promoted to a deliberate end-of-zone climax through the
+  // shared capstone/onChampionKill path: cull `need` → the Dragón Ancestral is summoned → its
+  // defeat clears the zone with a GUARANTEED rare+ drop. Kept at the caves tier (tier 3-4 / rare
+  // floor) so arena REMAINS the first guaranteed-epic pinnacle (gear-ladder intact). The boss
+  // carries the dragon's verified combat identity verbatim (hp/dmg/size/spd/knock/windup from the
+  // live ETPL.dragon) — a presentation+placement change, not a power rebuild. Its breath ("Aliento
+  // Dracónico") rides the CAS-109 `special` channel (telegraphed growing-ring → radial shard slam),
+  // and a mild enrage phase tightens the tells past 50% HP (no extra slam → the breath stays THE
+  // special). richAnim survives via spawnChampion's Object.assign from the dragon base, so all 6
+  // strips + grounding render identically to the live boss. The skeleton fields below are the
+  // pre-boss fallback (unused while `boss` is present — spawnChampion takes B.base).
   caves:  { need:13, base:"skeleton", name:"Rey Esquelético",  hpMul:9,  dmgMul:2.0, sizeMul:1.6,  tier:[3,4], minR:"rare",     xp:170, gold:90,
-    special:{ name:"Onda Ósea", every:3, windup:0.82, slam:{ count:12, spd:175, dmg:17, life:1.1 } } },
+    special:{ name:"Onda Ósea", every:3, windup:0.82, slam:{ count:12, spd:175, dmg:17, life:1.1 } },
+    boss:{ base:"dragon", sprite:"dragon", name:"Dragón Ancestral", hp:820, dmg:34, size:50, spd:52, knock:85, windup:0.92, recover:0.78,
+           enrageAt:0.5, enrageSpd:1.3, enrageWindup:0.72,                          // phase 2: faster + tighter tells (no slam block → breath remains the special)
+           special:{ name:"Aliento Dracónico", every:3, windup:1.0, slam:{ count:14, spd:180, dmg:22, life:1.2 } }, // CAS-331 dragon breath: telegraphed radial shard slam
+           tier:[3,4], minR:"rare", xp:300, gold:140 } },                           // caves-tier guaranteed drop (rare+, NOT epic — arena keeps the first guaranteed epic)
   arena:  { need:14, base:"orc",      name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75,
     boss:{ base:"golem", sprite:"golem", name:"Coloso del Foso", hp:900, dmg:34, size:40, spd:54, knock:70, windup:0.9, recover:0.7,
            enrageAt:0.5, enrageSpd:1.35, enrageWindup:0.72,                       // phase 2: faster + tighter tells

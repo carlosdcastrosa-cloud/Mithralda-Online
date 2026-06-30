@@ -226,6 +226,8 @@ export function createGame(canvas, ctx, getView){
       skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
+      // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive
+      armHunt:(zone)=>simDev.armHunt(zone),
       // CAS-132 analytics funnel QA: drive the real hero-death path (additive, dev-only)
       killHero:()=>simDev.killHero(),
       // CAS-277 end-of-run recap contract consumed by tools/cas277-recap.mjs — additive
