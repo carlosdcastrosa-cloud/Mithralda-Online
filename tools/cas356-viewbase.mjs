@@ -1,0 +1,12 @@
+import puppeteer from 'puppeteer-core';
+import fs from 'fs';
+const e=fs.readFileSync('art-reference/cas356/base/east.png').toString('base64');
+const w=fs.readFileSync('art-reference/cas356/base/west.png').toString('base64');
+const b=await puppeteer.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+const p=await b.newPage();
+await p.setViewport({width:560,height:320,deviceScaleFactor:1});
+await p.setContent(`<body style="margin:0;background:#3a3f4a;display:flex;gap:20px;padding:20px"><div><div style="color:#aaa;font:12px sans-serif">EAST (faces →)</div><img style="image-rendering:pixelated;width:248px" src="data:image/png;base64,${e}"></div><div><div style="color:#aaa;font:12px sans-serif">WEST (faces ←)</div><img style="image-rendering:pixelated;width:248px" src="data:image/png;base64,${w}"></div></body>`);
+await p.waitForSelector('img');
+await new Promise(r=>setTimeout(r,300));
+await p.screenshot({path:'art-reference/cas356/base/sideview.png'});
+await b.close();

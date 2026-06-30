@@ -1,0 +1,12 @@
+import puppeteer from 'puppeteer-core';
+import fs from 'fs';
+const b64 = fs.readFileSync('art-reference/cas356/ref6.png').toString('base64');
+const browser = await puppeteer.launch({executablePath:'/usr/bin/chromium', args:['--no-sandbox']});
+const page = await browser.newPage();
+await page.setViewport({width:1180, height:1000, deviceScaleFactor:1});
+await page.setContent(`<body style="margin:0;background:#555"><img id=i style="image-rendering:pixelated;width:1160px" src="data:image/png;base64,${b64}"></body>`);
+await page.waitForSelector('#i');
+const dim = await page.evaluate(()=>{const i=document.getElementById('i');return [i.naturalWidth,i.naturalHeight];});
+console.log('natural', dim);
+await page.screenshot({path:'art-reference/cas356/ref6_2x.png'});
+await browser.close();
