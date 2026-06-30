@@ -95,7 +95,8 @@
     "cas304": "node tools/cas304-mob-tracer.mjs",
     "cas307": "node tools/cas307-mob-tracer-live.mjs",
     "cas321": "node tools/cas321-demon.mjs",
-    "cas318": "node tools/cas318-dragon-live.mjs"
+    "cas318": "node tools/cas318-dragon-live.mjs",
+    "cas332": "node tools/cas332-dragon-live.mjs"
   },
   "keywords": [],
   "author": "",
