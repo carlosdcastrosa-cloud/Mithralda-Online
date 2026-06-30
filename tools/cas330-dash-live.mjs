@@ -50,6 +50,18 @@ const main = async () => {
 
   const aDash = await head(`${URL_BASE}assets/erw/hero/classes/warrior_dash.png?v=${build}`);
   check("asset warrior_dash.png -> 200 (dash strip live)", aDash === 200, `status=${aDash}`);
+  // CAS-330 follow-up ("la animacion del dash no sale cortada, haz que salga completa"):
+  // the dash was clipped because it was baked into the shared 140px cell while the Clarice
+  // dash-VFX motion-blur trail is ~2.8x wider. The fix re-bakes it WIDE (cell ≈ 400px,
+  // figure body-centred → render anchor fw/2; CAS-282 render path). Assert the LIVE PNG is
+  // the WIDE strip, i.e. per-frame cell width (naturalWidth/8) is well past 140 → full VFX.
+  let dashCellW = 0, dashW = 0, dashH = 0;
+  try {
+    const buf = Buffer.from(await (await fetch(`${URL_BASE}assets/erw/hero/classes/warrior_dash.png?v=${build}`, { cache: "no-store" })).arrayBuffer());
+    dashW = buf.readUInt32BE(16); dashH = buf.readUInt32BE(20); dashCellW = Math.round(dashW / 8);
+  } catch (e) {}
+  check("dash strip is WIDE (full VFX, not clipped) — cell width > 140px", dashCellW > 140,
+    `live ${dashW}x${dashH} → 8f @ ${dashCellW}px/frame (was 140px clipped)`);
   // regression: other classes ship NO dash file → their roll must fall back to idle.
   const aMage = await head(`${URL_BASE}assets/erw/hero/classes/mage_dash.png?v=${build}`);
   check("sibling mage_dash.png absent -> 404 (fallback path intact)", aMage === 404, `status=${aMage}`);
