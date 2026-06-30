@@ -1429,6 +1429,11 @@ function updateEnemies(dt){ const h=G.hero;
         else if(e.hurtT>0) ns="hurt";
         else if(e.state==="chase") ns="walk";
         else ns="idle";
+      } else if(e.tpl.arch==="warlock"){
+        // CAS-321 dark_demon_3: a hybrid drives BOTH board strips off the committed attack —
+        // `cast` (warlock zap, e.castNow set at windup) vs `attack` (claw, melee). idle/walk
+        // have no demon strip → the renderer falls back to the enemy_demon cutout (breathe/bob).
+        ns=(e.state==="windup"||e.state==="strike") ? (e.castNow?"cast":"attack") : (e.state==="chase")?"walk":"idle";
       } else ns=(e.state==="windup"||e.state==="strike")?"attack":(e.state==="chase")?"walk":"idle";
       if(ns!==e.animState){ e.animState=ns; e.animT=0; } else e.animT=(e.animT||0)+dt; }
     // knockback decay
@@ -1468,6 +1473,9 @@ function updateEnemies(dt){ const h=G.hero;
             // windup (the growing-ring tell in render) then a ring of shards instead of
             // the melee hit. Punishes face-tanking; readable + dodgeable with the roll.
             e.specialNow = !!(e.special && e.special.slam && (e.atkCount % e.special.every === 0));
+            // CAS-321 warlock hybrid: pick CLAW vs CAST by distance the instant the attack
+            // commits — outside `meleeR` it zaps (castNow → "cast" strip + bolt), inside it claws.
+            e.castNow = (e.tpl.arch==="warlock") && (d > (e.tpl.meleeR||50));
             // CAS-210: a punisher arms its COMBO chain at the START of a fresh sequence — the
             // follow-up swings re-enter windup directly from strike (below), never via chase.
             if(e.tpl.arch==="punisher") e.comboLeft=(e.tpl.combo||2)-1;
@@ -1489,7 +1497,9 @@ function updateEnemies(dt){ const h=G.hero;
         // strike-window length per archetype: rusher lunge + charger charge need a longer
         // window for the dash to read/travel; everyone else lands on the "now!" instant.
         e.st=(e.specialNow)?0.12:(e.tpl.arch==="charger")?0.36:(e.tpl.arch==="rusher")?0.2:0.12;
-        addFx("strikeflash",e.x,e.y,{ang:e.facing,range:e.tpl.ranged?0:e.tpl.range,life:0.18}); // the "now!" instant
+        // CAS-321: warlock claw flashes at meleeR; its cast (and any ranged mob) uses range 0.
+        const _sfRange = e.tpl.ranged ? 0 : (e.tpl.arch==="warlock" ? (e.castNow?0:(e.tpl.meleeR||e.tpl.range)) : e.tpl.range);
+        addFx("strikeflash",e.x,e.y,{ang:e.facing,range:_sfRange,life:0.18}); // the "now!" instant
         // boss extra: ground wave on alternate strikes
         if(e.isBoss){ e.phase++; if(e.phase%2===0){ for(let k=0;k<10;k++){ const a=k/10*6.28; G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*180,vy:Math.sin(a)*180,life:1.2,dmg:18,kind:"rune",enemy:true}); } } }
         // CAS-65 capstone climax: once enraged, every strike erupts into a radial
@@ -1543,6 +1553,18 @@ function updateEnemies(dt){ const h=G.hero;
         else if(e.tpl.arch==="brute"){ const R=e.tpl.aoe||56;
           if(d<=R+e.tpl.size*0.4){ const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl,e); } // CAS-247: src for Vampiric
           addFx("novacast",e.x,e.y+e.tpl.size*0.35,{r:R,col:"#ff7a3a",life:0.4}); shakeAdd(8);
+        }
+        // CAS-321 warlock hybrid: cast → fire a bolt (animState "cast"); claw → a tight melee
+        // hit at meleeR (animState "attack"). Mirrors the ranged/melee strike paths below but
+        // switches on the per-strike castNow flag so ONE mob plays BOTH board animations.
+        else if(e.tpl.arch==="warlock"){
+          if(e.castNow){ const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a;
+            G.projectiles.push({x:e.x+Math.cos(a)*16, y:e.y-4+Math.sin(a)*16, vx:Math.cos(a)*e.tpl.projspd, vy:Math.sin(a)*e.tpl.projspd, life:2.4, dmg:e.tpl.dmg, kind:e.tpl.proj||"bolt", enemy:true, ang:a, infl:e.tpl.infl});
+            addFx("spark",e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);
+          } else { const R=e.tpl.meleeR||50;
+            if(d<=R+e.tpl.size*0.5){ const a=Math.atan2(h.y-e.y,h.x-e.x); if(Math.abs(angDiff(a,e.facing))<1.3) damageHero(e.tpl.dmg,a,e.tpl.infl,e); }
+            addFx("spark",e.x+Math.cos(e.facing)*R*0.6,e.y+Math.sin(e.facing)*R*0.6);
+          }
         }
         else if(e.tpl.ranged){ const a=Math.atan2(h.y-e.y,h.x-e.x); e.facing=a;
           G.projectiles.push({x:e.x+Math.cos(a)*16, y:e.y-4+Math.sin(a)*16, vx:Math.cos(a)*e.tpl.projspd, vy:Math.sin(a)*e.tpl.projspd, life:2.4, dmg:e.tpl.dmg, kind:e.tpl.proj||"spear", enemy:true, ang:a, infl:e.tpl.infl}); // CAS-118: bolt carries the slow infl
@@ -1770,7 +1792,10 @@ function updateFloaters(dt){ const a=G.floaters; let w=0; for(let i=0;i<a.length
 
 // --------------------------- dev hooks (wired only when ?dev) ----------
 export const dev = {
-  spawn(type,dx,dy){ const e=spawnEnemy(type, G.hero.x+(dx||0), G.hero.y+(dy||0)); if(type==="golem"&&e) e.isBoss=true; return type; },
+  spawn(type,dx,dy){ const e=spawnEnemy(type, G.hero.x+(dx||0), G.hero.y+(dy||0));
+    // CAS-317: any boss-flagged template (golem, dragon) spawns boss-ified + special armed,
+    // matching spawnBoss(), so the QA harness can summon the dracónic boss directly.
+    if(e&&e.tpl.boss){ e.isBoss=true; e.special=e.tpl.special||null; e.atkCount=0; e.specialNow=false; } return type; },
   // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
   customizeState(){ return customizeState(); },
   setPartColor(slot,color){ return setPartColor(slot,color); },
@@ -2060,6 +2085,7 @@ export const dev = {
     return { type, arch:t.arch||null, ranged:!!t.ranged, lunge:t.lunge||0, kite:t.kite||0, aoe:t.aoe||0,
       charge:t.charge||0, summon:t.summon||null, heal:t.heal||null, // CAS-126 new-archetype fields
       combo:t.combo||0, comboWindup:t.comboWindup||0, punishRecover:t.punishRecover||0, recover:t.recover, // CAS-210 punisher fields
+      sprite:t.sprite, size:t.size, meleeR:t.meleeR||0, proj:t.proj||null, projspd:t.projspd||0, // CAS-321 warlock hybrid fields
       hp:t.hp, dmg:t.dmg, spd:t.spd, xp:t.xp, gold:t.gold.slice(), windup:t.windup }; },
   // Clean single-mob arena for behaviour probing: clear all entities, park a tanky hero
   // at a fixed spot (so AoE/lunge damage is measurable, mercy-iframes off), spawn ONE
@@ -2071,6 +2097,7 @@ export const dev = {
   // Live behaviour snapshot of the single arena mob + hero damage taken so far.
   archSnap(){ const e=G.enemies[0], h=G.hero; if(!e) return null;
     return { type:e.type, arch:e.tpl.arch||null, state:e.state, comboLeft:e.comboLeft||0, // CAS-210: punisher chain counter
+      animState:e.animState||null, castNow:!!e.castNow, // CAS-321: which board strip the demon is showing (attack=claw / cast=warlock)
       dist:Math.round(Math.hypot(e.x-h.x,e.y-h.y)), ex:Math.round(e.x), ey:Math.round(e.y),
       heroDmgTaken:Math.round(100000-h.hp), enemyProj:G.projectiles.filter(p=>p.enemy).length }; },
   // Move the hero to a fixed offset from the arena mob (to test dodging out of an AoE /

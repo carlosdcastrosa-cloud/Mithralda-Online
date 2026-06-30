@@ -173,6 +173,13 @@ export const ETPL = {
   // telegraphs the shot; dodging the bolt avoids the slow (infl rides the projectile).
   wraith:  {hp:48, dmg:15, spd:66,  aggro:320, range:230, windup:0.85,recover:0.8,  xp:32, gold:[9,17], sprite:"wraith", size:20, knock:60,  boss:false, ranged:true, projspd:260, proj:"bolt", gearChance:0.26, arch:"caster", kite:162, infl:{type:"slow",amt:0.5,dur:2.2}},
   golem:   {hp:640,dmg:30, spd:46,  aggro:360, range:64, windup:0.95, recover:0.8,  xp:220,gold:[60,90],sprite:"golem",size:36, knock:60, boss:true},
+  // CAS-317 (board CAS-310 / art CAS-313) — the dracónic Stage-1 caves BOSS. Repoints the
+  // legacy caves boss (spawnBoss) from the golem blob onto the 6-anim PixelLab dragon. A
+  // plain telegraphed melee bruiser (no arch → readable windup→strike), but `richAnim:true`
+  // drives the new attack1/attack2/hurt/death sprite states and `special` arms a heavy combo
+  // (attack2) on a strike cadence. Bigger/imposing (size 42, render scale via strip.tiles:4.6).
+  dragon:  {hp:820,dmg:34, spd:52,  aggro:380, range:72, windup:0.92, recover:0.78, xp:300,gold:[90,140],sprite:"dragon",size:42, knock:70, boss:true, richAnim:true, bossLabel:"DRAGÓN ANCESTRAL",
+            special:{ name:"Aliento Dracónico", every:3, windup:1.0, slam:{ count:14, spd:180, dmg:22, life:1.2 } } },
   // CAS-76: animated "Moose" bruiser (Ancient Ruins pack). A heavy charger — long
   // antler-rear telegraph (windup 0.85 → matches the 30-frame attack strip), big
   // hooved knockback, slots into the tier-2 ruins pool. Melee, deterministic.
@@ -201,6 +208,15 @@ export const ETPL = {
   // lands hardest. Tracks the hero through the chain (relentless), melee, deterministic.
   revenant:{hp:120, dmg:22, spd:104, aggro:300, range:50, windup:0.62, recover:0.55, xp:64, gold:[16,28], sprite:"bandit", size:20, knock:120, boss:false, gearChance:0.32, arch:"punisher", combo:3, comboWindup:0.30, punishRecover:1.15},
   adv:     {hp:64, dmg:16, spd:96,  aggro:0,   range:44, windup:0.5,  recover:0.5,  xp:0,  gold:[0,0], sprite:"adv", size:18, knock:120, boss:false, neutral:true},
+  // CAS-321 — dark_demon_3 (board art, commit 41e311c). A HYBRID "warlock" archetype: it
+  // closes like a melee threat but zaps from the backline. The new arch="warlock" (sim.js)
+  // drives BOTH board animations off the engagement distance — claw (animState "attack")
+  // when the hero is inside `meleeR`, warlock cast (animState "cast", a hidden bolt per the
+  // CAS-303/304 ranged convention) at `meleeR`..`range`. size 28 → ~2.1 tiles tall (imposing,
+  // bigger than trash). Slotted into the Abismo (tier-5) trash pool; NOT persisted → no
+  // SAVE_VERSION bump. Stats sit between revenant (bruiser) and mage (caster) so it reads as a
+  // standout mini-threat without re-tuning any existing mob (soak-safe, deterministic).
+  demon:   {hp:135, dmg:23, spd:72, aggro:330, range:235, windup:0.82, recover:0.72, xp:58, gold:[15,28], sprite:"demon", size:28, knock:110, boss:false, gearChance:0.32, arch:"warlock", projspd:235, proj:"bolt", meleeR:54},
 };
 
 // CAS-146 — ELITE AMBUSH / pack event. While the hero is actively fighting inside a hunt

@@ -340,6 +340,7 @@ export function createRenderer(ctx){
     const list=[];
     for(const o of G._decoOrder) list.push(o);
     for(const e of G.enemies) list.push({y:e.y,draw:()=>drawEnemy(e)});
+    for(const c of G.corpses) list.push({y:c.y,draw:()=>drawCorpse(c)}); // CAS-317: dragon death-anim corpses, y-sorted with the living
     for(const n of world.npcs) list.push({y:n.y,draw:()=>drawNPC(n)});
     list.push({y:h.y,draw:()=>drawHero(h)});
     list.sort((a,b)=>a.y-b.y);
@@ -702,6 +703,19 @@ export function createRenderer(ctx){
         ctx.globalAlpha=0.5+0.4*Math.abs(Math.sin(G.t*20)); ctx.strokeStyle=fl2?"#ffe08a":"#ff5a3c"; ctx.lineWidth=3;
         ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
         ctx.restore();
+      } else if(e.tpl.arch==="warlock"){
+        // CAS-321 dark_demon_3: the CAST (e.castNow, a hidden bolt) follows the CAS-303 ranged
+        // convention — no origin-revealing danger zone, the cb ring + warlock cast pose are the
+        // tell. The CLAW (melee) draws a TIGHT directional danger arc at meleeR so the swing
+        // reads at a glance (the full `range` danger circle would be a misleading 235px ring).
+        if(!e.castNow){ const R=e.tpl.meleeR||50;
+          ctx.save();
+          ctx.globalAlpha=0.5; ctx.fillStyle=fl2?"#e8463f":"#b3242a";
+          ctx.beginPath(); ctx.arc(e.x,e.y,R+6,0,6.28); ctx.fill(); ctx.globalAlpha=1;
+          ctx.fillStyle="rgba(179,36,42,0.38)"; ctx.beginPath(); ctx.moveTo(e.x,e.y);
+          ctx.arc(e.x,e.y,R+12,e.facing-0.5,e.facing+0.5); ctx.closePath(); ctx.fill();
+          ctx.restore();
+        }
       } else {
         ctx.globalAlpha=0.5; ctx.fillStyle=fl2?"#e8463f":"#b3242a"; // CAS-211 (d): basic attack danger-fill crimson-locked (bright crimson flash, was gold/orange)
         ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.range+6,0,6.28); ctx.fill(); ctx.globalAlpha=1;
@@ -737,8 +751,17 @@ export function createRenderer(ctx){
         // boss to ~5 tiles). Preserves the legacy ~3.6-tile "stone capstone" scale.
         const dh=(strip.tiles? strip.tiles*32 : e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4)), dw=dh*(fw/fh);
         const feetY=e.y+e.tpl.size*0.5, ph=(e.gaitPhase!==undefined?e.gaitPhase:(e.x*0.7+e.y*0.9)); // CAS-240: STATIC spawn-phase, not live pos
-        const fps = st==="walk"?gait.fps : st==="attack"?10 : 6; // CAS-222 per-mob walk cadence
-        const fi = G.settings.reduceMotion ? 0 : (Math.floor(G.t*fps+ph*7)%strip.fc+strip.fc)%strip.fc;
+        // CAS-317: attack1/attack2/hurt are ONE-SHOT (synced to the sim's e.animT clock, hold
+        // the final frame); idle/walk loop on render time as before. Legacy "attack" (golem)
+        // stays looped — untouched.
+        const oneShot = (st==="attack1"||st==="attack2"||st==="hurt");
+        const fps = st==="walk"?gait.fps : st==="attack1"?12 : st==="attack2"?14 : st==="hurt"?12 : st==="attack"?10 : st==="cast"?8 : 6; // CAS-222 per-mob walk cadence (CAS-312: demon warlock cast loops ~8fps as a channel)
+        const fi = G.settings.reduceMotion ? (oneShot?strip.fc-1:0)
+                 : oneShot ? Math.min(Math.floor((e.animT||0)*fps), strip.fc-1)
+                 : (Math.floor(G.t*fps+ph*7)%strip.fc+strip.fc)%strip.fc;
+        // CAS-317: a soft grounding shadow plants the lateral dragon sprite in the 3/4 world.
+        if(e.tpl.richAnim){ ctx.save(); ctx.globalAlpha=0.32; ctx.fillStyle="#000";
+          ctx.beginPath(); ctx.ellipse(e.x,feetY,dw*0.30,dw*0.12,0,0,6.28); ctx.fill(); ctx.restore(); }
         ctx.save(); ctx.translate(e.x, feetY);
         if(fl) ctx.scale(-1,1);
         ctx.imageSmoothingEnabled=false;
@@ -797,7 +820,7 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.hpb; ctx.fillRect(e.x-w/2,yy,w,hh);
     const champCol=e.capstone?(e.enraged?"#ff4636":"#ff9a3a"):"#ffcf4d";
     ctx.fillStyle=e.champion?champCol:(e.hostile?"#ff5a4a":COL.hpf); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
-    if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("GÓLEM ANCESTRAL",e.x,yy-4); }
+    if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(e.tpl.bossLabel||"GÓLEM ANCESTRAL",e.x,yy-4); } // CAS-317: data-driven boss name (dragon = "DRAGÓN ANCESTRAL")
     else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
       ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
     else if(e.elite){ ctx.fillStyle="#ff7a4d"; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("⚔ ÉLITE",e.x,yy-3); }
@@ -805,6 +828,26 @@ export function createRenderer(ctx){
     else if(e.affix && MOB_AFFIX[e.affix]){ ctx.fillStyle=MOB_AFFIX[e.affix].col; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("✦ "+MOB_AFFIX[e.affix].name,e.x,yy-3); }
     // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
     drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
+  }
+  // CAS-317: a rich-anim boss corpse — plays the DEATH strip ONE-SHOT, holds the collapsed
+  // final frame, then fades out over the last 0.6s of its life. Grounding shadow + L/R flip
+  // match the live boss so the kill reads as a real fall-down, not a pop-out. Presentation
+  // only (G.corpses, aged by sim updateCorpses); no HP bar, no AI, no sim read.
+  function drawCorpse(c){
+    const strip=resolveStrip(c.sprite,"death"); if(!strip) return;
+    const img=IMG[strip.key]; if(!img||!img.complete||!img.naturalWidth) return;
+    const fw=strip.fw, fh=strip.fh, dh=(strip.tiles?strip.tiles*32:c.size*3.4), dw=dh*(fw/fh);
+    const feetY=c.y+c.size*0.5, fps=8;
+    const fi=G.settings.reduceMotion?strip.fc-1:Math.min(Math.floor((c.t||0)*fps),strip.fc-1);
+    const LIFE=sim.CORPSE_LIFE||2.6, fade=c.t>LIFE-0.6?clamp((LIFE-c.t)/0.6,0,1):1;
+    // soft grounding shadow
+    ctx.save(); ctx.globalAlpha=0.32*fade; ctx.fillStyle="#000";
+    ctx.beginPath(); ctx.ellipse(c.x,feetY,dw*0.30,dw*0.12,0,0,6.28); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.globalAlpha=fade; ctx.translate(c.x,feetY);
+    if(c.fl) ctx.scale(-1,1);
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(img,fi*fw,0,fw,fh,-dw/2,-dh,dw,dh);
+    ctx.restore();
   }
   function drawNPC(n){
     // CAS-84: animated town NPCs (e.g. the merchant) reuse the enemy drawAnim helper

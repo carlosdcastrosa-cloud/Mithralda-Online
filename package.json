@@ -93,7 +93,8 @@
     "cas316": "node tools/cas316-hud-live.mjs",
     "cas303": "node tools/cas303-ranged-trajectory-live.mjs",
     "cas304": "node tools/cas304-mob-tracer.mjs",
-    "cas307": "node tools/cas307-mob-tracer-live.mjs"
+    "cas307": "node tools/cas307-mob-tracer-live.mjs",
+    "cas321": "node tools/cas321-demon.mjs"
   },
   "keywords": [],
   "author": "",

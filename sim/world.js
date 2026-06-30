@@ -192,7 +192,7 @@ export function buildWorld(rng){
   // CAS-210: the punisher `revenant` duelist surfaces in the deep, high-skill zones (abyss→
   // frost→trial) where read-and-punish combat is the point — its combo chain + long punish
   // window reward the riposte counter the most.
-  spawners.push({rect:abyss,types:["wraith","orc","charger","revenant","mage","revenant"],max:13,cool:3,t:0,zone:"abyss"});
+  spawners.push({rect:abyss,types:["wraith","orc","charger","revenant","demon","mage"],max:13,cool:3,t:0,zone:"abyss"}); // CAS-321: dark_demon_3 (warlock hybrid) joins the Abismo trash pool
   // dressing — bones, pillars, rocks & torch posts for an oppressive ruin feel.
   for(let i=0;i<22;i++){ const tx=abyss.x+rr(2,abyss.w-2), ty=abyss.y+rr(2,abyss.h-2);
     const x=tx*TS, y=ty*TS, k=srand();

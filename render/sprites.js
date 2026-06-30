@@ -195,6 +195,21 @@ export const SP = {
     "oGgogogGo",
     ".oGo.oGo.",
     "..o...o.."]},
+  // CAS-312: dark_demon_3 (board-supplied MOB). Procedural FALLBACK only — the real art
+  // is the PixelLab-style enemy_demon cutout + demon_attack/demon_cast strips below; this
+  // tiny silhouette renders only if those images fail to load (offline/asset-fail safety).
+  // On the cold FOUNTAINS palette: dark umber body, lone amber eye-glow, bone-white claws.
+  demon: { pal:{o:COL.out,d:"#39342a",D:"#4d4636",e:"#ffcf4d",c:"#cdd0c8"}, rows:[
+    "o.o.....o.o",
+    ".oDddddDo..",
+    ".odeddeDo..",
+    ".oDddddDo..",
+    "c.oDDddDo.c",
+    "coDdDDdDoc.",
+    "coDddddDoc.",
+    ".oDdddDo...",
+    ".oDd.dDo...",
+    ".oo...oo..."]},
   // --- town deco (CAS-60): market/city variety, drawn like other SP deco ---
   crate: { pal:{o:COL.out,W:"#5a4230",d:"#2c2925"}, rows:[
     "ooooooo",
@@ -280,7 +295,11 @@ export const ENEMY_ANIM={ mage:"mage", moose:"moose" };
 // the CAS-203 procedural breathe/walk-bob, replacing the tiny procedural SP blobs for
 // the common mobs so the bestiary reads at FOUNTAINS fidelity. Falls back to SP rows
 // while the image loads or for mobs without a generated sprite.
-export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"enemy_wraith", orc:"enemy_orc" };
+export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"enemy_wraith", orc:"enemy_orc",
+  // CAS-312: dark_demon_3 idle cutout (claw frame 0). drawEnemy uses this for idle/walk
+  // (resolveStrip returns null for those states → ENEMY_IMG path adds the breathe/walk-bob),
+  // and the demon_attack / demon_cast strips below for the two board animations.
+  demon:"enemy_demon" };
 // CAS-209: per-state PixelLab MCP animation strips for solid-bodied mobs.
 // Each mob has a map of animState → strip descriptor. drawEnemyStrip() picks the
 // correct state strip (falling back to "walk" if the state-specific strip is absent).
@@ -326,12 +345,38 @@ export const ENEMY_STRIPS={
     idle:   {key:"golem_idle_strip",   fc:8, fw:96, fh:96, tiles:3.6},
     attack: {key:"golem_attack_strip", fc:9, fw:96, fh:96, tiles:3.6},
   },
+  // CAS-317 (board CAS-310 / art CAS-313): the dracónic Stage-1 BOSS. 6 PixelLab strips,
+  // all 133×133, side-view facing RIGHT (flip for left). tiles:4.6 → ~147px on-screen box,
+  // beast body ≈4 tiles wide — dwarfs the ~1.5-tile hero, reads bigger than the golem (3.6).
+  // attack2/hurt/death are NEW states resolveStrip + the render strip path honor: attack1/2
+  // and hurt play ONE-SHOT (synced to e.animT), death holds the collapsed final frame on a
+  // presentation-only corpse (sim G.corpses). Fallback chain: state → walk → idle.
+  dragon:{
+    idle:    {key:"dragon_idle_strip",    fc:10, fw:133, fh:133, tiles:4.6},
+    walk:    {key:"dragon_walk_strip",    fc:10, fw:133, fh:133, tiles:4.6},
+    attack1: {key:"dragon_attack1_strip", fc:9,  fw:133, fh:133, tiles:4.6},
+    attack2: {key:"dragon_attack2_strip", fc:17, fw:133, fh:133, tiles:4.6},
+    hurt:    {key:"dragon_hurt_strip",    fc:3,  fw:133, fh:133, tiles:4.6},
+    death:   {key:"dragon_death_strip",   fc:7,  fw:133, fh:133, tiles:4.6},
+  },
+  // CAS-312: dark_demon_3 — the TWO board animations, 6f each, native 24×40 (joint-bbox
+  // baked so claw + cast share frame size → no body-size pop on melee↔cast). Mapping per
+  // CAS-311: claw → "attack" (melee), warlock → "cast" (ranged/spell). resolveStrip serves
+  // these by animState; idle/walk have NO demon strip → fall through to the ENEMY_IMG
+  // enemy_demon cutout + breathe/walk-bob path. The engineer drives animState="cast"
+  // during the demon's ranged/warlock attack window (else only the melee claw ever shows).
+  demon:{
+    attack: {key:"demon_attack", fc:6, fw:24, fh:40},
+    cast:   {key:"demon_cast",   fc:6, fw:24, fh:40},
+  },
 };
 // Resolve the best available strip for a mob + animState.
 // Falls back to "walk" strip if the specific state is absent or not yet loaded.
 export function resolveStrip(sprite, animState){
   const states=ENEMY_STRIPS[sprite]; if(!states) return null;
-  return states[animState]||states.walk||null;
+  // CAS-317: fall back state → walk → idle so a rich-anim boss missing one strip (or a
+  // legacy mob asked for a new state) never renders blank.
+  return states[animState]||states.walk||states.idle||null;
 }
 // Legacy single-strip map (still used by load path below until full state-strip wiring).
 export const ENEMY_STRIP={
