@@ -436,6 +436,23 @@ export const CLASS_DIRS=["down","up","side"];
 // fits-to-card independently.
 export const HERO_SPRITE_SCALE=1.85;
 export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58 };
+// CAS-353: nature pack (board-supplied) for the wilderness forest that fills the empty
+// field (the "tiles negras" — the dark negative space outside every zone). Authored at
+// tile resolution (trees 48×80, pines 32×80, rocks 16–48px, foliage 16–32px), so they
+// render at native size (PROP_SCALE default 1.0 → no entry needed). Loaded as prop_f_*
+// kinds; the leading "prop_" routes them through the image deco draw path in render.js.
+// world.js scatters them NON-SOLID (decorative) so collision (solidBlocked's O(n) scan) and
+// zone balance are untouched; render.js view-culls deco so the dense forest stays cheap.
+export const FOREST_PROPS=[
+  "tree_1","tree_2","tree_3","tree_4","tree_5","tree_6",
+  "tree_1_yellow","tree_2_yellow","tree_3_yellow","tree_4_yellow","tree_5_yellow","tree_6_yellow",
+  "pine_1","pine_2","pine_3","pine_4","pine_5","pine_6","pine_7","pine_8","pine_9","pine_10",
+  "rock_1_1","rock_1_2","rock_1_3","rock_1_4","rock_1_5","rock_1_6","rock_1_7","rock_1_8",
+  "rock_2_1","rock_2_2","rock_3_1","rock_3_2","rock_3_3","rock_3_4","rock_3_5","rock_3_6",
+  "rock_4_1","rock_4_2","rock_4_3","rock_4_4","rock_4_5",
+  "rock_5_1","rock_5_2","rock_5_3","rock_5_4","rock_5_5","rock_5_6",
+  "flower_1","flower_2","flower_3","flower_4","flower_5","flower_6",
+  "grass_1","grass_2","bush_1","dead_logs1","dead_logs2"];
 export function loadAllAssets(){
   for(const ch in ANIM) for(const st in ANIM[ch].fc) loadImg(ch+"_"+st, "./assets/char/"+ch+"_"+st+".png");
   for(const cl in CLS) for(const dir of CLASS_DIRS) for(const st in CLS[cl].fc) loadImg("cls_"+cl+"_"+st+"_"+dir, "./assets/class/"+cl+"_"+st+"_"+dir+".png");
@@ -457,6 +474,8 @@ export function loadAllAssets(){
   loadImg("wall","./assets/tiles/wall.png");
   loadImg("wall2","./assets/tiles/wall2.png");
   for(const p of ["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"]) loadImg("prop_"+p,"./assets/props/"+p+".png");
+  // CAS-353: wilderness nature pack → prop_f_* deco kinds (see FOREST_PROPS above).
+  for(const p of FOREST_PROPS) loadImg("prop_f_"+p,"./assets/props/forest/"+p+".png");
   // CAS-206: FOUNTAINS-style PixelLab enemy cutouts (see ENEMY_IMG above).
   for(const k of new Set(Object.values(ENEMY_IMG))) loadImg(k,"./assets/pixellab/fountains/"+k+".png");
   // CAS-209: PixelLab per-state strips for solid mobs (walk+idle; see ENEMY_STRIPS).

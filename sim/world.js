@@ -264,6 +264,39 @@ export function buildWorld(rng){
   const cpx=tcx,            cpy=tcy-6*TS;                     // town gate, N-centre of plaza (between abyss-NE + frost-NW)
   portals.push({x:cpx, y:cpy, to:"trial", dx:ccx, dy:ccy-TS*2, kind:"down"});
   portals.push({x:ccx, y:ccy, to:"town",  dx:cpx, dy:cpy+TS*2, kind:"up"});
+  // ---- CAS-353: el Bosque Salvaje — forest the empty field ("todas las tiles negras") ----
+  // The named zones cover only part of the 110×110 map; everything outside them is open
+  // grass "field" that, with the camera unclamped, reads as dark negative space ("tiles
+  // negras"). Fill it with the board's nature pack (prop_f_* — trees/pines/rocks/foliage)
+  // so the world reads as one continuous wilderness instead of a void between zones.
+  //
+  // Determinism: this loop runs LAST, so it consumes the rng stream only AFTER every prior
+  // zone/spawn/prop draw — those are byte-identical (Stage-2 deterministic). The forest is
+  // placed via the existing `prop(kind,x,y,false)` → DECORATIVE ONLY (never pushed to
+  // `solids`), so sim collision (solidBlocked's O(n) scan) and zone balance are untouched.
+  // render.js view-culls deco, so the thousands of props stay cheap (off-screen = skipped).
+  const FTREE=["prop_f_tree_1","prop_f_tree_2","prop_f_tree_3","prop_f_tree_4","prop_f_tree_5","prop_f_tree_6",
+    "prop_f_tree_1_yellow","prop_f_tree_2_yellow","prop_f_tree_3_yellow","prop_f_tree_4_yellow","prop_f_tree_5_yellow","prop_f_tree_6_yellow"];
+  const FPINE=["prop_f_pine_1","prop_f_pine_2","prop_f_pine_3","prop_f_pine_4","prop_f_pine_5","prop_f_pine_6","prop_f_pine_7","prop_f_pine_8","prop_f_pine_9","prop_f_pine_10"];
+  const FROCK=["prop_f_rock_1_1","prop_f_rock_1_2","prop_f_rock_1_3","prop_f_rock_1_4","prop_f_rock_1_5","prop_f_rock_1_6","prop_f_rock_1_7","prop_f_rock_1_8",
+    "prop_f_rock_2_1","prop_f_rock_2_2","prop_f_rock_3_1","prop_f_rock_3_2","prop_f_rock_3_3","prop_f_rock_3_4","prop_f_rock_3_5","prop_f_rock_3_6",
+    "prop_f_rock_4_1","prop_f_rock_4_2","prop_f_rock_4_3","prop_f_rock_4_4","prop_f_rock_4_5",
+    "prop_f_rock_5_1","prop_f_rock_5_2","prop_f_rock_5_3","prop_f_rock_5_4","prop_f_rock_5_5","prop_f_rock_5_6"];
+  const FLITTER=["prop_f_flower_1","prop_f_flower_2","prop_f_flower_3","prop_f_flower_4","prop_f_flower_5","prop_f_flower_6",
+    "prop_f_grass_1","prop_f_grass_2","prop_f_bush_1","prop_f_dead_logs1","prop_f_dead_logs2"];
+  const zoneRects=[town,forest,caves,arena,ruins,abyss,frost,trial];
+  function nearZone(tx,ty,pad){ for(const z of zoneRects){ if(tx>=z.x-pad && tx<z.x+z.w+pad && ty>=z.y-pad && ty<z.y+z.h+pad) return true; } return false; }
+  const pick=a=>a[ri(0,a.length-1)];
+  for(let ty=1; ty<MAP_H-1; ty++) for(let tx=1; tx<MAP_W-1; tx++){
+    if(terr[ty*MAP_W+tx]!==T_GRASS) continue;   // grass only → skips zone floors + dirt paths
+    if(nearZone(tx,ty,1)) continue;             // 1-tile gutter off every zone edge (clear entrances)
+    const k=srand();
+    if(k>=0.62) continue;                         // ~38% open gaps so the field stays walkable
+    const cx=tx*TS+TS/2, cy=ty*TS+TS/2;          // tile center; jitter below breaks the grid
+    if(k<0.30)      prop(pick(srand()<0.6?FTREE:FPINE), cx+rr(-9,9), cy+rr(-5,7), false);   // canopy
+    else if(k<0.40) prop(pick(FROCK), cx+rr(-8,8), cy+rr(-7,7), false);                     // boulders
+    else            prop(pick(FLITTER), cx+rr(-11,11), cy+rr(-9,9), false);                 // undergrowth
+  }
   return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
 }
 

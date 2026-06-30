@@ -339,8 +339,14 @@ export function createRenderer(ctx){
       if(locked){ ctx.strokeStyle="#1a0d10"; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(p.x-9,p.y-9); ctx.lineTo(p.x+9,p.y+9); ctx.stroke(); }
     }
     // deco (trees, rocks, chests) - sorted by y handled in entities pass for overlap; draw ground deco here
+    // CAS-353: view-cull deco. The wilderness forest adds thousands of decorative props to
+    // world.deco; only those overlapping the camera rect (+margin for tall trees ≤96px /
+    // wide ≤64px, bottom-anchored) become a closure + get drawn/y-sorted each frame, so the
+    // dense forest costs one cheap bounds test per prop instead of a draw call. Off-screen
+    // props are skipped entirely. Margin is asymmetric: props above (smaller y) can be tall.
     const order=[];
-    for(const d of world.deco) order.push({y:d.y,draw:()=>{
+    const vL=camX-48, vR=camX+VW/Z+48, vT=camY-120, vB=camY+VH/Z+24;
+    for(const d of world.deco){ if(d.x<vL||d.x>vR||d.y<vT||d.y>vB) continue; order.push({y:d.y,draw:()=>{
       if(d.kind && d.kind.startsWith("prop_")){ const img=IMG[d.kind]; if(img&&img.complete&&img.naturalWidth){
           const s=PROP_SCALE[d.kind]||1, w=img.naturalWidth*s, h=img.naturalHeight*s; ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h));
           if(d.kind==="prop_torch"){ const fy=d.y-h+10;
@@ -355,7 +361,7 @@ export function createRenderer(ctx){
             ctx.globalAlpha=0.18; ctx.fillStyle=fc; ctx.beginPath(); ctx.arc(d.x,fy,22,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
         } return; }
       const spr=SP[d.kind]; if(!spr) return; const px=d.kind==="tree"?4:3; blit(ctx,spr.rows,spr.pal,d.x,d.y-(d.kind==="tree"?18:0),px,false);
-    }});
+    }}); }
     for(const c of world.chests){ if(!c.opened) order.push({y:c.y,draw:()=>blit(ctx,SP.chest.rows,SP.chest.pal,c.x,c.y,3,false)}); }
     for(const f of world.fragments){ if(!f.taken) order.push({y:f.y,draw:()=>drawFragment(ctx,f.x,f.y,2,G.t)}); }
     for(const d of G.drops){ order.push({y:d.y,draw:()=>{ if(d.kind==="gold")drawCoin(ctx,d.x,d.y,2,G.t); else if(d.kind==="gear")drawGearDrop(d); else if(d.kind==="potionhp")drawPotion(ctx,d.x,d.y,2,COL.hpf,"#ff8a8a"); else drawPotion(ctx,d.x,d.y,2,COL.mpf,"#8ab8ff"); }}); }
