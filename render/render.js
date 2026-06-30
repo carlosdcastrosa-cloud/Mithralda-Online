@@ -135,7 +135,16 @@ const CLASS_DASH8_FC=9;
 // 8 rows × 1 frame; walk8 = 8 rows × 7 frames (read fw=naturalWidth/7, not hard-coded).
 // All 8 facings are REAL art → the horizontal flip is dropped when an 8-dir strip is used.
 // Missing file → fall back to the single-facing clshero_/clswalk_ path (zero regression).
-const CLASS_DIR8_ANIM=["mage","paladin","priest","druid","warrior"];
+// CAS-350 (INTERIM SAFETY): the board REJECTED the CAS-301/CAS-345 8-dir delivery because the
+// idle8/walk8/dash8 sheets are PixelLab REGENERATIONS (~0.89–0.95 sim) of a different-looking
+// hero, while attack/death/hurt/special still use the ORIGINAL {cls}.png sprites → the hero
+// visibly MORPHS the moment it stands still or walks ("pusiste las 8 direcciones en otro
+// sprite"). Until the sheets are rebuilt from the ORIGINAL frames (verbatim cardinal cells +
+// derived diagonals), DIR8_ENABLED gates OFF the 8-dir loads so every state falls back to the
+// approved single-facing clshero_/clswalk_/clsdash_ sprites — zero morph, zero balance change.
+// Re-enable (true) only once the rebuilt SAME-character sheets pass live QA.
+const DIR8_ENABLED=false;
+const CLASS_DIR8_ANIM=DIR8_ENABLED?["mage","paladin","priest","druid","warrior"]:[];
 const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=7, CLASS_WALK8_FPS=8; // 7f@8fps → cycle ≈0.88s (footfall ≈0.44s, in CAS-219/240 0.4–0.6s band)
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
 function dir8FromAngle(ang){ return ((Math.round(ang/(Math.PI/4))%8)+8)%8; }
@@ -177,7 +186,7 @@ export function createRenderer(ctx){
   for(const k of CLASS_DASH_ANIM){ loadImg("clsdash_"+k, `./assets/erw/hero/classes/${k}_dash.png`); }
   // CAS-345a (CAS-357): 8-direction dash strip (warrior). Missing file 404s harmlessly and the
   // roll falls back to the single-dir clsdash_ strip, then the idle-loop roll (zero regression).
-  for(const k of CLASS_DASH_ANIM){ loadImg("clsdash8_"+k, `./assets/erw/hero/classes/${k}_dash8.png`); }
+  if(DIR8_ENABLED) for(const k of CLASS_DASH_ANIM){ loadImg("clsdash8_"+k, `./assets/erw/hero/classes/${k}_dash8.png`); } // CAS-350: gated OFF with the rest of the 8-dir set (warrior roll falls back to the approved clsdash_ strip)
   // CAS-333 (CAS-301a): 8-direction idle/walk strips for the hooded classes. A missing file
   // 404s harmlessly and drawHeroClass falls back to the single-facing clshero_/clswalk_ path.
   for(const k of CLASS_DIR8_ANIM){ loadImg("clsidle8_"+k, `./assets/erw/hero/classes/${k}_idle8.png`); loadImg("clswalk8_"+k, `./assets/erw/hero/classes/${k}_walk8.png`); }
