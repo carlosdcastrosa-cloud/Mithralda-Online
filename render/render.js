@@ -125,6 +125,17 @@ const CLASS_HITREACT_ANIM=["warrior"];
 // {cls}_dash.png are preloaded; others fall back to the idle-loop roll (unchanged).
 // 8f, shared 140×166 cell — canonical Clarice dash-VFX (CAS-326).
 const CLASS_DASH_ANIM=["warrior"]; const CLASS_DASH_FC=8;
+// CAS-333 (CAS-301a, board CAS-300/CAS-301): 8-DIRECTION idle/walk strips for the four
+// hooded classes (warrior=Clarice keeps her single-facing+flip path, unchanged). Each
+// strip stacks 8 rows (cell 140×166, same CLASS_* geometry); row index == facing bucket
+// from dir8FromAngle (0=E 1=SE 2=S 3=SW 4=W 5=NW 6=N 7=NE, screen-space y-down). idle8 =
+// 8 rows × 1 frame; walk8 = 8 rows × 7 frames (read fw=naturalWidth/7, not hard-coded).
+// All 8 facings are REAL art → the horizontal flip is dropped when an 8-dir strip is used.
+// Missing file → fall back to the single-facing clshero_/clswalk_ path (zero regression).
+const CLASS_DIR8_ANIM=["mage","paladin","priest","druid"];
+const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=7, CLASS_WALK8_FPS=8; // 7f@8fps → cycle ≈0.88s (footfall ≈0.44s, in CAS-219/240 0.4–0.6s band)
+// Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
+function dir8FromAngle(ang){ return ((Math.round(ang/(Math.PI/4))%8)+8)%8; }
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
 import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
 
@@ -161,6 +172,9 @@ export function createRenderer(ctx){
   for(const k of CLASS_HITREACT_ANIM){ loadImg("clshurt_"+k, `./assets/erw/hero/classes/${k}_hurt.png`); loadImg("clsspecial_"+k, `./assets/erw/hero/classes/${k}_special.png`); }
   // CAS-329: dodge-roll dash strip (warrior). Classes without one keep the idle-loop roll.
   for(const k of CLASS_DASH_ANIM){ loadImg("clsdash_"+k, `./assets/erw/hero/classes/${k}_dash.png`); }
+  // CAS-333 (CAS-301a): 8-direction idle/walk strips for the hooded classes. A missing file
+  // 404s harmlessly and drawHeroClass falls back to the single-facing clshero_/clswalk_ path.
+  for(const k of CLASS_DIR8_ANIM){ loadImg("clsidle8_"+k, `./assets/erw/hero/classes/${k}_idle8.png`); loadImg("clswalk8_"+k, `./assets/erw/hero/classes/${k}_walk8.png`); }
   // CAS-169: start loading the recolorable part masks; the baked look replaces the
   // class strips below once ready. Until then the CAS-167 PNG strips render (no blank).
   ensureMasks();
@@ -772,12 +786,16 @@ export function createRenderer(ctx){
         // CAS-317: a soft grounding shadow plants the lateral dragon sprite in the 3/4 world.
         if(e.tpl.richAnim){ ctx.save(); ctx.globalAlpha=0.32; ctx.fillStyle="#000";
           ctx.beginPath(); ctx.ellipse(e.x,feetY,dw*0.30,dw*0.12,0,0,6.28); ctx.fill(); ctx.restore(); }
+        // CAS-331: dragon strips carry ~0.31·dh of empty rows below the feet; shift the draw
+        // DOWN by footPad·dh so the content bottom plants on feetY (the shadow stays at feetY).
+        // footPad is dragon-only (gate by strip.footPad) → other PixelLab/golem mobs untouched.
+        const yOff=(strip.footPad||0)*dh;
         ctx.save(); ctx.translate(e.x, feetY);
         if(fl) ctx.scale(-1,1);
         ctx.imageSmoothingEnabled=false;
-        ctx.drawImage(simg, fi*fw,0,fw,fh, -dw/2,-dh,dw,dh);
+        ctx.drawImage(simg, fi*fw,0,fw,fh, -dw/2,-dh+yOff,dw,dh);
         if(e.hurtFlash>0){ ctx.globalAlpha=0.6*Math.min(1,e.hurtFlash*4); ctx.globalCompositeOperation="lighter";
-          ctx.drawImage(simg, fi*fw,0,fw,fh, -dw/2,-dh,dw,dh); ctx.globalCompositeOperation="source-over"; ctx.globalAlpha=1; }
+          ctx.drawImage(simg, fi*fw,0,fw,fh, -dw/2,-dh+yOff,dw,dh); ctx.globalCompositeOperation="source-over"; ctx.globalAlpha=1; }
         ctx.restore();
         drew=true;
       }
@@ -856,7 +874,8 @@ export function createRenderer(ctx){
     ctx.save(); ctx.globalAlpha=fade; ctx.translate(c.x,feetY);
     if(c.fl) ctx.scale(-1,1);
     ctx.imageSmoothingEnabled=false;
-    ctx.drawImage(img,fi*fw,0,fw,fh,-dw/2,-dh,dw,dh);
+    const yOff=(strip.footPad||0)*dh; // CAS-331: ground the dragon corpse like the live boss
+    ctx.drawImage(img,fi*fw,0,fw,fh,-dw/2,-dh+yOff,dw,dh);
     ctx.restore();
   }
   function drawNPC(n){

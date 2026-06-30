@@ -352,12 +352,18 @@ export const ENEMY_STRIPS={
   // and hurt play ONE-SHOT (synced to e.animT), death holds the collapsed final frame on a
   // presentation-only corpse (sim G.corpses). Fallback chain: state → walk → idle.
   dragon:{
-    idle:    {key:"dragon_idle_strip",    fc:10, fw:133, fh:133, tiles:4.6},
-    walk:    {key:"dragon_walk_strip",    fc:10, fw:133, fh:133, tiles:4.6},
-    attack1: {key:"dragon_attack1_strip", fc:9,  fw:133, fh:133, tiles:4.6},
-    attack2: {key:"dragon_attack2_strip", fc:17, fw:133, fh:133, tiles:4.6},
-    hurt:    {key:"dragon_hurt_strip",    fc:3,  fw:133, fh:133, tiles:4.6},
-    death:   {key:"dragon_death_strip",   fc:7,  fw:133, fh:133, tiles:4.6},
+    // CAS-331 (board CAS-327): each 133px frame has ~41px (0.308) of empty rows BELOW the
+    // dragon's feet (content band y≈41–91), so the bottom-anchored draw floated the boss above
+    // its grounding shadow. `footPad` shifts the draw DOWN by footPad·dh so the content bottom
+    // lands on feetY (see render.js richAnim + drawCorpse). Shared value keeps the body baseline
+    // consistent across anims; the walk stride dips a few px lower (natural footfall). `tiles`
+    // 4.6→7.5 makes the visible dragon ~2.9 tiles tall — imposing for a Stage-1 BOSS.
+    idle:    {key:"dragon_idle_strip",    fc:10, fw:133, fh:133, tiles:7.5, footPad:0.308},
+    walk:    {key:"dragon_walk_strip",    fc:10, fw:133, fh:133, tiles:7.5, footPad:0.308},
+    attack1: {key:"dragon_attack1_strip", fc:9,  fw:133, fh:133, tiles:7.5, footPad:0.308},
+    attack2: {key:"dragon_attack2_strip", fc:17, fw:133, fh:133, tiles:7.5, footPad:0.308},
+    hurt:    {key:"dragon_hurt_strip",    fc:3,  fw:133, fh:133, tiles:7.5, footPad:0.308},
+    death:   {key:"dragon_death_strip",   fc:7,  fw:133, fh:133, tiles:7.5, footPad:0.308},
   },
   // CAS-312: dark_demon_3 — the TWO board animations, 6f each, native 24×40 (joint-bbox
   // baked so claw + cast share frame size → no body-size pop on melee↔cast). Mapping per

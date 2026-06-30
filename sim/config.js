@@ -177,8 +177,9 @@ export const ETPL = {
   // legacy caves boss (spawnBoss) from the golem blob onto the 6-anim PixelLab dragon. A
   // plain telegraphed melee bruiser (no arch → readable windup→strike), but `richAnim:true`
   // drives the new attack1/attack2/hurt/death sprite states and `special` arms a heavy combo
-  // (attack2) on a strike cadence. Bigger/imposing (size 42, render scale via strip.tiles:4.6).
-  dragon:  {hp:820,dmg:34, spd:52,  aggro:380, range:72, windup:0.92, recover:0.78, xp:300,gold:[90,140],sprite:"dragon",size:42, knock:70, boss:true, richAnim:true, bossLabel:"DRAGÓN ANCESTRAL",
+  // (attack2) on a strike cadence. CAS-331: size 42→50 + range/knock proportional to the bigger
+  // sprite (strip.tiles 4.6→7.5, strip.footPad grounds it); still telegraphed + enfrentable.
+  dragon:  {hp:820,dmg:34, spd:52,  aggro:380, range:80, windup:0.92, recover:0.78, xp:300,gold:[90,140],sprite:"dragon",size:50, knock:85, boss:true, richAnim:true, bossLabel:"DRAGÓN ANCESTRAL",
             special:{ name:"Aliento Dracónico", every:3, windup:1.0, slam:{ count:14, spd:180, dmg:22, life:1.2 } } },
   // CAS-76: animated "Moose" bruiser (Ancient Ruins pack). A heavy charger — long
   // antler-rear telegraph (windup 0.85 → matches the 30-frame attack strip), big
