@@ -112,6 +112,9 @@ export function createGame(canvas, ctx, getView){
       // CAS-92: read-only hero animation state, used by tools/hero-anim-shot.mjs
       heroAnim:()=>G.hero?{state:G.hero.animState,rolling:!!G.hero.rolling,atk:G.hero.atkAnim>0,hurtAnim:+(G.hero.hurtAnim||0).toFixed(3),specialAnim:+(G.hero.specialAnim||0).toFixed(3)}:null,
       enemyCount:()=>G.enemies.length,
+      bossAnim:()=>simDev.bossAnim(), // CAS-317: dracónic boss 6-anim QA observer
+      hitBoss:(n)=>simDev.hitBoss(n), // CAS-317: deterministic hurt/death driver for QA
+
       worldFingerprint:(seed)=>simDev.worldFingerprint(seed),
       // gear/progression contract consumed by tools/gear.mjs (CAS-29) — additive
       tpZone:(zone)=>simDev.tpZone(zone),

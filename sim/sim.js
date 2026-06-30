@@ -1796,6 +1796,20 @@ export const dev = {
     // CAS-317: any boss-flagged template (golem, dragon) spawns boss-ified + special armed,
     // matching spawnBoss(), so the QA harness can summon the dracónic boss directly.
     if(e&&e.tpl.boss){ e.isBoss=true; e.special=e.tpl.special||null; e.atkCount=0; e.specialNow=false; } return type; },
+  // CAS-317: read-only boss/corpse animation observer for the QA gate (b5c10283). Lets the
+  // harness assert the dracónic boss actually cycles all 6 strip states (idle/walk/attack1/
+  // attack2/hurt) in vivo and leaves a death corpse. Pure read — no sim mutation.
+  bossAnim(){ const b=G.enemies.find(e=>e.isBoss);
+    return { enemies:G.enemies.length, corpses:G.corpses.length,
+      boss: b?{ animState:b.animState, hp:Math.round(b.hp), maxHp:Math.round(b.maxHp),
+        hurtT:+(b.hurtT||0).toFixed(2), specialNow:!!b.specialNow, sprite:b.tpl.sprite,
+        label:b.tpl.bossLabel||null }:null }; },
+  // CAS-317: deal a hero-sourced hit straight to the live boss (no melee-range/positioning
+  // flake) so the QA gate can deterministically drive hurt-on-damage and death-on-zero-hp.
+  // Routes the REAL hitEnemy path (hurtT flinch + killEnemy + corpse), no shortcut.
+  hitBoss(n){ const b=G.enemies.find(e=>e.isBoss); if(!b) return null;
+    hitEnemy(b, Math.max(1, n|0)||50, Math.PI);
+    const a=this.bossAnim(); return { hpAfter:b.hp>0?Math.round(b.hp):0, dead:!!b.dead, corpses:a.corpses, animState:b.animState }; },
   // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
   customizeState(){ return customizeState(); },
   setPartColor(slot,color){ return setPartColor(slot,color); },
