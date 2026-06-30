@@ -306,6 +306,8 @@ export const STR = {
   bountyReward: (g, xp) => "+" + g + " oro · +" + xp + " XP",
   bountyHint: "E / tap para cerrar",
   dailySlay: (n) => "Da caza a " + n + " enemigos",
+  // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).
+  dailySlayType: (mob, n) => "Da caza a " + n + " " + ({ quillback:"Acechadores Espinosos", wendigo:"Wéndigos", demon:"Demonios Oscuros", skeleton:"esqueletos", orc:"orcos", wraith:"espectros", bandit:"bandidos", wolf:"lobos" }[mob] || (mob || "enemigos")),
   dailyChampion: (n) => "Derrota " + n + (n === 1 ? " campeón" : " campeones"),
   dailyClear: (zone) => "Despeja: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada" }[zone] || "la zona"),
   dailyClaimed: (g, xp) => "¡Contrato cobrado! +" + g + " oro, +" + xp + " XP",

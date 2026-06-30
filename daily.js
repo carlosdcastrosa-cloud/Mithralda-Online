@@ -57,9 +57,18 @@ export const daily = (()=>{
 
   // Contract templates (data-driven). `obs` names the monotonic counter / zone the
   // observer reads; rewards scale with difficulty. Adding a contract is one row.
+  // `obs` names the monotonic counter / zone the observer reads. `bucket` (defaults to obs)
+  // is the variety cap key, so a generic slay and a directed slayType never co-occur (both
+  // bucket "slay") — the day's trio stays distinct. CAS-375 adds DIRECTED bounties keyed to
+  // the live marquee roster (the dark-demon art shipped as the `demon` mob; quillback/wendigo
+  // are their own keys). Targets are sized to existing spawn rates so a session can finish one.
   const TEMPLATES = [
-    { id:"slay_s", obs:"slay", titleKey:"slay", n:[12,18], gold:[55,85],  xp:[80,120] },
-    { id:"slay_l", obs:"slay", titleKey:"slay", n:[24,32], gold:[100,150], xp:[150,210] },
+    { id:"slay_s", obs:"slay", bucket:"slay", titleKey:"slay", n:[12,18], gold:[55,85],  xp:[80,120] },
+    { id:"slay_l", obs:"slay", bucket:"slay", titleKey:"slay", n:[24,32], gold:[100,150], xp:[150,210] },
+    // CAS-375 directed mob bounties (obs:"slayType", per-type counter `mob`):
+    { id:"slay_quillback", obs:"slayType", bucket:"slay", mob:"quillback", n:[6,9], gold:[80,120],  xp:[120,170] },
+    { id:"slay_wendigo",   obs:"slayType", bucket:"slay", mob:"wendigo",   n:[4,6], gold:[110,160], xp:[170,230] },
+    { id:"slay_demon",     obs:"slayType", bucket:"slay", mob:"demon",     n:[4,6], gold:[110,160], xp:[170,230] },
     { id:"champ",  obs:"champion",            n:[1,2],  gold:[120,180], xp:[160,240] },
     { id:"clr_forest", obs:"clear", zone:"forest", n:[1,1], gold:[75,110],  xp:[100,150] },
     { id:"clr_ruins",  obs:"clear", zone:"ruins",  n:[1,1], gold:[95,135],  xp:[130,185] },
@@ -78,17 +87,17 @@ export const daily = (()=>{
     for(let i=pool.length-1;i>0;i--){ const j=rng.ri(0,i); const t=pool[i]; pool[i]=pool[j]; pool[j]=t; }
     const out=[]; const seenObs={};
     for(const tpl of pool){ if(out.length>=N_CONTRACTS) break;
-      const o=tpl.obs; if((seenObs[o]||0)>=(o==="clear"?2:1)) continue; // ≤1 slay, ≤1 champ, ≤2 clears
+      const o=tpl.bucket||tpl.obs; if((seenObs[o]||0)>=(o==="clear"?2:1)) continue; // ≤1 kill (slay/slayType share bucket), ≤1 champ, ≤2 clears
       seenObs[o]=(seenObs[o]||0)+1;
       const need=rng.ri(tpl.n[0],tpl.n[1]);
-      out.push({ id:tpl.id, obs:o, zone:tpl.zone||null, titleKey:tpl.titleKey||null,
+      out.push({ id:tpl.id, obs:tpl.obs, zone:tpl.zone||null, mob:tpl.mob||null, titleKey:tpl.titleKey||null,
         need, prog:0, done:false, claimed:false,
         gold:rng.ri(tpl.gold[0],tpl.gold[1]), xp:rng.ri(tpl.xp[0],tpl.xp[1]) });
     }
     // top up if the type caps left us short (rare) — relax the cap on a second pass
     for(const tpl of pool){ if(out.length>=N_CONTRACTS) break; if(out.some(c=>c.id===tpl.id)) continue;
       const need=rng.ri(tpl.n[0],tpl.n[1]);
-      out.push({ id:tpl.id, obs:tpl.obs, zone:tpl.zone||null, titleKey:tpl.titleKey||null,
+      out.push({ id:tpl.id, obs:tpl.obs, zone:tpl.zone||null, mob:tpl.mob||null, titleKey:tpl.titleKey||null,
         need, prog:0, done:false, claimed:false,
         gold:rng.ri(tpl.gold[0],tpl.gold[1]), xp:rng.ri(tpl.xp[0],tpl.xp[1]) }); }
     return out;
@@ -109,6 +118,8 @@ export const daily = (()=>{
   let store=null, lastPersist=0, booted=false;
   // session-local delta baselines for the monotonic hero counters (reset per page life)
   let baseKills=null, baseChamp=null;
+  // CAS-375: per-mob-type baselines (lazily set per type on first observe; same delta scheme).
+  let baseType={};
 
   function read(){ try{ const raw=localStorage.getItem(KEY); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
   function write(){ try{ localStorage.setItem(KEY, JSON.stringify(store)); return true; }catch(e){ return false; } }
@@ -159,6 +170,11 @@ export const daily = (()=>{
     let dirty=false;
     for(const c of store.contracts){ if(c.done) continue;
       if(c.obs==="slay" && dK>0){ c.prog=Math.min(c.need,c.prog+dK); dirty=true; }
+      else if(c.obs==="slayType" && c.mob){ // CAS-375: delta-count a specific mob type
+        const cur=(h.killsByType&&(h.killsByType[c.mob]|0))||0;
+        if(baseType[c.mob]===undefined) baseType[c.mob]=cur;       // first sight → no back-credit
+        const dM=Math.max(0,cur-baseType[c.mob]); baseType[c.mob]=cur;
+        if(dM>0){ c.prog=Math.min(c.need,c.prog+dM); dirty=true; } }
       else if(c.obs==="champion" && dC>0){ c.prog=Math.min(c.need,c.prog+dC); dirty=true; }
       else if(c.obs==="clear"){ const H=G.hunts&&G.hunts[c.zone]; if(H&&H.cleared&&c.prog<c.need){ c.prog=c.need; dirty=true; } }
       if(c.prog>=c.need && !c.done){ c.done=true; dirty=true; analytics.event("daily_contract_ready"); }
@@ -203,13 +219,14 @@ export const daily = (()=>{
       streak:{ n:store.streak|0, reward:streakReward(store.streak),
         next:streakReward((store.streak|0)+1),   // CAS-243: tomorrow's reward preview (the return hook)
         comeback:!!store.comeback, claimable:streakClaimable() },
-      contracts:store.contracts.map(c=>({ id:c.id, obs:c.obs, zone:c.zone,
+      contracts:store.contracts.map(c=>({ id:c.id, obs:c.obs, zone:c.zone, mob:c.mob||null,
         title:contractTitle(c), prog:c.prog|0, need:c.need|0, done:!!c.done, claimed:!!c.claimed,
         gold:c.gold|0, xp:c.xp|0 })),
     };
   }
   function contractTitle(c){
     if(c.obs==="slay") return STR.dailySlay(c.need);
+    if(c.obs==="slayType") return STR.dailySlayType(c.mob, c.need);   // CAS-375: directed bounty
     if(c.obs==="champion") return STR.dailyChampion(c.need);
     if(c.obs==="clear") return STR.dailyClear(c.zone);
     return "Contrato";
@@ -225,7 +242,7 @@ export const daily = (()=>{
   // dev/QA hooks — pure-local, the user's own anonymous device data. Day override +
   // counter helpers let QA assert rotation / claim / streak deterministically.
   const devApi={ dump, board, claim, claimStreak, flush,
-    reset(){ try{ localStorage.removeItem(KEY); }catch(e){} store=null; booted=false; baseKills=baseChamp=null; },
+    reset(){ try{ localStorage.removeItem(KEY); }catch(e){} store=null; booted=false; baseKills=baseChamp=null; baseType={}; },
     // Pin "today" to a fixed day and roll the store to it (rotation / streak tests).
     _setDay(s){ dayOverride=s||null; if(s){ refreshDay(s); write(); } },
     // Force a streak chain (n consecutive days ending yesterday) so the next _setDay/boot

@@ -183,6 +183,10 @@ function newHero(name,cls){
     // Persisted additively so the meta-loop is honest across sessions; gameplay never
     // reads these (pure counters), so no balance/determinism touch.
     kills:0, champKills:0,
+    // CAS-375: per-mob-type lifetime kill tally (e.g. {wendigo:5,quillback:3}) → drives the
+    // directed "slay N <type>" Hunt Contracts. Same additive, observer-only contract as
+    // `kills`: gameplay never reads it, so no balance/determinism touch, no SAVE_VERSION bump.
+    killsByType:{},
     // CAS-149: monotonic lifetime ELITE-class kills (ambush elites + champions + final boss).
     // Drives the persistent Elite-Mastery rank; saved additively (no SAVE_VERSION bump).
     eliteKills:0,
@@ -293,6 +297,8 @@ export function serializeSave(){
     // CAS-134: durable lifetime tallies for the daily-contract observer. Additive — old
     // saves lack them → default 0 — so no SAVE_VERSION bump / progress wipe.
     kills:h.kills||0, champKills:h.champKills||0,
+    // CAS-375: persist the per-type tally so directed bounties survive reloads (additive).
+    killsByType:h.killsByType||{},
     // CAS-149: durable lifetime elite-kill counter → Elite-Mastery rank. Additive (old
     // saves lack it → default 0 → rank 0), so no SAVE_VERSION bump / progress wipe. The
     // permanent +maxHp granted at each rank-up is already baked into the saved maxHp above,
@@ -336,6 +342,8 @@ export function loadSave(d){
     // CAS-123: rehydrate the Stage-1 arc (clamped; absent in old saves → fresh run).
     h.stage1=!!d.stage1; h.playT=Math.max(0,num(d.playT,0)); h.deaths=Math.max(0,Math.floor(num(d.deaths,0)));
     h.kills=Math.max(0,Math.floor(num(d.kills,0))); h.champKills=Math.max(0,Math.floor(num(d.champKills,0))); // CAS-134
+    // CAS-375: rehydrate per-type tally (sanitized to non-negative ints; absent in old saves → {}).
+    h.killsByType={}; if(d.killsByType && typeof d.killsByType==="object"){ for(const k in d.killsByType){ const v=Math.max(0,Math.floor(num(d.killsByType[k],0))); if(v>0) h.killsByType[k]=v; } }
     h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
     h.palette=sanitizePalette(d.palette, h.cls); h.variation=sanitizeVariation(d.variation); // CAS-169 cosmetics (validated, class-default fallback)
     recalcMastery(h);  // CAS-150: rebuild the reward-track perk bundle from the loaded count BEFORE heroMaxHp reads it
@@ -586,7 +594,10 @@ function killEnemy(e){
   freeze(e.isBoss?9:(e.champion?8:5)); // kill confirm — boss/champion deaths land heaviest
   const tpl=e.tpl; const zone=zoneOf(world,e.x,e.y);
   // CAS-134: bump the monotonic daily-contract tallies (pure counters; observer-read only).
-  if(G.hero && !tpl.neutral){ G.hero.kills=(G.hero.kills|0)+1; if(e.isBoss||e.champion) G.hero.champKills=(G.hero.champKills|0)+1; }
+  if(G.hero && !tpl.neutral){ G.hero.kills=(G.hero.kills|0)+1; if(e.isBoss||e.champion) G.hero.champKills=(G.hero.champKills|0)+1;
+    // CAS-375: per-type tally for directed bounties. e.type is the base mob key (a champion/
+    // capstone keeps its base type, e.g. a dragon capstone counts as a "dragon" kill).
+    if(e.type){ const kt=G.hero.killsByType||(G.hero.killsByType={}); kt[e.type]=(kt[e.type]|0)+1; } }
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
     noteEliteKill(); // CAS-149: the final boss is an elite-class kill → feeds Elite Mastery
