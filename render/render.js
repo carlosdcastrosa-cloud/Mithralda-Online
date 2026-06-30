@@ -870,10 +870,7 @@ export function createRenderer(ctx){
         drew=true;
       }
     }
-    // CAS-360: strip-only mobs (quillback/dragon — no procedural SP[sprite]) have no
-    // rows fallback; guard so the brief asset-load window before the strip image decodes
-    // skips the procedural blit (draws next frame once loaded) instead of throwing on spr.rows.
-    if(!drew && spr){
+    if(!drew){
       const rows=spr.rows, pal=(e.hurtFlash>0)?whiten(spr.pal):spr.pal;
       // CAS-203: every procedural mob now breathes / walk-bobs so nothing renders frozen.
       // Render-time squash-stretch anchored at the FEET, driven by sim time G.t + a stable

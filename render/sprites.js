@@ -210,6 +210,24 @@ export const SP = {
     ".oDdddDo...",
     ".oDd.dDo...",
     ".oo...oo..."]},
+  // CAS-363: wendigo (board-supplied MOB, art CAS-355). Procedural FALLBACK only — the real
+  // art is the 5 PixelLab strips below (idle/walk/attack/hurt/death via ENEMY_STRIPS.wendigo);
+  // this antlered wraith-shaman silhouette renders ONLY in the brief asset-load window or if
+  // those strips fail to load (offline/asset-fail safety — same role SP.demon plays). Without
+  // it, the richAnim strip path falls through to here with SP[sprite]=undefined → a render
+  // crash before the strip finishes downloading. Cold palette: slate body, near-black antlers,
+  // lone violet eye-glow, silver mane, knotted staff.
+  wendigo: { pal:{o:COL.out,d:"#3a3f48",D:"#5a616d",a:"#15171c",e:"#b070ff",s:"#9aa3b0",w:"#6b5a3a"}, rows:[
+    "a.a...a.a.w",
+    ".aoa.aoa..w",
+    "..ososo...w",
+    "..oeoeo...w",
+    ".osDDDso..w",
+    ".oDdDdDo..w",
+    ".oDddddDo.w",
+    ".oDdddDo...",
+    ".oDd.dDo...",
+    ".oo...oo..."]},
   // --- town deco (CAS-60): market/city variety, drawn like other SP deco ---
   crate: { pal:{o:COL.out,W:"#5a4230",d:"#2c2925"}, rows:[
     "ooooooo",
