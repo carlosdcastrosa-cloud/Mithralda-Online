@@ -65,6 +65,12 @@ export const G = {
   run:null, recap:null,
   talFocus:0,   // CAS-119: keyboard-focused talent node index (talents panel)
   t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
+  // CAS-317: presentation-only corpses for rich-anim bosses (the dracónic boss). When such
+  // a boss dies, killEnemy spawns a short-lived corpse here that plays its DEATH strip
+  // one-shot and holds the collapsed final frame, then fades. The sim NEVER reads these
+  // (no collision/AI/economy) — they exist purely so the death animation is visible after
+  // the entity leaves G.enemies. Stage-2 safe (render-side state, no RNG).
+  corpses:[],
   // CAS-127: reduceMotion is the accessibility off-switch — it gates screen shake and
   // trims flourish particle bursts (never changes balance/mechanics; purely cosmetic).
   // CAS-265: colorblind adds shape/text cues (rarity marks, crit glyph, telegraph ring)
@@ -395,7 +401,11 @@ function spawnEnemy(type,x,y){
     stun:0, slow:1, slowT:0, dots:null}; // crowd-control sinks: stun freezes the AI, slow scales chase speed, dots = active DoTs (CAS-118); all time-based, no RNG
   G.enemies.push(e); return e;
 }
-function spawnBoss(){ const e=spawnEnemy("golem",(world.caves.x+world.caves.w/2)*TS,(world.caves.y+5)*TS); e.isBoss=true; }
+// CAS-317: the caves boss is now the dracónic 6-anim BOSS (was the golem blob). Arm its
+// `special` (heavy combo → attack2 animState + telegraphed windup) the same way champions
+// do at spawn, so the shared windup→strike AI drives it with no per-boss branch.
+function spawnBoss(){ const e=spawnEnemy("dragon",(world.caves.x+world.caves.w/2)*TS,(world.caves.y+5)*TS);
+  e.isBoss=true; e.special=e.tpl.special||null; e.atkCount=0; e.specialNow=false; }
 // CAS-73 — apply a zone's difficulty TIER to a freshly-spawned trash mob. Clones the
 // shared ETPL row (never mutate the template) and scales hp/dmg/spd/xp by ZONE_TIER,
 // so the four hunt zones rise in difficulty. Pure math (no RNG) → deterministic /
@@ -530,6 +540,10 @@ function hitEnemy(e,dmg,ang){
   // hero hit (post-crit, so even a crit is blunted) — a damage-soak that makes it a tankier kill.
   { const af=e.affix&&MOB_AFFIX[e.affix]; if(af&&af.dmgReduce) dmg=Math.max(1,dmg*(1-af.dmgReduce)); }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
+  // CAS-317: a rich-anim boss (dragon) plays a brief one-shot HURT flinch on a non-lethal
+  // hit. Suppressed mid-attack (the animState resolver never overrides windup/strike) so a
+  // committed swing reads through, and skipped on the killing blow (death takes over).
+  if(e.tpl.richAnim && e.hp>0) e.hurtT=0.26;
   e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
   // CAS-127: crits read LOUDER — distinct bright SFX, a bigger popping number, an extra
   // shake kick. Normal hits get a subtle number pop. Pure feel (damage already applied).
@@ -611,6 +625,10 @@ function killEnemy(e){
     if(dd<=R){ const a=Math.atan2(G.hero.y-e.y,G.hero.x-e.x); damageHero(Math.max(1,Math.round(e.tpl.dmg*(af.blastDmgMul||0.85))),a,null); }
     addFx("novacast",e.x,e.y,{r:R,col:af.col,life:0.5}); addFx("shockring",e.x,e.y,{r:R*0.7,life:0.4});
     for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-R*0.5,R*0.5),e.y+frr(-R*0.5,R*0.5)); shakeAdd(7); audio.sfx.fire(); } }
+  // CAS-317: a rich-anim boss leaves a corpse that plays the DEATH strip one-shot (holds the
+  // collapsed final frame) then fades. Presentation-only — rewards/drops already resolved above.
+  if(e.tpl.richAnim){ G.corpses.push({ sprite:e.tpl.sprite, x:e.x, y:e.y, size:e.tpl.size, isBoss:!!e.isBoss,
+    fl:(e.facing!==undefined)?Math.cos(e.facing)<0:false, gaitPhase:e.gaitPhase||0, t:0 }); }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -1089,6 +1107,12 @@ export function returnToHub(){ respawn(); G.scene="pause"; }
 function nearestNPC(){ const h=G.hero; let best=null,bd=CFG.talkRange*CFG.talkRange;
   for(const n of world.npcs){ const d=dist2(h.x,h.y,n.x,n.y); if(d<bd){bd=d;best=n;} } return best; }
 function nearestFountain(){ const h=G.hero; for(const f of world.fountains){ if(dist2(h.x,h.y,f.x,f.y)<CFG.fountainRange*CFG.fountainRange) return f; } return null; }
+// CAS-319: Maren la Sanadora (role:"fountain") replaced the central square fountain (CAS-309).
+// She heals EXACTLY as that fountain did, so she's reached at fountainRange (60) — the SAME radius
+// the fountain used — not the tighter talkRange (56) other NPC dialogue uses. Checked before the
+// generic NPC scan so [E] within 60 of Maren = rest-heal, never plain dialogue.
+function nearestFountainNPC(){ const h=G.hero; let best=null,bd=CFG.fountainRange*CFG.fountainRange;
+  for(const n of world.npcs){ if(n.role!=="fountain") continue; const d=dist2(h.x,h.y,n.x,n.y); if(d<bd){bd=d;best=n;} } return best; }
 // CAS-114 — nearest interactable portal (town↔abyss warp gate), same reach as talking.
 function nearestPortal(){ const h=G.hero; if(!world.portals) return null;
   let best=null,bd=CFG.talkRange*CFG.talkRange;
@@ -1117,12 +1141,24 @@ function usePortal(p){ const h=G.hero;
 export function interact(){
   const p=nearestPortal();
   if(p){ usePortal(p); return; }
+  const fn=nearestFountainNPC();
+  if(fn){ openDialogue(fn); return; }   // CAS-319: Maren rest-heal (faithful 60px port) before generic NPCs
   const f=nearestFountain();
   const n=nearestNPC();
   if(n){ openDialogue(n); return; }
   if(f){ const h=G.hero; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.respawn={x:f.x,y:f.y+TS}; toast(STR.fountainRest); audio.sfx.heal(); return; }
 }
 function openDialogue(n){
+  // CAS-319: Maren la Sanadora — faithful port of the removed central fountain's rest-heal.
+  // Full HP/MP restore + sets respawn at her feet + the same toast/sfx the fountain used.
+  // No cooldown, no UI, no shop (the fountain had none); on-style heal juice for feedback.
+  if(n.role==="fountain"){ const h=G.hero;
+    h.hp=heroMaxHp(h); h.mp=h.maxMp; h.respawn={x:n.x,y:n.y+TS};
+    toast(STR.fountainRest); audio.sfx.heal();
+    addFx("healburst",h.x,h.y,{col:"#7dffa0",life:0.5});
+    for(let k=0;k<8;k++) addFx("heal",h.x+frr(-16,16),h.y+frr(-20,8));
+    return;
+  }
   if(n.role==="quest" && G.quest.done && !G.quest.rewarded){
     G.dialog={npc:n,lines:STR.rolfDone,i:0,reward:true};
   } else {
@@ -1329,6 +1365,7 @@ export function update(dtMs){
 
   // enemies
   updateEnemies(dt);
+  updateCorpses(dt); // CAS-317: age + reap rich-anim boss death corpses (presentation-only)
   updateProjectiles(dt);
   updateFields(dt);
   updateDrops(dt);
@@ -1348,9 +1385,16 @@ export function update(dtMs){
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*30);
 }
 
+// CAS-317: age the rich-anim boss death corpses and reap them once the death strip has
+// played out (one-shot ~0.9s) plus a hold + fade tail. CORPSE_LIFE is also the divisor the
+// renderer reads for the fade-out, so keep the two in sync. Pure dt, no RNG.
+export const CORPSE_LIFE=2.6;
+function updateCorpses(dt){ const C=G.corpses;
+  for(let i=C.length-1;i>=0;i--){ C[i].t+=dt; if(C[i].t>=CORPSE_LIFE) C.splice(i,1); } }
 function updateEnemies(dt){ const h=G.hero;
   for(const e of G.enemies){
     e.hurtFlash=Math.max(0,e.hurtFlash-dt);
+    if(e.hurtT>0) e.hurtT=Math.max(0,e.hurtT-dt); // CAS-317: one-shot hurt-flinch window (rich-anim boss)
     if(e.slowT>0) e.slowT-=dt;
     // CAS-118: DoTs tick first so a burning/poisoned enemy keeps losing HP even while
     // stunned. A lethal tick runs the REAL killEnemy path (drops/xp/clear), then we skip
@@ -1375,7 +1419,17 @@ function updateEnemies(dt){ const h=G.hero;
     if(e.stun>0){ e.stun-=dt; e.animState="idle"; e.animT=0;
       if(Math.abs(e.knockX)>1||Math.abs(e.knockY)>1){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*0.6); e.knockX*=0.82; e.knockY*=0.82; }
       continue; }
-    { let ns=(e.state==="windup"||e.state==="strike")?"attack":(e.state==="chase")?"walk":"idle";
+    { let ns;
+      // CAS-317: a rich-anim boss (dragon) drives the extended state set. A committed attack
+      // splits into attack1 (basic) vs attack2 (the telegraphed heavy/combo = specialNow);
+      // a non-attack hit shows the one-shot HURT flinch before falling back to walk/idle.
+      // death is NOT an animState here — it plays on the presentation-only corpse (killEnemy).
+      if(e.tpl.richAnim){
+        if(e.state==="windup"||e.state==="strike") ns=e.specialNow?"attack2":"attack1";
+        else if(e.hurtT>0) ns="hurt";
+        else if(e.state==="chase") ns="walk";
+        else ns="idle";
+      } else ns=(e.state==="windup"||e.state==="strike")?"attack":(e.state==="chase")?"walk":"idle";
       if(ns!==e.animState){ e.animState=ns; e.animT=0; } else e.animT=(e.animT||0)+dt; }
     // knockback decay
     if(Math.abs(e.knockX)>1||Math.abs(e.knockY)>1){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*0.6); e.knockX*=0.82; e.knockY*=0.82; }
@@ -1904,6 +1958,18 @@ export const dev = {
   // Park the hero on the Mercader Ambulante so the REAL interact()→dialogue→shop
   // path can be driven by the test (E twice). Returns the merchant's coords.
   merchantTP(){ for(const n of world.npcs){ if(n.role==="merchant"){ G.hero.x=n.x; G.hero.y=n.y+10; return [Math.round(n.x),Math.round(n.y)]; } } return null; },
+  // CAS-319: drive Maren's rest-heal end-to-end through the REAL interact() path. Damages the
+  // hero + drains MP, parks at the requested offset from Maren (default ~58px → proves the
+  // fountainRange-60 reach the talkRange-56 NPC path would have missed), fires interact(), and
+  // returns before/after so the harness can assert full HP/MP + respawn-at-Maren + no shop.
+  fountainHealProbe(off){ const m=world.npcs.find(n=>n.role==="fountain"); if(!m) return null;
+    const h=G.hero; h.hp=1; h.mp=0; const d=(off==null?58:off);
+    h.x=m.x+d; h.y=m.y; h.respawn=null;
+    const before={hp:h.hp,mp:h.mp,maxHp:heroMaxHp(h),maxMp:h.maxMp,scene:G.scene,dist:Math.round(Math.hypot(h.x-m.x,h.y-m.y))};
+    interact();
+    return { before, after:{hp:h.hp,mp:h.mp,scene:G.scene,
+      respawnAtMaren: !!h.respawn && Math.abs(h.respawn.x-m.x)<1 && Math.abs(h.respawn.y-(m.y+TS))<1,
+      toast:G.toast, maren:{x:Math.round(m.x),y:Math.round(m.y)} } }; },
   // CAS-134: park the hero on the Bounty-Board steward so the REAL interact()→dialogue→
   // bounty-board path (E twice) can be driven by the daily harness / screenshot tool.
   bountyTP(){ for(const n of world.npcs){ if(n.role==="bounty"){ G.hero.x=n.x; G.hero.y=n.y+10; return [Math.round(n.x),Math.round(n.y)]; } } return null; },

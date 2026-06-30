@@ -7,6 +7,7 @@
   "scripts": {
     "smoke": "node tools/smoke.mjs",
     "cas309": "node tools/cas309-ingame.mjs",
+    "cas319": "node tools/cas319-heal.mjs",
     "atlas-qa": "node tools/atlas-qa.mjs",
     "scale-compare": "node tools/scale-compare.mjs",
     "determinism": "node tools/determinism.mjs",

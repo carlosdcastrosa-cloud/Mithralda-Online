@@ -150,6 +150,8 @@ export function createGame(canvas, ctx, getView){
       hurt:(n)=>simDev.hurt(n), clearSpellCD:()=>simDev.clearSpellCD(),
       // merchant-shop economic-loop contract consumed by tools/shop.mjs (CAS-112) — additive
       merchantTP:()=>simDev.merchantTP(), shopList:()=>simDev.shopList(), shopBuy:(i)=>simDev.shopBuy(i),
+      // CAS-319 Maren rest-heal end-to-end probe consumed by tools/cas319-heal.mjs — additive
+      fountainHealProbe:(off)=>simDev.fountainHealProbe(off),
       // CAS-134 daily-return-loop contract consumed by tools/cas134-daily.mjs — additive
       bountyTP:()=>simDev.bountyTP(),
       heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
