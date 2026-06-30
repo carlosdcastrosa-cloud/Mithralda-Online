@@ -93,8 +93,8 @@ export function createGame(canvas, ctx, getView){
       // CAS-297: rarity is a STRING key ("common"/"uncommon"/"rare"/"epic") in the sim, but the
       // HUD's colour-blind shape-cue (hud.js cue()) keys off a NUMERIC rank. Resolve it here via
       // rarityRank() so the ◦/◆/★ glyphs actually render (a raw string|0 collapsed every item to 0).
-      equip:["weapon","body","shield"].map(sl=>{ const it=h.equip&&h.equip[sl]; return it?{slot:sl,label:String(sl[0]).toUpperCase(),rarity:rarityRank(it&&it.rarity)}:null; }),
-      bag:(h.bag||[]).map(b=>({ label:"·", rarity:rarityRank(b&&b.rarity) })), bagCap:16,
+      equip:["weapon","body","shield"].map(sl=>{ const lbl={weapon:"Arma",body:"Cuerpo",shield:"Escudo"}[sl]; const it=h.equip&&h.equip[sl]; return it?{slot:sl,label:lbl,rarity:rarityRank(it&&it.rarity)}:{slot:sl,label:lbl,rarity:0,empty:true}; }),
+      bag:(h.bag||[]).map(b=>({ label:"", rarity:rarityRank(b&&b.rarity) })), bagCap:16,
       // CAS-299: status afflictions for the HUD chip row — parity with the on-canvas chips the
       // cutover now suppresses (h.dots = DoTs keyed by type; slowT / stun are scalar timers).
       status:(()=>{ const out=[]; if(h.dots) for(const k in h.dots){ const d=h.dots[k]; if(d) out.push({type:k, dur:d.t}); }

@@ -8,15 +8,23 @@
 // (§6) and the 7 PixelLab UI panels under assets/pixellab/ui/cas286/. This file
 // implements that spec.
 //
-// CHROME vs CONTENT — the technique:
-//   The 7 PixelLab PNGs are FRAMES with ornate iron+gold trim on every edge and a
-//   DECORATIVE baked interior (the statframe even bakes full HP/MP/XP bars + a
-//   skull). A live HUD must show DYNAMIC vitals, so we cannot blit the baked art
-//   wholesale. Instead each panel uses the approved PNG as a `border-image`
-//   9-slice — this takes ONLY the clean iron+gold EDGES (the part players read as
-//   "the frame") and discards the baked center — and the live interior (bars,
-//   numerics, slots, log) is drawn in CSS strictly from the §4 palette. Result:
-//   the approved frame art, dynamic content, no new colours. (CTO note in CAS-287.)
+// PANEL ART — the technique (CAS-316, was a thin 9-slice border-image):
+//   The board reported "no veo la UI que creaste en pixellab" — the old build
+//   framed each panel with a 9-slice border-image that kept only an ~11px iron+gold
+//   EDGE and discarded the ornate baked interior, so players saw plain dark boxes,
+//   not the approved art. CAS-316 instead blits the WHOLE approved PNG as a
+//   background-size:100% 100% fill (panel sized to its native aspect-ratio) and
+//   overlays the live DYNAMIC content inside the measured interior "well":
+//     • statframe — baked skull + bar tracks show; live HP/MP/XP fills pin onto
+//       the 3 baked grooves; name/level/gold in a caption strip below.
+//     • paperdoll — baked EQUIPMENT title + 6 slot icons show; live equip legend
+//       (Arma/Cuerpo/Escudo) overlays the display area.
+//     • backpack — baked 6×6 grid shows; live items light their cell.
+//     • console — ornate frame shows; the baked English placeholder is masked by a
+//       flat dark well and the live Spanish combat log renders on top.
+//   The approved frame art is now fully visible; content stays dynamic; no new
+//   colours (§4 palette). minimap/action-bar panels stay dropped (CAS-299: the
+//   canvas minimap + spell bar are the single owners, no double-UI).
 //
 // DESIGN — same soak-safe contract as overlay.js (CAS-279):
 //   • Default OFF. Opt-in via `?hud` query flag or window.__hud.toggle(); the
@@ -58,14 +66,25 @@ export const hud = (()=>{
   // §6 rarity shape-cues (prepended only when colorblind=true)
   const RARITY_CUE=["","◦","◆","★","★"]; // 0 common · 1 uncommon · 2 rare · 3+ epic
 
-  // border-image frame map (slice = px of iron+gold trim per edge; bw = rendered width)
-  const FR = {
-    stat:    {img:"hud_statframe.png",     slice:24, bw:11},
-    mini:    {img:"hud_minimap_frame.png", slice:50, bw:15},
-    doll:    {img:"hud_paperdoll.png",     slice:26, bw:12},
-    bag:     {img:"hud_backpack_grid.png", slice:24, bw:11},
-    action:  {img:"hud_actionbar.png",     slice:22, bw:10},
-    console: {img:"hud_console.png",       slice:24, bw:11},
+  // CAS-316 — FULL-ART panels (was: thin 9-slice border-image that discarded the
+  // ornate baked interior, so the board "no veo la UI que creaste en pixellab").
+  // Each panel now blits the WHOLE approved PixelLab PNG as a background-size:100%
+  // 100% fill (sized to native aspect) and the live dynamic content is overlaid
+  // inside the measured interior "well" (fractions from tools/cas316-measure.mjs).
+  // native px so we can size each panel to its true aspect-ratio.
+  const PANEL = {
+    stat: {img:"hud_statframe.png",     w:688, h:256},
+    doll: {img:"hud_paperdoll.png",     w:288, h:512},
+    bag:  {img:"hud_backpack_grid.png", w:320, h:320},
+    con:  {img:"hud_console.png",       w:512, h:256},
+  };
+  // interior content wells as % insets (left,top,right,bottom) inside the baked frame.
+  // stat splits into the baked skull (left, untouched) + the 3-bar block (right well).
+  const WELL = {
+    statBars: {l:34.5, t:22, r:7,  b:18},  // right-side HP/MP/XP track block
+    doll:     {l:44,   t:27, r:16, b:14},  // dark panel right of the baked slot icons (below the baked "EQUIPMENT" title)
+    bag:      {l:15.6, t:15.6, r:15.9, b:14.7}, // baked 6×6 grid
+    con:      {l:18,   t:23, r:18, b:24},  // baked dark text interior (inside the gold frame line)
   };
 
   function mk(tag, css, parent){ const e=document.createElement(tag); if(css) e.style.cssText=css; if(parent) parent.appendChild(e); return e; }
@@ -78,18 +97,40 @@ export const hud = (()=>{
     // render/sprites.js → window.__BUILD) so the deploy cache-bust covers HUD chrome too;
     // without it a returning player could serve a stale border-image for a fresh build.
     const V=(typeof window!=="undefined"&&window.__BUILD)?("?v="+window.__BUILD):"";
-    const f=(k)=>"border-style:solid;border-width:"+FR[k].bw+"px;border-color:"+C.panelB+";"
-      +"border-image:url('"+ASSET+FR[k].img+V+"') "+FR[k].slice+" stretch;"; // border-color = graceful fallback
+    // CAS-316: full-panel art background (whole approved PNG, native aspect via
+    // width + aspect-ratio). The live interior is overlaid in an absolute .well.
+    const pbg=(k)=>{ const P=PANEL[k];
+      return "background:url('"+ASSET+P.img+V+"') center/100% 100% no-repeat;"
+        +"image-rendering:pixelated;position:relative;aspect-ratio:"+P.w+"/"+P.h+";"; };
+    const well=(k)=>{ const w=WELL[k];
+      return "position:absolute;left:"+w.l+"%;top:"+w.t+"%;right:"+w.r+"%;bottom:"+w.b+"%;"; };
     styleEl.textContent = [
       // root scale var drives crisp integer-ish scaling (§3)
       "#hud{ --s:1; font-family:'Courier New',monospace; }",
-      "#hud .pnl{ background:"+C.panel+"; background-clip:padding-box; box-shadow:0 2px 6px rgba(0,0,0,.55); image-rendering:pixelated; }",
-      "#hud .fr-stat{ "+f("stat")+" }",
-      "#hud .fr-mini{ "+f("mini")+" }",
-      "#hud .fr-doll{ "+f("doll")+" }",
-      "#hud .fr-bag{ "+f("bag")+" }",
-      "#hud .fr-action{ "+f("action")+" }",
-      "#hud .fr-console{ "+f("console")+" }",
+      // full-art panels (CAS-316) — the ornate PixelLab PNG IS the panel
+      "#hud .p-stat{ "+pbg("stat")+" width:calc(268px*var(--s)); }",
+      "#hud .p-doll{ "+pbg("doll")+" width:calc(150px*var(--s)); }",
+      "#hud .p-bag{ "+pbg("bag")+" width:calc(170px*var(--s)); }",
+      "#hud .p-con{ "+pbg("con")+" width:calc(340px*var(--s)); }",
+      "#hud .w-statBars{ "+well("statBars")+" }",
+      // 3 live bars PINNED to the baked HP/MP/XP track centers (panel ~33/52/70%,
+      // mapped into the well) so each fill sits exactly on its baked groove.
+      "#hud .w-statBars .groove{ position:absolute; left:2%; right:3%; height:21%; margin:0; }",
+      "#hud .w-statBars .groove:nth-child(1){ top:10%; }",
+      "#hud .w-statBars .groove:nth-child(2){ top:43%; }",
+      "#hud .w-statBars .groove:nth-child(3){ top:74%; }",
+      "#hud .w-doll{ "+well("doll")+" overflow:hidden; }",
+      "#hud .w-bag{ "+well("bag")+" }",
+      // console well: an opaque wash masks the baked English placeholder lines while the
+      // ornate PixelLab frame stays fully visible; live Spanish log renders on top.
+      "#hud .w-con{ "+well("con")+" overflow:hidden; padding:3px 6px; background:#0b0c11; border-radius:1px;"
+        +" display:flex; flex-direction:column; gap:1px; justify-content:flex-end; }",
+      "#hud .w-con .logln{ font-size:calc(10px*var(--s)); line-height:1.35; }",
+      // equip chips: compact, vertically centred over the baked paperdoll panel
+      "#hud .w-doll{ display:flex; flex-direction:column; gap:calc(3px*var(--s)); justify-content:center; }",
+      // caption strip under the stat panel (name · class · level · gold) — no baked text region exists
+      "#hud .cap{ width:calc(268px*var(--s)); margin-top:calc(2px*var(--s)); display:flex; align-items:baseline; gap:6px; flex-wrap:wrap;"
+        +" padding:2px 6px; background:rgba(6,7,10,.72); border:1px solid "+C.panelB2+"; border-radius:3px; }",
       // §5 typography
       "#hud .name{ color:"+C.textGold+"; font-size:calc(13px*var(--s)); letter-spacing:.5px; font-weight:bold; }",
       "#hud .sub{ color:"+C.textDim+"; font-size:calc(11px*var(--s)); }",
@@ -113,6 +154,16 @@ export const hud = (()=>{
       "#hud .slot.off{ background:"+C.panelB2+"; opacity:.5; }",                            // disabled / empty
       "#hud .slot:focus-visible{ outline:2px dashed "+C.gold+"; outline-offset:1px; }",     // keyboard focus ring
       "#hud .cue{ color:"+C.textGold+"; margin-right:2px; }",
+      // CAS-316 — bag grid: empty cells transparent (baked PixelLab grid shows through);
+      // a filled cell shows a small gold token, not a solid box that hides the art.
+      "#hud .w-bag .slot{ background:transparent; border:0; border-radius:2px; min-width:0; color:"+C.goldL+"; font-size:calc(9px*var(--s)); }",
+      "#hud .w-bag .slot.off{ background:transparent; opacity:1; }",
+      "#hud .w-bag .slot.eq{ background:rgba(224,185,74,.16); border:1px solid "+C.gold+"; box-shadow:inset 0 0 4px rgba(224,185,74,.4); color:"+C.goldL+"; }",
+      // equip well: compact vertical chips over the baked paperdoll dark panel
+      "#hud .w-doll .slot{ width:100%; aspect-ratio:auto; min-width:0; height:calc(15px*var(--s)); justify-content:flex-start; padding:0 4px;"
+        +" font-size:calc(9px*var(--s)); background:rgba(6,7,10,.55); border:1px solid "+C.panelB+"; border-radius:2px; overflow:hidden; white-space:nowrap; }",
+      "#hud .w-doll .slot.off{ background:rgba(6,7,10,.25); border-color:"+C.panelB2+"; }",
+      "#hud .w-con .logln{ text-shadow:0 1px 2px "+C.bg+"; }",
       // status chips (§ B)
       "#hud .chip{ display:inline-flex; align-items:center; gap:3px; padding:1px 5px; margin:2px 3px 0 0; border-radius:8px;"
         +" font-size:calc(10px*var(--s)); background:"+C.bg+"; border:1px solid "+C.panelB+"; }",
@@ -159,53 +210,49 @@ export const hud = (()=>{
     if(reduce) root.classList.add("rm");
     root.setAttribute("aria-hidden","true"); // decorative mirror; interactive panels stay in render.js
 
-    // ===== A — Vitals (top-left) =====
-    const tl=mk("div", ["position:absolute","left:12px","top:12px","min-width:calc(196px*var(--s))","padding:8px"].join(";"), root);
-    tl.className="pnl fr-stat stat";
-    const head=mk("div","display:flex;gap:8px;align-items:center;margin-bottom:4px", tl);
-    nodes.portrait=mk("div","width:calc(36px*var(--s));height:calc(36px*var(--s));flex:0 0 auto;background:"+C.bg+";"
-      +"border:2px solid "+C.goldD+";border-radius:50%;box-shadow:inset 0 0 4px rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;"
-      +"color:"+C.textGold+";font-size:calc(14px*var(--s));font-weight:bold", head);
-    const idCol=mk("div","flex:1;min-width:0", head);
-    nodes.name=mk("div",null,idCol); nodes.name.className="name"; nodes.name.textContent="—";
-    nodes.cls=mk("div",null,idCol); nodes.cls.className="sub"; nodes.cls.textContent="—";
-    nodes.lvl=mk("div","text-align:right;color:"+C.textGold+";font-size:calc(13px*var(--s))", head); nodes.lvl.textContent="Nv —";
-    nodes.hp=bar(tl, C.hpf, C.hpb, "♥");
-    nodes.mp=bar(tl, C.mpf, C.mpb, "✦");
-    nodes.xp=bar(tl, C.xpf, C.xpb, "XP");
-    const goldRow=mk("div","display:flex;justify-content:flex-end;margin-top:3px", tl);
-    nodes.gold=mk("span",null,goldRow); nodes.gold.className="gold"; nodes.gold.textContent="0 oro";
+    // ===== A — Vitals (top-left): full PixelLab statframe; baked skull stays, live
+    //        HP/MP/XP bars overlay the right-side track block; name/level caption below.
+    const tl=mk("div", ["position:absolute","left:12px","top:12px"].join(";"), root);
+    const stat=mk("div",null,tl); stat.className="p-stat";
+    const sw=mk("div",null,stat); sw.className="w-statBars";
+    nodes.hp=bar(sw, C.hpf, C.hpb, "♥");
+    nodes.mp=bar(sw, C.mpf, C.mpb, "✦");
+    nodes.xp=bar(sw, C.xpf, C.xpb, "XP");
+    // caption (name · class · Nv · gold) — the statframe art bakes no text region
+    const cap=mk("div",null,tl); cap.className="cap";
+    nodes.name=mk("span",null,cap); nodes.name.className="name"; nodes.name.textContent="—";
+    nodes.cls=mk("span",null,cap); nodes.cls.className="sub"; nodes.cls.textContent="—";
+    nodes.lvl=mk("span","margin-left:auto;color:"+C.textGold+";font-size:calc(12px*var(--s))",cap); nodes.lvl.textContent="Nv —";
+    nodes.gold=mk("span",null,cap); nodes.gold.className="gold"; nodes.gold.textContent="0 oro";
+    nodes.portrait=null; // skull portrait is baked into the panel art now
 
     // ===== B — Status chips (under vitals) =====
-    nodes.chips=mk("div", ["position:absolute","left:12px","top:calc(132px*var(--s))","max-width:220px","pointer-events:none"].join(";"), root);
+    nodes.chips=mk("div", ["position:absolute","left:12px","top:calc(150px*var(--s))","max-width:220px","pointer-events:none"].join(";"), root);
 
     // ===== drawer toggle (mobile only, via CSS) =====
     nodes.drawerBtn=mk("div",null,root); nodes.drawerBtn.className="drawerBtn"; nodes.drawerBtn.textContent="≡";
     nodes.drawerBtn.setAttribute("aria-label","Abrir equipo / mochila");
     nodes.drawerBtn.onclick=()=>{ drawerOpen=!drawerOpen; root.classList.toggle("draw",drawerOpen); };
 
-    // ===== Right rail: D paper-doll (EQUIPO) · E backpack (MOCHILA) =====
+    // ===== Right rail: D paper-doll (EQUIPO) · E backpack (MOCHILA) — full PixelLab panels =====
     // CAS-299 cutover: the legacy on-canvas minimap (bottom-right, with real layout + portal
     // blips) is the single minimap, so the HUD's decorative minimap STUB is dropped here to
-    // avoid a double-minimap. The rail now reuses ONLY the Tibia equip/inventory mirror.
-    const rail=mk("div", ["position:absolute","right:12px","top:12px","width:152px","display:flex","flex-direction:column","gap:8px"].join(";"), root);
+    // avoid a double-minimap. The rail reuses ONLY the Tibia equip/inventory mirror.
+    const rail=mk("div", ["position:absolute","right:12px","top:12px","width:172px","display:flex","flex-direction:column","gap:10px","align-items:flex-end"].join(";"), root);
     rail.className="rail";
-    const doll=mk("div","padding:6px", rail); doll.className="pnl fr-doll";
-    const dl=mk("div",null,doll); dl.className="lab"; dl.textContent="Equipo";
-    nodes.equip=mk("div","display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:4px", doll);
-    const bag=mk("div","padding:6px", rail); bag.className="pnl fr-bag";
-    const bl=mk("div",null,bag); bl.className="lab"; bl.textContent="Mochila";
-    nodes.inv=mk("div","display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:4px", bag);
+    const doll=mk("div",null, rail); doll.className="p-doll";
+    nodes.equip=mk("div","display:flex;flex-direction:column;gap:calc(3px*var(--s))", doll); nodes.equip.className="w-doll";
+    const bag=mk("div",null, rail); bag.className="p-bag";
+    nodes.inv=mk("div","display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(6,1fr);gap:0", bag); nodes.inv.className="w-bag";
 
-    // ===== Bottom-left: G console (combat log) =====
+    // ===== Bottom-left: G console (combat log) — full PixelLab console panel =====
     // CAS-299 cutover: the legacy on-canvas SPELL BAR (bottom-centre, with real cooldowns +
     // mp costs) is the single action surface, so the HUD's decorative 1-10 action-bar STUB is
     // dropped to avoid a double action bar. Only the Tibia console remains here.
     const bottom=mk("div", ["position:absolute","left:12px","right:12px","bottom:12px","display:flex","gap:8px","align-items:flex-end","justify-content:flex-start","flex-wrap:wrap"].join(";"), root);
     bottom.className="bottom";
-    const con=mk("div","padding:8px;flex:0 1 360px;max-width:420px;height:74px;overflow:hidden", bottom); con.className="pnl fr-console";
-    const cl=mk("div",null,con); cl.className="lab"; cl.textContent="Consola";
-    nodes.log=mk("div","margin-top:3px;display:flex;flex-direction:column;gap:1px", con);
+    const con=mk("div",null, bottom); con.className="p-con";
+    nodes.log=mk("div","display:flex;flex-direction:column;gap:1px;justify-content:flex-end", con); nodes.log.className="w-con";
 
     document.body.appendChild(root);
     applyScale();
@@ -228,7 +275,8 @@ export const hud = (()=>{
     while(host.childElementCount<n){ const e=mk("div",null,host); e.className="slot"; e.tabIndex=-1; }
     const kids=host.children;
     for(let i=0;i<kids.length;i++){ const it=items[i]; const el=kids[i];
-      if(it){ el.className="slot eq"; el.textContent=(cb?cb(it):"")+(it.label||"·"); }
+      if(it && !it.empty){ el.className="slot eq"; el.textContent=(cb?cb(it):"")+(it.label||"·"); }
+      else if(it && it.empty){ el.className="slot off"; el.textContent=it.label||""; } // labelled-but-empty (equip legend)
       else { el.className="slot off"; el.textContent=""; } }
   }
 
@@ -257,7 +305,7 @@ export const hud = (()=>{
     if(!s || s.hp==null){ // menu / no hero — placeholders, never throw
       nodes.name.textContent="—"; nodes.cls.textContent="—"; nodes.lvl.textContent="Nv —"; nodes.gold.textContent="0 oro";
       fillBar(nodes.hp,0,1); fillBar(nodes.mp,0,1); fillBar(nodes.xp,0,1);
-      paintSlots(nodes.equip,[],3); paintSlots(nodes.inv,[],16);
+      paintSlots(nodes.equip,[],3); paintSlots(nodes.inv,[],36);
       if(nodes.minimap) nodes.minimap.textContent=(s&&s.zone)?String(s.zone):"—";
       nodes.chips.textContent=""; paintLog();
       prev=s||null; return;
@@ -267,12 +315,12 @@ export const hud = (()=>{
     nodes.cls.textContent=s.cls||"—";
     nodes.lvl.textContent="Nv "+(s.lvl||1);
     nodes.gold.textContent=(s.gold|0)+" oro";
-    nodes.portrait.textContent=(s.name||s.cls||"H").slice(0,1).toUpperCase();
+    if(nodes.portrait) nodes.portrait.textContent=(s.name||s.cls||"H").slice(0,1).toUpperCase();
     fillBar(nodes.hp, s.hp, s.maxHp);
     fillBar(nodes.mp, s.mp, s.maxMp);
     fillBar(nodes.xp, s.xp, s.xpNext);
     paintSlots(nodes.equip, s.equip||[], 3, cue);
-    paintSlots(nodes.inv, s.bag||[], s.bagCap||16, cue);
+    paintSlots(nodes.inv, s.bag||[], 36, cue);
     if(nodes.minimap) nodes.minimap.textContent=(s.zone||"—")+"\n◆";
     // §B status chips — data-driven; renders nothing when the hero carries no effects
     paintChips(s.status||[], cb);
