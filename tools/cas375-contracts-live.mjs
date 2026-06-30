@@ -30,7 +30,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const exe = findChromium();
 if (!exe) { console.error("✖ No Chromium binary found."); process.exit(1); }
 
-const srv = await startServer();
+// LIVE_URL=<base> runs against a deployed build (gh-pages); else a local server.
+const LIVE = process.env.LIVE_URL || null;
+const srv = LIVE ? null : await startServer();
+const ORIGIN = LIVE || srv.url;
 const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: LAUNCH_ARGS });
 
 const key = (page, code) => page.evaluate((c) => window.dispatchEvent(new KeyboardEvent("keydown", { code: c, key: c, bubbles: true })), code);
@@ -68,11 +71,20 @@ async function findDirectedDays(page) {
 try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
+  // Real JS exceptions ALWAYS fail. Failed resource loads are judged by URL+status via the
+  // network events (the console text omits the URL, so it can't be filtered there): we ignore
+  // known live CDN noise that is NOT a code defect — the browser's auto favicon.ico request
+  // (the game ships none) and transient GitHub-Pages 5xx under the harness's heavy reloads —
+  // while still failing on any game module/asset 404.
   const errors = [];
+  const benignReq = (u, s) => /favicon\.ico/i.test(u) || (s >= 500 && s <= 599);
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
+  page.on("console", (m) => { // non-resource console errors only (resource loads handled below)
+    if (m.type() === "error" && !/Failed to load resource/i.test(m.text())) errors.push(`console.error: ${m.text()}`); });
+  page.on("response", (r) => { const s = r.status(); if (s >= 400 && !benignReq(r.url(), s)) errors.push(`HTTP ${s}: ${r.url()}`); });
+  page.on("requestfailed", (r) => { const u = r.url(); if (!benignReq(u, 0)) errors.push(`REQFAIL ${r.failure()?.errorText}: ${u}`); });
 
-  await page.goto(`${srv.url}/index.html?dev`, { waitUntil: "load" });
+  await page.goto(`${ORIGIN}/index.html?dev`, { waitUntil: "load" });
   await page.bringToFront();
   await enterPlay(page);
   pass("entered play as 'warrior'");
@@ -173,7 +185,7 @@ try {
   fail(`exception: ${e && e.stack || e}`);
 } finally {
   await browser.close();
-  await srv.close();
+  if (srv) await srv.close();
 }
 
 log(ok ? "\n✔ CAS-375 directed Hunt Contracts PASS" : "\n✖ CAS-375 directed Hunt Contracts FAIL");
