@@ -1,0 +1,30 @@
+import puppeteer from 'puppeteer-core';
+import fs from 'fs';
+const SRC='/tmp/cas309/extracted/healer_pack/healer/1.png';
+const data='data:image/png;base64,'+fs.readFileSync(SRC).toString('base64');
+const b=await puppeteer.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+const pg=await b.newPage();
+await pg.setContent('<canvas id=c></canvas>');
+const out=await pg.evaluate(async(src)=>{
+  const img=new Image(); img.src=src; await img.decode();
+  const cell=64, Z=5;
+  // candidate idle cells rows0-2 (6 cols) + interaction row3-4 + sparkle row5-6
+  const picks=[];
+  for(let ry=0;ry<5;ry++) for(let rx=0;rx<6;rx++) picks.push([rx,ry]);
+  for(let rx=0;rx<6;rx++) picks.push([rx,5]);
+  for(let rx=0;rx<6;rx++) picks.push([rx,6]);
+  const cols=6, rows=Math.ceil(picks.length/cols);
+  const cv=document.getElementById('c'); cv.width=cols*cell*Z+ (cols+1)*4; cv.height=rows*cell*Z+(rows+1)*4;
+  const ctx=cv.getContext('2d'); ctx.imageSmoothingEnabled=false;
+  ctx.fillStyle='#202830'; ctx.fillRect(0,0,cv.width,cv.height);
+  picks.forEach((p,i)=>{ const [sx,sy]=p; const gx=i%cols, gy=(i/cols)|0;
+    const dx=4+gx*(cell*Z+4), dy=4+gy*(cell*Z+4);
+    ctx.fillStyle='#0d1014'; ctx.fillRect(dx,dy,cell*Z,cell*Z);
+    ctx.drawImage(img, sx*cell,sy*cell,cell,cell, dx,dy, cell*Z,cell*Z);
+    ctx.fillStyle='#9fd'; ctx.font='10px monospace'; ctx.fillText(`${sx},${sy}`, dx+2, dy+12);
+  });
+  return cv.toDataURL('image/png');
+},data);
+fs.writeFileSync('/tmp/cas309/preview.png', Buffer.from(out.split(',')[1],'base64'));
+await b.close();
+console.log('wrote /tmp/cas309/preview.png');

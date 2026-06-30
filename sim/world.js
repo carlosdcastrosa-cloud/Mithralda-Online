@@ -79,9 +79,13 @@ export function buildWorld(rng){
   }
   // rocks in caves
   for(let i=0;i<70;i++){ const x=(caves.x+rr(1,caves.w-1))*TS, y=(caves.y+rr(1,caves.h-1))*TS; place("rock",x,y,14); }
-  // town fountains (3): central square + temple (respawn) + market
+  // town fountains: temple (respawn) + market. CAS-309 (board CAS-308): the CENTRAL
+  // square fountain — the town's healing station — is REMOVED here. Its rest-heal is
+  // taken over by the new healer NPC (Maren) placed on its EXACT spot below, so the
+  // fountain object + visual are fully retired (no double). The temple fountain stays as
+  // the respawn anchor (sim.js reads world.templeF); the market fountain stays as plain
+  // water dressing (it never was the heal landmark).
   const tcx=(town.x+town.w/2)*TS, tcy=(town.y+town.h/2)*TS;
-  fountains.push({x:tcx,y:tcy,temple:false});
   const templeF={x:tcx-5*TS,y:tcy-4*TS,temple:true}; fountains.push(templeF);
   fountains.push({x:tcx+5*TS,y:tcy+4*TS,temple:false});
   for(const f of fountains) solids.push({x:f.x,y:f.y,r:22,kind:"fountain"});
@@ -89,6 +93,12 @@ export function buildWorld(rng){
   npcs.push({x:tcx+3*TS,y:tcy-1*TS,sprite:"npcBram",name:STR.npcBram,role:"shop",lines:STR.bramLines});
   npcs.push({x:tcx-2*TS,y:tcy+2*TS,sprite:"npcRolf",name:STR.npcRolf,role:"quest",lines:STR.rolfLines});
   npcs.push({x:tcx-4*TS,y:tcy-2*TS,sprite:"npcLina",name:STR.npcLina,role:"heal",lines:STR.linaLines});
+  // CAS-309: the HEALER NPC ("Maren la Sanadora") stands on the EXACT spot of the removed
+  // central fountain (tcx,tcy). neutral → combat AI ignores it. role:"fountain" is the
+  // Game Engineer's hook (child issue) to re-wire the fountain's rest-heal onto this NPC:
+  // full HP/MP restore + set respawn here + STR.fountainRest toast + heal sfx, same heal
+  // radius/trigger the fountain had. Until that lands it safely falls back to dialogue.
+  npcs.push({x:tcx,y:tcy,sprite:"healernpc",name:STR.npcHealer,role:"fountain",lines:STR.healerLines,neutral:true});
   // CAS-60: market-square dressing — stalls, crates & street lanterns for city variety.
   for(const [sx,sy] of [[tcx-3*TS,tcy-3*TS],[tcx+3*TS,tcy-3*TS],[tcx,tcy+5*TS]]){
     prop("stall",sx,sy,true,12); prop("crate",sx-TS,sy+TS,true,8); }

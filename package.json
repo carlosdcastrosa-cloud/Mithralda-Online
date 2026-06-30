@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "smoke": "node tools/smoke.mjs",
+    "cas309": "node tools/cas309-ingame.mjs",
     "atlas-qa": "node tools/atlas-qa.mjs",
     "scale-compare": "node tools/scale-compare.mjs",
     "determinism": "node tools/determinism.mjs",

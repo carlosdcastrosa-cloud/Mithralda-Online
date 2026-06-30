@@ -252,6 +252,7 @@ export const STR = {
   npcAdventurer: "Aventurero",
   npcMerchant: "Mercader Ambulante",
   npcBounty: "Heraldo de Cacerías",
+  npcHealer: "Maren la Sanadora",
 
   bramLines: [
     "Bienvenido a mi tienda, viajero. ¿Buscas acero o frascos?",
@@ -269,6 +270,12 @@ export const STR = {
   linaLines: [
     "Que las fuentes te guarden. Puedo curarte y venderte bendiciones.",
     "Una bendición reduce lo que pierdes al morir... salvo con calavera roja.",
+  ],
+  // CAS-309 — Maren tends the spring where the old healing fountain stood. Used as the
+  // dialogue fallback; the Game Engineer wires her rest-heal (STR.fountainRest toast).
+  healerLines: [
+    "Acércate, viajero. El manantial sana a quien descansa aquí.",
+    "Reposa un momento y recuperarás vida y maná, como siempre.",
   ],
   adventurerLines: [
     "Esta es la Arena de Sangre. Pelea con honor, forastero.",

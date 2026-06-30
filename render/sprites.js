@@ -259,6 +259,15 @@ export const ANIM={
   // tools/slice-pack-strip.mjs to 110×64 so the feet bottom-anchor; body is ~59px, so
   // scale ≈1.0 renders it ~2 tiles tall — in line with the hero and other townsfolk.
   merchant:{fc:{idle:8}, fw:{idle:110}, fh:{idle:64}},
+  // CAS-309 (board CAS-308): the green-robed HEALER NPC ("Maren la Sanadora") that
+  // replaces the central healing fountain. Board-delivered art (healer_pack ZIP) sliced
+  // by tools/cas309-build.mjs into a clean 6-frame front idle strip — feet bottom-anchored,
+  // transparent bg. Native 24×34 frames render at scale 1.0 ≈ town-NPC scale (Lina-sized),
+  // on the frozen dark-fantasy palette (green robe + gold trim = Lina's #34503a/#446a4d
+  // family). Town NPC → drawNPC + NPC_ANIM idle loop only, never ENEMY_ANIM. The companion
+  // healernpc_cast.png (6f heal-cast swing, same slicer) is on disk for the Game Engineer to
+  // play on the heal trigger if desired.
+  healernpc:{fc:{idle:6}, fw:{idle:24}, fh:{idle:34}},
 };
 // enemy strips driven by drawEnemy (combat AI states). Town NPCs are kept OUT of this
 // map so they never aggro/attack — they animate via NPC_ANIM + drawNPC instead.
@@ -331,7 +340,7 @@ export const ENEMY_STRIP={
   orc:   ENEMY_STRIPS.orc.walk,
 };
 // animated, non-hostile town NPCs. Keyed by npc.sprite → ANIM strip; idle loop only.
-export const NPC_ANIM={ merchant:"merchant" };
+export const NPC_ANIM={ merchant:"merchant", healernpc:"healernpc" };
 // player class sprites: directional (down/up/side, left=side mirrored), states idle/walk/attack
 export const CLS={
   warrior: {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
