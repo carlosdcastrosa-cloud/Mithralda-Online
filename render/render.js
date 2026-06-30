@@ -428,7 +428,7 @@ export function createRenderer(ctx){
       rg.addColorStop(0,`rgba(${ac[0]},${ac[1]},${ac[2]},${0.14+0.10*pulse})`); rg.addColorStop(1,`rgba(${ac[0]},${ac[1]},${ac[2]},0)`);
       ctx.fillStyle=rg; ctx.beginPath(); ctx.ellipse(gx,gy,17,19,0,0,6.283); ctx.fill(); ctx.restore();
     }
-    const ok=drawHeroClass(CLASS_HERO_ART[cls],cstate,h.animT||0,hx,hfeet,flip,sqX,sqY,bobUp,tint) // CAS-98/110/223 state-driven class anim
+    const ok=drawHeroClass(CLASS_HERO_ART[cls],cstate,h.animT||0,hx,hfeet,flip,sqX,sqY,bobUp,tint,ang) // CAS-98/110/223 state-driven class anim; CAS-333 ang→8-dir row
           || drawHeroAnim(def.img,fi,h.x,feet,flip,tint,bob)                     // hooded anim fallback
           || drawHeroErw(h.x,feet,flip,1,1,0,tint)       // hooded pose until strips load
           || drawClassFrame(ctx,cls,(state==="roll")?"walk":state,dir4FromAngle(ang),fi,h.x,feet,HERO_SPRITE_SCALE,tint);
@@ -482,10 +482,13 @@ export function createRenderer(ctx){
   //            no attack/death strip — preserves the prior CAS-98/110 behaviour exactly).
   // The attack/death branches only fire when that strip is loaded, so the four hooded
   // classes (no such file) keep their old look with zero change.
-  function drawHeroClass(art,state,animT,cx,feet,flip,sqX,sqY,bobUp,tint){
+  function drawHeroClass(art,state,animT,cx,feet,flip,sqX,sqY,bobUp,tint,ang){
     if(!art) return false;
     const has=k=>{ const m=IMG[k]; return m&&m.complete&&m.naturalWidth; };
-    let key,fc,fi;
+    // CAS-333 (CAS-301a): `rows`/`row` carry the 8-direction strip layout (8 stacked rows,
+    // pick row by facing bucket); legacy single-facing strips keep rows=1,row=0. `flipOff`
+    // suppresses the horizontal flip for 8-dir strips (every facing is real art).
+    let key,fc,fi,rows=1,row=0,flipOff=false;
     if(state==="dead" && has("clsdeath_"+art)){
       key="clsdeath_"+art; fc=CLASS_DEATH_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_DEATH_DUR)));
     } else if(state==="special" && has("clsspecial_"+art)){
@@ -500,8 +503,19 @@ export function createRenderer(ctx){
       // CAS-329: dodge-roll dash — play the 8f dash strip once across the roll duration.
       // Gated on the strip so non-warrior classes keep today's idle-loop roll (regression-safe).
       key="clsdash_"+art; fc=CLASS_DASH_FC; fi=Math.min(fc-1, Math.floor((animT||0)*(fc/Math.max(0.12, CFG.rollTime||0.2))));
+    } else if(state==="walk" && has("clswalk8_"+art)){
+      // CAS-333 (CAS-301a): 8-direction walk. Row = facing bucket; 7-frame cycle looped at
+      // CLASS_WALK8_FPS. fw is read as naturalWidth/7 below (no hard-coded 140). Real facing
+      // art → no flip. Falls through to the legacy clswalk_ strip if the 8-dir file is absent.
+      key="clswalk8_"+art; fc=CLASS_WALK8_FC; fi=Math.floor(G.t*CLASS_WALK8_FPS)%fc;
+      rows=8; row=dir8FromAngle(ang||0); flipOff=true;
     } else if(state==="walk" && has("clswalk_"+art)){
       key="clswalk_"+art; fc=CLASS_WALK_FC; fi=Math.floor(G.t*CLASS_WALK_FPS)%fc;
+    } else if(state==="idle" && has("clsidle8_"+art)){
+      // CAS-333 (CAS-301a): 8-direction idle — single held pose per row, selected by the
+      // hero's last facing. The procedural breathe/bob/squash from drawHero still applies.
+      key="clsidle8_"+art; fc=CLASS_IDLE8_FC; fi=0;
+      rows=8; row=dir8FromAngle(ang||0); flipOff=true;
     } else {
       key="clshero_"+art; if(!has(key)) return false;
       fc=CLASS_FC; const lf=(state==="attack")?9:(state==="roll")?11:2.6; fi=Math.floor(G.t*lf)%fc;
@@ -516,19 +530,23 @@ export function createRenderer(ctx){
     // tracks the cell height (fh-BOTTOM_GAP), which equals CLASS_FOOT for legacy 166-tall
     // strips, so the figure stays planted and the same on-screen size with zero change to
     // idle/walk or the other classes' 140px strips.
-    const fw=Math.round(img.naturalWidth/fc), fh=img.naturalHeight;
+    // CAS-333: `rows`>1 → a vertical stack of 8 facing rows; the CELL height is the sheet
+    // height/rows (166 for the 8-dir strips) and the source row is offset by row*fh. Legacy
+    // single-row strips keep rows=1 → fh==naturalHeight and sy==0, i.e. byte-identical path.
+    const fw=Math.round(img.naturalWidth/fc), fh=Math.round(img.naturalHeight/rows);
     const ax=(fw>CLASS_FW)?fw/2:CLASS_AX, foot=fh-(CLASS_FH-CLASS_FOOT);
-    const S=CLASS_ANIM_SCALE, dw=fw*S*sqX, dh=fh*S*sqY, sx=(fi||0)*fw;
+    const S=CLASS_ANIM_SCALE, dw=fw*S*sqX, dh=fh*S*sqY, sx=(fi||0)*fw, sy=row*fh;
     const dx=cx-ax*S*sqX, dy=feet-foot*S*sqY-(bobUp||0);
-    let src=img, ssx=sx, ssy=0;
+    const useFlip=flipOff?false:flip; // 8-dir strips carry real per-facing art → never mirror
+    let src=img, ssx=sx, ssy=sy;
     if(tint && _heroBx){ _heroBuf.width=fw; _heroBuf.height=fh;
       _heroBx.clearRect(0,0,fw,fh); _heroBx.imageSmoothingEnabled=false;
-      _heroBx.globalCompositeOperation="source-over"; _heroBx.drawImage(img,sx,0,fw,fh,0,0,fw,fh);
+      _heroBx.globalCompositeOperation="source-over"; _heroBx.drawImage(img,sx,sy,fw,fh,0,0,fw,fh);
       _heroBx.globalCompositeOperation="source-atop"; _heroBx.globalAlpha=0.85; _heroBx.fillStyle=tint; _heroBx.fillRect(0,0,fw,fh);
       _heroBx.globalAlpha=1; _heroBx.globalCompositeOperation="source-over";
       src=_heroBuf; ssx=0; ssy=0; }
     ctx.save(); ctx.imageSmoothingEnabled=false;
-    if(flip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,fw,fh,0,0,dw,dh); }
+    if(useFlip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,fw,fh,0,0,dw,dh); }
     else ctx.drawImage(src,ssx,ssy,fw,fh,dx,dy,dw,dh);
     ctx.restore(); return true;
   }
