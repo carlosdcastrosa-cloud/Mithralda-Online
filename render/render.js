@@ -125,6 +125,9 @@ const CLASS_HITREACT_ANIM=["warrior"];
 // {cls}_dash.png are preloaded; others fall back to the idle-loop roll (unchanged).
 // 8f, shared 140×166 cell — canonical Clarice dash-VFX (CAS-326).
 const CLASS_DASH_ANIM=["warrior"]; const CLASS_DASH_FC=8;
+// CAS-345a (CAS-357): 8-DIRECTION dash strip (warrior). 9 frames/row, 8 rows (cell 140×166).
+// Preferred over the single-dir clsdash_ strip when loaded; same CLASS_DASH_ANIM set ships it.
+const CLASS_DASH8_FC=9;
 // CAS-333 (CAS-301a, board CAS-300/CAS-301): 8-DIRECTION idle/walk strips for the four
 // hooded classes (warrior=Clarice keeps her single-facing+flip path, unchanged). Each
 // strip stacks 8 rows (cell 140×166, same CLASS_* geometry); row index == facing bucket
@@ -132,7 +135,7 @@ const CLASS_DASH_ANIM=["warrior"]; const CLASS_DASH_FC=8;
 // 8 rows × 1 frame; walk8 = 8 rows × 7 frames (read fw=naturalWidth/7, not hard-coded).
 // All 8 facings are REAL art → the horizontal flip is dropped when an 8-dir strip is used.
 // Missing file → fall back to the single-facing clshero_/clswalk_ path (zero regression).
-const CLASS_DIR8_ANIM=["mage","paladin","priest","druid"];
+const CLASS_DIR8_ANIM=["mage","paladin","priest","druid","warrior"];
 const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=7, CLASS_WALK8_FPS=8; // 7f@8fps → cycle ≈0.88s (footfall ≈0.44s, in CAS-219/240 0.4–0.6s band)
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
 function dir8FromAngle(ang){ return ((Math.round(ang/(Math.PI/4))%8)+8)%8; }
@@ -172,6 +175,9 @@ export function createRenderer(ctx){
   for(const k of CLASS_HITREACT_ANIM){ loadImg("clshurt_"+k, `./assets/erw/hero/classes/${k}_hurt.png`); loadImg("clsspecial_"+k, `./assets/erw/hero/classes/${k}_special.png`); }
   // CAS-329: dodge-roll dash strip (warrior). Classes without one keep the idle-loop roll.
   for(const k of CLASS_DASH_ANIM){ loadImg("clsdash_"+k, `./assets/erw/hero/classes/${k}_dash.png`); }
+  // CAS-345a (CAS-357): 8-direction dash strip (warrior). Missing file 404s harmlessly and the
+  // roll falls back to the single-dir clsdash_ strip, then the idle-loop roll (zero regression).
+  for(const k of CLASS_DASH_ANIM){ loadImg("clsdash8_"+k, `./assets/erw/hero/classes/${k}_dash8.png`); }
   // CAS-333 (CAS-301a): 8-direction idle/walk strips for the hooded classes. A missing file
   // 404s harmlessly and drawHeroClass falls back to the single-facing clshero_/clswalk_ path.
   for(const k of CLASS_DIR8_ANIM){ loadImg("clsidle8_"+k, `./assets/erw/hero/classes/${k}_idle8.png`); loadImg("clswalk8_"+k, `./assets/erw/hero/classes/${k}_walk8.png`); }
@@ -499,6 +505,13 @@ export function createRenderer(ctx){
       key="clshurt_"+art; fc=CLASS_HURT_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_HURT_DUR)));
     } else if(state==="attack" && has("clsattack_"+art)){
       key="clsattack_"+art; fc=CLASS_ATTACK_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/Math.max(0.15,CFG.atkCD))));
+    } else if(state==="roll" && has("clsdash8_"+art)){
+      // CAS-345a (CAS-357): 8-DIRECTION dodge-roll dash (warrior). 9f lunge played once across
+      // the roll; row = dash heading bucket (the call site passes ang=atan2(rollY,rollX) during
+      // a roll). Real per-facing art → flip suppressed. Gated FIRST so it wins over the single-
+      // dir clsdash_ strip; non-warrior / missing file falls through to clsdash_ then idle-roll.
+      key="clsdash8_"+art; fc=CLASS_DASH8_FC; rows=8; row=dir8FromAngle(ang||0); flipOff=true;
+      fi=Math.min(fc-1, Math.floor((animT||0)*(fc/Math.max(0.12, CFG.rollTime||0.2))));
     } else if(state==="roll" && has("clsdash_"+art)){
       // CAS-329: dodge-roll dash — play the 8f dash strip once across the roll duration.
       // Gated on the strip so non-warrior classes keep today's idle-loop roll (regression-safe).
