@@ -627,7 +627,7 @@ function killEnemy(e){
     for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-R*0.5,R*0.5),e.y+frr(-R*0.5,R*0.5)); shakeAdd(7); audio.sfx.fire(); } }
   // CAS-317: a rich-anim boss leaves a corpse that plays the DEATH strip one-shot (holds the
   // collapsed final frame) then fades. Presentation-only — rewards/drops already resolved above.
-  if(e.tpl.richAnim){ G.corpses.push({ sprite:e.tpl.sprite, x:e.x, y:e.y, size:e.tpl.size, isBoss:!!e.isBoss,
+  if(e.tpl.richAnim){ G.corpses.push({ sprite:e.tpl.sprite, x:e.x, y:e.y, size:e.tpl.size, isBoss:!!e.isBoss, champion:!!e.champion,
     fl:(e.facing!==undefined)?Math.cos(e.facing)<0:false, gaitPhase:e.gaitPhase||0, t:0 }); }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }

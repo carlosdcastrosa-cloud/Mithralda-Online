@@ -375,6 +375,20 @@ export const ENEMY_STRIPS={
     attack: {key:"demon_attack", fc:6, fw:24, fh:40},
     cast:   {key:"demon_cast",   fc:6, fw:24, fh:40},
   },
+  // CAS-360 (art CAS-356): Quillback Stalker — a STANDARD-size quilled beast (NOT a boss).
+  // 5 PixelLab strips, single-row 64×64, side-view facing RIGHT (flip for left), feet anchored
+  // at the frame bottom. Rendered at the standard mob scale (size*2.4, NO `tiles` key → unlike
+  // the golem/dragon bosses). `richAnim:true` on its ETPL row drives the extended states:
+  // attack1/hurt play ONE-SHOT (synced to e.animT), death plays on the presentation-only corpse.
+  // attack2 aliases the attack strip so a champion/elite heavy still shows the lunge frames.
+  quillback:{
+    idle:    _s(4,"quillback_idle_strip"),
+    walk:    _s(6,"quillback_walk_strip"),
+    attack1: _s(6,"quillback_attack_strip"),
+    attack2: _s(6,"quillback_attack_strip"),
+    hurt:    _s(6,"quillback_hurt_strip"),
+    death:   _s(7,"quillback_death_strip"),
+  },
 };
 // Resolve the best available strip for a mob + animState.
 // Falls back to "walk" strip if the specific state is absent or not yet loaded.

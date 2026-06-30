@@ -218,6 +218,12 @@ export const ETPL = {
   // SAVE_VERSION bump. Stats sit between revenant (bruiser) and mage (caster) so it reads as a
   // standout mini-threat without re-tuning any existing mob (soak-safe, deterministic).
   demon:   {hp:135, dmg:23, spd:72, aggro:330, range:235, windup:0.82, recover:0.72, xp:58, gold:[15,28], sprite:"demon", size:28, knock:110, boss:false, gearChance:0.32, arch:"warlock", projspd:235, proj:"bolt", meleeR:54},
+  // CAS-360 (art CAS-356) — Quillback Stalker: a quilled cave beast. NOT a boss. Combat profile
+  // is a VERBATIM clone of `skeleton` (the plain caves melee — readable windup→strike, no arch),
+  // so dropping it into the caves trash pool adds bestiary variety at the EXACT existing power
+  // band — zero new tuning, no balance shift. Only `sprite` + `richAnim` differ: richAnim drives
+  // the 5 PixelLab strips (idle/walk loop, attack1/hurt one-shot, death corpse — see ENEMY_STRIPS).
+  quillback:{hp:52, dmg:14, spd:86,  aggro:230, range:46, windup:0.6,  recover:0.55, xp:20, gold:[4,9], sprite:"quillback", size:20, knock:120, boss:false, gearChance:0.22, richAnim:true},
 };
 
 // CAS-146 — ELITE AMBUSH / pack event. While the hero is actively fighting inside a hunt

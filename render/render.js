@@ -905,7 +905,9 @@ export function createRenderer(ctx){
   function drawCorpse(c){
     const strip=resolveStrip(c.sprite,"death"); if(!strip) return;
     const img=IMG[strip.key]; if(!img||!img.complete||!img.naturalWidth) return;
-    const fw=strip.fw, fh=strip.fh, dh=(strip.tiles?strip.tiles*32:c.size*3.4), dw=dh*(fw/fh);
+    // CAS-360: a standard richAnim mob (quillback) renders at size*2.4 while alive, so its corpse
+    // must match — only a boss/champion uses the larger 3.4/2.9 mult (the dragon uses strip.tiles).
+    const fw=strip.fw, fh=strip.fh, dh=(strip.tiles?strip.tiles*32:c.size*(c.isBoss?3.4:c.champion?2.9:2.4)), dw=dh*(fw/fh);
     const feetY=c.y+c.size*0.5, fps=8;
     const fi=G.settings.reduceMotion?strip.fc-1:Math.min(Math.floor((c.t||0)*fps),strip.fc-1);
     const LIFE=sim.CORPSE_LIFE||2.6, fade=c.t>LIFE-0.6?clamp((LIFE-c.t)/0.6,0,1):1;
