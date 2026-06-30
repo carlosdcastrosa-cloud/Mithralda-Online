@@ -228,6 +228,22 @@ export const SP = {
     ".oDdddDo...",
     ".oDd.dDo...",
     ".oo...oo..."]},
+  // CAS-360: quillback (Quillback Stalker, art CAS-356). Procedural FALLBACK only — the real
+  // art is the 5 PixelLab strips (idle/walk/attack/hurt/death via ENEMY_STRIPS.quillback); this
+  // spiny quadruped silhouette renders ONLY in the brief asset-load window or if those strips
+  // fail to load (same role SP.wendigo/SP.skel play). Without it the richAnim strip path falls
+  // through to the procedural blit with SP["quillback"]=undefined → a render crash before the
+  // strip downloads. Cold earth palette: bristled body, near-black quills, bone tips, amber eye.
+  quillback: { pal:{o:COL.out,b:"#473d33",B:"#60543f",q:"#1f1b17",Q:"#9a8763",e:"#ffcf4d"}, rows:[
+    "...Q..Q..Q..",
+    "..oqo.oqo.qo",
+    ".oqqqqqqqqqo",
+    "oqBbbbbbbBqo",
+    "obBbbbbbbBeo",
+    "obbbbbbbbbbo",
+    ".obbbbbbbbo.",
+    ".o.o.oo.o.o.",
+    "...o.oo.o..."]},
   // --- town deco (CAS-60): market/city variety, drawn like other SP deco ---
   crate: { pal:{o:COL.out,W:"#5a4230",d:"#2c2925"}, rows:[
     "ooooooo",
