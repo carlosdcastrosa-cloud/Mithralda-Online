@@ -389,6 +389,21 @@ export const ENEMY_STRIPS={
     hurt:    _s(6,"quillback_hurt_strip"),
     death:   _s(7,"quillback_death_strip"),
   },
+  // CAS-363 (art CAS-355 / board CAS-351): Wendigo — a dark antlered wraith-shaman CASTER.
+  // 5 PixelLab strips, single-row 64×64, south-facing, feet anchored at the frame bottom
+  // (global-bbox baked → NO `footPad` needed, confirmed by Art Director). Standard mob scale
+  // (size*2.4, NO `tiles` key → not a boss). `richAnim:true` on its ETPL row drives these
+  // extended states: attack1/hurt play ONE-SHOT (synced to e.animT), death plays on the
+  // presentation-only corpse. attack2 aliases the single attack (staff-raise → purple ring)
+  // strip so a champion/elite still shows the cast frames. Same load/render path as quillback.
+  wendigo:{
+    idle:    _s(7,"wendigo_idle_strip"),
+    walk:    _s(7,"wendigo_walk_strip"),
+    attack1: _s(9,"wendigo_attack_strip"),
+    attack2: _s(9,"wendigo_attack_strip"),
+    hurt:    _s(5,"wendigo_hurt_strip"),
+    death:   _s(9,"wendigo_death_strip"),
+  },
 };
 // Resolve the best available strip for a mob + animState.
 // Falls back to "walk" strip if the specific state is absent or not yet loaded.
