@@ -13,7 +13,7 @@
 // A Stage-2 networking layer wraps sim/ by feeding intents per tick and ignoring
 // render/audio/view — no rewrite of the gameplay logic required.
 // ===========================================================================
-import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave } from "./sim/sim.js";
+import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
@@ -101,7 +101,22 @@ export function createGame(canvas, ctx, getView){
         if(h.slowT>0) out.push({type:"slow", dur:h.slowT}); if(h.stun>0) out.push({type:"stun", dur:h.stun}); return out; })(),
     }, a11y);
   }
-  hud.boot(hudSnapshot);
+  // CAS-336/CAS-337 — make the HUD panels FUNCTIONAL (board CAS-335: "no tiene funciones").
+  // A presentation→intent BRIDGE: panel clicks drive the SAME scene/equip flows a key press
+  // or canvas tap already does. It mutates only G.scene (a UI mode) and calls the existing
+  // sim equipBag() — no new sim/balance/tunable logic, so determinism and the soak signal
+  // stay intact (a click here == pressing I / Esc / equipping in the inventory).
+  const hudActions = {
+    // backpack / paperdoll → toggle the interactive inventory scene (KeyI equivalent)
+    openInventory(){ const h=G.hero; if(!h) return; if(G.scene==="play") G.scene="inventory"; else if(G.scene==="inventory") G.scene="play"; },
+    // gear button → the pause/settings hub (Escape equivalent)
+    openSettings(){ const h=G.hero; if(!h) return; if(G.scene==="play"||G.scene==="inventory") G.scene="pause"; else if(G.scene==="pause") G.scene="play"; },
+    // click a filled backpack cell → equip/swap that item via the existing sim command
+    equipBag(i){ const h=G.hero; if(!h||!h.bag||h.bag[i|0]==null) return; try{ simEquipBag(i|0); }catch(e){} },
+    // is a panel-driven action currently meaningful? (hero present, not in a blocking menu)
+    active(){ return !!(G.hero && (G.scene==="play"||G.scene==="inventory"||G.scene==="pause")); },
+  };
+  hud.boot(hudSnapshot, hudActions);
   // Read API for the analytics.html dashboard + QA harness (own anonymous device data).
   if(typeof window!=="undefined"){ window.__analytics=analytics.dev; window.__daily=daily.dev; }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){

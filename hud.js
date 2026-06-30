@@ -46,6 +46,7 @@ export const hud = (()=>{
   const REFRESH_MS=200;           // light cadence; only ticks while visible
   const ASSET="assets/pixellab/ui/cas286/"; // CEO-approved CAS-286 panels
   let root=null, styleEl=null, on=false, timer=0, booted=false, getState=null, reduce=false;
+  let act={};                     // CAS-337 presentation→intent bridge (openInventory/openSettings/equipBag)
   let drawerOpen=false;           // mobile right-rail drawer state (presentation only)
   const nodes={};                 // cached references to the live-data spans
   const log=[];                   // derived combat-log lines (presentation only)
@@ -88,6 +89,16 @@ export const hud = (()=>{
   };
 
   function mk(tag, css, parent){ const e=document.createElement(tag); if(css) e.style.cssText=css; if(parent) parent.appendChild(e); return e; }
+
+  // CAS-336: open the REAL, functional canvas inventory/equipment modal (CAS-226).
+  // Prefer the game-provided intent bridge (act.openInventory — robust to key rebinds);
+  // else fall back to replaying the default KeyI input the game already handles.
+  // Presentation-only — the HUD never mutates the sim; the canvas modal stays the SINGLE
+  // functional inventory owner (no double-UI, CAS-299).
+  function openInventory(){
+    try{ if(act && typeof act.openInventory==="function"){ act.openInventory(); return; } }catch(e){}
+    try{ window.dispatchEvent(new KeyboardEvent("keydown",{code:"KeyI",key:"i",bubbles:true})); }catch(e){}
+  }
 
   // ---- one <style> block: frames, interaction states (§6), bars, responsive ----
   function injectStyle(){
@@ -170,17 +181,30 @@ export const hud = (()=>{
       // log (§ G)
       "#hud .logln{ font-size:calc(12px*var(--s)); color:"+C.cream+"; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }",
       "#hud .logln.old{ color:"+C.textDim+"; }",
+      // CAS-337 — interactive surfaces: only .act elements catch pointer events (wrapper stays
+      // pointer-events:none so the playfield is free). Hover/focus affordances make them legible.
+      "#hud .act{ pointer-events:auto; cursor:pointer; }",
+      "#hud .p-doll.act:hover, #hud .p-bag.act:hover{ filter:brightness(1.13); }",
+      "#hud .p-doll.act:focus-visible, #hud .p-bag.act:focus-visible{ outline:2px solid "+C.gold+"; outline-offset:2px; }",
+      "#hud .w-bag .slot.eq{ cursor:pointer; }",
+      "#hud .gear{ margin-left:6px; color:"+C.textGold+"; font-size:calc(13px*var(--s)); line-height:1; user-select:none; }",
+      "#hud .gear:hover{ color:"+C.goldL+"; }",
       // drawer toggle button (mobile)
       "#hud .drawerBtn{ position:absolute; top:8px; right:8px; width:44px; height:44px; display:none; align-items:center; justify-content:center;"
         +" pointer-events:auto; background:"+C.panel+"; border:2px solid "+C.gold+"; border-radius:4px; color:"+C.textGold+"; font-size:18px; cursor:pointer; }",
       // ---- responsive (§3) ----
       "@media (max-width:1023px){ #hud .rail{ width:128px !important; } #hud .mini{ height:96px !important; } }",
+      // CAS-337 — on a TOUCH tablet the canvas top-right action buttons (inv/talents/map/pause)
+      // render over the rail's top edge; drop the rail + drawer button below that ~52px button
+      // row so the paperdoll/backpack frames never sit under the canvas buttons.
+      "@media (pointer:coarse) and (min-width:640px){ #hud .rail{ top:64px !important; } #hud .drawerBtn{ top:64px; } }",
       "@media (max-width:639px){",
       "  #hud .stat{ min-width:0 !important; width:min(64vw,220px) !important; }",
       "  #hud .rail{ position:absolute; top:0; bottom:0; right:0; width:170px !important; transform:translateX(112%); transition:transform .18s ease;"
-        +" background:rgba(6,7,10,.92); padding:56px 8px 8px !important; overflow:auto; }",
+        +" background:rgba(6,7,10,.92); padding:108px 8px 8px !important; overflow:auto; }",
       "  #hud.draw .rail{ transform:translateX(0); }",
-      "  #hud .drawerBtn{ display:flex; }",
+      // CAS-337 — clear the canvas top-right button row (~52px) so the drawer toggle never sits on it
+      "  #hud .drawerBtn{ display:flex; top:60px; }",
       "  #hud .bottom{ left:0 !important; right:0 !important; transform:none !important; max-width:100% !important; padding:0 6px; }",
       "  #hud .hotrow{ overflow-x:auto; justify-content:flex-start !important; }",
       "  #hud .slot{ min-width:44px; }",                 // ≥44px touch targets
@@ -224,6 +248,10 @@ export const hud = (()=>{
     nodes.cls=mk("span",null,cap); nodes.cls.className="sub"; nodes.cls.textContent="—";
     nodes.lvl=mk("span","margin-left:auto;color:"+C.textGold+";font-size:calc(12px*var(--s))",cap); nodes.lvl.textContent="Nv —";
     nodes.gold=mk("span",null,cap); nodes.gold.className="gold"; nodes.gold.textContent="0 oro";
+    // CAS-337 — settings gear: opens the pause/settings hub (Escape equivalent). Interactive.
+    nodes.gear=mk("span",null,cap); nodes.gear.className="gear act"; nodes.gear.textContent="⚙";
+    nodes.gear.title="Ajustes / pausa"; nodes.gear.setAttribute("role","button"); nodes.gear.setAttribute("aria-label","Abrir ajustes");
+    nodes.gear.onclick=()=>{ try{ act.openSettings&&act.openSettings(); }catch(e){} };
     nodes.portrait=null; // skull portrait is baked into the panel art now
 
     // ===== B — Status chips (under vitals) =====
@@ -240,10 +268,33 @@ export const hud = (()=>{
     // avoid a double-minimap. The rail reuses ONLY the Tibia equip/inventory mirror.
     const rail=mk("div", ["position:absolute","right:12px","top:12px","width:172px","display:flex","flex-direction:column","gap:10px","align-items:flex-end"].join(";"), root);
     rail.className="rail";
-    const doll=mk("div",null, rail); doll.className="p-doll";
+    const doll=mk("div",null, rail); doll.className="p-doll act";
     nodes.equip=mk("div","display:flex;flex-direction:column;gap:calc(3px*var(--s))", doll); nodes.equip.className="w-doll";
-    const bag=mk("div",null, rail); bag.className="p-bag";
+    const bag=mk("div",null, rail); bag.className="p-bag act";
     nodes.inv=mk("div","display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(6,1fr);gap:0", bag); nodes.inv.className="w-bag";
+    // CAS-336 + CAS-337 — FUNCTIONAL panels (board CAS-335 "no tiene funciones / sin
+    // función"): these right-rail mirrors used to be pure decoration (the wrapper is
+    // pointer-events:none, so clicks fell through to the canvas and cast a spell). Now
+    // paperdoll + backpack OPEN the interactive inventory scene, and a click on a FILLED
+    // backpack cell equips/swaps that item. Presentation→intent only: a click drives the
+    // SAME scene/equip flow a key press already does — via the act bridge, with a KeyI
+    // keypress FALLBACK — so the canvas inventory stays the single functional owner (no
+    // double-UI, CAS-299) and the sim/soak signal is untouched. pointer-events:auto only
+    // on these two frames; the wrapper stays click-through so it never eats a move/attack
+    // tap (CAS-279 soak contract). A SINGLE click handler (onclick) avoids a double-toggle.
+    for(const p of [doll, bag]){ p.style.pointerEvents="auto"; p.style.cursor="pointer";
+      p.setAttribute("role","button"); p.setAttribute("tabindex","0");
+      p.onclick=openInventory;
+      p.addEventListener("keydown",(ev)=>{ if(ev.key==="Enter"||ev.key===" "){ ev.preventDefault(); openInventory(); } }); }
+    doll.title="Equipo — abrir inventario (I)"; doll.setAttribute("aria-label","Abrir equipo / inventario");
+    bag.title="Mochila — abrir inventario · clic en un objeto para equiparlo"; bag.setAttribute("aria-label","Abrir mochila / inventario");
+    // click a FILLED backpack cell → equip/swap via the existing sim command. Only consume
+    // (stopPropagation) the click when the bridge is present; otherwise it bubbles to the
+    // panel onclick above and opens the inventory instead (graceful degradation).
+    nodes.inv.onclick=(e)=>{ const cell=e&&e.target&&e.target.closest&&e.target.closest(".slot"); if(!cell) return;
+      const idx=Array.prototype.indexOf.call(nodes.inv.children, cell);
+      if(idx>=0 && cell.classList.contains("eq") && act && typeof act.equipBag==="function"){
+        e.stopPropagation(); try{ act.equipBag(idx); }catch(_){} paint(); } };
 
     // ===== Bottom-left: G console (combat log) — full PixelLab console panel =====
     // CAS-299 cutover: the legacy on-canvas SPELL BAR (bottom-centre, with real cooldowns +
@@ -253,6 +304,7 @@ export const hud = (()=>{
     bottom.className="bottom";
     const con=mk("div",null, bottom); con.className="p-con";
     nodes.log=mk("div","display:flex;flex-direction:column;gap:1px;justify-content:flex-end", con); nodes.log.className="w-con";
+    if(!log.length) log.push("Bienvenido a Mithralda"); // CAS-337 — console is never blank; combat events append live
 
     document.body.appendChild(root);
     applyScale();
@@ -299,6 +351,15 @@ export const hud = (()=>{
   function paint(){
     if(!on||!root) return;
     let s=null; try{ s=getState?getState():null; }catch(e){ s=null; }
+    // CAS-336: the HUD overlay is the IN-PLAY surface only. Every other scene draws its
+    // OWN full-screen UI — the menu / class-select, and especially the canvas modals
+    // (inventory · forge · talents · mastery · customize · shop · bounty · dialogue ·
+    // pause). Leaving the overlay up there stacked the right-rail EQUIPO/MOCHILA frames
+    // on top of the inventory modal → the board's "paneles sobrepuestos". Hide the whole
+    // overlay unless scene==="play"; restore it the instant we return to play.
+    const inPlay = !!(s && s.scene==="play");
+    root.style.visibility = inPlay ? "visible" : "hidden";
+    if(!inPlay){ prev = s||null; return; }
     const cb = !!(s&&s.colorblind);
     const rm = !!(s&&s.reduceMotion); root.classList.toggle("rm", rm);
     const cue = (it)=>{ const r=it&&(it.rarity|0); if(!cb||!r) return ""; const g=RARITY_CUE[Math.min(4,r)]; return g?(g+" "):""; };
@@ -347,9 +408,10 @@ export const hud = (()=>{
   // default ON. Escape hatches: `?nohud` (or `?hud=0`) force it off; `__hud.hide()` (which
   // persists "0") lets a player opt out durably. The HUD never reads input or mutates the
   // sim — only its presentation changes, so the Stage-1 retention soak signal stays clean.
-  function boot(getStateFn){
+  function boot(getStateFn, actions){
     if(booted || typeof window==="undefined") return; booted=true;
     getState = typeof getStateFn==="function" ? getStateFn : (()=>null);
+    act = actions && typeof actions==="object" ? actions : {}; // CAS-337 click→intent bridge
     try{ const s0=getState&&getState(); reduce=!!(s0&&s0.reduceMotion); }catch(e){ reduce=false; }
     let flag=null; // explicit URL override: true=force on, false=force off, null=unspecified
     try{ const p=new URLSearchParams(location.search);
