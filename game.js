@@ -210,6 +210,8 @@ export function createGame(canvas, ctx, getView){
       statusOf:(who)=>simDev.statusOf(who), applyStatusTo:(who,type,opt)=>simDev.applyStatusTo(who,type,opt),
       weaponProcs:()=>simDev.weaponProcs(), giveBurnWeapon:(amt)=>simDev.giveBurnWeapon(amt),
       statusArena:(type,dx,dy)=>simDev.statusArena(type,dx,dy), heroHit:()=>simDev.heroHit(),
+      // CAS-383 inter-zone boon-draft contract consumed by tools/cas383-*.mjs — additive
+      boons:()=>simDev.boons(), openDraft:()=>simDev.openDraft(), pickBoon:(i)=>simDev.pickBoon(i), grantBoon:(id)=>simDev.grantBoon(id),
       // CAS-169 character-customization contract consumed by tools/cas169-customize.mjs — additive
       customizeState:()=>simDev.customizeState(), setPartColor:(s,c)=>simDev.setPartColor(s,c),
       cycleVariation:(k,d)=>simDev.cycleVariation(k,d), resetCustomize:()=>simDev.resetCustomize(),

@@ -607,3 +607,35 @@ export const CUSTOMIZE = {
     priest:  { hood: [225, 222, 210], cloak: [225, 222, 210], sash: [220, 185, 90], legs: [40, 40, 46] },
   },
 };
+
+// ------------------------ CAS-383: INTER-ZONE BOON DRAFT --------------------
+// Roguelite build-variety layer. On each zone champion clear the player DRAFTS one
+// of three boons; picks STACK for the rest of the run and RESET on death/new run
+// (see sim.recalcBoons / respawn). Pure data — every effect folds into an EXISTING
+// combat chokepoint through the cached h.bb bundle, so no per-frame branching and the
+// no-boon baseline stays byte-identical.
+//
+// Fold semantics (sim.recalcBoons): additive fields SUM across owned copies; the two
+// multiplier fields (hpMul / moveMul) MULTIPLY; onKillHaste takes the max. Duplicates
+// deepen a build. `cat` = offense|defense|utility (draft/label grouping). `glyph` is a
+// procedural icon (no art spend). All numbers are TUNABLE — the clamps in recalcBoons
+// are the balance guardrail (AC #5); flag here if a value distorts the curve.
+export const BOONS = [
+  // ---- offense ----
+  { id:"glass",  cat:"offense", glyph:"✷", name:"Cristal Frágil",    desc:"+25% prob. de crítico, pero −22% vida máxima.", crit:25, hpMul:0.78 },
+  { id:"ember",  cat:"offense", glyph:"🔥", name:"Sangre de Brasa",   desc:"Tus golpes prenden fuego: convierten daño en quemadura.", burn:0.35 },
+  { id:"venom",  cat:"offense", glyph:"☣", name:"Toque Ponzoñoso",   desc:"Tus golpes envenenan: convierten daño en veneno.", poison:0.35 },
+  { id:"arc",    cat:"offense", glyph:"⟿", name:"Eco Arcano",        desc:"Tus proyectiles saltan a +1 enemigo cercano.", chain:1 },
+  // ---- defense ----
+  { id:"thorns", cat:"defense", glyph:"✵", name:"Coraza de Espinas", desc:"Refleja 40% del daño recibido al atacante.", reflect:0.40 },
+  { id:"stone",  cat:"defense", glyph:"❑", name:"Piel de Piedra",    desc:"+22% vida máxima y +6 de defensa.", hpMul:1.22, defAdd:6 },
+  { id:"vamp",   cat:"defense", glyph:"♥", name:"Sed de Sangre",     desc:"Roba 14% de la vida al golpear cuerpo a cuerpo.", lifesteal:0.14 },
+  // ---- utility ----
+  { id:"swift",  cat:"utility", glyph:"➹", name:"Viento Veloz",      desc:"+16% velocidad y mayor ventana de esquiva.", moveMul:1.16, iframeAdd:0.06 },
+  { id:"reaper", cat:"utility", glyph:"☠", name:"Cosecha Sangrienta",desc:"Al matar: cura breve y ráfaga de prisa.", onKillHeal:0.04, onKillHaste:2.5 },
+  { id:"greed",  cat:"utility", glyph:"◈", name:"Codicia",           desc:"El botín cae con mayor rareza.", loot:0.7 },
+];
+export const BOON_MAP = (()=>{ const m={}; for(const b of BOONS) m[b.id]=b; return m; })();
+// How many cards a draft offers, and the localized category labels for the panel.
+export const BOON_DRAFT_N = 3;
+export const BOON_CAT_LABEL = { offense:"Ofensiva", defense:"Defensa", utility:"Utilidad" };

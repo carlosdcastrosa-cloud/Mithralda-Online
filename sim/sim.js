@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_DRAFT_N } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -78,6 +78,9 @@ export const G = {
   // (filled by settings.boot()). All settings are presentation-only — Stage-2 safe.
   cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:true, rollAim:false, reduceMotion:false, colorblind:false, binds:null},
   quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0, bountySel:0,
+  // CAS-383: live boon-draft state. null except while the "draft" scene is up: {choices:[ids],
+  // sel, source}. draftSel mirrors the highlighted card for kbd/pad nav. Transient (never saved).
+  draft:null, draftSel:0,
   // CAS-146 — elite-ambush event clock: `t` counts down only while the hero is fighting in a
   // hunt zone; `active` is true from an ambush firing until its elite is cleared (auto-recovers).
   ambush:{t:AMBUSH.first, active:false},
@@ -157,6 +160,11 @@ function newHero(name,cls){
     // talentPts = unspent points (1 granted per level in gainXP). tt = the CACHED
     // aggregated combat bundle (recalcTalents) read by the hot path with no alloc.
     talents:{}, talentPts:0, tt:zeroTT(),
+    // CAS-383: inter-zone BOON DRAFT — per-RUN roguelite build layer. `boons` is the
+    // ordered list of drafted boon ids (stacks, duplicates deepen); `bb` is the cached
+    // aggregate bundle (recalcBoons) read by the hot combat paths with no alloc. Reset on
+    // death / new run (respawn), persisted additively so a same-run reload keeps them.
+    boons:[], bb:zeroBB(),
     // gear: 3 equipped slots (instances by id) + a bag of loose instances. Stats
     // are resolved from data (sim/gear.js), never stored — see equippedDmg/Def.
     equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
@@ -203,6 +211,59 @@ function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
 //   champ   — the live Champion entity while it is summoned (null otherwise)
 //   cleared — zone payoff already claimed (stops further tracking)
 function initHunts(){ const o={}; for(const z in HUNTS) o[z]={kills:0, champ:null, cleared:false}; return o; }
+
+// ------------------------ CAS-383: BOON DRAFT ------------------------------
+// Aggregate the drafted boons (BOONS data, config.js) into ONE cached bundle read by the
+// hot combat paths. Additive fields SUM; the two multiplier fields MULTIPLY; onKillHaste
+// takes the max. All totals are CLAMPED here — this is the balance guardrail (AC #5): a
+// stack can deepen a build but never trivialize the game (guaranteed-crit / infinite-heal
+// loops are capped). A boonless hero yields the zero bundle → every hook is a no-op → the
+// combat baseline is byte-identical. Called on draft pick + on save load.
+function zeroBB(){ return { crit:0, hpMul:1, moveMul:1, defAdd:0, iframeAdd:0, lifesteal:0, reflect:0,
+  onKillHeal:0, onKillHaste:0, burn:0, poison:0, chain:0, loot:0 }; }
+function recalcBoons(h){ if(!h) return; const bb=zeroBB(); const list=h.boons||[];
+  for(const id of list){ const b=BOON_MAP[id]; if(!b) continue;
+    bb.crit+=b.crit||0; bb.defAdd+=b.defAdd||0; bb.iframeAdd+=b.iframeAdd||0;
+    bb.lifesteal+=b.lifesteal||0; bb.reflect+=b.reflect||0;
+    bb.onKillHeal+=b.onKillHeal||0; bb.onKillHaste=Math.max(bb.onKillHaste,b.onKillHaste||0);
+    bb.burn+=b.burn||0; bb.poison+=b.poison||0; bb.chain+=b.chain||0; bb.loot+=b.loot||0;
+    if(b.hpMul) bb.hpMul*=b.hpMul; if(b.moveMul) bb.moveMul*=b.moveMul; }
+  // guardrail clamps — keep every stacked total on-curve (see config BOONS note)
+  bb.crit=Math.min(bb.crit,60);          // never guaranteed-crit from boons alone
+  bb.lifesteal=Math.min(bb.lifesteal,0.5);
+  bb.reflect=Math.min(bb.reflect,1.5);
+  bb.onKillHeal=Math.min(bb.onKillHeal,0.10);
+  bb.chain=Math.min(bb.chain,3);
+  bb.loot=Math.min(bb.loot,2.5);
+  bb.hpMul=Math.max(0.5,Math.min(bb.hpMul,2.5));
+  bb.moveMul=Math.min(bb.moveMul,1.6);
+  h.bb=bb;
+  const m=heroMaxHp(h); if(h.hp>m) h.hp=m; // a -maxHP pick must not leave HP over the new cap
+}
+// Sanitize an untrusted persisted boon list into legal ids (drop unknowns; cap length so a
+// corrupt blob can't bloat the bundle). Order preserved. Mirrors sanitizeTalents.
+function sanitizeBoons(arr){ const out=[]; if(!Array.isArray(arr)) return out;
+  for(const id of arr){ if(BOON_MAP[id]) out.push(id); if(out.length>=40) break; } return out; }
+export function bbLoot(){ return (G.hero&&G.hero.bb)?G.hero.bb.loot:0; } // Codicia luck for rollGearInst
+
+// Open the 3-card draft after a zone champion clear. Picks BOON_DRAFT_N DISTINCT boons off
+// the sim RNG (deterministic / Stage-2-ready). Owned boons stay eligible (re-drafting a boon
+// deepens the build). Pauses into the "draft" scene; input.js/render.js own the card UI.
+function openDraft(source){ const h=G.hero; if(!h) return;
+  const pool=BOONS.slice(); const picks=[]; const n=Math.min(BOON_DRAFT_N,pool.length);
+  for(let i=0;i<n;i++){ const idx=Math.floor(srand()*pool.length); picks.push(pool.splice(idx,1)[0].id); }
+  G.draft={ choices:picks, sel:0, source:source||"" }; G.draftSel=0; G.scene="draft";
+  audio&&audio.sfx&&audio.sfx.levelup&&audio.sfx.levelup();
+}
+// Apply the chosen card: push the boon (stacking), rebuild the bundle, resume play.
+export function pickBoon(i){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="draft") return false;
+  const id=d.choices[i]; const b=id&&BOON_MAP[id]; if(!b) return false;
+  h.boons.push(id); recalcBoons(h);
+  floater(h.x,h.y-40,b.glyph+" "+b.name,"#ffd24d",{pop:1.5,life:1.3});
+  addFx&&addFx("buffaura",h.x,h.y,{col:"#ffd24d",life:0.6});
+  G.draft=null; G.scene="play";
+  return true;
+}
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
 export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; G.scene="play"; G.started=true;
@@ -299,6 +360,10 @@ export function serializeSave(){
     kills:h.kills||0, champKills:h.champKills||0,
     // CAS-375: persist the per-type tally so directed bounties survive reloads (additive).
     killsByType:h.killsByType||{},
+    // CAS-383: persist the CURRENT-run drafted boons so a same-run reload keeps the build.
+    // Additive — old saves lack it → empty list → zero bundle. A death/new run wipes them
+    // (respawn/createHero), so a fresh run never inherits a prior run's boons.
+    boons:(h.boons||[]).slice(),
     // CAS-149: durable lifetime elite-kill counter → Elite-Mastery rank. Additive (old
     // saves lack it → default 0 → rank 0), so no SAVE_VERSION bump / progress wipe. The
     // permanent +maxHp granted at each rank-up is already baked into the saved maxHp above,
@@ -345,6 +410,7 @@ export function loadSave(d){
     // CAS-375: rehydrate per-type tally (sanitized to non-negative ints; absent in old saves → {}).
     h.killsByType={}; if(d.killsByType && typeof d.killsByType==="object"){ for(const k in d.killsByType){ const v=Math.max(0,Math.floor(num(d.killsByType[k],0))); if(v>0) h.killsByType[k]=v; } }
     h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
+    h.boons=sanitizeBoons(d.boons); recalcBoons(h); // CAS-383: rehydrate current-run boons (validated ids) + rebuild bundle BEFORE heroMaxHp reads it
     h.palette=sanitizePalette(d.palette, h.cls); h.variation=sanitizeVariation(d.variation); // CAS-169 cosmetics (validated, class-default fallback)
     recalcMastery(h);  // CAS-150: rebuild the reward-track perk bundle from the loaded count BEFORE heroMaxHp reads it
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
@@ -492,6 +558,7 @@ function heroAttack(){
 }
 function applyHeroMelee(){
   const h=G.hero; const cfg=h._mcfg||ATK.warrior; const dmg=equippedDmg(h)*cfg.dmgMul;
+  heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
     const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range+e.tpl.size) continue;
@@ -503,7 +570,12 @@ function applyHeroMelee(){
       addFx("slashArc",e.x,e.y,{ang:h.atkAng,life:0.2});
     }
   }
+  heroMeleeHit=false; // CAS-383: disarm — subsequent ranged/spell hits must not leech
 }
+// CAS-383: set true only across the melee-swing loop (applyHeroMelee), so the Sed de Sangre
+// lifesteal boon leeches on melee connects but not on ranged/spell hits (all of which also
+// funnel through hitEnemy). Module-scoped, reset immediately after the loop.
+let heroMeleeHit=false;
 function hitEnemy(e,dmg,ang){
   // CAS-117: the "on-hit ligero" affix — a small flat bonus folded into EVERY
   // hero-sourced hit (melee/nova/proj/spell all funnel here). hitEnemy is the
@@ -513,6 +585,7 @@ function hitEnemy(e,dmg,ang){
   // RNG is consumed ONLY when the build actually has the stat, so a talentless hero
   // (smoke/determinism baseline) leaves the sequence byte-identical.
   const tt=G.hero?G.hero.tt:null;
+  const bb=G.hero?G.hero.bb:null; // CAS-383: cached boon bundle
   // CAS-121: a boss under its frost CARAPACE is damage-IMMUNE. The hit still funnels the
   // same on-hit STATUS procs (so a build that applies veneno/quemadura/aturdir SHATTERS
   // the shield — applyStatus flags it), but all damage/knock/crit is skipped and an
@@ -535,7 +608,7 @@ function hitEnemy(e,dmg,ang){
   // Crit chance = talents + the "Instinto Asesino" milestone (mk.crit). RNG is consumed only
   // when the combined chance is >0, so a fresh hero (no talents, no milestones) stays byte-
   // identical for the determinism baseline.
-  const critPct=(tt?tt.crit:0)+(mk?(mk.crit||0):0);
+  const critPct=(tt?tt.crit:0)+(mk?(mk.crit||0):0)+(bb?bb.crit:0); // CAS-383: Cristal Frágil crit
   let crit=false, riposted=false;
   // CAS-210: a live RIPOSTE window (armed by a perfect dodge) converts THIS hit into a
   // guaranteed crushing counter — forced crit × riposteMult — and is spent immediately. No
@@ -548,6 +621,17 @@ function hitEnemy(e,dmg,ang){
   // hero hit (post-crit, so even a crit is blunted) — a damage-soak that makes it a tankier kill.
   { const af=e.affix&&MOB_AFFIX[e.affix]; if(af&&af.dmgReduce) dmg=Math.max(1,dmg*(1-af.dmgReduce)); }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
+  // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
+  // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
+  // poison DoT (reuses applyStatus → the existing status stack/feedback). Sed de Sangre leeches
+  // on MELEE connects only (heroMeleeHit flag). All deterministic (no srand).
+  if(bb){
+    if(bb.burn>0)   applyStatus(e,"burn",  {dmg:Math.max(1,Math.round(dmg*bb.burn))});
+    if(bb.poison>0) applyStatus(e,"poison",{dmg:Math.max(1,Math.round(dmg*bb.poison))});
+    if(heroMeleeHit && bb.lifesteal>0){ const h=G.hero; const mhp=heroMaxHp(h);
+      if(h.hp<mhp){ const heal=Math.max(1,Math.round(dmg*bb.lifesteal)); h.hp=Math.min(mhp,h.hp+heal);
+        floater(h.x,h.y-30,"+"+heal,"#ff5d8a",{small:true}); } }
+  }
   // CAS-317: a rich-anim boss (dragon) plays a brief one-shot HURT flinch on a non-lethal
   // hit. Suppressed mid-attack (the animState resolver never overrides windup/strike) so a
   // committed swing reads through, and skipped on the killing blow (death takes over).
@@ -598,6 +682,14 @@ function killEnemy(e){
     // CAS-375: per-type tally for directed bounties. e.type is the base mob key (a champion/
     // capstone keeps its base type, e.g. a dragon capstone counts as a "dragon" kill).
     if(e.type){ const kt=G.hero.killsByType||(G.hero.killsByType={}); kt[e.type]=(kt[e.type]|0)+1; } }
+  // CAS-383: Cosecha Sangrienta boon — a real (non-neutral) kill grants a small % max-HP heal
+  // and a brief attack-haste ráfaga. onKillHeal is clamped low (recalcBoons) so a fast clear
+  // never becomes an infinite-sustain loop; haste rides the existing atkspd buff sink (which is
+  // itself ATKSPD_TOTAL_CAP-capped at the swing formula). Deterministic (no RNG).
+  { const h=G.hero, bb=h&&h.bb; if(h&&!h.dead&&!tpl.neutral&&bb&&(bb.onKillHeal>0||bb.onKillHaste>0)){
+      if(bb.onKillHeal>0){ const mhp=heroMaxHp(h); if(h.hp<mhp){ const heal=Math.max(1,Math.round(mhp*bb.onKillHeal));
+        h.hp=Math.min(mhp,h.hp+heal); floater(h.x,h.y-30,"+"+heal,"#5fd66a",{small:true}); } }
+      if(bb.onKillHaste>0){ h.atkspdBuffT=Math.max(h.atkspdBuffT,bb.onKillHaste); h.atkspdBuffAmt=Math.max(h.atkspdBuffAmt,35); } } }
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
     noteEliteKill(); // CAS-149: the final boss is an elite-class kill → feeds Elite Mastery
@@ -725,7 +817,11 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   toast(STR.huntCleared(zone),3.6);
   for(let i=0,n=rmCount(e.capstone?16:10);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
   // CAS-123: the FINAL boss (data flag) closes the Stage-1 arc → victory screen.
+  // CAS-383: any OTHER zone champion clear is a run milestone → offer the inter-zone boon
+  // draft (paused "draft" scene). The final boss goes to victory instead (run is over), so
+  // the two are mutually exclusive and never fight over the scene.
   if(e.final) winStage1();
+  else openDraft(zone);
 }
 
 // CAS-123 — Stage-1 victory. Fires once, when the final capstone dies. Snapshots the
@@ -1110,7 +1206,9 @@ function heroDie(){
   else if(h.blessings>0){ h.blessings--; }
 }
 export function respawn(){
-  const h=G.hero; h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
+  const h=G.hero;
+  if(h.boons&&h.boons.length){ h.boons.length=0; } recalcBoons(h); // CAS-383: death ends the run → wipe drafted boons BEFORE heroMaxHp reads the reset pool
+  h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
 }
@@ -1302,7 +1400,7 @@ function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n
 export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
   else { const mv=io.moveVec(); if(mv[0]===0&&mv[1]===0){ ax=Math.cos(h.facing); ay=Math.sin(h.facing);} else {[ax,ay]=mv;} }
-  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=CFG.rollIFrame; h.rollCD=CFG.rollCD; h.rollX=ax; h.rollY=ay; audio.sfx.roll(); }
+  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=CFG.rollIFrame+((h.bb&&h.bb.iframeAdd)||0); h.rollCD=CFG.rollCD; h.rollX=ax; h.rollY=ay; audio.sfx.roll(); } // CAS-383: Viento Veloz widens the dodge window
 
 // ====================================================================
 //  UPDATE  — advances the simulation one fixed step. No ctx, no DOM.
@@ -1361,7 +1459,7 @@ export function update(dtMs){
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
   else { const mv=io.moveVec(); const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
-    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow; // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov
+    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz
     h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
@@ -1785,6 +1883,13 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // slow). It only lands when the hit lands — dodging the telegraph (i-frames above) skips
   // it entirely, so reading the tell avoids BOTH the damage and the state. AC #3.
   if(infl && infl.type) applyStatus(h, infl.type, infl);
+  // CAS-383: Coraza de Espinas boon — reflect a fraction of the damage TAKEN back to the melee
+  // attacker (`src`, present for contact hits; ranged bolts pass none). Routes the retaliation
+  // through hitEnemy so it crits/procs/kills exactly like any other hero hit. A dodged/i-framed
+  // blow returned above → no reflect (reading the tell denies it), keeping thorns non-degenerate.
+  if(src && src.hp>0 && !src.dead && h.bb && h.bb.reflect>0){
+    const rd=Math.max(1,real*h.bb.reflect); const ra=Math.atan2(src.y-h.y,src.x-h.x);
+    addFx("spark",src.x,src.y); hitEnemy(src,rd,ra); }
   // CAS-247 VAMPIRIC affix: when an affixed elite LANDS a hit, it leeches a fixed fraction of
   // its OWN maxHp — heals only on a connect (a dodged/i-framed hit returned above, so reading
   // the tell denies the lifesteal too). A red tick reads "it fed". Deterministic (no RNG).
@@ -1803,6 +1908,15 @@ function updateProjectiles(dt){ const h=G.hero;
       const aoe=p.aoe||((p.kind==="fire"||p.kind==="orb")?46:0); // basic fire/orb keep their legacy splash; spells carry their own aoe
       if(aoe){ addFx(p.burstFx||(p.kind==="orb"?"orbburst":"flame"),p.x,p.y,{life:0.45,col:p.col,r:aoe}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<aoe*aoe){ hitEnemy(e2,p.dmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); if(p.infl) applyStatus(e2,p.infl.type,p.infl); } } }
       else addFx(p.burstFx||"impact",p.x,p.y,{ang:ha,col:p.col,life:0.3});
+      // CAS-383: Eco Arcano boon — a HERO projectile (`!p.enemy`) arcs to up to bb.chain nearest
+      // OTHER enemies, dealing 60% dmg + carrying the same status. Bounded search (capped jumps,
+      // 130px range, visited set) → soak-safe, no infinite loop, no per-frame alloc when chain=0.
+      const cbb=(!p.enemy&&G.hero)?G.hero.bb:null;
+      if(cbb&&cbb.chain>0){ let jumps=cbb.chain; const CR2=130*130; const seen=new Set([e]);
+        while(jumps-->0){ let best=null,bd=CR2;
+          for(const e3 of G.enemies){ if(e3.dead||seen.has(e3)) continue; const dd=dist2(p.x,p.y,e3.x,e3.y); if(dd<bd){ bd=dd; best=e3; } }
+          if(!best) break; seen.add(best); addFx("spark",best.x,best.y); addFx("impact",best.x,best.y,{ang:Math.atan2(best.y-p.y,best.x-p.x),col:p.col,life:0.22});
+          hitEnemy(best,p.dmg*0.6,Math.atan2(best.y-p.y,best.x-p.x)); if(p.infl) applyStatus(best,p.infl.type,p.infl); } }
       shakeAdd(3); p.life=0; break; } } }
     if(p.life<=0){ if(p.kind==="fire") addFx("flame",p.x,p.y); else if(p.kind==="orb") addFx("orbburst",p.x,p.y,{life:0.45}); }
   }
@@ -1835,6 +1949,19 @@ export const dev = {
   hitBoss(n){ const b=G.enemies.find(e=>e.isBoss); if(!b) return null;
     hitEnemy(b, Math.max(1, n|0)||50, Math.PI);
     const a=this.bossAnim(); return { hpAfter:b.hp>0?Math.round(b.hp):0, dead:!!b.dead, corpses:a.corpses, animState:b.animState }; },
+  // --- CAS-383 boon-draft harness hooks (tools/cas383-*.mjs); additive, read/drive the REAL paths ---
+  // Read the live boon state: owned list, aggregate bundle, effective maxHp (folds hpMul), and
+  // the open draft's choices (or null). Pure read — proves stacking + the draft panel's model.
+  boons(){ const h=G.hero; if(!h) return null; return { list:(h.boons||[]).slice(), bb:Object.assign({},h.bb),
+    maxHp:heroMaxHp(h), scene:G.scene, draft:G.draft?{choices:G.draft.choices.slice(),sel:G.draft.sel,source:G.draft.source}:null }; },
+  // Force-open a draft (bypasses needing a champion kill) so the QA gate can drive the panel
+  // deterministically. Uses the REAL openDraft (same RNG pick + scene + pause).
+  openDraft(){ openDraft("dev"); return G.draft?G.draft.choices.slice():null; },
+  // Pick a card through the REAL pickBoon path (push + recalcBoons + resume). Returns the new state.
+  pickBoon(i){ const ok=pickBoon(i|0); return { ok, list:(G.hero.boons||[]).slice(), bb:Object.assign({},G.hero.bb), scene:G.scene }; },
+  // Grant a boon by id directly (stack testing without the panel). Real recalcBoons.
+  grantBoon(id){ const h=G.hero; if(!h||!BOON_MAP[id]) return null; h.boons.push(id); recalcBoons(h);
+    return { list:h.boons.slice(), bb:Object.assign({},h.bb), maxHp:heroMaxHp(h) }; },
   // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
   customizeState(){ return customizeState(); },
   setPartColor(slot,color){ return setPartColor(slot,color); },

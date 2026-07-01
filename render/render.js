@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
@@ -260,6 +260,7 @@ export function createRenderer(ctx){
     if(G.scene==="shop") renderShop();
     if(G.scene==="forge") renderForge(); // CAS-237 equipment forge
     if(G.scene==="bounty") renderBounty();
+    if(G.scene==="draft") renderDraft(); // CAS-383 inter-zone boon draft
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
     if(G.scene==="victory") renderVictory();
@@ -1701,6 +1702,65 @@ export function createRenderer(ctx){
     ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(label, cx+cw/2, cy+16);
     ctx.textAlign="left";
     if(on) ui.bountyRects.push({x:cx,y:cy,w:cw,h:ch,act});
+  }
+
+  // CAS-383: the INTER-ZONE BOON DRAFT panel. Appears on the "draft" scene after a zone
+  // champion clear — three cards, pick one build-modifying boon for the rest of the run.
+  // Pure view over G.draft (choices) + G.hero.boons (the active stack); the only state
+  // change is the pick, routed through sim.pickBoon via ui.draftRects (tap) / input keys.
+  // Reuses the shared panel() Tibia frame + COL palette + Courier idiom (no art spend).
+  function boonCatCol(cat){ return cat==="offense"?"#ff7a5d":cat==="defense"?"#7fb2ff":"#8be07a"; }
+  function renderDraft(){ const d=G.draft; ui.draftRects=[]; if(!d){ return; }
+    const h=G.hero; const choices=d.choices||[];
+    const bw=Math.min(VW*0.94,660), bh=Math.min(VH*0.9,460), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 19px 'Courier New'"; ctx.fillText(STR.draftTitle,VW/2,y+30);
+    // subtitle: left-aligned wrap inside the frame + smaller font on narrow panels, so it
+    // never bleeds past the border on a phone-portrait canvas.
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font=(bw<520?"10px":"12px")+" 'Courier New'"; wrapText(STR.draftSub,x+20,y+48,bw-40,14);
+
+    const sel=Math.max(0,Math.min(choices.length-1,(G.draftSel||0)));
+    const wide=bw>=560; // wide → 3 columns, narrow → 3 stacked rows (mobile-safe)
+    const top=y+(wide?64:78), botH=54; // reserve a footer strip for the active-boon readout (extra top gap when the subtitle wraps)
+    if(wide){
+      const gap=14, cw=(bw-40-gap*(choices.length-1))/choices.length, ch=bh-64-botH-20, cx0=x+20;
+      for(let i=0;i<choices.length;i++){ const b=BOON_MAP[choices[i]]; if(!b) continue;
+        const cx=cx0+i*(cw+gap), cy=top; const on=i===sel; const cc=boonCatCol(b.cat);
+        ctx.fillStyle=on?"#2c3446":"#20262f"; ctx.fillRect(cx,cy,cw,ch);
+        ctx.strokeStyle=on?COL.textGold:"#3a4150"; ctx.lineWidth=on?2:1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
+        ctx.fillStyle=cc; ctx.fillRect(cx,cy,cw,4); // category color bar
+        ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="30px 'Courier New'"; ctx.fillText(b.glyph, cx+cw/2, cy+46);
+        ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(b.name, cx+cw/2, cy+72);
+        ctx.fillStyle=cc; ctx.font="11px 'Courier New'"; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), cx+cw/2, cy+90);
+        ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; wrapText(b.desc, cx+12, cy+112, cw-24, 16);
+        ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), cx+cw/2, cy+ch-12);
+        ui.draftRects.push({x:cx,y:cy,w:cw,h:ch,idx:i});
+      }
+    } else {
+      const rh=Math.min(96,(bh-64-botH-20)/choices.length-8), rw=bw-40, rx=x+20;
+      for(let i=0;i<choices.length;i++){ const b=BOON_MAP[choices[i]]; if(!b) continue;
+        const ry=top+i*(rh+8); const on=i===sel; const cc=boonCatCol(b.cat);
+        ctx.fillStyle=on?"#2c3446":"#20262f"; ctx.fillRect(rx,ry,rw,rh);
+        ctx.strokeStyle=on?COL.textGold:"#3a4150"; ctx.lineWidth=on?2:1; ctx.strokeRect(rx+0.5,ry+0.5,rw,rh);
+        ctx.fillStyle=cc; ctx.fillRect(rx,ry,4,rh);
+        ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="28px 'Courier New'"; ctx.fillText(b.glyph, rx+34, ry+rh/2+8);
+        ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(b.name+"  ", rx+62, ry+22);
+        ctx.fillStyle=cc; ctx.font="10px 'Courier New'"; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), rx+62, ry+38);
+        ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; wrapText(b.desc, rx+62, ry+56, rw-172, 15);
+        ctx.textAlign="right"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), rx+rw-14, ry+rh/2+4);
+        ui.draftRects.push({x:rx,y:ry,w:rw,h:rh,idx:i});
+      }
+    }
+    // active-boon readout — the run's accumulating stack (glyphs), so builds read as they diverge
+    const owned=(h&&h.boons)||[]; const fy=y+bh-botH+18;
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'";
+    ctx.fillText(STR.draftActive(owned.length), x+20, fy);
+    if(owned.length){ let gx=x+20; ctx.font="18px 'Courier New'"; const seen={};
+      for(const id of owned){ const b=BOON_MAP[id]; if(!b) continue; seen[id]=(seen[id]||0)+1; }
+      const keys=Object.keys(seen); ctx.textAlign="left";
+      for(const id of keys){ const b=BOON_MAP[id]; ctx.fillStyle=boonCatCol(b.cat);
+        const lbl=b.glyph+(seen[id]>1?("×"+seen[id]):""); ctx.fillText(lbl, gx, fy+22); gx+=ctx.measureText(lbl).width+14; }
+    }
   }
 
   // CAS-265: the pause / settings panel, reorganised into three grouped TABS

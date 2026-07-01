@@ -138,10 +138,13 @@ export function rarityRank(k){ const r=RARITY[k]; return r?r.rank:0; }
 
 // Weighted rarity roll using ONLY the injected srand (determinism / Stage-2).
 // minR clamps to rarity >= minR (used for the golem's guaranteed rare+).
-export function rollRarity(srand,minR){ const floorRank=minR?rarityRank(minR):0; let total=0;
-  for(const k of RARITY_ORDER){ if(RARITY[k].rank<floorRank) continue; total+=RARITY[k].weight; }
+// CAS-383: `luck` (>=0, the Codicia boon's bb.loot) multiplies the weight of the
+// uncommon+ tiers so drops skew rarer while the boon is held. Consumes srand() EXACTLY
+// once regardless of luck, so the RNG stream is undisturbed (luck=0 → byte-identical).
+export function rollRarity(srand,minR,luck){ const floorRank=minR?rarityRank(minR):0; luck=luck>0?luck:0; let total=0;
+  for(const k of RARITY_ORDER){ if(RARITY[k].rank<floorRank) continue; total+=RARITY[k].weight*(RARITY[k].rank>=1?1+luck:1); }
   let r=srand()*total;
-  for(const k of RARITY_ORDER){ if(RARITY[k].rank<floorRank) continue; r-=RARITY[k].weight; if(r<0) return k; }
+  for(const k of RARITY_ORDER){ if(RARITY[k].rank<floorRank) continue; r-=RARITY[k].weight*(RARITY[k].rank>=1?1+luck:1); if(r<0) return k; }
   return minR||"common"; }
 
 // Roll the affix list for a freshly-dropped instance, using ONLY the injected
@@ -177,13 +180,13 @@ export function affixTotals(h){ const t={dmg:0,hp:0,atkspd:0,movespd:0,onhit:0};
 // Roll a fresh gear instance whose def tier is within [tmin,tmax]. Slot is chosen
 // uniformly among slots that actually have a def in range (shields cap at tier 3,
 // so they drop out of higher windows). Returns null if nothing fits.
-export function rollGearInst(srand,tmin,tmax,minR){ const slots=["weapon","body","shield"]; const avail=[];
+export function rollGearInst(srand,tmin,tmax,minR,luck){ const slots=["weapon","body","shield"]; const avail=[];
   for(const s of slots){ for(const d of GEAR[s]){ if(d.tier>=tmin&&d.tier<=tmax){ avail.push(s); break; } } }
   if(!avail.length) return null;
   const slot=avail[Math.floor(srand()*avail.length)];
   const pool=GEAR[slot].filter(d=>d.tier>=tmin&&d.tier<=tmax);
   const def=pool[Math.floor(srand()*pool.length)];
-  const rarity=rollRarity(srand,minR);
+  const rarity=rollRarity(srand,minR,luck); // CAS-383: `luck` = Codicia boon (bb.loot); 0/undefined → unchanged roll
   const inst={ slot, defId:def.id, rarity };
   const affixes=rollAffixes(srand,rarity,def.tier,slot); if(affixes.length) inst.affixes=affixes;
   return inst; }
@@ -196,10 +199,10 @@ export function rollGearInst(srand,tmin,tmax,minR){ const slots=["weapon","body"
 // h.tt (built in sim.recalcTalents) so combat + UI route through one place and a
 // talentless hero (h.tt zero/absent) is unchanged — no import cycle into talents.js.
 export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus + affixTotals(h).dmg + ((h.tt&&h.tt.dmg)||0); }
-export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip.shield) + h.defBonus; }
+export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip.shield) + h.defBonus + ((h.bb&&h.bb.defAdd)||0); } // CAS-383: Piel de Piedra flat def
 // Effective max HP = the stored base pool (class+level+shop+shards) plus any
 // +vida affixes currently equipped. Never baked into h.maxHp, so persistence
 // and leveling stay clean (mirrors how timed buffs stay out of permDmg/permDef).
 // CAS-150: Elite-Mastery reward-track +maxHp milestones fold in here too (h.mperk.hp,
 // built in sim.recalcMastery) — derived, never baked, so reload reproduces it from the count.
-export function heroMaxHp(h){ return h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0); }
+export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0)) * ((h.bb&&h.bb.hpMul)||1)); } // CAS-383: Cristal Frágil / Piel de Piedra scale the effective pool (derived, never baked → reload/reset clean)

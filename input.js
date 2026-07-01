@@ -23,7 +23,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], draftRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -113,6 +113,16 @@ function edge(code){
     else if(code==="ArrowDown"&&n){ G.bountySel=(((G.bountySel||0)+1))%n; }
     else if((code==="Enter"||code==="Space")&&n){ const c=b.contracts[G.bountySel||0]; if(c) daily.claim(c.id); }
     else if(code==="KeyS"){ daily.claimStreak(); }
+    return; }
+  // CAS-383: boon draft — ←/→ (or ↑/↓) move the highlight; 1-3 pick directly; Enter/Space picks
+  // the highlighted card. No close/skip: a draft always resolves into a boon (that's the reward).
+  if(G.scene==="draft"){ const d=G.draft; const n=(d&&d.choices.length)||0; if(!n) return;
+    if(code==="ArrowLeft"||code==="ArrowUp"){ G.draftSel=(((G.draftSel||0)-1)+n)%n; if(G.draft) G.draft.sel=G.draftSel; }
+    else if(code==="ArrowRight"||code==="ArrowDown"){ G.draftSel=(((G.draftSel||0)+1))%n; if(G.draft) G.draft.sel=G.draftSel; }
+    else if(code==="Digit1"||code==="Numpad1"){ sim.pickBoon(0); }
+    else if(code==="Digit2"||code==="Numpad2"){ if(n>1) sim.pickBoon(1); }
+    else if(code==="Digit3"||code==="Numpad3"){ if(n>2) sim.pickBoon(2); }
+    else if(code==="Enter"||code==="Space"){ sim.pickBoon(G.draftSel||0); }
     return; }
   if(G.scene==="inventory"){ const n=G.hero.bag.length;
     if(code==="KeyI"||code==="Escape") G.scene="play";
@@ -253,6 +263,7 @@ function handleUITap(x,y){
   if(G.scene==="shop"){ return shopTap(x,y); }
   if(G.scene==="forge"){ return forgeTap(x,y); } // CAS-237
   if(G.scene==="bounty"){ return bountyTap(x,y); }
+  if(G.scene==="draft"){ return draftTap(x,y); } // CAS-383
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
     const top=topBtns(); for(const k in top){ const b=top[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -282,6 +293,9 @@ function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r
 // row-select rect, so a first-match-wins forward scan fires the claim when the tap lands
 // on the chip (drawn on top) and only selects the row otherwise.
 function bountyTap(x,y){ for(const r of ui.bountyRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
+// CAS-383: tap a boon card to pick it (highlight follows the tap first, then the pick
+// resolves and returns to play). A tap outside all cards is swallowed (draft must resolve).
+function draftTap(x,y){ for(const r of ui.draftRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.draftSel=r.idx; if(G.draft) G.draft.sel=r.idx; sim.pickBoon(r.idx); return true; } } return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.
 function invTap(x,y){
   // CAS-237: the Forja button opens the forge panel.
