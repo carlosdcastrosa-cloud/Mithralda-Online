@@ -165,6 +165,11 @@ function newHero(name,cls){
     // aggregate bundle (recalcBoons) read by the hot combat paths with no alloc. Reset on
     // death / new run (respawn), persisted additively so a same-run reload keeps them.
     boons:[], bb:zeroBB(),
+    // CAS-392: per-RUN draft agency. rerollLeft/banishLeft are steering charges SHARED across
+    // the run's champion-clear drafts (a single budget, reset on death / new run — same lifecycle
+    // as `boons`). banished = ids the player removed from THIS run's future pool, excluded from
+    // every later draw + reroll so the odds bias toward a target build. Persisted additively.
+    rerollLeft:1, banishLeft:1, banished:[],
     // gear: 3 equipped slots (instances by id) + a bag of loose instances. Stats
     // are resolved from data (sim/gear.js), never stored — see equippedDmg/Def.
     equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
@@ -260,24 +265,71 @@ function sanitizeBoons(arr){ const out=[]; if(!Array.isArray(arr)) return out;
   for(const id of arr){ if(BOON_MAP[id]) out.push(id); if(out.length>=40) break; } return out; }
 export function bbLoot(){ return (G.hero&&G.hero.bb)?G.hero.bb.loot:0; } // Codicia luck for rollGearInst
 
-// Open the 3-card draft after a zone champion clear. Picks BOON_DRAFT_N DISTINCT boons off
-// the sim RNG (deterministic / Stage-2-ready). Owned boons stay eligible (re-drafting a boon
-// deepens the build). Pauses into the "draft" scene; input.js/render.js own the card UI.
-function openDraft(source){ const h=G.hero; if(!h) return;
-  // CAS-388: RARITY-WEIGHTED draw. depth = #owned boons (each prior champion clear added one),
-  // so the pool skews rarer the deeper the run runs. Weighted-WITHOUT-replacement (splice the
-  // pick out) keeps the three cards distinct; owned boons stay eligible (re-drafting deepens).
-  // srand() only → deterministic / Stage-2-ready, same RNG stream as before.
+// CAS-388/392: RARITY-WEIGHTED draw of `n` DISTINCT boon ids off the sim RNG. depth = #owned
+// boons (each prior champion clear added one), so the pool skews rarer the deeper the run runs.
+// Weighted-WITHOUT-replacement (splice the pick out) keeps the cards distinct; owned boons stay
+// eligible (re-drafting deepens). CAS-392: `banished` ids are removed from the pool up front, so
+// a banished boon can never resurface in any later draw/reroll of the run. srand() only →
+// deterministic / Stage-2-ready, SAME rarity model for the initial draw AND rerolls (no exploit).
+function drawBoonChoices(h,n){
   const depth=(h.boons&&h.boons.length)||0;
-  const pool=BOONS.slice(); const picks=[]; const n=Math.min(BOON_DRAFT_N,pool.length);
+  const banned=(h.banished&&h.banished.length)?new Set(h.banished):null;
+  const pool=banned?BOONS.filter(b=>!banned.has(b.id)):BOONS.slice();
+  const picks=[]; n=Math.min(n||BOON_DRAFT_N,pool.length);
   for(let i=0;i<n;i++){
     let total=0; for(const b of pool) total+=boonRarityWeight(b.rarity,depth);
     let r=srand()*total, idx=0;
     for(let j=0;j<pool.length;j++){ r-=boonRarityWeight(pool[j].rarity,depth); if(r<=0){ idx=j; break; } idx=j; }
     picks.push(pool.splice(idx,1)[0].id);
   }
-  G.draft={ choices:picks, sel:0, source:source||"" }; G.draftSel=0; G.scene="draft";
+  return picks;
+}
+// Draw ONE boon id at current depth odds, excluding an id Set (kept cards) + all banished ids.
+// Used by banish back-fill so the two cards the player KEEPS stay put and only the freed slot
+// refills. Returns null if the pool is exhausted (→ hand shrinks by one).
+function drawOneBoon(h,exclude){
+  const depth=(h.boons&&h.boons.length)||0;
+  const banned=h.banished&&h.banished.length?h.banished:null;
+  const pool=BOONS.filter(b=>!exclude.has(b.id) && !(banned&&banned.indexOf(b.id)>=0));
+  if(!pool.length) return null;
+  let total=0; for(const b of pool) total+=boonRarityWeight(b.rarity,depth);
+  let r=srand()*total, idx=0;
+  for(let j=0;j<pool.length;j++){ r-=boonRarityWeight(pool[j].rarity,depth); if(r<=0){ idx=j; break; } idx=j; }
+  return pool[idx].id;
+}
+// Open the 3-card draft after a zone champion clear. Pauses into the "draft" scene;
+// input.js/render.js own the card UI (incl. CAS-392 reroll/banish controls).
+function openDraft(source){ const h=G.hero; if(!h) return;
+  G.draft={ choices:drawBoonChoices(h,BOON_DRAFT_N), sel:0, source:source||"" }; G.draftSel=0; G.scene="draft";
   audio&&audio.sfx&&audio.sfx.levelup&&audio.sfx.levelup();
+}
+// CAS-392: spend the run's single reroll charge to re-draw ALL cards at the SAME depth-scaled
+// odds (drawBoonChoices → identical rarity model, so a reroll can never farm legendaries). No-op
+// (returns false) when the charge is spent or no draft is open — the rarity curve QA validated on
+// CAS-391 is untouched because the weights and RNG stream are the same as the initial draw.
+export function rerollDraft(){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="draft") return false;
+  if(!(h.rerollLeft>0)) return false;
+  h.rerollLeft--;
+  d.choices=drawBoonChoices(h,BOON_DRAFT_N); d.sel=0; G.draftSel=0;
+  audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
+  return true;
+}
+// CAS-392: spend the run's single banish charge to remove card `i` from the current draft AND
+// from this run's future pool (added to `banished` → excluded from every later draw/reroll). The
+// two OTHER cards are KEPT; only the freed slot back-fills with a fresh weighted draw, so banish
+// is a TARGETED removal (not a full reroll) that biases the pool toward the player's build. No-op
+// when the charge is spent, no draft is open, or the card id is invalid.
+export function banishBoon(i){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="draft") return false;
+  if(!(h.banishLeft>0)) return false;
+  i=i|0; const id=d.choices[i]; if(!id||!BOON_MAP[id]) return false;
+  h.banishLeft--;
+  if(!h.banished) h.banished=[]; if(h.banished.indexOf(id)<0) h.banished.push(id);
+  const keep=new Set(); for(let j=0;j<d.choices.length;j++){ if(j!==i) keep.add(d.choices[j]); }
+  const repl=drawOneBoon(h,keep);
+  if(repl) d.choices[i]=repl; else d.choices.splice(i,1); // pool exhausted → hand drops to 2 cards
+  d.sel=Math.max(0,Math.min(d.choices.length-1,d.sel||0)); G.draftSel=d.sel;
+  audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
+  return true;
 }
 // Apply the chosen card: push the boon (stacking), rebuild the bundle, resume play.
 export function pickBoon(i){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="draft") return false;
@@ -388,6 +440,10 @@ export function serializeSave(){
     // Additive — old saves lack it → empty list → zero bundle. A death/new run wipes them
     // (respawn/createHero), so a fresh run never inherits a prior run's boons.
     boons:(h.boons||[]).slice(),
+    // CAS-392: persist the run's draft-agency charges + banished pool so a same-run reload (e.g. a
+    // refresh mid-draft) keeps them. Additive — old saves lack them → default to a fresh 1/1 budget
+    // + empty banished. Reset on death/new run (respawn) like boons, so nothing leaks across runs.
+    rerollLeft:h.rerollLeft|0, banishLeft:h.banishLeft|0, banished:(h.banished||[]).slice(),
     // CAS-149: durable lifetime elite-kill counter → Elite-Mastery rank. Additive (old
     // saves lack it → default 0 → rank 0), so no SAVE_VERSION bump / progress wipe. The
     // permanent +maxHp granted at each rank-up is already baked into the saved maxHp above,
@@ -435,6 +491,10 @@ export function loadSave(d){
     h.killsByType={}; if(d.killsByType && typeof d.killsByType==="object"){ for(const k in d.killsByType){ const v=Math.max(0,Math.floor(num(d.killsByType[k],0))); if(v>0) h.killsByType[k]=v; } }
     h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
     h.boons=sanitizeBoons(d.boons); recalcBoons(h); // CAS-383: rehydrate current-run boons (validated ids) + rebuild bundle BEFORE heroMaxHp reads it
+    // CAS-392: rehydrate the draft-agency budget + banished pool (clamped; absent in old saves →
+    // fresh 1/1). banished re-validated against BOON_MAP (sanitizeBoons) so a corrupt blob can't
+    // poison the pool with unknown ids.
+    h.rerollLeft=Math.max(0,Math.floor(num(d.rerollLeft,1))); h.banishLeft=Math.max(0,Math.floor(num(d.banishLeft,1))); h.banished=sanitizeBoons(d.banished);
     h.palette=sanitizePalette(d.palette, h.cls); h.variation=sanitizeVariation(d.variation); // CAS-169 cosmetics (validated, class-default fallback)
     recalcMastery(h);  // CAS-150: rebuild the reward-track perk bundle from the loaded count BEFORE heroMaxHp reads it
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
@@ -1245,6 +1305,7 @@ function heroDie(){
 export function respawn(){
   const h=G.hero;
   if(h.boons&&h.boons.length){ h.boons.length=0; } recalcBoons(h); // CAS-383: death ends the run → wipe drafted boons BEFORE heroMaxHp reads the reset pool
+  h.rerollLeft=1; h.banishLeft=1; if(h.banished) h.banished.length=0; else h.banished=[]; // CAS-392: death resets the draft-agency budget + banished pool (per-run, same as boons)
   h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
@@ -2003,7 +2064,16 @@ export const dev = {
   // Read the live boon state: owned list, aggregate bundle, effective maxHp (folds hpMul), and
   // the open draft's choices (or null). Pure read — proves stacking + the draft panel's model.
   boons(){ const h=G.hero; if(!h) return null; return { list:(h.boons||[]).slice(), bb:Object.assign({},h.bb),
-    maxHp:heroMaxHp(h), scene:G.scene, draft:G.draft?{choices:G.draft.choices.slice(),sel:G.draft.sel,source:G.draft.source}:null }; },
+    maxHp:heroMaxHp(h), scene:G.scene, draft:G.draft?{choices:G.draft.choices.slice(),sel:G.draft.sel,source:G.draft.source}:null,
+    rerollLeft:h.rerollLeft|0, banishLeft:h.banishLeft|0, banished:(h.banished||[]).slice() }; }, // CAS-392 draft-agency state
+  // --- CAS-392 draft-agency harness hooks (tools/cas392-*.mjs); additive, drive the REAL paths ---
+  // Reroll the whole hand through rerollDraft (spends a charge). Returns the new cards + charge left.
+  rerollDraft(){ const ok=rerollDraft(); const h=G.hero; return { ok, choices:G.draft?G.draft.choices.slice():null, rerollLeft:h?h.rerollLeft|0:0, scene:G.scene }; },
+  // Banish card i through banishBoon (spends a charge, adds id to the run's banished pool). Returns
+  // the new hand + charge left + the banished set so QA can prove the id never resurfaces.
+  banishDraft(i){ const ok=banishBoon(i|0); const h=G.hero; return { ok, choices:G.draft?G.draft.choices.slice():null, banishLeft:h?h.banishLeft|0:0, banished:h?(h.banished||[]).slice():[], scene:G.scene }; },
+  // Read the raw draft-agency budget without opening a panel.
+  draftCharges(){ const h=G.hero; if(!h) return null; return { rerollLeft:h.rerollLeft|0, banishLeft:h.banishLeft|0, banished:(h.banished||[]).slice() }; },
   // Force-open a draft (bypasses needing a champion kill) so the QA gate can drive the panel
   // deterministically. Uses the REAL openDraft (same RNG pick + scene + pause).
   openDraft(){ openDraft("dev"); return G.draft?G.draft.choices.slice():null; },

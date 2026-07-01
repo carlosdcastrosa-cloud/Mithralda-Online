@@ -1801,8 +1801,16 @@ export function createRenderer(ctx){
   // the card's border + a small corner ribbon so the draw reads its tier at a glance.
   function boonRarCol(b){ const r=BOON_RARITY&&BOON_RARITY[b&&b.rarity]; return r?r.col:"#cfd6e0"; }
   function boonRarLabel(b){ const r=BOON_RARITY&&BOON_RARITY[b&&b.rarity]; return r?r.label:""; }
-  function renderDraft(){ const d=G.draft; ui.draftRects=[]; if(!d){ return; }
+  function renderDraft(){ const d=G.draft; ui.draftRects=[]; ui.draftBanishRects=[]; ui.draftRerollRect=null; if(!d){ return; }
     const h=G.hero; const choices=d.choices||[];
+    // CAS-392: a small red ✖ badge in a card's top-right corner banishes it (when a charge is left).
+    // Registered as its own hit rect (checked BEFORE the card pick in draftTap) + a keyboard 'B' path.
+    const canBanish=!!(h&&h.banishLeft>0);
+    function banishBadge(cx,cy,cw,i){ if(!canBanish) return; const s=18, bx=cx+cw-s-4, by=cy+6;
+      ctx.fillStyle="#3a2130"; ctx.fillRect(bx,by,s,s);
+      ctx.strokeStyle="#d0556b"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,s,s);
+      ctx.textAlign="center"; ctx.fillStyle="#ff9db0"; ctx.font="bold 12px 'Courier New'"; ctx.fillText("✖", bx+s/2, by+s-5);
+      ui.draftBanishRects.push({x:bx,y:by,w:s,h:s,idx:i}); }
     const bw=Math.min(VW*0.94,660), bh=Math.min(VH*0.9,460), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 19px 'Courier New'"; ctx.fillText(STR.draftTitle,VW/2,y+30);
@@ -1829,6 +1837,7 @@ export function createRenderer(ctx){
         ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; wrapText(b.desc, cx+12, cy+112, cw-24, 16);
         ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), cx+cw/2, cy+ch-12);
         ui.draftRects.push({x:cx,y:cy,w:cw,h:ch,idx:i});
+        banishBadge(cx,cy,cw,i); // CAS-392 (after card body so it draws on top)
       }
     } else {
       const rh=Math.min(96,(bh-64-botH-20)/choices.length-8), rw=bw-40, rx=x+20;
@@ -1840,11 +1849,12 @@ export function createRenderer(ctx){
         ctx.fillStyle=cc; ctx.fillRect(rx,ry,4,rh);
         ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="28px 'Courier New'"; ctx.fillText(b.glyph, rx+34, ry+rh/2+8);
         ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(b.name+"  ", rx+62, ry+22);
-        ctx.fillStyle=rc; ctx.font="9px 'Courier New'"; ctx.fillText(boonRarLabel(b), rx+rw-14-ctx.measureText(boonRarLabel(b)).width, ry+16); // rarity ribbon (right)
+        ctx.fillStyle=rc; ctx.font="9px 'Courier New'"; ctx.fillText(boonRarLabel(b), rx+rw-14-(canBanish?24:0)-ctx.measureText(boonRarLabel(b)).width, ry+16); // rarity ribbon (right; nudged left to clear the CAS-392 banish badge)
         ctx.fillStyle=cc; ctx.font="10px 'Courier New'"; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), rx+62, ry+38);
         ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; wrapText(b.desc, rx+62, ry+56, rw-172, 15);
         ctx.textAlign="right"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), rx+rw-14, ry+rh/2+4);
         ui.draftRects.push({x:rx,y:ry,w:rw,h:rh,idx:i});
+        banishBadge(rx,ry,rw,i); // CAS-392
       }
     }
     // active-boon readout — the run's accumulating stack (glyphs), so builds read as they diverge
@@ -1866,6 +1876,20 @@ export function createRenderer(ctx){
       for(const id of keys){ const b=BOON_MAP[id]; ctx.fillStyle=boonCatCol(b.cat);
         const lbl=b.glyph+(seen[id]>1?("×"+seen[id]):""); ctx.fillText(lbl, gx, fy+22); gx+=ctx.measureText(lbl).width+14; }
     }
+    // CAS-392: REROLL button (bottom-right) — re-draws the whole hand at the same depth odds while a
+    // charge is left; greys out when spent. Registered as ui.draftRerollRect for touch + keyboard 'R'.
+    if(h){ const canRe=h.rerollLeft>0; const label="⟳ "+STR.draftReroll+" ("+(h.rerollLeft|0)+")";
+      ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
+      const rbw=Math.min(bw-40,ctx.measureText(label).width+22), rbh=24, rbx=x+bw-rbw-16, rby=y+bh-rbh-8;
+      ctx.fillStyle=canRe?"#243a2b":"#26262a"; ctx.fillRect(rbx,rby,rbw,rbh);
+      ctx.strokeStyle=canRe?"#5fd08a":"#555"; ctx.lineWidth=1; ctx.strokeRect(rbx+0.5,rby+0.5,rbw,rbh);
+      ctx.fillStyle=canRe?"#bfeecb":"#777"; ctx.fillText(label, rbx+rbw/2, rby+16);
+      if(canRe) ui.draftRerollRect={x:rbx,y:rby,w:rbw,h:rbh};
+      // banished-count readout, left of the reroll pill, so the player sees the pool shrinking.
+      const nb=(h.banished&&h.banished.length)||0;
+      if(nb){ ctx.textAlign="right"; ctx.fillStyle="#d0556b"; ctx.font="10px 'Courier New'"; ctx.fillText(STR.draftBanished(nb), rbx-12, rby+16); }
+    }
+    ctx.textAlign="left";
   }
 
   // CAS-265: the pause / settings panel, reorganised into three grouped TABS

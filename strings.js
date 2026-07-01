@@ -311,6 +311,9 @@ export const STR = {
   draftPick: (n) => "Elegir (" + n + ")",
   draftActive: (n) => "Bendiciones activas: " + n,
   draftSynHint: "Combina bendiciones para desbloquear sinergias",
+  // CAS-392 — draft agency: reroll the whole hand / banish one card from the run pool.
+  draftReroll: "Rebarajar",
+  draftBanished: (n) => "Desterradas: " + n,
   dailySlay: (n) => "Da caza a " + n + " enemigos",
   // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).
   dailySlayType: (mob, n) => "Da caza a " + n + " " + ({ quillback:"Acechadores Espinosos", wendigo:"Wéndigos", demon:"Demonios Oscuros", skeleton:"esqueletos", orc:"orcos", wraith:"espectros", bandit:"bandidos", wolf:"lobos" }[mob] || (mob || "enemigos")),

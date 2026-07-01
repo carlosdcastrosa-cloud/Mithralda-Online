@@ -131,6 +131,8 @@ function edge(code){
     else if(code==="Digit1"||code==="Numpad1"){ sim.pickBoon(0); }
     else if(code==="Digit2"||code==="Numpad2"){ if(n>1) sim.pickBoon(1); }
     else if(code==="Digit3"||code==="Numpad3"){ if(n>2) sim.pickBoon(2); }
+    else if(code==="KeyR"){ sim.rerollDraft(); }                 // CAS-392: reroll the whole hand
+    else if(code==="KeyB"){ sim.banishBoon(G.draftSel||0); }     // CAS-392: banish the highlighted card
     else if(code==="Enter"||code==="Space"){ sim.pickBoon(G.draftSel||0); }
     return; }
   if(G.scene==="inventory"){ const n=G.hero.bag.length;
@@ -309,7 +311,12 @@ function bountyTap(x,y){ for(const r of ui.bountyRects){ if(x>=r.x&&x<=r.x+r.w&&
 function bestiaryTap(x,y){ for(const r of ui.bestRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 // CAS-383: tap a boon card to pick it (highlight follows the tap first, then the pick
 // resolves and returns to play). A tap outside all cards is swallowed (draft must resolve).
-function draftTap(x,y){ for(const r of ui.draftRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.draftSel=r.idx; if(G.draft) G.draft.sel=r.idx; sim.pickBoon(r.idx); return true; } } return true; }
+function draftTap(x,y){
+  // CAS-392: reroll + banish chrome is checked BEFORE the card pick (banish badges are drawn ON TOP
+  // of the cards, so their small rects must win the tap over the full-card pick rect underneath).
+  const rr=ui.draftRerollRect; if(rr&&x>=rr.x&&x<=rr.x+rr.w&&y>=rr.y&&y<=rr.y+rr.h){ sim.rerollDraft(); return true; }
+  for(const r of (ui.draftBanishRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ sim.banishBoon(r.idx); return true; } }
+  for(const r of ui.draftRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.draftSel=r.idx; if(G.draft) G.draft.sel=r.idx; sim.pickBoon(r.idx); return true; } } return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.
 function invTap(x,y){
   // CAS-237: the Forja button opens the forge panel.
