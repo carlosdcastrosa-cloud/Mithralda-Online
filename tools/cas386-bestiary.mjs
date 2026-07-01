@@ -31,16 +31,24 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const exe = findChromium();
 if (!exe) { console.error("✖ No Chromium binary (set PUPPETEER_EXECUTABLE_PATH)."); process.exit(1); }
 
-const srv = await startServer();
+// Local static server by default; set LIVE_URL to run against the deployed build
+// (gh-pages is the contractual live URL and serves the game directly, no iframe).
+const LIVE = process.env.LIVE_URL || null;
+const srv = LIVE ? { url: LIVE.replace(/\/index\.html.*$/, "").replace(/\/$/, ""), close: async () => {} } : await startServer();
+console.log(`target: ${LIVE || srv.url} ${LIVE ? "(LIVE)" : "(local)"}`);
 const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: LAUNCH_ARGS });
 
 const key = (page, code) => page.evaluate((c) => window.dispatchEvent(new KeyboardEvent("keydown", { code: c, key: c, bubbles: true })), code);
 
 async function boot(page) {
+  // favicon/CDN noise is cosmetic on the live host (CAS-375); ignore it in the error gate.
+  const noise = (u) => /favicon\.ico|\/analytics(\b|\.)/.test(u || "");
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
-  page.on("requestfailed", (r) => errors.push(`requestfailed: ${r.url()} (${r.failure()?.errorText})`));
-  page.on("response", (r) => { if (r.status() >= 400) errors.push(`http ${r.status()}: ${r.url()}`); });
+  // "Failed to load resource" console lines are URL-less echoes of network 4xx already
+  // handled (with URL, so favicon/analytics can be filtered) by the response gate below.
+  page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push(`console.error: ${m.text()}`); });
+  page.on("requestfailed", (r) => { if (!noise(r.url())) errors.push(`requestfailed: ${r.url()} (${r.failure()?.errorText})`); });
+  page.on("response", (r) => { if (r.status() >= 400 && !noise(r.url())) errors.push(`http ${r.status()}: ${r.url()}`); });
   await page.goto(srv.url + "/index.html?dev", { waitUntil: "domcontentloaded" });
   await page.waitForFunction("window.__dev && window.__dev.scene && window.__dev.scene()==='menu'", { timeout: 15000 });
   await page.evaluate(() => { const i = document.getElementById("nameInput"); i.value = "CodexQA";
