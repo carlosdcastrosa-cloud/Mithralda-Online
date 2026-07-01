@@ -16,6 +16,7 @@ import { audio } from "./audio.js";
 import { view, zoom } from "./view.js";
 import { COL } from "./render/palette.js";
 import { daily } from "./daily.js";   // CAS-134: bounty-board claim actions
+import { bestiary } from "./bestiary.js";   // CAS-386: bestiary claim actions
 import * as settings from "./settings.js"; // CAS-265: key-rebinding table + persistence
 import { analytics } from "./analytics.js"; // CAS-277: fire the CAS-132 retry/return funnel events
 
@@ -23,7 +24,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], draftRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -113,6 +114,14 @@ function edge(code){
     else if(code==="ArrowDown"&&n){ G.bountySel=(((G.bountySel||0)+1))%n; }
     else if((code==="Enter"||code==="Space")&&n){ const c=b.contracts[G.bountySel||0]; if(c) daily.claim(c.id); }
     else if(code==="KeyS"){ daily.claimStreak(); }
+    return; }
+  // CAS-386: bestiary — E/Escape close; ↑/↓ pick an entry; Enter/Space claims the
+  // selected entry's next reached-but-unclaimed mastery tier.
+  if(G.scene==="bestiary"){ const b=bestiary.board(); const n=(b&&b.entries.length)||0;
+    if(code==="Escape"||code==="KeyE"){ G.scene="play"; }
+    else if(code==="ArrowUp"&&n){ G.bestSel=(((G.bestSel||0)-1)+n)%n; }
+    else if(code==="ArrowDown"&&n){ G.bestSel=(((G.bestSel||0)+1))%n; }
+    else if((code==="Enter"||code==="Space")&&n){ const e=b.entries[G.bestSel||0]; if(e) bestiary.claimNext(e.type); }
     return; }
   // CAS-383: boon draft — ←/→ (or ↑/↓) move the highlight; 1-3 pick directly; Enter/Space picks
   // the highlighted card. No close/skip: a draft always resolves into a boon (that's the reward).
@@ -263,6 +272,7 @@ function handleUITap(x,y){
   if(G.scene==="shop"){ return shopTap(x,y); }
   if(G.scene==="forge"){ return forgeTap(x,y); } // CAS-237
   if(G.scene==="bounty"){ return bountyTap(x,y); }
+  if(G.scene==="bestiary"){ return bestiaryTap(x,y); } // CAS-386
   if(G.scene==="draft"){ return draftTap(x,y); } // CAS-383
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -293,6 +303,10 @@ function shopTap(x,y){ for(const r of ui.shopRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r
 // row-select rect, so a first-match-wins forward scan fires the claim when the tap lands
 // on the chip (drawn on top) and only selects the row otherwise.
 function bountyTap(x,y){ for(const r of ui.bountyRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
+// CAS-386: bestiary taps. Each entry pushes its CLAIM-chip rect BEFORE its row-select
+// rect (same first-match-wins scheme as the bounty board), so a tap on the chip claims
+// and a tap elsewhere on the row selects it.
+function bestiaryTap(x,y){ for(const r of ui.bestRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ r.act(); return true; } } return true; }
 // CAS-383: tap a boon card to pick it (highlight follows the tap first, then the pick
 // resolves and returns to play). A tap outside all cards is swallowed (draft must resolve).
 function draftTap(x,y){ for(const r of ui.draftRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.draftSel=r.idx; if(G.draft) G.draft.sel=r.idx; sim.pickBoon(r.idx); return true; } } return true; }

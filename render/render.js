@@ -22,6 +22,7 @@ import { COL } from "./palette.js";
 import { resetGame, clearTutSeen } from "../persist.js";   // CAS-113: pause-menu "Nueva partida"; CAS-267: re-arm onboarding
 import * as settings from "../settings.js";   // CAS-265: rebind table + settings persistence
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
+import { bestiary } from "../bestiary.js";    // CAS-386: bestiary / codex collection view model
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
   ANIM, ENEMY_ANIM, ENEMY_IMG, ENEMY_STRIP, ENEMY_STRIPS, resolveStrip, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
@@ -260,6 +261,7 @@ export function createRenderer(ctx){
     if(G.scene==="shop") renderShop();
     if(G.scene==="forge") renderForge(); // CAS-237 equipment forge
     if(G.scene==="bounty") renderBounty();
+    if(G.scene==="bestiary") renderBestiary(); // CAS-386 bestiary / codex collection
     if(G.scene==="draft") renderDraft(); // CAS-383 inter-zone boon draft
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
@@ -1702,6 +1704,91 @@ export function createRenderer(ctx){
     ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(label, cx+cw/2, cy+16);
     ctx.textAlign="left";
     if(on) ui.bountyRects.push({x:cx,y:cy,w:cw,h:ch,act});
+  }
+
+  // CAS-386: the Bestiary / Codex — a collection meta-goal over the kill roster. Pure view:
+  // reads bestiary.board() (which reads the save's killsByType, CAS-375) and writes tap rects
+  // into ui.bestRects. The only state change is a tier CLAIM, which routes through
+  // bestiary.claim()/claimNext() → applyMetaReward (the SAME meta seam the bounty board uses).
+  // A codex sprite thumbnail: the procedural SP sprite (same art the mob draws from as its
+  // load-window fallback), or the first frame of a rich-anim strip (dragon), else a rune box.
+  function drawCodexSprite(type, sprite, cx, cy, maxH, dim){
+    ctx.save(); if(dim) ctx.globalAlpha=0.22;
+    const spr=SP[sprite];
+    if(spr&&spr.rows&&spr.rows.length){ const px=Math.max(1,Math.floor(maxH/spr.rows.length));
+      blit(ctx, spr.rows, spr.pal, cx, cy, px, false); ctx.restore(); return; }
+    const strip=resolveStrip(sprite,"idle");
+    const simg=strip&&IMG[strip.key]&&IMG[strip.key].complete&&IMG[strip.key].naturalWidth?IMG[strip.key]:null;
+    if(simg){ const s=Math.min(maxH/strip.fh, maxH/strip.fw), dw=strip.fw*s, dh=strip.fh*s;
+      const sm=ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(simg, 0,0,strip.fw,strip.fh, cx-dw/2, cy-dh/2, dw, dh); ctx.imageSmoothingEnabled=sm; ctx.restore(); return; }
+    // last resort — a rune placeholder so an unloaded strip never renders blank
+    ctx.globalAlpha=dim?0.22:0.7; ctx.strokeStyle=COL.panelB; ctx.lineWidth=2;
+    ctx.strokeRect(cx-maxH*0.35,cy-maxH*0.35,maxH*0.7,maxH*0.7);
+    ctx.fillStyle=COL.textDim; ctx.textAlign="center"; ctx.font="bold 18px 'Courier New'"; ctx.fillText("?",cx,cy+6); ctx.textAlign="left";
+    ctx.restore();
+  }
+  function renderBestiary(){ const b=bestiary.board(); ui.bestRects=[];
+    const bw=Math.min(VW*0.94,580), bh=Math.min(VH*0.92,520), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.bestiaryTitle,VW/2,y+28);
+    if(!b||!b.entries.length){ ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("—",VW/2,y+60); return; }
+    // header: discovered rollup (centre) + gold (left)
+    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.bestiarySub(b.discovered,b.total),VW/2,y+44);
+    ctx.textAlign="left"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.gold(G.hero.gold), x+16, y+24);
+
+    const n=b.entries.length, rowH=66, listTop=y+56, listBot=y+bh-38, vis=Math.max(1,Math.floor((listBot-listTop)/rowH));
+    if(G.bestSel==null) G.bestSel=0; G.bestSel=Math.max(0,Math.min(n-1,G.bestSel|0));
+    let scroll=G.bestScroll|0; const maxScroll=Math.max(0,n-vis);
+    if(G.bestSel<scroll) scroll=G.bestSel; else if(G.bestSel>=scroll+vis) scroll=G.bestSel-vis+1;
+    scroll=Math.max(0,Math.min(maxScroll,scroll)); G.bestScroll=scroll;
+
+    for(let i=scroll;i<Math.min(n,scroll+vis);i++){ const e=b.entries[i]; const ry=listTop+(i-scroll)*rowH; const sel=i===G.bestSel;
+      ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(x+16,ry,bw-32,rowH-8);
+      if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x+16,ry,bw-32,rowH-8); }
+      // sprite thumbnail (left)
+      const thumbCx=x+16+30, thumbCy=ry+(rowH-8)/2;
+      drawCodexSprite(e.type, e.sprite, thumbCx, thumbCy, 44, !e.seen);
+      // name + boss tag + kill count
+      const tx=x+16+62;
+      ctx.textAlign="left"; ctx.fillStyle=e.seen?COL.cream:COL.textDim; ctx.font="bold 14px 'Courier New'"; ctx.fillText(e.name, tx, ry+20);
+      const nameW=ctx.measureText(e.name).width;
+      if(e.seen&&e.boss){ ctx.fillStyle=COL.textGold; ctx.font="9px 'Courier New'"; ctx.fillText("★ JEFE", tx+nameW+10, ry+20); }
+      ctx.fillStyle=e.seen?COL.gold:COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(e.seen?STR.bestiaryKills(e.count):STR.bestiaryUndiscovered, tx, ry+38);
+      // next-tier progress hint
+      if(e.seen && e.nextNeed!=null){ ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.bestiaryNext(e.nextNeed), tx, ry+52); }
+      // tier pips (3 boxes: reached=gold, claimed=green, locked=dark)
+      const pipY=ry+(rowH-8)/2-9, pipX0=x+bw-170;
+      for(let t=0;t<e.tiers.length;t++){ const ti=e.tiers[t]; const px2=pipX0+t*20;
+        ctx.fillStyle=ti.claimed?"#2e6b2e":(ti.reached?COL.textGold:"#23272f");
+        ctx.fillRect(px2,pipY,17,17);
+        ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(px2+0.5,pipY+0.5,17,17);
+        ctx.fillStyle=(ti.reached||ti.claimed)?"#0b0c11":COL.textDim; ctx.textAlign="center"; ctx.font="bold 11px 'Courier New'";
+        ctx.fillText(ti.claimed?"✓":ti.label.charAt(0), px2+8.5, pipY+13); ctx.textAlign="left"; }
+      // claim chip (right) — claims the next reached-but-unclaimed tier
+      drawBestChip(x+bw-96, ry+(rowH-8)/2-12, 80, 24, e.claimable,
+        ()=>{ G.bestSel=i; bestiary.claimNext(e.type); }, STR.bestiaryClaim);
+      // whole-row select (tap) — pushed AFTER the chip so the chip wins a first-match scan
+      ui.bestRects.push({x:x+16,y:ry,w:bw-32,h:rowH-8,act:()=>{ G.bestSel=i; }});
+    }
+    // scroll indicators
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'";
+    if(scroll>0) ctx.fillText("▲", VW/2, listTop-2);
+    if(scroll+vis<n) ctx.fillText("▼", VW/2, listBot+12);
+    // close
+    const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
+    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Cerrar (E)",VW/2,ccy+17); ctx.textAlign="left";
+    ui.bestRects.push({x:x+bw/2-60,y:ccy,w:120,h:24,act:()=>{ G.scene="play"; }});
+  }
+  // a bestiary CLAIM chip; on=claimable (gold/green), else dim "Cobrado"/locked. Pushes its
+  // own rect into ui.bestRects (before the row-select rect) so the chip wins a first-match tap.
+  function drawBestChip(cx,cy,cw,ch,on,act,label){
+    ctx.fillStyle=on?"#2e6b2e":"#262b22";
+    ctx.fillRect(cx,cy,cw,ch);
+    ctx.strokeStyle=on?COL.heal:"#3a4150"; ctx.lineWidth=1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
+    ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px 'Courier New'";
+    ctx.fillText(on?label:STR.bestiaryClaimedChip, cx+cw/2, cy+16); ctx.textAlign="left";
+    if(on) ui.bestRects.push({x:cx,y:cy,w:cw,h:ch,act});
   }
 
   // CAS-383: the INTER-ZONE BOON DRAFT panel. Appears on the "draft" scene after a zone

@@ -51,7 +51,7 @@ export function configure(deps){ io = deps.io; audio = deps.audio; view = deps.v
 export { world, rng };
 
 export const G = {
-  scene:"menu", // menu, play, dialogue, shop, bounty, inventory, talents, pause, dead, victory
+  scene:"menu", // menu, play, dialogue, shop, bounty, bestiary, inventory, talents, pause, dead, victory
   // CAS-123: frozen run-summary snapshot built when the Stage-1 final boss dies; read by
   // renderVictory(). null until the win fires. Cleared scene-side only (the win persists
   // on the hero), so re-opening it is harmless.
@@ -1289,6 +1289,7 @@ export function advanceDialogue(){
     else if(n.role==="heal"){ G.scene="shop"; G.shopSel=0; G.healShop=true; G.merchantShop=false; }
     else if(n.role==="merchant"){ G.scene="shop"; G.shopSel=0; G.merchantShop=true; G.healShop=false; }
     else if(n.role==="bounty"){ G.scene="bounty"; G.bountySel=0; G.healShop=false; G.merchantShop=false; } // CAS-134 bounty board
+    else if(n.role==="codex"){ G.scene="bestiary"; G.bestSel=0; G.bestScroll=0; G.healShop=false; G.merchantShop=false; } // CAS-386 bestiary
     else { G.scene="play"; G.healShop=false; G.merchantShop=false; }
   }
 }
@@ -2174,6 +2175,9 @@ export const dev = {
   // CAS-134: park the hero on the Bounty-Board steward so the REAL interact()→dialogue→
   // bounty-board path (E twice) can be driven by the daily harness / screenshot tool.
   bountyTP(){ for(const n of world.npcs){ if(n.role==="bounty"){ G.hero.x=n.x; G.hero.y=n.y+10; return [Math.round(n.x),Math.round(n.y)]; } } return null; },
+  // CAS-386: park the hero on Yára la Cronista so the REAL interact()→dialogue→bestiary
+  // path (E twice) can be driven by the QA harness / screenshot tool.
+  codexTP(){ for(const n of world.npcs){ if(n.role==="codex"){ G.hero.x=n.x; G.hero.y=n.y+10; return [Math.round(n.x),Math.round(n.y)]; } } return null; },
   // Read the live shop list (whichever shop is open) with each line's affordability
   // gate, so the headless test can assert maxed/blocked lines without guessing.
   shopList(){ const h=G.hero; return shopItems().map(it=>({ name:it.name, price:it.price, blocked:!!(it.once&&it.once(h)) })); },

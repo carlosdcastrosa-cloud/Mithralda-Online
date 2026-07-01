@@ -321,6 +321,36 @@ export const STR = {
   dailyNotDone: "Aún no has cumplido este contrato",
   dailyAlready: "Ya lo has cobrado hoy",
 
+  // CAS-386 — Bestiary / Codex collection meta-goal. Canonical localized mob names
+  // (singular) — reused across the codex; falls back to the raw key for any unlisted
+  // type so a new mob never renders blank.
+  mobName: (t) => ({
+    rat:"Rata", wolf:"Lobo", bat:"Murciélago", skeleton:"Esqueleto", spearman:"Lancero",
+    orc:"Orco", bandit:"Bandido", moose:"Alce Antiguo", mage:"Mago Oscuro", wraith:"Espectro",
+    charger:"Embestidor", summoner:"Nigromante", healer:"Sanador", volatile:"Volátil",
+    revenant:"Renaciente", quillback:"Acechador Espinoso", demon:"Demonio Oscuro",
+    wendigo:"Wéndigo", golem:"Gólem de Piedra", dragon:"Dragón Ancestral",
+  }[t] || (t || "Enemigo")),
+  bestiaryTitle: "BESTIARIO",
+  bestiarySub: (d, tot) => "Descubiertos " + d + "/" + tot,
+  bestiaryTier: (id) => ({ seen:"Visto", hunted:"Cazado", mastered:"Dominado" }[id] || id),
+  bestiaryKills: (n) => n + (n === 1 ? " caza" : " cazas"),
+  bestiaryNext: (n) => "Siguiente: " + n,
+  bestiaryReward: (g, xp, mena) => "+" + g + " oro · +" + xp + " XP" + (mena > 0 ? " · +" + mena + " mena" : ""),
+  bestiaryClaim: "Reclamar",
+  bestiaryClaimed: (mob, tier, g, xp) => "¡" + mob + " — " + tier + "! +" + g + " oro, +" + xp + " XP",
+  bestiaryClaimedChip: "Cobrado",
+  bestiaryLocked: "Aún no alcanzas ese rango",
+  bestiaryNothing: "Nada que reclamar todavía",
+  bestiaryHint: "↑/↓ elegir · Enter reclamar · E cerrar",
+  bestiaryUndiscovered: "Sin descubrir — dale caza para revelarlo",
+  npcCodex: "Yára la Cronista",
+  codexLines: [
+    "Soy Yára, guardo el registro de todo lo que acecha estas tierras.",
+    "Cada bestia que abatas quedará escrita en el Bestiario.",
+    "Llena sus rangos y te recompensaré por tu diligencia.",
+  ],
+
   fountainRest: "Descansaste en la Fuente. Vida y maná restaurados.",
   fountainSaved: "Punto de reaparición fijado en esta Fuente.",
   // CAS-267: controls hint is bind-aware — `k(action)` resolves the player's LIVE

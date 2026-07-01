@@ -24,6 +24,7 @@ import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
 import { daily } from "./daily.js";
+import { bestiary } from "./bestiary.js";
 import { overlay } from "./overlay.js";
 import { hud } from "./hud.js";
 
@@ -37,7 +38,7 @@ export function createGame(canvas, ctx, getView){
   // CAS-113: throttled progression autosave rides the sim step (never per-frame).
   // CAS-131: a single scene-transition observer fires the UI open/close blip so the
   // SFX wiring lives in ONE place instead of scattered across every menu entry point.
-  const MENU_SCENES=new Set(["inventory","talents","mastery","shop","bounty","pause","dialogue"]);
+  const MENU_SCENES=new Set(["inventory","talents","mastery","shop","bounty","bestiary","pause","dialogue"]);
   let prevScene=G.scene;
   function update(dtMs){ simUpdate(dtMs); persist.tick(dtMs/1000); analytics.tick(dtMs, G); daily.tick(); syncMenuDom();
     const s=G.scene; if(s!==prevScene){
@@ -74,6 +75,11 @@ export function createGame(canvas, ctx, getView){
   // client-side, fork-neutral — reversible by deleting daily.js + its one localStorage key.
   daily.boot();
   daily.initFlush();
+  // CAS-386: the Bestiary/Codex collection meta-goal. Boot loads its own localStorage
+  // claimed-tier store; it READS counts live from the save's killsByType (CAS-375) and
+  // needs no per-frame tick (no delta accumulation) — a pure observer + claim seam,
+  // reversible by deleting bestiary.js + its one key.
+  bestiary.boot();
   // CAS-279: opt-in retention telemetry overlay (F9, default OFF). Pure read-only HUD over
   // analytics.js / daily.js so QA can read accumulated retention numbers off a live playtest.
   // Touches no sim/balance/input — toggling it changes nothing in the game itself.
@@ -118,7 +124,7 @@ export function createGame(canvas, ctx, getView){
   };
   hud.boot(hudSnapshot, hudActions);
   // Read API for the analytics.html dashboard + QA harness (own anonymous device data).
-  if(typeof window!=="undefined"){ window.__analytics=analytics.dev; window.__daily=daily.dev; }
+  if(typeof window!=="undefined"){ window.__analytics=analytics.dev; window.__daily=daily.dev; window.__bestiary=bestiary.dev; }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
     window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)
@@ -172,6 +178,8 @@ export function createGame(canvas, ctx, getView){
       fountainHealProbe:(off)=>simDev.fountainHealProbe(off),
       // CAS-134 daily-return-loop contract consumed by tools/cas134-daily.mjs — additive
       bountyTP:()=>simDev.bountyTP(),
+      // CAS-386 bestiary contract consumed by tools/cas386-bestiary.mjs — additive
+      codexTP:()=>simDev.codexTP(),
       heroStats:()=>simDev.heroStats(), setGold:(n)=>simDev.setGold(n),
       // CAS-192 combat-consumable contract consumed by tools/cas192-consumables.mjs — additive
       // CAS-237 forja contract consumed by tools/forge.mjs — additive
