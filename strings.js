@@ -310,6 +310,7 @@ export const STR = {
   draftSub: "Zona despejada — elige una bendición para el resto de la partida",
   draftPick: (n) => "Elegir (" + n + ")",
   draftActive: (n) => "Bendiciones activas: " + n,
+  draftSynHint: "Combina bendiciones para desbloquear sinergias",
   dailySlay: (n) => "Da caza a " + n + " enemigos",
   // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).
   dailySlayType: (mob, n) => "Da caza a " + n + " " + ({ quillback:"Acechadores Espinosos", wendigo:"Wéndigos", demon:"Demonios Oscuros", skeleton:"esqueletos", orc:"orcos", wraith:"espectros", bandit:"bandidos", wolf:"lobos" }[mob] || (mob || "enemigos")),

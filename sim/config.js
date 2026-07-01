@@ -620,22 +620,51 @@ export const CUSTOMIZE = {
 // deepen a build. `cat` = offense|defense|utility (draft/label grouping). `glyph` is a
 // procedural icon (no art spend). All numbers are TUNABLE — the clamps in recalcBoons
 // are the balance guardrail (AC #5); flag here if a value distorts the curve.
+// CAS-388: every boon carries a `rarity` tier — common | rare | legendary. The draft weights
+// its 3-card draw by tier and scales the rare/legendary odds UP with run depth (owned-boon
+// count), so early cards are mostly commons and a deep run starts surfacing build-defining
+// picks. Rarer = stronger/build-defining. The two `legendary` keystones CHANGE how a class
+// plays (a dash damage-trail, a kill nova) — reusing the same boon-stack plumbing (new bb
+// fields folded in recalcBoons). No SAVE_VERSION bump: ids are additive, unknown ids drop.
 export const BOONS = [
   // ---- offense ----
-  { id:"glass",  cat:"offense", glyph:"✷", name:"Cristal Frágil",    desc:"+25% prob. de crítico, pero −22% vida máxima.", crit:25, hpMul:0.78 },
-  { id:"ember",  cat:"offense", glyph:"🔥", name:"Sangre de Brasa",   desc:"Tus golpes prenden fuego: convierten daño en quemadura.", burn:0.35 },
-  { id:"venom",  cat:"offense", glyph:"☣", name:"Toque Ponzoñoso",   desc:"Tus golpes envenenan: convierten daño en veneno.", poison:0.35 },
-  { id:"arc",    cat:"offense", glyph:"⟿", name:"Eco Arcano",        desc:"Tus proyectiles saltan a +1 enemigo cercano.", chain:1 },
+  { id:"glass",  cat:"offense", rarity:"rare",   glyph:"✷", name:"Cristal Frágil",    desc:"+25% prob. de crítico, pero −22% vida máxima.", crit:25, hpMul:0.78 },
+  { id:"ember",  cat:"offense", rarity:"common", glyph:"🔥", name:"Sangre de Brasa",   desc:"Tus golpes prenden fuego: convierten daño en quemadura.", burn:0.35 },
+  { id:"venom",  cat:"offense", rarity:"common", glyph:"☣", name:"Toque Ponzoñoso",   desc:"Tus golpes envenenan: convierten daño en veneno.", poison:0.35 },
+  { id:"arc",    cat:"offense", rarity:"rare",   glyph:"⟿", name:"Eco Arcano",        desc:"Tus proyectiles saltan a +1 enemigo cercano.", chain:1 },
   // ---- defense ----
-  { id:"thorns", cat:"defense", glyph:"✵", name:"Coraza de Espinas", desc:"Refleja 40% del daño recibido al atacante.", reflect:0.40 },
-  { id:"stone",  cat:"defense", glyph:"❑", name:"Piel de Piedra",    desc:"+22% vida máxima y +6 de defensa.", hpMul:1.22, defAdd:6 },
-  { id:"vamp",   cat:"defense", glyph:"♥", name:"Sed de Sangre",     desc:"Roba 14% de la vida al golpear cuerpo a cuerpo.", lifesteal:0.14 },
+  { id:"thorns", cat:"defense", rarity:"common", glyph:"✵", name:"Coraza de Espinas", desc:"Refleja 40% del daño recibido al atacante.", reflect:0.40 },
+  { id:"stone",  cat:"defense", rarity:"common", glyph:"❑", name:"Piel de Piedra",    desc:"+22% vida máxima y +6 de defensa.", hpMul:1.22, defAdd:6 },
+  { id:"vamp",   cat:"defense", rarity:"rare",   glyph:"♥", name:"Sed de Sangre",     desc:"Roba 14% de la vida al golpear cuerpo a cuerpo.", lifesteal:0.14 },
   // ---- utility ----
-  { id:"swift",  cat:"utility", glyph:"➹", name:"Viento Veloz",      desc:"+16% velocidad y mayor ventana de esquiva.", moveMul:1.16, iframeAdd:0.06 },
-  { id:"reaper", cat:"utility", glyph:"☠", name:"Cosecha Sangrienta",desc:"Al matar: cura breve y ráfaga de prisa.", onKillHeal:0.04, onKillHaste:2.5 },
-  { id:"greed",  cat:"utility", glyph:"◈", name:"Codicia",           desc:"El botín cae con mayor rareza.", loot:0.7 },
+  { id:"swift",  cat:"utility", rarity:"common", glyph:"➹", name:"Viento Veloz",      desc:"+16% velocidad y mayor ventana de esquiva.", moveMul:1.16, iframeAdd:0.06 },
+  { id:"reaper", cat:"utility", rarity:"rare",   glyph:"☠", name:"Cosecha Sangrienta",desc:"Al matar: cura breve y ráfaga de prisa.", onKillHeal:0.04, onKillHaste:2.5 },
+  { id:"greed",  cat:"utility", rarity:"common", glyph:"◈", name:"Codicia",           desc:"El botín cae con mayor rareza.", loot:0.7 },
+  // ---- LEGENDARY keystones (CAS-388): run-defining, change HOW a class plays ----
+  { id:"wake",   cat:"utility", rarity:"legendary", glyph:"⇶", name:"Estela Ardiente",  desc:"Tu esquiva deja un rastro de fuego que quema a los enemigos que atraviesas.", trail:0.45 },
+  { id:"nova",   cat:"offense", rarity:"legendary", glyph:"❂", name:"Núcleo Detonante", desc:"Cada muerte desata una explosión que daña a los enemigos cercanos.", onKillNova:0.6 },
 ];
 export const BOON_MAP = (()=>{ const m={}; for(const b of BOONS) m[b.id]=b; return m; })();
 // How many cards a draft offers, and the localized category labels for the panel.
 export const BOON_DRAFT_N = 3;
 export const BOON_CAT_LABEL = { offense:"Ofensiva", defense:"Defensa", utility:"Utilidad" };
+// CAS-388: rarity draw weights. Base weight per tier + a per-depth ramp (depth = #owned boons).
+// Common stays flat; rare/legendary weights climb with depth so the pool skews rarer the deeper
+// a run goes, but each is capped so legendaries never flood the draft. Tunable balance knobs.
+export const BOON_RARITY = {
+  common:    { col:"#cfd6e0", label:"COMÚN",      w:10,  wPerDepth:0,    wCap:10 },
+  rare:      { col:"#4db6ff", label:"RARO",       w:2.0, wPerDepth:1.1,  wCap:12 },
+  legendary: { col:"#ffab2e", label:"LEGENDARIO", w:0.5, wPerDepth:0.45, wCap:6  },
+};
+export function boonRarityWeight(rarity, depth){ const r=BOON_RARITY[rarity]||BOON_RARITY.common;
+  return Math.min(r.wCap, r.w + r.wPerDepth*(depth||0)); }
+// CAS-388: SYNERGIES — pairs of owned boons that unlock an emergent bonus while BOTH are held.
+// Folded in recalcBoons (multiplies the relevant bb field before the guardrail clamps, so a
+// synergy deepens a build but can never break the crit/lifesteal/reflect ceilings). Surfaced
+// in the draft overlay so the player can read which pairings are live.
+export const SYNERGIES = [
+  { id:"ignite", need:["glass","ember"], name:"Ignición Crítica",   desc:"Crítico + Brasa: tus quemaduras arden con mucha más intensidad.", mul:{ burn:1.6 } },
+  { id:"vdance", need:["vamp","swift"],  name:"Danza Vampírica",     desc:"Sed de Sangre + Viento Veloz: robas mucha más vida al golpear.",   mul:{ lifesteal:1.7 } },
+  { id:"aegis",  need:["thorns","stone"],name:"Fortaleza Vengativa", desc:"Espinas + Piedra: reflejas mucho más daño al atacante.",          mul:{ reflect:1.6 } },
+];
+export const SYN_MAP = (()=>{ const m={}; for(const s of SYNERGIES) m[s.id]=s; return m; })();

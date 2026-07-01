@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
@@ -1797,6 +1797,10 @@ export function createRenderer(ctx){
   // change is the pick, routed through sim.pickBoon via ui.draftRects (tap) / input keys.
   // Reuses the shared panel() Tibia frame + COL palette + Courier idiom (no art spend).
   function boonCatCol(cat){ return cat==="offense"?"#ff7a5d":cat==="defense"?"#7fb2ff":"#8be07a"; }
+  // CAS-388: rarity accent — common = muted frame, rare = blue, legendary = amber glow. Drives
+  // the card's border + a small corner ribbon so the draw reads its tier at a glance.
+  function boonRarCol(b){ const r=BOON_RARITY&&BOON_RARITY[b&&b.rarity]; return r?r.col:"#cfd6e0"; }
+  function boonRarLabel(b){ const r=BOON_RARITY&&BOON_RARITY[b&&b.rarity]; return r?r.label:""; }
   function renderDraft(){ const d=G.draft; ui.draftRects=[]; if(!d){ return; }
     const h=G.hero; const choices=d.choices||[];
     const bw=Math.min(VW*0.94,660), bh=Math.min(VH*0.9,460), x=(VW-bw)/2, y=(VH-bh)/2;
@@ -1813,9 +1817,12 @@ export function createRenderer(ctx){
       const gap=14, cw=(bw-40-gap*(choices.length-1))/choices.length, ch=bh-64-botH-20, cx0=x+20;
       for(let i=0;i<choices.length;i++){ const b=BOON_MAP[choices[i]]; if(!b) continue;
         const cx=cx0+i*(cw+gap), cy=top; const on=i===sel; const cc=boonCatCol(b.cat);
+        const rc=boonRarCol(b), leg=b.rarity==="legendary";
         ctx.fillStyle=on?"#2c3446":"#20262f"; ctx.fillRect(cx,cy,cw,ch);
-        ctx.strokeStyle=on?COL.textGold:"#3a4150"; ctx.lineWidth=on?2:1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
+        // CAS-388: rarity frame — legendary always reads bold/amber even unselected.
+        ctx.strokeStyle=on?COL.textGold:rc; ctx.lineWidth=(on||leg)?2:1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
         ctx.fillStyle=cc; ctx.fillRect(cx,cy,cw,4); // category color bar
+        ctx.textAlign="center"; ctx.fillStyle=rc; ctx.font="bold 9px 'Courier New'"; ctx.fillText(boonRarLabel(b), cx+cw/2, cy+16); // rarity ribbon
         ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="30px 'Courier New'"; ctx.fillText(b.glyph, cx+cw/2, cy+46);
         ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(b.name, cx+cw/2, cy+72);
         ctx.fillStyle=cc; ctx.font="11px 'Courier New'"; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), cx+cw/2, cy+90);
@@ -1827,11 +1834,13 @@ export function createRenderer(ctx){
       const rh=Math.min(96,(bh-64-botH-20)/choices.length-8), rw=bw-40, rx=x+20;
       for(let i=0;i<choices.length;i++){ const b=BOON_MAP[choices[i]]; if(!b) continue;
         const ry=top+i*(rh+8); const on=i===sel; const cc=boonCatCol(b.cat);
+        const rc=boonRarCol(b), leg=b.rarity==="legendary";
         ctx.fillStyle=on?"#2c3446":"#20262f"; ctx.fillRect(rx,ry,rw,rh);
-        ctx.strokeStyle=on?COL.textGold:"#3a4150"; ctx.lineWidth=on?2:1; ctx.strokeRect(rx+0.5,ry+0.5,rw,rh);
+        ctx.strokeStyle=on?COL.textGold:rc; ctx.lineWidth=(on||leg)?2:1; ctx.strokeRect(rx+0.5,ry+0.5,rw,rh);
         ctx.fillStyle=cc; ctx.fillRect(rx,ry,4,rh);
         ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="28px 'Courier New'"; ctx.fillText(b.glyph, rx+34, ry+rh/2+8);
         ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(b.name+"  ", rx+62, ry+22);
+        ctx.fillStyle=rc; ctx.font="9px 'Courier New'"; ctx.fillText(boonRarLabel(b), rx+rw-14-ctx.measureText(boonRarLabel(b)).width, ry+16); // rarity ribbon (right)
         ctx.fillStyle=cc; ctx.font="10px 'Courier New'"; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), rx+62, ry+38);
         ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; wrapText(b.desc, rx+62, ry+56, rw-172, 15);
         ctx.textAlign="right"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), rx+rw-14, ry+rh/2+4);
@@ -1842,6 +1851,15 @@ export function createRenderer(ctx){
     const owned=(h&&h.boons)||[]; const fy=y+bh-botH+18;
     ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'";
     ctx.fillText(STR.draftActive(owned.length), x+20, fy);
+    // CAS-388: active SYNERGY chips on the same header line (right side) — an owned PAIR lights
+    // up amber so the player reads which emergent bonuses their build has unlocked.
+    { const os=new Set(owned); const live=SYNERGIES.filter(s=>s.need.every(id=>os.has(id)));
+      if(live.length){ ctx.textAlign="right"; let sx=x+bw-20; ctx.font="bold 11px 'Courier New'";
+        for(let i=live.length-1;i>=0;i--){ const s=live[i]; const lbl="✦ "+s.name;
+          ctx.fillStyle="#ffab2e"; ctx.fillText(lbl, sx, fy); sx-=ctx.measureText(lbl).width+16; }
+        ctx.textAlign="left";
+      } else { ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'";
+        ctx.fillText(STR.draftSynHint, x+bw-20, fy); ctx.textAlign="left"; } }
     if(owned.length){ let gx=x+20; ctx.font="18px 'Courier New'"; const seen={};
       for(const id of owned){ const b=BOON_MAP[id]; if(!b) continue; seen[id]=(seen[id]||0)+1; }
       const keys=Object.keys(seen); ctx.textAlign="left";

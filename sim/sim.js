@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_DRAFT_N } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_DRAFT_N, SYNERGIES, boonRarityWeight } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -219,15 +219,25 @@ function initHunts(){ const o={}; for(const z in HUNTS) o[z]={kills:0, champ:nul
 // stack can deepen a build but never trivialize the game (guaranteed-crit / infinite-heal
 // loops are capped). A boonless hero yields the zero bundle → every hook is a no-op → the
 // combat baseline is byte-identical. Called on draft pick + on save load.
+// CAS-388: `trail`/`onKillNova` are the two legendary keystones; `syn` lists the currently
+// active synergy ids (HUD read only — never a hot-path allocation, rebuilt on pick/load only).
 function zeroBB(){ return { crit:0, hpMul:1, moveMul:1, defAdd:0, iframeAdd:0, lifesteal:0, reflect:0,
-  onKillHeal:0, onKillHaste:0, burn:0, poison:0, chain:0, loot:0 }; }
+  onKillHeal:0, onKillHaste:0, burn:0, poison:0, chain:0, loot:0, trail:0, onKillNova:0, syn:[] }; }
 function recalcBoons(h){ if(!h) return; const bb=zeroBB(); const list=h.boons||[];
   for(const id of list){ const b=BOON_MAP[id]; if(!b) continue;
     bb.crit+=b.crit||0; bb.defAdd+=b.defAdd||0; bb.iframeAdd+=b.iframeAdd||0;
     bb.lifesteal+=b.lifesteal||0; bb.reflect+=b.reflect||0;
     bb.onKillHeal+=b.onKillHeal||0; bb.onKillHaste=Math.max(bb.onKillHaste,b.onKillHaste||0);
     bb.burn+=b.burn||0; bb.poison+=b.poison||0; bb.chain+=b.chain||0; bb.loot+=b.loot||0;
+    // CAS-388: legendary keystones DON'T stack additively (a run-defining effect, one copy is
+    // full-strength) — take the max so a re-draft can't runaway-scale them.
+    bb.trail=Math.max(bb.trail,b.trail||0); bb.onKillNova=Math.max(bb.onKillNova,b.onKillNova||0);
     if(b.hpMul) bb.hpMul*=b.hpMul; if(b.moveMul) bb.moveMul*=b.moveMul; }
+  // CAS-388: SYNERGIES — an owned PAIR multiplies its field BEFORE the clamps, so an emergent
+  // bonus deepens a build but still cannot pierce the crit/lifesteal/reflect ceilings below.
+  { const owned=new Set(list);
+    for(const s of SYNERGIES){ if(s.need.every(id=>owned.has(id))){ bb.syn.push(s.id);
+      for(const k in s.mul) bb[k]=(bb[k]||0)*s.mul[k]; } } }
   // guardrail clamps — keep every stacked total on-curve (see config BOONS note)
   bb.crit=Math.min(bb.crit,60);          // never guaranteed-crit from boons alone
   bb.lifesteal=Math.min(bb.lifesteal,0.5);
@@ -235,6 +245,10 @@ function recalcBoons(h){ if(!h) return; const bb=zeroBB(); const list=h.boons||[
   bb.onKillHeal=Math.min(bb.onKillHeal,0.10);
   bb.chain=Math.min(bb.chain,3);
   bb.loot=Math.min(bb.loot,2.5);
+  bb.burn=Math.min(bb.burn,1.0);         // CAS-388: DoT-conversion ceilings (synergy-safe)
+  bb.poison=Math.min(bb.poison,1.0);
+  bb.trail=Math.min(bb.trail,0.6);       // CAS-388: keystone ceilings
+  bb.onKillNova=Math.min(bb.onKillNova,0.8);
   bb.hpMul=Math.max(0.5,Math.min(bb.hpMul,2.5));
   bb.moveMul=Math.min(bb.moveMul,1.6);
   h.bb=bb;
@@ -250,8 +264,18 @@ export function bbLoot(){ return (G.hero&&G.hero.bb)?G.hero.bb.loot:0; } // Codi
 // the sim RNG (deterministic / Stage-2-ready). Owned boons stay eligible (re-drafting a boon
 // deepens the build). Pauses into the "draft" scene; input.js/render.js own the card UI.
 function openDraft(source){ const h=G.hero; if(!h) return;
+  // CAS-388: RARITY-WEIGHTED draw. depth = #owned boons (each prior champion clear added one),
+  // so the pool skews rarer the deeper the run runs. Weighted-WITHOUT-replacement (splice the
+  // pick out) keeps the three cards distinct; owned boons stay eligible (re-drafting deepens).
+  // srand() only → deterministic / Stage-2-ready, same RNG stream as before.
+  const depth=(h.boons&&h.boons.length)||0;
   const pool=BOONS.slice(); const picks=[]; const n=Math.min(BOON_DRAFT_N,pool.length);
-  for(let i=0;i<n;i++){ const idx=Math.floor(srand()*pool.length); picks.push(pool.splice(idx,1)[0].id); }
+  for(let i=0;i<n;i++){
+    let total=0; for(const b of pool) total+=boonRarityWeight(b.rarity,depth);
+    let r=srand()*total, idx=0;
+    for(let j=0;j<pool.length;j++){ r-=boonRarityWeight(pool[j].rarity,depth); if(r<=0){ idx=j; break; } idx=j; }
+    picks.push(pool.splice(idx,1)[0].id);
+  }
   G.draft={ choices:picks, sel:0, source:source||"" }; G.draftSel=0; G.scene="draft";
   audio&&audio.sfx&&audio.sfx.levelup&&audio.sfx.levelup();
 }
@@ -576,6 +600,10 @@ function applyHeroMelee(){
 // lifesteal boon leeches on melee connects but not on ranged/spell hits (all of which also
 // funnel through hitEnemy). Module-scoped, reset immediately after the loop.
 let heroMeleeHit=false;
+// CAS-388: re-entrancy guard for the Núcleo Detonante keystone. A nova's own damage funnels
+// through hitEnemy→killEnemy, which could re-trigger a nova → recursion. This flag limits it to
+// ONE ring per originating kill (no chain-reaction explosion, no stack overflow, 60fps-safe).
+let novaActive=false;
 function hitEnemy(e,dmg,ang){
   // CAS-117: the "on-hit ligero" affix — a small flat bonus folded into EVERY
   // hero-sourced hit (melee/nova/proj/spell all funnel here). hitEnemy is the
@@ -690,6 +718,15 @@ function killEnemy(e){
       if(bb.onKillHeal>0){ const mhp=heroMaxHp(h); if(h.hp<mhp){ const heal=Math.max(1,Math.round(mhp*bb.onKillHeal));
         h.hp=Math.min(mhp,h.hp+heal); floater(h.x,h.y-30,"+"+heal,"#5fd66a",{small:true}); } }
       if(bb.onKillHaste>0){ h.atkspdBuffT=Math.max(h.atkspdBuffT,bb.onKillHaste); h.atkspdBuffAmt=Math.max(h.atkspdBuffAmt,35); } } }
+  // CAS-388: Núcleo Detonante legendary — a real kill detonates a nova that damages nearby
+  // enemies (funnels through hitEnemy so it carries the build's on-hit statuses/lifesteal). The
+  // novaActive guard stops the ring from chain-detonating off its own kills (one ring per kill).
+  { const h=G.hero, bb=h&&h.bb; if(h&&!h.dead&&!tpl.neutral&&bb&&bb.onKillNova>0&&!novaActive){
+      novaActive=true; const R=96, R2=R*R, nd=Math.max(1,Math.round(equippedDmg(h)*bb.onKillNova));
+      for(const t of G.enemies){ if(t===e||t.dead) continue; const dx=t.x-e.x, dy=t.y-e.y;
+        if(dx*dx+dy*dy<=R2+t.tpl.size*t.tpl.size) hitEnemy(t,nd,Math.atan2(t.y-e.y,t.x-e.x)); }
+      addFx("holynova",e.x,e.y,{r:R,life:0.45}); addFx("shockring",e.x,e.y,{r:R*0.8,life:0.4});
+      audio.sfx.rune&&audio.sfx.rune(); shakeAdd(5); novaActive=false; } }
   if(e.isBoss){ audio.sfx.boss(); G.bossDead=true; toast(STR.bossDefeated); shakeAdd(10);
     G.drops.push({x:e.x,y:e.y,kind:"potionhp"}); G.drops.push({x:e.x+20,y:e.y,kind:"gold"});
     noteEliteKill(); // CAS-149: the final boss is an elite-class kill → feeds Elite Mastery
@@ -1401,7 +1438,9 @@ function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n
 export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
   else { const mv=io.moveVec(); if(mv[0]===0&&mv[1]===0){ ax=Math.cos(h.facing); ay=Math.sin(h.facing);} else {[ax,ay]=mv;} }
-  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=CFG.rollIFrame+((h.bb&&h.bb.iframeAdd)||0); h.rollCD=CFG.rollCD; h.rollX=ax; h.rollY=ay; audio.sfx.roll(); } // CAS-383: Viento Veloz widens the dodge window
+  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=CFG.rollIFrame+((h.bb&&h.bb.iframeAdd)||0); h.rollCD=CFG.rollCD; h.rollX=ax; h.rollY=ay;
+  if(h.bb&&h.bb.trail>0) h._trailSet=new Set(); // CAS-388: fresh per-roll set so Estela Ardiente burns each enemy once per dash
+  audio.sfx.roll(); } // CAS-383: Viento Veloz widens the dodge window
 
 // ====================================================================
 //  UPDATE  — advances the simulation one fixed step. No ctx, no DOM.
@@ -1457,6 +1496,16 @@ export function update(dtMs){
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
   if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12);
+    // CAS-388: Estela Ardiente legendary — the dash lays a fire wake. Enemies the roll passes
+    // through take a burn DoT once per dash (h._trailSet dedupes), turning the dodge into an
+    // offensive tool. Guarded on trail>0 so a boonless roll is byte-identical. Reuses the burn
+    // status stack (no new damage plumbing) and drops a small ember FX to read the wake.
+    if(h.bb&&h.bb.trail>0){ const set=h._trailSet||(h._trailSet=new Set());
+      const td=Math.max(1,Math.round(equippedDmg(h)*h.bb.trail));
+      for(const e of G.enemies){ if(e.dead||set.has(e)) continue;
+        const dx=e.x-h.x, dy=e.y-h.y, rr=e.tpl.size+22;
+        if(dx*dx+dy*dy<=rr*rr){ set.add(e); applyStatus(e,"burn",{dmg:td}); addFx("flame",e.x,e.y,{life:0.4}); } }
+      addFx("flame",h.x,h.y,{life:0.35}); }
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
   else { const mv=io.moveVec(); const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
