@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
@@ -241,9 +241,10 @@ export function createRenderer(ctx){
   // hi-fi FOUNTAINS dark flagstone with a cold wash (see renderWorld); these fallback
   // tones are now DARK frozen-stone (not bright pale-blue) so the zone reads cold even
   // before the image loads / in unit tooling.
-  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#2c3a48"];
-  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#4a6072"];
-  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#1a2632"];
+  // index 7 = T_SWAMP (CAS-441) — teal marsh fallback tones until the CAS-439 tiles load.
+  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#2c3a48","#3a463e"];
+  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#4a6072","#4e5f52"];
+  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#1a2632","#2a342e"];
 
   function render(alpha){
     VW=view.VW; VH=view.VH;
@@ -318,6 +319,13 @@ export function createRenderer(ctx){
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
       if(t===T_GRASS){ const img=(hash2(x,y)<0.5?IMG.ruins_grass:IMG.ruins_grass2);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS); continue; } }
+      // CAS-441: Ciénaga de Bruma floor (CAS-439 teal marsh tiles). A LOW-frequency hash
+      // (x>>1,y>>1) gates the water so pools clump into 2×2-ish ponds instead of lone
+      // speckles; puddles + the two mud variants alternate per-tile. All walkable —
+      // the marsh is shallow (wading), depth reads from the props, not collision.
+      if(t===T_SWAMP){ const pool=hash2(x>>1,y>>1), r=hash2(x,y);
+        const img=(pool<0.08?IMG.swamp_water:(r<0.12?IMG.swamp_puddle:(r<0.66?IMG.swamp_mud:IMG.swamp_mud2)));
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS); continue; } }
       ctx.fillStyle=tileBase[t]; ctx.fillRect(px,py,TS,TS);
       const hv=hash2(x,y);
@@ -1389,7 +1397,7 @@ export function createRenderer(ctx){
     ctx.fillStyle="rgba(12,14,19,0.8)"; ctx.fillRect(x-2,y-2,mw+4,mh+4); ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
     if(uiLayout.dragging()==="minimap"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x-4,y-4,mw+8,mh+8); }
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"],[world.frost,"#3a4e5e"],[world.trial,"#c8a24a"]];
+    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"],[world.frost,"#3a4e5e"],[world.trial,"#c8a24a"],[world.swamp,"#3f5a4c"]];
     for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
     // CAS-114 — portal blips on the minimap (violet)
     if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-1,y+p.y*sy-1,3,3); } }
@@ -1399,7 +1407,7 @@ export function createRenderer(ctx){
   function renderBigMap(){ const mw=Math.min(VW*0.7,420), mh=mw; const x=(VW-mw)/2, y=(VH-mh)/2;
     panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins],[world.abyss,"#3a2350",STR.zoneAbyss],[world.frost,"#3a4e5e",STR.zoneFrost],[world.trial,"#c8a24a",STR.zoneTrial]];
+    const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins],[world.abyss,"#3a2350",STR.zoneAbyss],[world.frost,"#3a4e5e",STR.zoneFrost],[world.trial,"#c8a24a",STR.zoneTrial],[world.swamp,"#3f5a4c",STR.zoneSwamp]];
     for(const [r,c,nm] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy);
       ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.fillText(nm,x+(r.x+r.w/2)*TS*sx,y+(r.y+r.h/2)*TS*sy); }
     // CAS-114 — portal markers on the world map (violet diamonds)

@@ -133,6 +133,9 @@ export function createGame(canvas, ctx, getView){
       // CAS-92: read-only hero animation state, used by tools/hero-anim-shot.mjs
       heroAnim:()=>G.hero?{state:G.hero.animState,rolling:!!G.hero.rolling,atk:G.hero.atkAnim>0,hurtAnim:+(G.hero.hurtAnim||0).toFixed(3),specialAnim:+(G.hero.specialAnim||0).toFixed(3),facing:+(G.hero.facing||0).toFixed(4),moved:!!G.hero.moved}:null, // CAS-347: read-only facing/moved for the facing-follows-movement QA harness
       enemyCount:()=>G.enemies.length,
+      // CAS-441: positional enemy snapshot (read-only) so the swamp harness can prove the
+      // zone spawner populates the rect from its pool — consumed by tools/cas441-swamp.mjs
+      enemies:()=>G.enemies.map(e=>({x:Math.round(e.x),y:Math.round(e.y),type:e.type})),
       bossAnim:()=>simDev.bossAnim(), // CAS-317: dracónic boss 6-anim QA observer
       hitBoss:(n)=>simDev.hitBoss(n), // CAS-317: deterministic hurt/death driver for QA
 

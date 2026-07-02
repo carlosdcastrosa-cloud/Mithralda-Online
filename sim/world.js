@@ -5,7 +5,7 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_ICE, TOWN_MAP, TOWN_LEGEND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND } from "./config.js";
 import { inRect } from "./math.js";
 
 // CAS-80: resolve a town-local cell (lx,ly within the 18×18 town rect) to its terrain
@@ -315,7 +315,42 @@ export function buildWorld(rng){
     else if(k<0.40) prop(pick(FROCK), cx+rr(-8,8), cy+rr(-7,7), true, 8);                    // boulders → solid base
     else            prop(pick(FLITTER), cx+rr(-11,11), cy+rr(-9,9), false);                 // undergrowth (walkable)
   }
-  return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
+  // ---- CAS-441: la Ciénaga de Bruma — the 4th open biome (board CAS-438) ----
+  // Carved in the outer wilderness ring EAST of the cluster, straddling the town's east
+  // dirt road (the |y-cyp|<1.5 path above runs to the map edge, so the road already leads
+  // the player straight to the marsh gate — a clear walk-in entrance, no portal).
+  //
+  // Determinism (CAS-398 lesson): this block runs AFTER the wilderness fill, so every rng
+  // draw that shaped the existing zones/field is byte-identical to the previous build; the
+  // swamp only APPENDS draws at the end of the stream. The wilderness props that landed on
+  // the rect while it was still grass are compacted out below (pure filtering, no rng).
+  const swamp = {x:240,y:150,w:34,h:30};
+  for(let ty=swamp.y; ty<swamp.y+swamp.h; ty++) for(let tx=swamp.x; tx<swamp.x+swamp.w; tx++) terr[ty*MAP_W+tx]=T_SWAMP;
+  const inSw=(px,py)=>{ const tx=px/TS, ty=py/TS;
+    return tx>=swamp.x-1 && tx<swamp.x+swamp.w+1 && ty>=swamp.y-1 && ty<swamp.y+swamp.h+1; };
+  // in-place compaction (never splice-per-item / spread-push — deco holds ~58k props)
+  function compact(arr){ let w=0; for(let i=0;i<arr.length;i++){ const it=arr[i]; if(!inSw(it.x,it.y)) arr[w++]=it; } arr.length=w; }
+  compact(solids); compact(deco);
+  // marsh dressing (CAS-439 art): dead trees + mossy rocks are SOLID (real collision
+  // footprint through the same spatial-hash path as every other solid, CAS-397); reeds +
+  // mushrooms stay walkable litter so the bog reads passable. West entrance kept clear
+  // where the town road (rows cyp±1) meets the rect.
+  const swPathY=town.y+town.h/2;
+  for(let i=0;i<46;i++){ const tx=swamp.x+rr(1,swamp.w-2), ty=swamp.y+rr(1,swamp.h-2);
+    if(tx<swamp.x+5 && Math.abs(ty-swPathY)<3) continue;   // keep the west gate open
+    const x=tx*TS, y=ty*TS, k=srand();
+    if(k<0.28) prop(srand()<0.5?"prop_sw_dead_tree_1":"prop_sw_dead_tree_2",x,y,true,10);
+    else if(k<0.42) prop("prop_sw_mossy_rock_1",x,y,true,8);
+    else if(k<0.74) prop("prop_sw_reeds_1",x,y,false);
+    else prop("prop_sw_mushroom_1",x,y,false); }
+  // CAS-441 swamp IDENTITY (placeholder until CAS-442 lands the real roster + Tirano del
+  // Pantano): "la Niebla Hambrienta" — fast skirmishers (wolf/bat) harry you while bog
+  // casters (wraith slow-bolt, spearman poke) punish standing still and a poison bandit
+  // makes every graze linger. Tier-4 scaling (ZONE_TIER.swamp) = the arena's parallel.
+  spawners.push({rect:swamp,types:["wolf","bat","spearman","wraith","bandit"],max:12,cool:4,t:0,zone:"swamp"});
+  chests.push({x:(swamp.x+swamp.w-4)*TS,y:(swamp.y+swamp.h-4)*TS,opened:false,loot:"gold60"});
+  fragments.push({x:(swamp.x+swamp.w-3)*TS,y:(swamp.y+3)*TS,taken:false,kind:"hp"});
+  return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, swamp, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
 }
 
 export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
@@ -326,5 +361,6 @@ export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
   if(world.abyss && inRect(tx,ty,world.abyss)) return "abyss";  // CAS-114
   if(world.frost && inRect(tx,ty,world.frost)) return "frost";  // CAS-121
   if(world.trial && inRect(tx,ty,world.trial)) return "trial";  // CAS-196
+  if(world.swamp && inRect(tx,ty,world.swamp)) return "swamp";  // CAS-441
   if(inRect(tx,ty,world.forest)) return "forest";
   return "field"; }

@@ -1655,7 +1655,7 @@ export function update(dtMs){
   tickTutorial(dt); // CAS-128: onboarding step machine (observes hero state; no balance touch)
   // music switch by zone danger + boss presence (CAS-131: town/combat/boss tracks).
   const z=zoneOf(world,h.x,h.y);
-  const inDanger=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss"||z==="frost");
+  const inDanger=(z==="caves"||z==="forest"||z==="arena"||z==="ruins"||z==="abyss"||z==="frost"||z==="swamp"); // CAS-441: the Ciénaga is a combat biome (music/ambush clock)
   const wantCombat=inDanger && G.enemies.some(e=>e.state==="chase"||e.state==="windup"||e.state==="shield");
   // a live boss / champion / capstone in the zone escalates to the épica boss theme.
   const bossFight=inDanger && G.enemies.some(e=>e.hp>0 && (e.isBoss||e.capstone||e.champion));

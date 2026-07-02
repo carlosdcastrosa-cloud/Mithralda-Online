@@ -507,9 +507,18 @@ export function loadAllAssets(){
   loadImg("ruins_grass2","./assets/tiles/ruins_grass2.png");
   loadImg("wall","./assets/tiles/wall.png");
   loadImg("wall2","./assets/tiles/wall2.png");
+  // CAS-441: Ciénaga de Bruma marsh floor (CAS-439 art) — T_SWAMP paints these four
+  // 32px tiles (mud base / moss-flecked mud / puddle / water pool) via hash2 variants.
+  loadImg("swamp_mud","./assets/tiles/swamp_mud.png");
+  loadImg("swamp_mud2","./assets/tiles/swamp_mud2.png");
+  loadImg("swamp_puddle","./assets/tiles/swamp_puddle.png");
+  loadImg("swamp_water","./assets/tiles/swamp_water.png");
   for(const p of ["barrel","bones","rock","pillar","torch","tree_a","tree_b","bush","shrub","grass1","grass2","spear","ruin_obelisk","ruin_statue","ruin_pillar2","ruin_arch"]) loadImg("prop_"+p,"./assets/props/"+p+".png");
   // CAS-353: wilderness nature pack → prop_f_* deco kinds (see FOREST_PROPS above).
   for(const p of FOREST_PROPS) loadImg("prop_f_"+p,"./assets/props/forest/"+p+".png");
+  // CAS-441: Ciénaga marsh props (CAS-439 art, tile-resolution → native size) → prop_sw_*
+  // deco kinds; the "prop_" prefix routes them through the image deco path in render.js.
+  for(const p of ["dead_tree_1","dead_tree_2","mossy_rock_1","reeds_1","mushroom_1"]) loadImg("prop_sw_"+p,"./assets/props/swamp/"+p+".png");
   // CAS-206: FOUNTAINS-style PixelLab enemy cutouts (see ENEMY_IMG above).
   for(const k of new Set(Object.values(ENEMY_IMG))) loadImg(k,"./assets/pixellab/fountains/"+k+".png");
   // CAS-209: PixelLab per-state strips for solid mobs (walk+idle; see ENEMY_STRIPS).

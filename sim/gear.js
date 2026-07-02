@@ -125,6 +125,7 @@ export function forgeNextCost(inst){ const fl=forgeLevel(inst); if(fl>=FORGE.max
 export const ZONE_LOOT = {
   town:{tier:[1,1]}, field:{tier:[1,2]}, forest:{tier:[1,2]},
   ruins:{tier:[2,3]}, caves:{tier:[3,4]}, arena:{tier:[3,4]}, abyss:{tier:[4,4]},
+  swamp:{tier:[3,4]}, // CAS-441 — mirrors caves/arena: the marsh is the arena's tier-4 parallel (same trash window; arena capstone keeps the guaranteed-epic pinnacle)
   frost:{tier:[4,4]}, // CAS-121 — top-tier window (mirrors abyss); the capstone's higher rarity floor is what flexes builds
   trial:{tier:[4,4]}, // CAS-196 — top-tier window (mirrors abyss/frost); the world-boss's guaranteed epic + bonusDrop is the flex
 };

@@ -71,6 +71,7 @@ export const audio = (()=>{
     arena: { f:780,  lvl:0.11, df:65, dg:0.04 },
     abyss: { f:320,  lvl:0.18, df:44, dg:0.08 },   // ominous deep void
     frost: { f:3600, lvl:0.13, df:0,  dg:0.00 },   // high airy wind
+    swamp: { f:640,  lvl:0.14, df:58, dg:0.05 },   // CAS-441: thick humid murk + low bog drone
     field: { f:1600, lvl:0.06, df:0,  dg:0.00 },
   };
   function ambCfg(){ return AMB[ambZone]||AMB.town; }

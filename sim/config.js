@@ -11,6 +11,10 @@ export const T_GRASS = 0, T_DIRT = 1, T_STONE = 2, T_COBBLE = 3, T_SAND = 4, T_W
 // CAS-121 — frozen floor for the gated Cripta Helada (3rd gated biome). Procedurally
 // rendered pale-blue ice (no new art) so the zone reads as a distinct, colder place.
 export const T_ICE = 6;
+// CAS-441 — swamp floor for the Ciénaga de Bruma (4th open zone, CAS-438). Painted by
+// the CAS-439 teal marsh tiles (mud/moss/puddle/water) in render/render.js; walkable
+// like grass (shallow marsh — the water tiles read as wading pools, not barriers).
+export const T_SWAMP = 7;
 
 // CAS-80: data-driven town tilemap — Puerto Solana reads as a small hub built from the
 // real Ancient Ruins tiles. One glyph per 32px cell, stamped over the 18×18 town rect
@@ -391,6 +395,13 @@ export const ZONE_TIER = {
   ruins:  { tier:2, hpMul:1.30, dmgMul:1.18, spdMul:1.05, xpMul:1.30 },
   caves:  { tier:3, hpMul:1.70, dmgMul:1.35, spdMul:1.10, xpMul:1.65 },
   arena:  { tier:4, hpMul:2.10, dmgMul:1.55, spdMul:1.15, xpMul:2.10 },
+  // CAS-441 — la Ciénaga de Bruma: the 4th OPEN (walk-in) biome, slotted POST-CAVES as a
+  // PARALLEL tier-4 alternative to the arena: same trash scaling, so the player picks the
+  // pit or the marsh by flavor, not power. Its champion reward stays a rare+ floor (see
+  // HUNTS.swamp) so the arena capstone REMAINS the first guaranteed-epic pinnacle — the
+  // gear ladder is untouched. The dedicated swamp roster + Tirano del Pantano boss land
+  // with CAS-442; until then the zone runs a placeholder pool of existing mobs.
+  swamp:  { tier:4, hpMul:2.10, dmgMul:1.55, spdMul:1.15, xpMul:2.10 },
   // CAS-114 — the Abismo: a fifth, power-gated hunt zone that strictly out-classes
   // every open zone (trash hits harder + drops more, capstone is the true endgame).
   // It is the PAYOFF the loop lacked: grind gold → buy merchant upgrades (CAS-112) +
@@ -481,6 +492,15 @@ export const HUNTS = {
            enrageAt:0.5, enrageSpd:1.3, enrageWindup:0.72,                          // phase 2: faster + tighter tells (no slam block → breath remains the special)
            special:{ name:"Aliento Dracónico", every:3, windup:1.0, slam:{ count:14, spd:180, dmg:22, life:1.2 } }, // CAS-331 dragon breath: telegraphed radial shard slam
            tier:[3,4], minR:"rare", xp:300, gold:140 } },                           // caves-tier guaranteed drop (rare+, NOT epic — arena keeps the first guaranteed epic)
+  // CAS-441 — the Ciénaga de Bruma hunt: a placeholder champion (orc base — melee,
+  // telegraphed, readable) at the caves reward window (tier 3-4 / rare floor) so the
+  // marsh clears pay like the tier they gate but NEVER hand out the arena's guaranteed
+  // epic. Having this row is what wires the zone into every shared system: the curse
+  // offer on 1st entry (CAS-394), the kill-quota → champion → clear resolver, and the
+  // inter-zone boon draft on clear (CAS-383). CAS-442 replaces the champion with the
+  // true capstone (Tirano del Pantano) — a data-row swap, no code.
+  swamp:  { need:13, base:"orc",      name:"Bruto del Fango",  hpMul:8,  dmgMul:1.8, sizeMul:1.5,  tier:[3,4], minR:"rare",     xp:190, gold:100,
+    special:{ name:"Erupción de Lodo", every:3, windup:0.8, slam:{ count:12, spd:170, dmg:18, life:1.1 } } },
   arena:  { need:14, base:"orc",      name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75,
     boss:{ base:"golem", sprite:"golem", name:"Coloso del Foso", hp:900, dmg:34, size:40, spd:54, knock:70, windup:0.9, recover:0.7,
            enrageAt:0.5, enrageSpd:1.35, enrageWindup:0.72,                       // phase 2: faster + tighter tells

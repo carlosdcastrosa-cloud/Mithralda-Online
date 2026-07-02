@@ -15,12 +15,12 @@ export const STR = {
   questDone: "Misión completada: ¡Bosque limpio!",
 
   // Hunt contracts (CAS-63): per-zone cull objective → Champion → zone cleared.
-  zoneNames: { forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo" },
+  zoneNames: { forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", swamp:"Ciénaga de Bruma" },
   huntLabel: (n, need) => "Cacería: " + n + "/" + need,
   huntChampApproaches: "¡CAMPEÓN!",
   huntZoneCleared: "ZONA DESPEJADA",
   huntChampion: (name) => "¡Aparece " + name + "! Derrótalo para despejar la zona.",
-  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno" }[zone] || "la zona") + "! Recompensa garantizada.",
+  huntCleared: (zone) => "¡Zona despejada: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno", swamp:"la Ciénaga de Bruma" }[zone] || "la zona") + "! Recompensa garantizada.",
   // CAS-114 — the power-gated Abismo (second, harder hunt zone).
   abyssLocked: (pw, req) => "El Abismo te rechaza. Necesitas más poder (" + pw + "/" + req + "): mejora con el Mercader y sube de nivel.",
   enteredAbyss: "Has descendido al Abismo. Aquí todo golpea más fuerte… y paga mejor.",
@@ -37,7 +37,7 @@ export const STR = {
   bossNova: (name) => "¡" + name + " libera la NOVA GÉLIDA! Te ralentiza.",
   immune: "INMUNE",
   // CAS-146 — elite ambush / pack event.
-  ambush: (zone) => "¡EMBOSCADA en " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno" }[zone] || "la zona") + "! Una élite y su jauría te rodean.",
+  ambush: (zone) => "¡EMBOSCADA en " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno", swamp:"la Ciénaga de Bruma" }[zone] || "la zona") + "! Una élite y su jauría te rodean.",
   eliteDown: "¡Élite abatida! Botín superior garantizado.",
   // CAS-149 — Elite Mastery (persistent progression hook).
   masteryUp: (n) => "¡Maestría de Élite " + n + "! +Vida máx · botín de élite mejorado.",
@@ -96,6 +96,7 @@ export const STR = {
   zoneAbyss: "El Abismo",
   zoneFrost: "Cripta Helada",
   zoneTrial: "Coliseo Eterno",
+  zoneSwamp: "Ciénaga de Bruma", // CAS-441 — 4th open biome
   zoneField: "Valdoria",
 
   invTitle: "INVENTARIO",
@@ -322,12 +323,12 @@ export const STR = {
   curseAccept: "Aceptar (A)",
   curseSkip: "Omitir (Esc)",
   curseAccepted: (name) => "Maldición aceptada: " + name + ". La zona se vuelve más letal.",
-  zoneName: (zone) => ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno" }[zone] || "la zona"),
+  zoneName: (zone) => ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno", swamp:"la Ciénaga de Bruma" }[zone] || "la zona"),
   dailySlay: (n) => "Da caza a " + n + " enemigos",
   // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).
   dailySlayType: (mob, n) => "Da caza a " + n + " " + ({ quillback:"Acechadores Espinosos", wendigo:"Wéndigos", demon:"Demonios Oscuros", skeleton:"esqueletos", orc:"orcos", wraith:"espectros", bandit:"bandidos", wolf:"lobos" }[mob] || (mob || "enemigos")),
   dailyChampion: (n) => "Derrota " + n + (n === 1 ? " campeón" : " campeones"),
-  dailyClear: (zone) => "Despeja: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada" }[zone] || "la zona"),
+  dailyClear: (zone) => "Despeja: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", swamp:"la Ciénaga de Bruma" }[zone] || "la zona"),
   dailyClaimed: (g, xp) => "¡Contrato cobrado! +" + g + " oro, +" + xp + " XP",
   dailyStreakClaimed: (n, g, mena) => "¡Racha de " + n + "! +" + g + " oro" + (mena > 0 ? ", +" + mena + " mena" : ""),
   dailyStreakMilestone: (n, g, mena) => "¡HITO de racha (" + n + ")! +" + g + " oro, +" + mena + " mena y pociones",
