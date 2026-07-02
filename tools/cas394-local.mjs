@@ -24,8 +24,13 @@ console.log(`target: ${url}${LIVE ? " (LIVE)" : " (local)"}`);
 const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: LAUNCH_ARGS });
 const page = await browser.newPage();
 const errors = [];
-page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
+// favicon.ico is a browser-default request at the DOMAIN ROOT (not part of our fileset) → a
+// cosmetic 404 present on every deploy since CAS-378, unrelated to the game. Ignore it.
+const isFavicon = (s) => /favicon\.ico/.test(s || "");
+page.on("pageerror", (e) => { if (!isFavicon(e.message)) errors.push(`pageerror: ${e.message}`); });
+page.on("console", (m) => { if (m.type() !== "error") return;
+  const loc = (m.location && m.location()) || {}; if (isFavicon(m.text()) || isFavicon(loc.url)) return;
+  errors.push(`console.error: ${m.text()} @ ${loc.url || "?"}`); });
 
 const results = [];
 const ok = (name, pass, info) => { results.push({ name, pass: !!pass, info }); console.log(`${pass ? "PASS" : "FAIL"}  ${name}${info ? " — " + info : ""}`); };
