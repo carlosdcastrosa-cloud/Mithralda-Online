@@ -1,0 +1,11 @@
+import puppeteer from 'puppeteer-core';
+import fs from 'fs';
+const strips=['idle','walk','attack1','attack2','hurt','death'].filter(s=>fs.existsSync(`assets/pixellab/fountains/anim/bogtyrant_${s}_strip.png`));
+const rows=strips.map(s=>{const b=fs.readFileSync(`assets/pixellab/fountains/anim/bogtyrant_${s}_strip.png`).toString('base64');return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0"><div style="width:70px;color:#cfd;font:12px monospace">${s}</div><img style="image-rendering:pixelated;height:144px;background:#20242c;outline:1px solid #444" src="data:image/png;base64,${b}"></div>`;}).join('');
+const br=await puppeteer.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+const p=await br.newPage();
+await p.setViewport({width:1750,height:1000,deviceScaleFactor:1});
+await p.setContent(`<body style="margin:0;background:#161922;padding:16px"><div style="color:#9fb;font:14px sans-serif;margin-bottom:8px">Tirano del Pantano (bogtyrant, BOSS) — frames 96px — strips @1.5x</div>${rows}</body>`);
+await p.waitForSelector('img');await new Promise(r=>setTimeout(r,300));
+await p.screenshot({path:'shots/cas440-bogtyrant-montage.png'});
+await br.close();console.log('OK shots/cas440-bogtyrant-montage.png');

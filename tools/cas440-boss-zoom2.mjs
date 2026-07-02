@@ -1,0 +1,10 @@
+import puppeteer from 'puppeteer-core';
+import fs from 'fs';
+const rows=['attack2','death','attack1'].map(s=>{const b=fs.readFileSync(`assets/pixellab/fountains/anim/bogtyrant_${s}_strip.png`).toString('base64');return `<div style="margin:8px 0"><div style="color:#cfd;font:13px monospace">${s}</div><img style="image-rendering:pixelated;height:192px;background:#20242c;outline:1px solid #444" src="data:image/png;base64,${b}"></div>`;}).join('');
+const br=await puppeteer.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+const p=await br.newPage();
+await p.setViewport({width:2200,height:700,deviceScaleFactor:1});
+await p.setContent(`<body style="margin:0;background:#161922;padding:10px">${rows}</body>`);
+await p.waitForSelector('img');await new Promise(r=>setTimeout(r,300));
+await p.screenshot({path:'/tmp/boss-zoom2.png',fullPage:true});
+await br.close();console.log('ok');
