@@ -1524,6 +1524,9 @@ export function createRenderer(ctx){
       const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+16);
       ui.invRects.push({x:rx,y:ay,w:rw,h:rowH-4, idx:i});
     }
+    // CAS-419: the visible list area is itself a drop target (bag drag → move to end;
+    // equip drag → reject: functional slots are non-nullable in the save shape).
+    ui.invBagAreaRect={x:rx,y:listY,w:rw,h:maxRows*rowH};
     // ---- compare box: equipped vs selected (the equip DECISION). CAS-117 ----
     const cy=listY+Math.min(bag.length,maxRows)*rowH+6; const sel=bag[G.invSel];
     if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
@@ -1544,6 +1547,31 @@ export function createRenderer(ctx){
         ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
+    // ---- CAS-419: DnD overlays — reject flash, target highlights, cursor ghost. ----
+    // Pure presentation read from input state (ui.invDrag / ui.invReject) in the same
+    // per-frame modal pass; zero RNG, zero state mutation (drops resolve in sim seams).
+    const rej=ui.invReject;
+    if(rej){ if(G.t<rej.until){ const rdx=Math.round(Math.sin(G.t*40)*3);
+        ctx.strokeStyle="#d05555"; ctx.lineWidth=2; ctx.strokeRect(rej.x+rdx+0.5,rej.y+0.5,rej.w-1,rej.h-1); }
+      else ui.invReject=null; }
+    const drag=ui.invDrag;
+    if(drag&&drag.active){ const item=drag.kind==="bag"?h.bag[drag.idx]:h.equip[drag.slot];
+      if(item){ const pulse=0.55+0.35*Math.sin(G.t*8);
+        if(drag.kind==="bag"){ // compatible equip slot(s) pulse gold; hovered row cues the swap
+          for(const r of ui.invSlotRects){ if(r.slot===item.slot){ ctx.strokeStyle=COL.textGold; ctx.globalAlpha=pulse; ctx.lineWidth=2; ctx.strokeRect(r.x-1.5,r.y-1.5,r.w+3,r.h+3); ctx.globalAlpha=1; } }
+          for(const r of ui.invRects){ if(r.idx!==drag.idx&&drag.x>=r.x&&drag.x<=r.x+r.w&&drag.y>=r.y&&drag.y<=r.y+r.h){ ctx.strokeStyle="#9be7ff"; ctx.lineWidth=1.5; ctx.strokeRect(r.x+0.5,r.y+0.5,r.w-1,r.h-1); } }
+        } else { // equip-slot source → compatible bag rows pulse gold
+          for(const r of ui.invRects){ const it=h.bag[r.idx]; if(it&&it.slot===drag.slot){ ctx.strokeStyle=COL.textGold; ctx.globalAlpha=pulse; ctx.lineWidth=1.5; ctx.strokeRect(r.x+0.5,r.y+0.5,r.w-1,r.h-1); ctx.globalAlpha=1; } }
+        }
+        ctx.save(); ctx.globalAlpha=0.85; ctx.imageSmoothingEnabled=false;
+        const gi=IMG["icon_slot_"+item.slot]; const gs=28;
+        if(gi&&gi.complete&&gi.naturalWidth) ctx.drawImage(gi, Math.round(drag.x-gs/2), Math.round(drag.y-gs/2), gs, gs);
+        else { ctx.fillStyle=gearCol(item); ctx.font="bold 20px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("▣", drag.x, drag.y+7); }
+        ctx.fillStyle=gearCol(item); ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
+        ctx.fillText(gearName(item), drag.x, drag.y-gs/2-4);
+        ctx.restore();
+      }
+    }
   }
 
   // CAS-119 — TALENT TREE panel. Tibia-style box: 3 branch columns (with connector

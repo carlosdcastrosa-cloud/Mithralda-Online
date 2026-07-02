@@ -1565,6 +1565,18 @@ export function equipBag(i){ const h=G.hero; const inst=h.bag[i];
   const mhp=heroMaxHp(h); if(h.hp>mhp) h.hp=mhp;
   return {slot, dmg:equippedDmg(h), def:equippedDef(h), hp:mhp};
 }
+// CAS-419: reorder the backpack — move bag[from] to `to` (swap if occupied), or to the
+// END when to===-1. Pure inventory management through the sim authority (mirrors equipBag):
+// no stat/gameplay change, no RNG. The bag array is persisted as-is (serializeSave), so the
+// new order survives reload with the EXISTING save shape — no SAVE_VERSION bump.
+export function moveBag(from,to){ const h=G.hero; const n=h.bag.length;
+  if(from<0||from>=n||!h.bag[from]) return false;
+  if(to===-1){ const it=h.bag.splice(from,1)[0]; h.bag.push(it); }
+  else { if(to<0||to>=n||to===from) return false;
+    const tmp=h.bag[from]; h.bag[from]=h.bag[to]; h.bag[to]=tmp; }
+  G.invSel=Math.min(to===-1?n-1:to, Math.max(0,h.bag.length-1)); audio.sfx.pickup();
+  return true;
+}
 export function buyItem(idx){ const h=G.hero; const it=shopItems()[idx]; if(!it) return;
   if(it.once && it.once(h)){ audio.sfx.deny(); toast("Ya tienes algo igual o mejor"); return; }
   if(h.gold<it.price){ toast(STR.cantAfford); audio.sfx.deny(); return; }
@@ -2244,7 +2256,7 @@ export const dev = {
   tpZone(zone){ const r=world[zone]; if(!r) return null; G.hero.x=(r.x+r.w/2)*TS; G.hero.y=(r.y+r.h/2)*TS; return zone; },
   seed(n){ seed(n>>>0); return n>>>0; },                       // reseed the sim RNG (deterministic drops)
   gear(){ const h=G.hero; return { dmg:equippedDmg(h), def:equippedDef(h), weapon:gearName(h.equip.weapon),
-    affix:affixTotals(h), equip:["weapon","body","shield"].map(s=>({slot:s,rarity:h.equip[s].rarity,affixes:h.equip[s].affixes||[]})) }; },
+    affix:affixTotals(h), equip:["weapon","body","shield"].map(s=>({slot:s,defId:h.equip[s].defId,rarity:h.equip[s].rarity,stat:gearStat(h.equip[s]),affixes:h.equip[s].affixes||[]})) }; },
   // Spawn one enemy at the hero and kill it THIS instant via the real killEnemy,
   // returning only the drops that kill produced (the loot loop, not a shortcut).
   spawnKill(type){ const before=G.drops.length; const e=spawnEnemy(type, G.hero.x, G.hero.y);
@@ -2507,6 +2519,9 @@ export const dev = {
     interact(); return { to, before, after:zoneOf(world,G.hero.x,G.hero.y), power:heroPower(G.hero), req:ABYSS_POWER_REQ }; },
   bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b), affixes:b.affixes||[] })); },
   equipBag(i){ return equipBag(i); },
+  // CAS-419: DnD seam passthrough — lets the live harness prove bag reorders route
+  // through the same sim authority the pointer path uses (never a render-side splice).
+  moveBag(from,to){ return moveBag(from,to); },
   // CAS-117: the equip DECISION surface — snapshot combat totals + the slot's
   // equipped-vs-candidate affixes BEFORE committing, so the compare/diff (UI and
   // QA) can show the tradeoff without mutating state. Returns null for a bad index.

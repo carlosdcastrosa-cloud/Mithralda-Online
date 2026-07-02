@@ -25,7 +25,11 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
+  // CAS-419 inventory DnD: live drag state (render draws the ghost/highlights from it),
+  // last rejected drop rect (render shakes it red until `until`, sim time), and the
+  // backpack list area rect render publishes so an equip-slot drag can target empty rows.
+  invDrag:null, invReject:null, invBagAreaRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -196,6 +200,7 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
   if(G.scene==="menu"){ if(menuPlayHit(x,y)) startGame(); return; }
   if(G.scene==="classsel"){ const pc=ui.classCustomRect; if(pc&&pc.w&&x>=pc.x&&x<=pc.x+pc.w&&y>=pc.y&&y<=pc.y+pc.h){ customizeNewHero(CLASS_LIST[G.classSel]); return; }
     for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
+  if(G.scene==="inventory"){ invDown(x,y,e.pointerId); return; } // CAS-419: arm DnD / tap-defer
   if(handleUITap(x,y)) return;
   if(G.scene==="play"){
     // CAS-418 — a press on a movable canvas widget (minimap / spell bar) starts a
@@ -209,10 +214,12 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
 function onPointerMove(e){ const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left,y=e.clientY-r.top;
   mouseX=x; mouseY=y; ui.mouseX=x; ui.mouseY=y; // CAS-119: feed the talent panel's hover
   if(uiLayout.canvasMove(x,y)) return;          // CAS-418: live canvas-widget drag owns the pointer
+  if(invMove(x,y,e.pointerId)) return;          // CAS-419: live inventory item drag owns the pointer
   if(stick.active && e.pointerId===stick.id){ stick.x=x; stick.y=y; }
   else if(!isTouch && G.scene==="play" && aimActive){ faceMouse(); } // CAS-347: only re-aim to cursor while the mouse is held (aiming); a plain hover no longer swivels the hero — facing follows movement
 }
 function onPointerUp(e){ uiLayout.canvasUp(); // CAS-418: commit (clamp+persist) a widget drag; no-op otherwise
+  invUp(e.pointerId, e.type==="pointercancel"); // CAS-419: resolve drop / deferred tap (cancel = no action)
   if(stick.active&&e.pointerId===stick.id){ stick.active=false; } aimActive=false; }
 function faceMouse(){ const h=G.hero; if(!h) return; const wx=G.cam.x+mouseX/zoom(), wy=G.cam.y+mouseY/zoom(); h.facing=Math.atan2(wy-h.y,wx-h.x); }
 
@@ -334,7 +341,57 @@ function draftTap(x,y){
 // (the offer must resolve one way or the other before play resumes).
 function curseTap(x,y){ for(const r of (ui.curseRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
   if(r.act==="accept") sim.acceptCurse(); else sim.skipCurse(); return true; } } return true; }
+// CAS-419 — inventory drag & drop. A press on a bag row or an occupied functional
+// equip slot ARMS a drag; crossing DRAG_PX activates it (render then draws the ghost
+// + target highlights). Release below the threshold falls back to the CAS-226 tap
+// (select+equip), so touch/accessibility behaviour is unchanged. Every drop resolves
+// through the SAME sim seams the tap path uses (equipBag / moveBag) — DnD is only an
+// input path; an incompatible target flashes red (ui.invReject) with zero state change.
+const DRAG_PX = 6;
+function rectHit(rects,x,y){ for(const r of (rects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h) return r; } return null; }
+function invReject(r){ ui.invReject={x:r.x,y:r.y,w:r.w,h:r.h,until:G.t+0.45}; audio.sfx.deny(); }
+// press: chrome (Forja) acts immediately; a draggable rect arms the drag; a press on a
+// placeholder/empty slot is consumed (CAS-226); empty panel space still closes.
+function invDown(x,y,pid){
+  const fr=ui.invForgeRect; if(fr&&fr.w&&x>=fr.x&&x<=fr.x+fr.w&&y>=fr.y&&y<=fr.y+fr.h){ G.scene="forge"; G.forgeSel=G.forgeSel||0; return; }
+  const row=rectHit(ui.invRects,x,y);
+  if(row){ ui.invDrag={kind:"bag", idx:row.idx, x, y, sx:x, sy:y, id:pid, active:false}; return; }
+  const sl=rectHit(ui.invSlotRects,x,y);
+  if(sl){ if(sl.slot&&sl.inst) ui.invDrag={kind:"equip", slot:sl.slot, x, y, sx:x, sy:y, id:pid, active:false}; return; }
+  G.scene="play"; }
+function invMove(x,y,pid){ const d=ui.invDrag; if(!d) return false;
+  if(G.scene!=="inventory"){ ui.invDrag=null; return false; } // scene left mid-drag (Esc) → drop the drag
+  if(pid!==d.id) return true;
+  d.x=x; d.y=y;
+  if(!d.active && Math.hypot(x-d.sx,y-d.sy)>=DRAG_PX) d.active=true;
+  return true; }
+function invUp(pid,cancelled){ const d=ui.invDrag; if(!d) return false; if(pid!==d.id) return true;
+  ui.invDrag=null; if(cancelled||G.scene!=="inventory") return true;
+  const h=G.hero, x=d.x, y=d.y;
+  if(!d.active){ // below threshold → the original tap semantics
+    if(d.kind==="bag"){ G.invSel=d.idx; sim.equipBag(d.idx); }
+    return true; }
+  const sl=rectHit(ui.invSlotRects,x,y), row=rectHit(ui.invRects,x,y);
+  if(d.kind==="bag"){ const item=h.bag[d.idx]; if(!item) return true;
+    if(sl){ if(sl.slot===item.slot){ G.invSel=d.idx; sim.equipBag(d.idx); } else invReject(sl); return true; }
+    if(row){ if(row.idx!==d.idx) sim.moveBag(d.idx,row.idx); return true; }
+    const ba=ui.invBagAreaRect;
+    if(ba.w&&x>=ba.x&&x<=ba.x+ba.w&&y>=ba.y&&y<=ba.y+ba.h){ sim.moveBag(d.idx,-1); return true; }
+    return true; } // dropped outside every target → cancel, no state change
+  // equip-slot source: dropping on a COMPATIBLE bag item swaps through equipBag (the
+  // equipped piece lands in the bag = desequipado, the bag piece equips). Empty bag
+  // space is a visual reject: the 3 functional slots are non-nullable in the save
+  // shape (loadSave resurrects newHero defaults), so a true unequip-to-empty needs a
+  // save migration — proposed separately per the CAS-419 constraint, not shipped here.
+  if(row){ const it=h.bag[row.idx];
+    if(it&&it.slot===d.slot){ G.invSel=row.idx; sim.equipBag(row.idx); } else invReject(row); return true; }
+  if(sl){ if(sl.slot!==d.slot) invReject(sl); return true; } // own slot = cancel
+  const ba=ui.invBagAreaRect;
+  if(ba.w&&x>=ba.x&&x<=ba.x+ba.w&&y>=ba.y&&y<=ba.y+ba.h) invReject(ba);
+  return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.
+// (kept for keyboard-driven scenes routing through handleUITap; pointer presses in the
+// inventory are intercepted by invDown BEFORE handleUITap — see onPointerDown.)
 function invTap(x,y){
   // CAS-237: the Forja button opens the forge panel.
   const fr=ui.invForgeRect; if(fr&&fr.w&&x>=fr.x&&x<=fr.x+fr.w&&y>=fr.y&&y<=fr.y+fr.h){ G.scene="forge"; G.forgeSel=G.forgeSel||0; return true; }

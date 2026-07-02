@@ -147,6 +147,7 @@ export function createGame(canvas, ctx, getView){
       pickup:()=>simDev.pickup(),
       bag:()=>simDev.bag(),
       equipBag:(i)=>simDev.equipBag(i),
+      moveBag:(from,to)=>simDev.moveBag(from,to), // CAS-419 DnD seam, consumed by tools/cas419-dnd-qa.mjs
       // CAS-117 affix/equip-decision contract consumed by tools/cas117-affix.mjs — additive
       equipPreview:(i)=>simDev.equipPreview(i),
       openInv:()=>simDev.openInv(),

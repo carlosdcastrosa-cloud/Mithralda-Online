@@ -121,7 +121,7 @@ export const STR = {
   loot: (t) => "Botín: " + t,
   bagFull: "Mochila llena: convertida en oro",
   bagEmpty: "(vacía)",
-  equipHint: "▲▼ elegir · Enter/tap equipar · I cerrar · P/O pociones",
+  equipHint: "▲▼ elegir · Enter/tap equipar · arrastrar mueve/equipa · I cerrar",
   rarity: { common: "Común", uncommon: "Infrecuente", rare: "Raro", epic: "Épico" },
   // CAS-117 equip-decision compare box (equipado vs nuevo) + affix tooltip chrome
   cmpEquipped: "Equipado",
