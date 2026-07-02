@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_DRAFT_N, SYNERGIES, boonRarityWeight } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -81,6 +81,9 @@ export const G = {
   // CAS-383: live boon-draft state. null except while the "draft" scene is up: {choices:[ids],
   // sel, source}. draftSel mirrors the highlighted card for kbd/pad nav. Transient (never saved).
   draft:null, draftSel:0,
+  // CAS-394: live zone-modifier OFFER. null except while the "curse" scene is up: {zone, mod:id}.
+  // Transient (never saved) — the accepted result lives on hero.curses.
+  curse:null,
   // CAS-146 — elite-ambush event clock: `t` counts down only while the hero is fighting in a
   // hunt zone; `active` is true from an ambush firing until its elite is cleared (auto-recovers).
   ambush:{t:AMBUSH.first, active:false},
@@ -170,6 +173,11 @@ function newHero(name,cls){
     // as `boons`). banished = ids the player removed from THIS run's future pool, excluded from
     // every later draw + reroll so the odds bias toward a target build. Persisted additively.
     rerollLeft:1, banishLeft:1, banished:[],
+    // CAS-394: per-RUN OPT-IN ZONE MODIFIER ("Maldición"). `curses` maps zone→accepted modifier
+    // id (scales that zone's enemies + upgrades its clear reward); `curseSeen` lists zones already
+    // OFFERED this run (so the entry prompt fires exactly once per zone). Same run lifecycle as
+    // `boons` — reset on death / new run (respawn / createHero), persisted additively.
+    curses:{}, curseSeen:[],
     // gear: 3 equipped slots (instances by id) + a bag of loose instances. Stats
     // are resolved from data (sim/gear.js), never stored — see equippedDmg/Def.
     equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
@@ -271,8 +279,13 @@ export function bbLoot(){ return (G.hero&&G.hero.bb)?G.hero.bb.loot:0; } // Codi
 // eligible (re-drafting deepens). CAS-392: `banished` ids are removed from the pool up front, so
 // a banished boon can never resurface in any later draw/reroll of the run. srand() only →
 // deterministic / Stage-2-ready, SAME rarity model for the initial draw AND rerolls (no exploit).
-function drawBoonChoices(h,n){
-  const depth=(h.boons&&h.boons.length)||0;
+// CAS-394: `cursed` (the draft follows a cursed-zone clear) biases the draw UP one tier — it adds
+// CURSE_DEPTH_BONUS to the effective depth (raising rare/legendary weights via boonRarityWeight)
+// AND guarantees ≥1 rare+ card (ensureRarePlus back-fills one slot from the rare+ subpool if the
+// weighted draw happened to roll all commons). Legendary odds stay inside their weight cap → no
+// flood. The flag rides on G.draft so a reroll of a cursed draft keeps the floor.
+function drawBoonChoices(h,n,cursed){
+  const depth=((h.boons&&h.boons.length)||0)+(cursed?CURSE_DEPTH_BONUS:0);
   const banned=(h.banished&&h.banished.length)?new Set(h.banished):null;
   const pool=banned?BOONS.filter(b=>!banned.has(b.id)):BOONS.slice();
   const picks=[]; n=Math.min(n||BOON_DRAFT_N,pool.length);
@@ -282,6 +295,23 @@ function drawBoonChoices(h,n){
     for(let j=0;j<pool.length;j++){ r-=boonRarityWeight(pool[j].rarity,depth); if(r<=0){ idx=j; break; } idx=j; }
     picks.push(pool.splice(idx,1)[0].id);
   }
+  return cursed?ensureRarePlus(h,picks,depth):picks;
+}
+// CAS-394: guarantee the cursed-zone draft surfaces at least one rare-or-better card. If the
+// weighted draw already contains a rare+ pick, it's untouched. Otherwise the LAST slot is replaced
+// by a weighted draw restricted to the rare+ subpool (excluding the kept cards + banished ids), so
+// the floor is exactly "one card, one tier up" — never a legendary flood, and banish is honoured.
+// No-op if the rare+ pool is empty (every rare+ banished) → the hand simply stays all-common.
+function ensureRarePlus(h,picks,depth){
+  if(picks.some(id=>{ const b=BOON_MAP[id]; return b&&b.rarity!=="common"; })) return picks;
+  const banned=(h.banished&&h.banished.length)?new Set(h.banished):null;
+  const keep=new Set(picks.slice(0,-1));
+  const pool=BOONS.filter(b=>b.rarity!=="common" && !keep.has(b.id) && !(banned&&banned.has(b.id)));
+  if(!pool.length) return picks;
+  let total=0; for(const b of pool) total+=boonRarityWeight(b.rarity,depth);
+  let r=srand()*total, idx=0;
+  for(let j=0;j<pool.length;j++){ r-=boonRarityWeight(pool[j].rarity,depth); if(r<=0){ idx=j; break; } idx=j; }
+  picks[picks.length-1]=pool[idx].id;
   return picks;
 }
 // Draw ONE boon id at current depth odds, excluding an id Set (kept cards) + all banished ids.
@@ -300,7 +330,10 @@ function drawOneBoon(h,exclude){
 // Open the 3-card draft after a zone champion clear. Pauses into the "draft" scene;
 // input.js/render.js own the card UI (incl. CAS-392 reroll/banish controls).
 function openDraft(source){ const h=G.hero; if(!h) return;
-  G.draft={ choices:drawBoonChoices(h,BOON_DRAFT_N), sel:0, source:source||"" }; G.draftSel=0; G.scene="draft";
+  // CAS-394: a draft opened after clearing a CURSED zone is biased up one tier (guaranteed rare+).
+  // The flag rides on G.draft.cursed so a reroll keeps the floor. `source` is the zone id.
+  const cursed=!!(h.curses && source && h.curses[source]);
+  G.draft={ choices:drawBoonChoices(h,BOON_DRAFT_N,cursed), sel:0, source:source||"", cursed }; G.draftSel=0; G.scene="draft";
   audio&&audio.sfx&&audio.sfx.levelup&&audio.sfx.levelup();
 }
 // CAS-392: spend the run's single reroll charge to re-draw ALL cards at the SAME depth-scaled
@@ -310,7 +343,7 @@ function openDraft(source){ const h=G.hero; if(!h) return;
 export function rerollDraft(){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="draft") return false;
   if(!(h.rerollLeft>0)) return false;
   h.rerollLeft--;
-  d.choices=drawBoonChoices(h,BOON_DRAFT_N); d.sel=0; G.draftSel=0;
+  d.choices=drawBoonChoices(h,BOON_DRAFT_N,d.cursed); d.sel=0; G.draftSel=0; // CAS-394: keep the cursed rare+ floor across a reroll
   audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
   return true;
 }
@@ -339,6 +372,37 @@ export function pickBoon(i){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="dr
   addFx&&addFx("buffaura",h.x,h.y,{col:"#ffd24d",life:0.6});
   G.draft=null; G.scene="play";
   return true;
+}
+
+// ----------------------- CAS-394: OPT-IN ZONE MODIFIER ("Maldición") -----------------------
+// Read the accepted modifier for a zone (or null). Cheap + allocation-free — called on the hot
+// spawn path (applyZoneScale / maybeAffix) so it must stay a plain map lookup, no work when the
+// zone isn't cursed (the overwhelmingly common case → zero cost on an un-cursed run).
+function curseMods(zone){ const h=G.hero; if(!h||!h.curses||!zone) return null; const id=h.curses[zone]; return id?(ZONE_MOD_MAP[id]||null):null; }
+// Fire the one-per-zone entry offer. Called from update() when the hero first steps into a combat
+// zone that still has an uncleared hunt. Rolls ONE modifier off the sim RNG (deterministic /
+// Stage-2 ready), pauses into the "curse" scene, and marks the zone SEEN so it never re-prompts —
+// accept or skip, the zone is offered exactly once per run.
+function offerCurse(zone){ const h=G.hero; if(!h) return;
+  if(!h.curseSeen) h.curseSeen=[]; if(h.curseSeen.indexOf(zone)<0) h.curseSeen.push(zone);
+  const mod=ZONE_MODIFIERS[ri(0,ZONE_MODIFIERS.length-1)];
+  G.curse={ zone, mod:mod.id }; G.scene="curse";
+  audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
+}
+// Accept the pending offer → the zone is cursed for the rest of the run (its enemies scale up and
+// its clear reward upgrades). Resumes play. No-op if no offer is open.
+export function acceptCurse(){ const h=G.hero, c=G.curse; if(!h||!c||G.scene!=="curse") return false;
+  if(!h.curses) h.curses={}; h.curses[c.zone]=c.mod;
+  const m=ZONE_MOD_MAP[c.mod];
+  toast(STR.curseAccepted(m?m.name:""),3.0);
+  floater(h.x,h.y-40,(m?m.glyph+" ":"")+(m?m.name:""),"#ff7a5d",{pop:1.4,life:1.4});
+  audio&&audio.sfx&&audio.sfx.boss&&audio.sfx.boss();
+  G.curse=null; G.scene="play"; return true;
+}
+// Skip the pending offer → the zone is untouched (already marked seen, so it won't re-prompt).
+export function skipCurse(){ const h=G.hero, c=G.curse; if(!h||!c||G.scene!=="curse") return false;
+  audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
+  G.curse=null; G.scene="play"; return true;
 }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
@@ -444,6 +508,10 @@ export function serializeSave(){
     // refresh mid-draft) keeps them. Additive — old saves lack them → default to a fresh 1/1 budget
     // + empty banished. Reset on death/new run (respawn) like boons, so nothing leaks across runs.
     rerollLeft:h.rerollLeft|0, banishLeft:h.banishLeft|0, banished:(h.banished||[]).slice(),
+    // CAS-394: persist the per-run accepted zone modifiers + offered-zone list so a same-run reload
+    // keeps them (a refresh mid-run doesn't re-offer or drop a curse). Additive — old saves lack them
+    // → no curses / fresh offers → no SAVE_VERSION bump. Reset on death/new run like boons.
+    curses:Object.assign({},h.curses||{}), curseSeen:(h.curseSeen||[]).slice(),
     // CAS-149: durable lifetime elite-kill counter → Elite-Mastery rank. Additive (old
     // saves lack it → default 0 → rank 0), so no SAVE_VERSION bump / progress wipe. The
     // permanent +maxHp granted at each rank-up is already baked into the saved maxHp above,
@@ -495,6 +563,10 @@ export function loadSave(d){
     // fresh 1/1). banished re-validated against BOON_MAP (sanitizeBoons) so a corrupt blob can't
     // poison the pool with unknown ids.
     h.rerollLeft=Math.max(0,Math.floor(num(d.rerollLeft,1))); h.banishLeft=Math.max(0,Math.floor(num(d.banishLeft,1))); h.banished=sanitizeBoons(d.banished);
+    // CAS-394: rehydrate the per-run zone modifiers (validated: zone must be a HUNTS key, mod must be
+    // a known ZONE_MOD id) + the offered-zone list (validated HUNTS keys). Absent in old saves → none.
+    h.curses={}; if(d.curses && typeof d.curses==="object"){ for(const zk in d.curses){ if(HUNTS[zk] && ZONE_MOD_MAP[d.curses[zk]]) h.curses[zk]=d.curses[zk]; } }
+    h.curseSeen=Array.isArray(d.curseSeen)?d.curseSeen.filter(zk=>!!HUNTS[zk]):[];
     h.palette=sanitizePalette(d.palette, h.cls); h.variation=sanitizeVariation(d.variation); // CAS-169 cosmetics (validated, class-default fallback)
     recalcMastery(h);  // CAS-150: rebuild the reward-track perk bundle from the loaded count BEFORE heroMaxHp reads it
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
@@ -577,6 +649,12 @@ function applyZoneScale(e, zone){
     spd:Math.round(b.spd*(z.spdMul||1)), xp:Math.round(b.xp*(z.xpMul||1)),
   });
   e.hp=e.maxHp=e.tpl.hp; e.zoneTier=z.tier; e.scaleZone=zone; // CAS-126: remember the zone so a summoner can scale its adds the same way
+  // CAS-394: an OPT-IN zone modifier layers ON TOP of the tier scaling — same knobs (hp/dmg/spd),
+  // so it reuses the existing balance path with NO new AI. Only allocates a clone on a cursed zone.
+  const cm=curseMods(zone);
+  if(cm){ const b2=e.tpl;
+    e.tpl=Object.assign({},b2,{ hp:Math.round(b2.hp*(cm.hpMul||1)), dmg:Math.round(b2.dmg*(cm.dmgMul||1)), spd:Math.round(b2.spd*(cm.spdMul||1)) });
+    e.hp=e.maxHp=e.tpl.hp; }
   return e;
 }
 
@@ -592,7 +670,10 @@ function applyZoneScale(e, zone){
 function maybeAffix(e){
   if(!e || e.elite || e.champion || e.isBoss || e.tpl.neutral) return e;
   if((e.tpl.dmg||0)<=0 || e.tpl.arch==="volatile") return e;        // supports / bombers make degenerate carriers
-  if(srand()>=MOB_AFFIX_RATE) return e;                            // one srand per eligible spawn (only on the live world path, never in buildWorld → determinism fingerprint untouched)
+  // CAS-394: a "swarm" zone modifier multiplies the elite-affix roll rate (reuses the SAME table +
+  // roll, just a higher chance) — no new spawn logic. e.scaleZone was set by applyZoneScale above.
+  let rate=MOB_AFFIX_RATE; const cm=curseMods(e.scaleZone); if(cm&&cm.affixMul) rate=Math.min(1,rate*cm.affixMul);
+  if(srand()>=rate) return e;                                      // one srand per eligible spawn (only on the live world path, never in buildWorld → determinism fingerprint untouched)
   let pool=MOB_AFFIX_IDS;
   if(e.tpl.ranged) pool=MOB_AFFIX_IDS.filter(id=>!MOB_AFFIX[id].melee); // Vampiric needs contact → ranged kiters can't carry it
   return applyAffix(e, pool[ri(0,pool.length-1)]);
@@ -888,6 +969,10 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
     // CAS-109: telegraphed radial-slam special on a strike cadence (see HUNTS.special).
     e.special=cfgH.special||null; e.atkCount=0; e.specialNow=false;
   }
+  // CAS-394: a cursed zone also toughens its climax (hp/dmg only — a faster/mutated boss would hurt
+  // readability, so speed/affix mods don't touch the champion). The reward upgrade fires on its clear.
+  { const cm=curseMods(zone); if(cm){ const b2=e.tpl;
+    e.tpl=Object.assign({},b2,{ hp:Math.round(b2.hp*(cm.hpMul||1)), dmg:Math.round(b2.dmg*(cm.dmgMul||1)) }); } }
   e.hp=e.maxHp=e.tpl.hp; e.champion=true; e.zone=zone; e.state="chase";
   H.champ=e;
   audio.sfx.boss(); toast(STR.huntChampion(e.tpl.champName),3.2); shakeAdd(B?12:8);
@@ -910,6 +995,12 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   for(let b=0;b<(e.bonusDrop||0);b++) dropGear(e.x+(b%2?34:-34),e.y-18, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
   G.drops.push({x:e.x+18,y:e.y,kind:"gold",amt:e.rwdGold||cfgH.gold});
   if(srand()<0.5) G.drops.push({x:e.x-18,y:e.y,kind:"potionhp"});
+  // CAS-394: clearing a CURSED zone pays out the risk — ONE bonus gear roll at the zone's tier/floor
+  // (reuses the same rollGearInst/dropGear path as the guaranteed piece, no new loot tier). Combined
+  // with the draft's guaranteed rare+ (openDraft reads hero.curses), this is the "risk for reward".
+  // Farm-cap: H.cleared (set above) blocks re-spawning the champion, so a zone pays this AT MOST once
+  // per run → ≤7 bonus rolls/run, all at existing tiers. No legendary/gear farm (flagged in report).
+  if(G.hero && G.hero.curses && G.hero.curses[zone]) dropGear(e.x-40,e.y+12, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
   gainXP(e.rwdXp||cfgH.xp);
   toast(STR.huntCleared(zone),3.6);
   for(let i=0,n=rmCount(e.capstone?16:10);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
@@ -1306,6 +1397,7 @@ export function respawn(){
   const h=G.hero;
   if(h.boons&&h.boons.length){ h.boons.length=0; } recalcBoons(h); // CAS-383: death ends the run → wipe drafted boons BEFORE heroMaxHp reads the reset pool
   h.rerollLeft=1; h.banishLeft=1; if(h.banished) h.banished.length=0; else h.banished=[]; // CAS-392: death resets the draft-agency budget + banished pool (per-run, same as boons)
+  h.curses={}; if(h.curseSeen) h.curseSeen.length=0; else h.curseSeen=[]; G.curse=null; // CAS-394: death ends the run → clear accepted zone modifiers + re-arm the entry offers
   h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
@@ -1528,6 +1620,12 @@ export function update(dtMs){
   // CAS-131: per-biome ambient soundscape crossfades under the music on zone change.
   if(z!==G._ambZone){ G._ambZone=z; if(audio&&audio.setAmbient) audio.setAmbient(z); }
   if(z==="arena" && !G.arenaWarned){ G.arenaWarned=true; toast(STR.enteredArena,3.5); }
+  // CAS-394: OPT-IN ZONE MODIFIER — the FIRST time the hero steps into a combat zone (HUNTS key)
+  // whose hunt isn't already cleared this run, pause into the "curse" scene and offer one modifier
+  // (accept/skip). Fires exactly once per zone per run (curseSeen), and only from free play so it
+  // never stacks over another panel. Cleared zones + town/field are skipped (no reward to gate).
+  if(HUNTS[z] && (h.curseSeen||[]).indexOf(z)<0){ const CH=G.hunts&&G.hunts[z];
+    if(!(CH&&CH.cleared)) offerCurse(z); }
   // CAS-342: the caves dragon is no longer a positional deep-walk spawn — it is now the caves
   // ZONE CAPSTONE (HUNTS.caves.boss), summoned deliberately by spawnChampion when the kill quota
   // is met. The old `z==="caves" && !G.bossSpawned … spawnBoss()` trigger is removed so the dragon
@@ -2064,7 +2162,7 @@ export const dev = {
   // Read the live boon state: owned list, aggregate bundle, effective maxHp (folds hpMul), and
   // the open draft's choices (or null). Pure read — proves stacking + the draft panel's model.
   boons(){ const h=G.hero; if(!h) return null; return { list:(h.boons||[]).slice(), bb:Object.assign({},h.bb),
-    maxHp:heroMaxHp(h), scene:G.scene, draft:G.draft?{choices:G.draft.choices.slice(),sel:G.draft.sel,source:G.draft.source}:null,
+    maxHp:heroMaxHp(h), scene:G.scene, draft:G.draft?{choices:G.draft.choices.slice(),sel:G.draft.sel,source:G.draft.source,cursed:!!G.draft.cursed}:null,
     rerollLeft:h.rerollLeft|0, banishLeft:h.banishLeft|0, banished:(h.banished||[]).slice() }; }, // CAS-392 draft-agency state
   // --- CAS-392 draft-agency harness hooks (tools/cas392-*.mjs); additive, drive the REAL paths ---
   // Reroll the whole hand through rerollDraft (spends a charge). Returns the new cards + charge left.
@@ -2082,6 +2180,27 @@ export const dev = {
   // Grant a boon by id directly (stack testing without the panel). Real recalcBoons.
   grantBoon(id){ const h=G.hero; if(!h||!BOON_MAP[id]) return null; h.boons.push(id); recalcBoons(h);
     return { list:h.boons.slice(), bb:Object.assign({},h.bb), maxHp:heroMaxHp(h) }; },
+  // --- CAS-394 zone-modifier ("Maldición") harness hooks (tools/cas394-*.mjs); additive, REAL paths ---
+  // Read the live curse state: the open offer (or null), the accepted zone→mod map, the offered
+  // zones, the modifier pool (with its stat mults), and the scene. Pure read.
+  curseState(){ const h=G.hero; if(!h) return null; return { scene:G.scene,
+    offer:G.curse?{ zone:G.curse.zone, mod:G.curse.mod }:null,
+    curses:Object.assign({},h.curses||{}), seen:(h.curseSeen||[]).slice(),
+    mods:ZONE_MODIFIERS.map(m=>({ id:m.id, hpMul:m.hpMul||1, dmgMul:m.dmgMul||1, spdMul:m.spdMul||1, affixMul:m.affixMul||1 })) }; },
+  // Force the entry offer for a zone (no walk needed) → returns the rolled offer {zone,mod}.
+  offerCurse(zone){ if(!HUNTS[zone]) return null; offerCurse(zone); return G.curse?{ zone:G.curse.zone, mod:G.curse.mod }:null; },
+  // Accept / skip the open offer through the REAL exports (same as the input handler).
+  acceptCurse(){ const ok=acceptCurse(); const h=G.hero; return { ok, curses:Object.assign({},h?h.curses:{}), scene:G.scene }; },
+  skipCurse(){ const ok=skipCurse(); const h=G.hero; return { ok, seen:(h?(h.curseSeen||[]):[]).slice(), scene:G.scene }; },
+  // Directly set/clear an accepted curse (scaling/reward tests without driving the panel).
+  setCurse(zone,mod){ const h=G.hero; if(!h) return null; if(!h.curses) h.curses={};
+    if(mod==null){ delete h.curses[zone]; } else if(HUNTS[zone]&&ZONE_MOD_MAP[mod]){ h.curses[zone]=mod; } else return null;
+    return Object.assign({},h.curses); },
+  // Open a draft as if `zone` was just cleared (honours hero.curses[zone] → cursed rare+ bias).
+  openDraftZone(zone){ openDraft(zone); return G.draft?{ choices:G.draft.choices.slice(), cursed:!!G.draft.cursed, source:G.draft.source }:null; },
+  // Re-init the hunt board (clears H.cleared/champ per zone) so a harness can re-arm+clear the SAME
+  // zone twice (e.g. plain vs cursed reward A/B). Mirrors initHunts; does not touch hero/curses.
+  resetHunts(){ G.hunts=initHunts(); return Object.keys(G.hunts); },
   // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
   customizeState(){ return customizeState(); },
   setPartColor(slot,color){ return setPartColor(slot,color); },

@@ -314,6 +314,14 @@ export const STR = {
   // CAS-392 — draft agency: reroll the whole hand / banish one card from the run pool.
   draftReroll: "Rebarajar",
   draftBanished: (n) => "Desterradas: " + n,
+  // CAS-394 — opt-in zone modifier ("Maldición" / risk-for-reward).
+  curseTitle: "MALDICIÓN DE ZONA",
+  curseSub: "Acepta el reto para forjar mejores recompensas… o sigue sin arriesgar.",
+  curseReward: "Recompensa: botín garantizado de mayor rareza + una pieza de equipo extra al despejar.",
+  curseAccept: "Aceptar (A)",
+  curseSkip: "Omitir (Esc)",
+  curseAccepted: (name) => "Maldición aceptada: " + name + ". La zona se vuelve más letal.",
+  zoneName: (zone) => ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno" }[zone] || "la zona"),
   dailySlay: (n) => "Da caza a " + n + " enemigos",
   // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).
   dailySlayType: (mob, n) => "Da caza a " + n + " " + ({ quillback:"Acechadores Espinosos", wendigo:"Wéndigos", demon:"Demonios Oscuros", skeleton:"esqueletos", orc:"orcos", wraith:"espectros", bandit:"bandidos", wolf:"lobos" }[mob] || (mob || "enemigos")),

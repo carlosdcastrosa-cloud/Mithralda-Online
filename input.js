@@ -24,7 +24,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0} };
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
@@ -134,6 +134,12 @@ function edge(code){
     else if(code==="KeyR"){ sim.rerollDraft(); }                 // CAS-392: reroll the whole hand
     else if(code==="KeyB"){ sim.banishBoon(G.draftSel||0); }     // CAS-392: banish the highlighted card
     else if(code==="Enter"||code==="Space"){ sim.pickBoon(G.draftSel||0); }
+    return; }
+  // CAS-394: zone-modifier offer — A / Enter / Space accepts (harder zone + better reward),
+  // Esc / S skips (zone untouched). Both resume play; the offer never re-fires for that zone.
+  if(G.scene==="curse"){
+    if(code==="KeyA"||code==="Enter"||code==="Space"){ sim.acceptCurse(); }
+    else if(code==="Escape"||code==="KeyS"){ sim.skipCurse(); }
     return; }
   if(G.scene==="inventory"){ const n=G.hero.bag.length;
     if(code==="KeyI"||code==="Escape") G.scene="play";
@@ -276,6 +282,7 @@ function handleUITap(x,y){
   if(G.scene==="bounty"){ return bountyTap(x,y); }
   if(G.scene==="bestiary"){ return bestiaryTap(x,y); } // CAS-386
   if(G.scene==="draft"){ return draftTap(x,y); } // CAS-383
+  if(G.scene==="curse"){ return curseTap(x,y); } // CAS-394
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
     const top=topBtns(); for(const k in top){ const b=top[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -317,6 +324,10 @@ function draftTap(x,y){
   const rr=ui.draftRerollRect; if(rr&&x>=rr.x&&x<=rr.x+rr.w&&y>=rr.y&&y<=rr.y+rr.h){ sim.rerollDraft(); return true; }
   for(const r of (ui.draftBanishRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ sim.banishBoon(r.idx); return true; } }
   for(const r of ui.draftRects){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.draftSel=r.idx; if(G.draft) G.draft.sel=r.idx; sim.pickBoon(r.idx); return true; } } return true; }
+// CAS-394: tap Accept / Skip on the zone-modifier offer. A tap outside both buttons is swallowed
+// (the offer must resolve one way or the other before play resumes).
+function curseTap(x,y){ for(const r of (ui.curseRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+  if(r.act==="accept") sim.acceptCurse(); else sim.skipCurse(); return true; } } return true; }
 // tap a backpack row to select+equip it; tap elsewhere in the panel closes.
 function invTap(x,y){
   // CAS-237: the Forja button opens the forge panel.

@@ -668,3 +668,27 @@ export const SYNERGIES = [
   { id:"aegis",  need:["thorns","stone"],name:"Fortaleza Vengativa", desc:"Espinas + Piedra: reflejas mucho más daño al atacante.",          mul:{ reflect:1.6 } },
 ];
 export const SYN_MAP = (()=>{ const m={}; for(const s of SYNERGIES) m[s.id]=s; return m; })();
+
+// CAS-394: OPT-IN ZONE MODIFIER ("Maldición" / Curse). On first entry to a combat zone the
+// player is offered ONE random modifier — accept to raise that zone's challenge in exchange
+// for a guaranteed better payoff, or skip to leave the zone untouched. Per-run (resets on
+// death like boon stacks). Every modifier ONLY scales knobs that already exist — enemy hp/dmg
+// (ZONE_TIER-style mults folded in applyZoneScale), enemy speed, or the elite-affix roll rate
+// (MOB_AFFIX_RATE) — so NO new AI and NO change to base balance clamps (guardrail HOLD). The
+// reward for clearing a cursed zone is uniform (documented in sim.js onChampionKill/openDraft):
+// the champion draft is biased UP one rarity tier with a guaranteed rare+ card AND one bonus
+// gear roll at the zone's tier/floor. Tunable balance knobs; flag here if a value distorts the
+// risk/reward curve. Farm-cap: a zone clears at most ONCE per run (H.cleared), so the reward is
+// hard-bounded to ≤1 per zone (≤7/run) and the legendary odds inside the rare+ pool are the same
+// depth-scaled weights (no legendary flood) — see CURSE_DEPTH_BONUS.
+export const ZONE_MODIFIERS = [
+  { id:"brutal", glyph:"‡", name:"Furia Maldita",  desc:"Los enemigos golpean con +25% de vida y daño.", hpMul:1.25, dmgMul:1.25 },
+  { id:"frenzy", glyph:"➹", name:"Frenesí",         desc:"Los enemigos se mueven mucho más rápido.",       spdMul:1.35 },
+  { id:"swarm",  glyph:"❈", name:"Enjambre de Élite",desc:"Aparecen el doble de enemigos de élite.",        affixMul:2 },
+];
+export const ZONE_MOD_MAP = (()=>{ const m={}; for(const z of ZONE_MODIFIERS) m[z.id]=z; return m; })();
+// CAS-394: the cursed-zone draft bias. Clearing a cursed zone bumps the boon draft's EFFECTIVE
+// depth by this much (raises the depth-scaled rare/legendary weights in boonRarityWeight — "up one
+// tier") AND guarantees ≥1 rare+ card. Kept modest so it biases the pool without flooding
+// legendaries (their weight cap in BOON_RARITY still applies). Tunable.
+export const CURSE_DEPTH_BONUS = 4;

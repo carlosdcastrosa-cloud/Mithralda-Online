@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
@@ -263,6 +263,7 @@ export function createRenderer(ctx){
     if(G.scene==="bounty") renderBounty();
     if(G.scene==="bestiary") renderBestiary(); // CAS-386 bestiary / codex collection
     if(G.scene==="draft") renderDraft(); // CAS-383 inter-zone boon draft
+    if(G.scene==="curse") renderCurse(); // CAS-394 opt-in zone modifier offer
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
     if(G.scene==="victory") renderVictory();
@@ -1889,6 +1890,42 @@ export function createRenderer(ctx){
       const nb=(h.banished&&h.banished.length)||0;
       if(nb){ ctx.textAlign="right"; ctx.fillStyle="#d0556b"; ctx.font="10px 'Courier New'"; ctx.fillText(STR.draftBanished(nb), rbx-12, rby+16); }
     }
+    ctx.textAlign="left";
+  }
+
+  // CAS-394: the OPT-IN ZONE MODIFIER offer. Appears on the "curse" scene the first time the hero
+  // steps into a combat zone this run — one modifier, accept (harder + better reward) or skip
+  // (untouched). Pure view over G.curse; the only state change is accept/skip via ui.curseRects
+  // (tap) / keyboard (A / Esc). Reuses the shared panel() Tibia frame + COL palette (no art spend).
+  // Mobile-safe: the panel width clamps to the canvas and the two action buttons stack full-width.
+  function renderCurse(){ const c=G.curse; ui.curseRects=[]; if(!c) return;
+    const m=ZONE_MOD_MAP[c.mod]; if(!m) return;
+    const bw=Math.min(VW*0.9,460), bh=Math.min(VH*0.82,340), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center";
+    ctx.fillStyle="#ff7a5d"; ctx.font="bold 19px 'Courier New'"; ctx.fillText(STR.curseTitle,VW/2,y+30);
+    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.zoneName(c.zone),VW/2,y+48);
+    // modifier card — glyph, name, effect line
+    const cardY=y+62, cardH=bh-62-118, cw=bw-40, cx=x+20;
+    ctx.fillStyle="#2a2130"; ctx.fillRect(cx,cardY,cw,cardH);
+    ctx.strokeStyle="#ff7a5d"; ctx.lineWidth=2; ctx.strokeRect(cx+0.5,cardY+0.5,cw,cardH);
+    ctx.fillStyle="#ff9a7d"; ctx.font="34px 'Courier New'"; ctx.fillText(m.glyph, VW/2, cardY+44);
+    ctx.fillStyle=COL.cream; ctx.font="bold 16px 'Courier New'"; ctx.fillText(m.name, VW/2, cardY+70);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; wrapText(m.desc, cx+16, cardY+92, cw-32, 16);
+    // reward line (below the card) — centered wrap on the panel midline
+    ctx.textAlign="center"; ctx.fillStyle="#e0c070"; ctx.font="10px 'Courier New'";
+    wrapText(STR.curseReward, VW/2, y+bh-108, bw-44, 13);
+    // action buttons — Accept (red) / Skip (grey), full-width stacked, tap + keyboard
+    const bwid=bw-40, bhei=34, bxx=x+20; let byy=y+bh-64;
+    ctx.fillStyle="#3a2126"; ctx.fillRect(bxx,byy,bwid,bhei);
+    ctx.strokeStyle="#ff6a5d"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
+    ctx.fillStyle="#ffbfae"; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.curseAccept, VW/2, byy+22);
+    ui.curseRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"accept"});
+    byy+=bhei+8;
+    ctx.fillStyle="#262a30"; ctx.fillRect(bxx,byy,bwid,bhei);
+    ctx.strokeStyle="#7f8794"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.curseSkip, VW/2, byy+22);
+    ui.curseRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"skip"});
     ctx.textAlign="left";
   }
 

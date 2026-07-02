@@ -222,6 +222,9 @@ export function createGame(canvas, ctx, getView){
       boons:()=>simDev.boons(), openDraft:()=>simDev.openDraft(), pickBoon:(i)=>simDev.pickBoon(i), grantBoon:(id)=>simDev.grantBoon(id),
       // CAS-392 draft reroll/banish contract consumed by tools/cas392-*.mjs — additive
       rerollDraft:()=>simDev.rerollDraft(), banishDraft:(i)=>simDev.banishDraft(i), draftCharges:()=>simDev.draftCharges(),
+      // CAS-394 opt-in zone-modifier ("Maldición") contract consumed by tools/cas394-*.mjs — additive
+      curseState:()=>simDev.curseState(), offerCurse:(z)=>simDev.offerCurse(z), acceptCurse:()=>simDev.acceptCurse(),
+      skipCurse:()=>simDev.skipCurse(), setCurse:(z,m)=>simDev.setCurse(z,m), openDraftZone:(z)=>simDev.openDraftZone(z), resetHunts:()=>simDev.resetHunts(),
       // CAS-169 character-customization contract consumed by tools/cas169-customize.mjs — additive
       customizeState:()=>simDev.customizeState(), setPartColor:(s,c)=>simDev.setPartColor(s,c),
       cycleVariation:(k,d)=>simDev.cycleVariation(k,d), resetCustomize:()=>simDev.resetCustomize(),
