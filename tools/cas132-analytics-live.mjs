@@ -12,7 +12,7 @@
 import puppeteer from "puppeteer-core";
 import { findChromium, LAUNCH_ARGS } from "./harness.mjs";
 
-const ORIGIN = "https://tender-bridge-504.higgsfield.gg/";
+const ORIGIN = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/";
 const LIVE = ORIGIN + "index.html?dev"; // ?dev propagates into the iframe src → __dev hooks
 const log = (m) => console.log(m);
 let ok = true;

@@ -20,7 +20,7 @@ import puppeteer from "puppeteer-core";
 import { writeFileSync, mkdirSync } from "node:fs";
 
 const GH = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/";
-const TB = "https://tender-bridge-504.higgsfield.gg/";
+const TB = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/";
 const ARG_URL = (() => { const i = process.argv.indexOf("--url"); return i > -1 ? process.argv[i + 1] : null; })();
 const URL_BASE = ARG_URL || GH;
 const SHOTS = process.argv.includes("--shots");

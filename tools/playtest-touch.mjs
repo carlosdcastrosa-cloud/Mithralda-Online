@@ -10,7 +10,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
 
-const LIVE = "https://tender-bridge-504.higgsfield.gg/index.html?dev";
+const LIVE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/index.html?dev";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const shot = (n) => join(ROOT, "tools", `playtest1-${n}.png`);
 const out = { errors: [] };

@@ -4,8 +4,8 @@
 interim player URL while Higgsfield `deploy_game` is in outage. It does **not**
 depend on `deploy_game` recovering.
 
-- **Interim player URL (live, QA-green):** https://carlosdcastrosa-cloud.github.io/Mithralda-Online/
-- **Canonical fallback (stale during outage):** https://tender-bridge-504.higgsfield.gg
+- **OFFICIAL player URL (live, QA-green):** https://carlosdcastrosa-cloud.github.io/Mithralda-Online/
+- The old Higgsfield URL (`tender-bridge-504`) is **retired** — board directive, CAS-412. Do not deploy to it or cite it.
 - **Internals / one-time activation:** see `docs/backup-static-host-CAS-177.md`.
 
 ## The repeatable recipe — ship a new QA-green build

@@ -9,7 +9,7 @@ import puppeteer from "puppeteer-core";
 import { join } from "node:path";
 import { findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
 
-const BASE = "https://tender-bridge-504.higgsfield.gg";
+const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 const LIVE = `${BASE}/index.html?dev`;
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const OUT = join(ROOT, "tools");

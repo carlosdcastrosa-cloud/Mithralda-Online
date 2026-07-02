@@ -4,11 +4,11 @@ ARPG top-down de fantasía oscura en pixel art. HTML5 Canvas + JavaScript puro (
 
 ## ▶ Jugar ahora
 
-**URL de juego interina (build actual, QA-green): https://carlosdcastrosa-cloud.github.io/Mithralda-Online/**
+**URL de juego OFICIAL y ÚNICA: https://carlosdcastrosa-cloud.github.io/Mithralda-Online/**
 
-Esta es la URL de juego vigente para jugadores mientras dure la interrupción de `deploy_game` de Higgsfield (CAS-159). Sirve el build superset `112f63203e18` (266 archivos) desde el host estático de respaldo (GitHub Pages), verificado en vivo (CAS-183/CAS-188: boot 0 errores, 60 fps, combate, daily-loop, móvil). La cutover se ejecutó en [CAS-188](/CAS/issues/CAS-188).
+GitHub Pages (rama `gh-pages`) es el host de producción del juego. Es la única URL que se comunica a jugadores y al board, y la única que QA verifica.
 
-URL pública FIJA de Higgsfield (canónica a largo plazo, hoy **stale** en build `585a05e63d46` por la interrupción de `deploy_game`): https://tender-bridge-504.higgsfield.gg/ — volverá a ser la URL primaria en cuanto `deploy_game` se recupere y aterrice el build actual.
+> **Espejo de Higgsfield RETIRADO (directiva del board, [CAS-412](/CAS/issues/CAS-412)):** la antigua URL fija `tender-bridge-504.higgsfield.gg` quedó congelada en un build viejo por la interrupción permanente de `deploy_game` (CAS-159/CAS-136) y fue retirada como destino de deploy. No deployar ni citar esa URL; el pipeline de Higgsfield ya no forma parte de este repositorio.
 
 ## Cómo correrlo en local
 No necesita compilar nada. Solo sírvelo con cualquier servidor estático (no abras index.html con doble clic; los assets se cargan por HTTP):
@@ -114,11 +114,11 @@ python3 palette.py       # genera la lámina de paleta de clases
 | Druida | Espinas/hojas en cono frontal |
 | Sacerdote | Nova de luz: daña alrededor y se cura |
 
-## Despliegue (Higgsfield)
-Se empaqueta un zip **solo de runtime** (`index.html` + `logic.js` en la raíz + `game.js`, `audio.js`, `input.js`, `view.js`, `strings.js`, `version.json`, `sim/`, `render/`, `assets/`) y se sube vía el pipeline de Higgsfield (`media_upload` → PUT → `media_confirm` → `deploy_game`).
+## Despliegue (GitHub Pages — URL oficial)
+El build **solo de runtime** (`index.html` + `logic.js` en la raíz + `game.js`, `audio.js`, `input.js`, `view.js`, `strings.js`, `version.json`, `sim/`, `render/`, `assets/`) se publica a la rama `gh-pages` de este repositorio. Runbook completo: `docs/deploy-runbook-CAS-193.md`. (El pipeline anterior de Higgsfield — `media_upload` → `deploy_game` a `tender-bridge-504` — fue **retirado** por directiva del board en [CAS-412](/CAS/issues/CAS-412).)
 
 ### Paso PREVIO obligatorio: romper cache (CAS-58 / CAS-68)
-Higgsfield sirve nuestros módulos ES con **nombre fijo y sin cabeceras de cache** (no hay `cache-control`/`etag`/`last-modified`), así que un jugador que volvió al día siguiente seguía ejecutando los módulos **cacheados** — el deploy se veía idéntico aunque `master` había avanzado. Solución, sin renombrar archivos ni controlar cabeceras del server.
+Los módulos ES se sirven con **nombre fijo** y sin garantía de cabeceras de cache, así que un jugador que volvió al día siguiente seguía ejecutando los módulos **cacheados** — el deploy se veía idéntico aunque `master` había avanzado. Solución, sin renombrar archivos ni controlar cabeceras del server.
 
 **Receta de deploy — en este orden exacto (CAS-68):**
 
@@ -127,7 +127,7 @@ Higgsfield sirve nuestros módulos ES con **nombre fijo y sin cabeceras de cache
 2. git add version.json && git commit ... # version.json VA en el bundle
 3. node tools/stamp-version.mjs --check   # FALLA si version.json quedó stale vs. el árbol (guard "olvidé stampear")
 4. # empaquetar el zip — DEBE incluir version.json en la lista de archivos (ver §bundle arriba)
-5. # deploy_game con el game_id existente (URL fija)
+5. # publicar el fileset runtime a la rama gh-pages (ver docs/deploy-runbook-CAS-193.md)
 6. npm run deploy-verify                  # FALLA si el build-id vivo ≠ hash del árbol servido, o si live ≠ master
 7. npm run cache-bust                     # (opcional) e2e: un navegador con cache previa toma el build nuevo sin hard-refresh
 ```
@@ -136,7 +136,7 @@ Higgsfield sirve nuestros módulos ES con **nombre fijo y sin cabeceras de cache
 
 Cómo funciona: el bootstrap de `index.html` (script **clásico**) hace `fetch('./version.json', {cache:'no-store'})` — siempre pega a la red aunque el HTML esté cacheado —, lee `build`, e inyecta un **import map** que enruta TODO el grafo de módulos (incluidos los `import` internos de `game.js`/`sim/`/`render/`) a `?v=<build>`. Un solo id rompe el cache de todo el grafo + los assets (`render/sprites.js` les agrega el mismo `?v=`). Como los nombres de archivo no cambian, el gate de byte-identidad (CAS-37) sigue siendo válido. **Regla:** si cambió cualquier archivo del runtime, corré `npm run stamp` y commiteá `version.json` ANTES de empaquetar; si no, los recurrentes no verán el cambio.
 
-**Invariante de URL fija:** para actualizar el MISMO juego/URL hay que pasar **siempre** el `game_id` existente a `deploy_game`. Omitirlo crea un juego nuevo con otra URL. URL fija: `https://tender-bridge-504.higgsfield.gg/`. El `game_id` no se versiona en el repo (artefactos de deploy están en `.gitignore`); está registrado en la memoria del CTO.
+**URL fija:** la URL oficial es `https://carlosdcastrosa-cloud.github.io/Mithralda-Online/` (rama `gh-pages` de este repo). No hay `game_id` ni servicio externo de por medio: actualizar el juego = publicar el fileset runtime a `gh-pages`.
 
 ### Gate post-deploy OBLIGATORIO (CAS-37)
 Todo deploy DEBE terminar con el gate de verificación, o se considera no completado:
@@ -148,7 +148,7 @@ npm run deploy-verify    # tras cada deploy_game; sale ≠0 si el build vivo no 
 El gate descarga **cada archivo del bundle servido** desde la URL viva y lo compara byte-a-byte (sha256) contra el árbol local, más el assert de comportamiento `tools/gear-live.mjs` (los 7 hooks de gear). Si el build vivo quedó **stale** (un bundle anterior a `master`, como detectó [CAS-27](/CAS/issues/CAS-27)) → falla **ruidosamente** con la lista de archivos desfasados, en vez de quedar verde. Prueba conjunta: `live == árbol local` y (árbol limpio + `HEAD`) `== master` ⇒ `live == master`.
 **Consistencia de build-id (CAS-68):** además del byte-compare, el gate re-deriva el hash de contenido del árbol (misma lógica que `npm run stamp`, compartida en `tools/build-id.mjs`) y exige que el `build` del `version.json` **vivo** Y del **commiteado** sean exactamente ese hash. Esto atrapa lo que el byte-compare no puede: (a) olvidar `npm run stamp` (id stale e idéntico en ambos lados), y (b) un zip que excluyó `version.json` (id reusado solo en vivo — el modo de falla de [CAS-54](/CAS/issues/CAS-54)).
 Flags: `--code-only` (omite los 70 assets, solo código), `--no-behavior` (omite el assert puppeteer, más rápido), `--base=<url>`.
-Nota: `logic.js` (manifiesto de reglas que exige Higgsfield) va en el zip pero el server **no lo expone** por HTTP, así que el gate no lo compara.
+Nota: `logic.js` (manifiesto de reglas heredado del pipeline retirado de Higgsfield) sigue en la raíz del bundle por compatibilidad histórica; el gate no lo compara.
 
 ## Nota sobre los sprites
 Los personajes son diseños **originales** en un estilo genérico de aventurero encapuchado. No se incluye ni reproduce ningún personaje con derechos de autor.

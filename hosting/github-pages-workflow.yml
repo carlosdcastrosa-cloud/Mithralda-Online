@@ -7,11 +7,10 @@
 #
 # CAS-180 — Backup static host on GitHub Pages.
 #
-# Kills the deploy_game single-point-of-failure (CAS-136 / CAS-154 / CAS-177):
+# Killed the deploy_game single-point-of-failure (CAS-136 / CAS-154 / CAS-177):
 # whenever master moves, this publishes the SAME verified bundle to a host we
-# control, so a HEAD-fresh build is always reachable even while Higgsfield's
-# deploy_game is down. $0, reversible, and it never touches the live Higgsfield
-# URL (tender-bridge-504).
+# control. GitHub Pages is now the OFFICIAL production host (board directive,
+# CAS-412 — the old Higgsfield pipeline is retired). $0 and reversible.
 #
 # Phase 0 = it serves HEAD at https://<owner>.github.io/<repo>/.
 # Phase 1 = `on: push` makes the standby ALWAYS carry HEAD automatically.

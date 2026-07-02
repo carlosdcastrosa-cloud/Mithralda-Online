@@ -20,7 +20,7 @@ import puppeteer from "puppeteer-core";
 import { join } from "node:path";
 import { findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
 
-const LIVE = "https://tender-bridge-504.higgsfield.gg/index.html?dev";
+const LIVE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/index.html?dev";
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const SHOT = join(ROOT, "tools", "cas119-talents-live.png");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

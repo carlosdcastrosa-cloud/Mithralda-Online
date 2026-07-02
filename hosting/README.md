@@ -2,11 +2,13 @@
 
 The Mithralda client is a pile of fixed-name static files (`index.html` +
 ES modules + `assets/`), so it can be served from **any** static host. This
-folder holds everything needed to stand up a **backup host** that removes the
-single point of failure today: Higgsfield's `deploy_game` pipeline. When
-`deploy_game` is down (it has been out for 11h+ twice — see memory
-`cas136-deploy-outage-recurrence`, `cas154-stage1-queue-land`), we currently
-cannot ship at all. A backup host we control fixes that.
+folder holds everything needed to stand up an **alternative host**. It was
+built (CAS-177) when the primary was Higgsfield's `deploy_game` pipeline,
+whose recurring outages meant we could not ship at all. That pipeline has
+since been **retired** (board directive, CAS-412): the official production
+host is now GitHub Pages (`gh-pages` branch →
+`https://carlosdcastrosa-cloud.github.io/Mithralda-Online/`). This tooling
+remains as a spare in case GitHub Pages ever needs a backup.
 
 > ⚠️ Going public (free subdomain **or** custom domain) is a **board gate**
 > (CEO). This folder is the spike: configs + tooling, ready to deploy, nothing
@@ -65,4 +67,4 @@ npm run deploy-verify -- --base=https://<backup-url>
 ```
 
 This is the existing byte-identity + behavior gate (CAS-37) pointed at the
-backup host instead of `tender-bridge-504`.
+backup host instead of the official gh-pages URL.

@@ -15,7 +15,9 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
 
-const LIVE = "https://tender-bridge-504.higgsfield.gg/index.html?dev";
+// gh-pages is the OFFICIAL live URL (board directive, CAS-412); the old Higgsfield
+// mirror was retired. Allow an env override so QA can target another host if needed.
+const LIVE = process.env.LIVE_URL || "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/index.html?dev";
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const CLASSES = ["warrior", "paladin", "mage", "druid", "priest"];
 const shot = (name) => join(ROOT, "tools", `playtest1-${name}.png`);

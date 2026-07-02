@@ -40,7 +40,7 @@ import { computeBuildId, parseVersion, gitTracked } from "./build-id.mjs";
 const args = process.argv.slice(2);
 const CODE_ONLY = args.includes("--code-only");
 const NO_BEHAVIOR = args.includes("--no-behavior");
-const BASE = (args.find((a) => a.startsWith("--base="))?.slice(7) || "https://tender-bridge-504.higgsfield.gg").replace(/\/$/, "");
+const BASE = (args.find((a) => a.startsWith("--base="))?.slice(7) || "https://carlosdcastrosa-cloud.github.io/Mithralda-Online").replace(/\/$/, "");
 
 const sha256 = (buf) => createHash("sha256").update(buf).digest("hex");
 
