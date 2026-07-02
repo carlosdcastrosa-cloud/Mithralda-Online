@@ -13,7 +13,7 @@ const gitStr = (...a) => git(...a).toString().trim();
 git("fetch","origin","gh-pages","--quiet");
 
 function computeBuild() {
-  const tracked = git("ls-tree","-r","--name-only","origin/gh-pages","--","sim","render","assets").toString().split("\n").filter(Boolean);
+  const tracked = git("ls-tree","-r","--name-only","origin/gh-pages","--","sim","render","assets","ui").toString().split("\n").filter(Boolean);
   const fromHead = new Set(CHANGED);
   const files = [...new Set([...ROOT_FILES, ...tracked, ...CHANGED])].sort();
   const h = createHash("sha256");
