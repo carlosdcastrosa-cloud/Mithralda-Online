@@ -13,7 +13,7 @@
 // A Stage-2 networking layer wraps sim/ by feeding intents per tick and ignoring
 // render/audio/view — no rewrite of the gameplay logic required.
 // ===========================================================================
-import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag } from "./sim/sim.js";
+import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
@@ -105,6 +105,8 @@ export function createGame(canvas, ctx, getView){
       // cutover now suppresses (h.dots = DoTs keyed by type; slowT / stun are scalar timers).
       status:(()=>{ const out=[]; if(h.dots) for(const k in h.dots){ const d=h.dots[k]; if(d) out.push({type:k, dur:d.t}); }
         if(h.slowT>0) out.push({type:"slow", dur:h.slowT}); if(h.stun>0) out.push({type:"stun", dur:h.stun}); return out; })(),
+      // CAS-450: Conquista/World-Tier read-only view for the HUD trophy chips (hud.js paintConquest)
+      conquest:conquestSnap(),
     }, a11y);
   }
   // CAS-336/CAS-337 — make the HUD panels FUNCTIONAL (board CAS-335: "no tiene funciones").
@@ -232,6 +234,10 @@ export function createGame(canvas, ctx, getView){
       // CAS-394 opt-in zone-modifier ("Maldición") contract consumed by tools/cas394-*.mjs — additive
       curseState:()=>simDev.curseState(), offerCurse:(z)=>simDev.offerCurse(z), acceptCurse:()=>simDev.acceptCurse(),
       skipCurse:()=>simDev.skipCurse(), setCurse:(z,m)=>simDev.setCurse(z,m), openDraftZone:(z)=>simDev.openDraftZone(z), resetHunts:()=>simDev.resetHunts(),
+      // CAS-450 Conquista/World-Tier contract consumed by tools/cas450-*.mjs — additive
+      conquestState:()=>simDev.conquestState(), setConquest:(t,d)=>simDev.setConquest(t,d),
+      acceptAscend:()=>simDev.acceptAscend(), declineAscend:()=>simDev.declineAscend(),
+      ascendRects:()=>(ui.ascendRects||[]).map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,act:r.act})),
       // CAS-169 character-customization contract consumed by tools/cas169-customize.mjs — additive
       customizeState:()=>simDev.customizeState(), setPartColor:(s,c)=>simDev.setPartColor(s,c),
       cycleVariation:(k,d)=>simDev.cycleVariation(k,d), resetCustomize:()=>simDev.resetCustomize(),

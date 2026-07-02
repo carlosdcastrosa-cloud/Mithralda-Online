@@ -424,6 +424,7 @@ export const hud = (()=>{
     if(nodes.minimap) nodes.minimap.textContent=(s.zone||"—")+"\n◆";
     // §B status chips — data-driven; renders nothing when the hero carries no effects
     paintChips(s.status||[], cb);
+    paintConquest(s.conquest); // CAS-450: Conquista trophy row (appends after the status chips)
     paintLog();
   }
 
@@ -433,6 +434,25 @@ export const hud = (()=>{
     for(const st of list){ const sig=CHIP_SIG[st.type]||{c:C.cream,g:"●"};
       const chip=mk("span",null,nodes.chips); chip.className="chip"; chip.style.color=sig.c; chip.style.borderColor=sig.c;
       chip.textContent=(cb?sig.g+" ":"")+(st.type||"")+(st.dur?(" "+Math.ceil(st.dur)+"s"):""); }
+  }
+
+  // CAS-450 — Conquista trophy chips: one per CONQUEST zone (gold ‡ when its climax fell this
+  // cycle, dimmed ○ while pending) + a Mundo-N chip once above World Tier 1. Reuses the CAS-416
+  // .chip row (same container/CSS — appended after the status chips, which already cleared it),
+  // so the draggable layout (CAS-418) and panel art are untouched. Glyphs ‡/○/★ are
+  // render-proven in this font (ZONE_MODIFIERS glyph / talent badge); ⚔-class glyphs are the
+  // known no-render gotcha and are avoided.
+  const CONQ_LABEL={ forest:"Bosque", ruins:"Ruinas", caves:"Criptas", swamp:"Ciénaga" };
+  function paintConquest(cq){
+    if(!nodes.chips || !cq || !cq.zones) return;
+    if((cq.tier|0)>1){ const t=mk("span",null,nodes.chips); t.className="chip";
+      t.style.color="#ffd24d"; t.style.borderColor="#ffd24d"; t.textContent="★ Mundo "+(cq.tier|0);
+      t.title="Nivel de mundo actual"; }
+    for(const z of cq.zones){ const on=!!z.down; const c=on?"#ffd24d":"#7f8794";
+      const chip=mk("span",null,nodes.chips); chip.className="chip";
+      chip.style.color=c; chip.style.borderColor=c; if(!on) chip.style.opacity="0.75";
+      chip.textContent=(on?"‡ ":"○ ")+(CONQ_LABEL[z.zone]||z.zone);
+      chip.title=on?"Dominio sometido este ciclo":"Dominio pendiente de conquista"; }
   }
 
   function show(){ build(); if(!root) return; on=true; root.style.display="block"; applyScale();

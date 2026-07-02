@@ -272,6 +272,7 @@ export function createRenderer(ctx){
     if(G.scene==="bestiary") renderBestiary(); // CAS-386 bestiary / codex collection
     if(G.scene==="draft") renderDraft(); // CAS-383 inter-zone boon draft
     if(G.scene==="curse") renderCurse(); // CAS-394 opt-in zone modifier offer
+    if(G.scene==="ascend") renderAscend(); // CAS-450 opt-in World-Tier climb offer
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
     if(G.scene==="victory") renderVictory();
@@ -1959,10 +1960,13 @@ export function createRenderer(ctx){
       ui.draftBanishRects.push({x:bx,y:by,w:s,h:s,idx:i}); }
     const bw=Math.min(VW*0.94,660), bh=Math.min(VH*0.9,460), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 19px 'Courier New'"; ctx.fillText(STR.draftTitle,VW/2,y+30);
+    // CAS-450: the APEX ceremony hand re-titles the same panel (amber accent — the legendary
+    // colour already in BOON_RARITY) so the full-conquest payoff reads as an EVENT, not another
+    // routine draft. Same layout/rects — presentation only.
+    ctx.textAlign="center"; ctx.fillStyle=d.apex?"#ffab2e":COL.textGold; ctx.font="bold 19px 'Courier New'"; ctx.fillText(d.apex?STR.apexDraftTitle:STR.draftTitle,VW/2,y+30);
     // subtitle: left-aligned wrap inside the frame + smaller font on narrow panels, so it
     // never bleeds past the border on a phone-portrait canvas.
-    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font=(bw<520?"10px":"12px")+" 'Courier New'"; wrapText(STR.draftSub,x+20,y+48,bw-40,14);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font=(bw<520?"10px":"12px")+" 'Courier New'"; wrapText(d.apex?STR.apexDraftSub:STR.draftSub,x+20,y+48,bw-40,14);
 
     const sel=Math.max(0,Math.min(choices.length-1,(G.draftSel||0)));
     const wide=bw>=560; // wide → 3 columns, narrow → 3 stacked rows (mobile-safe)
@@ -2079,6 +2083,40 @@ export function createRenderer(ctx){
     ctx.strokeStyle="#7f8794"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
     ctx.fillStyle=COL.textDim; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.curseSkip, VW/2, byy+22);
     ui.curseRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"skip"});
+    ctx.textAlign="left";
+  }
+
+  // CAS-450: the opt-in WORLD-TIER climb offer. Appears on the "ascend" scene right after the
+  // apex draft resolves (full conquest cycle). Same skeleton as renderCurse — shared panel()
+  // frame, one card, two stacked full-width buttons (tap via ui.ascendRects / keyboard A·Esc) —
+  // but gold-keyed: this is a reward decision, not a risk one. Pure view over G.ascend.
+  function renderAscend(){ const a=G.ascend; ui.ascendRects=[]; if(!a) return;
+    const bw=Math.min(VW*0.9,460), bh=Math.min(VH*0.82,340), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center";
+    ctx.fillStyle=COL.textGold; ctx.font="bold 19px 'Courier New'"; ctx.fillText(STR.ascendTitle,VW/2,y+30);
+    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.conquestProgress(4,4),VW/2,y+48);
+    // tier card — star glyph, target tier name, effect line
+    const cardY=y+62, cardH=bh-62-118, cw=bw-40, cx=x+20;
+    ctx.fillStyle="#2a2618"; ctx.fillRect(cx,cardY,cw,cardH);
+    ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(cx+0.5,cardY+0.5,cw,cardH);
+    ctx.fillStyle="#ffd24d"; ctx.font="34px 'Courier New'"; ctx.fillText("★", VW/2, cardY+44);
+    ctx.fillStyle=COL.cream; ctx.font="bold 16px 'Courier New'"; ctx.fillText(STR.ascendName(a.tier), VW/2, cardY+70);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; wrapText(STR.ascendDesc(a.tier), cx+16, cardY+92, cw-32, 16);
+    // stay-put line (below the card) — centered wrap on the panel midline
+    ctx.textAlign="center"; ctx.fillStyle="#e0c070"; ctx.font="10px 'Courier New'";
+    wrapText(STR.ascendReward, VW/2, y+bh-108, bw-44, 13);
+    // action buttons — Ascend (gold) / Stay (grey), full-width stacked, tap + keyboard
+    const bwid=bw-40, bhei=34, bxx=x+20; let byy=y+bh-64;
+    ctx.fillStyle="#3a3218"; ctx.fillRect(bxx,byy,bwid,bhei);
+    ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
+    ctx.fillStyle="#ffe2a0"; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.ascendAccept, VW/2, byy+22);
+    ui.ascendRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"accept"});
+    byy+=bhei+8;
+    ctx.fillStyle="#262a30"; ctx.fillRect(bxx,byy,bwid,bhei);
+    ctx.strokeStyle="#7f8794"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.ascendSkip, VW/2, byy+22);
+    ui.ascendRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"skip"});
     ctx.textAlign="left";
   }
 

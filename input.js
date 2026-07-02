@@ -25,7 +25,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
   // CAS-419 inventory DnD: live drag state (render draws the ghost/highlights from it),
   // last rejected drop rect (render shakes it red until `until`, sim time), and the
   // backpack list area rect render publishes so an equip-slot drag can target empty rows.
@@ -145,6 +145,12 @@ function edge(code){
   if(G.scene==="curse"){
     if(code==="KeyA"||code==="Enter"||code==="Space"){ sim.acceptCurse(); }
     else if(code==="Escape"||code==="KeyS"){ sim.skipCurse(); }
+    return; }
+  // CAS-450: World-Tier ascend offer — A / Enter / Space climbs (world re-arms, harder + richer),
+  // Esc / S stays on the current tier. Both resume play; a new offer needs a new full clear.
+  if(G.scene==="ascend"){
+    if(code==="KeyA"||code==="Enter"||code==="Space"){ sim.acceptAscend(); }
+    else if(code==="Escape"||code==="KeyS"){ sim.declineAscend(); }
     return; }
   if(G.scene==="inventory"){ const n=G.hero.bag.length;
     if(code==="KeyI"||code==="Escape") G.scene="play";
@@ -296,6 +302,7 @@ function handleUITap(x,y){
   if(G.scene==="bestiary"){ return bestiaryTap(x,y); } // CAS-386
   if(G.scene==="draft"){ return draftTap(x,y); } // CAS-383
   if(G.scene==="curse"){ return curseTap(x,y); } // CAS-394
+  if(G.scene==="ascend"){ return ascendTap(x,y); } // CAS-450
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
     const top=topBtns(); for(const k in top){ const b=top[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -341,6 +348,10 @@ function draftTap(x,y){
 // (the offer must resolve one way or the other before play resumes).
 function curseTap(x,y){ for(const r of (ui.curseRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
   if(r.act==="accept") sim.acceptCurse(); else sim.skipCurse(); return true; } } return true; }
+// CAS-450: tap Ascender / Quedarse on the World-Tier offer. A tap outside both buttons is
+// swallowed (the offer must resolve one way or the other before play resumes).
+function ascendTap(x,y){ for(const r of (ui.ascendRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+  if(r.act==="accept") sim.acceptAscend(); else sim.declineAscend(); return true; } } return true; }
 // CAS-419 — inventory drag & drop. A press on a bag row or an occupied functional
 // equip slot ARMS a drag; crossing DRAG_PX activates it (render then draws the ghost
 // + target highlights). Release below the threshold falls back to the CAS-226 tap

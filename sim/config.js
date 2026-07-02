@@ -744,3 +744,22 @@ export const ZONE_MOD_MAP = (()=>{ const m={}; for(const z of ZONE_MODIFIERS) m[
 // tier") AND guarantees ≥1 rare+ card. Kept modest so it biases the pool without flooding
 // legendaries (their weight cap in BOON_RARITY still applies). Tunable.
 export const CURSE_DEPTH_BONUS = 4;
+
+// CAS-450: CONQUISTA + WORLD TIER (NG+ ligero). The four OPEN walk-in zones (the CAS-438 set)
+// form the "Conquista" cycle: defeat all four zone climaxes in one cycle → an APEX payoff
+// (a guaranteed-legendary boon draft + one tier-bumped guaranteed gear drop) and an OPT-IN
+// offer to ascend to World Tier N+1. CONQUEST_ZONES is the data-driven cycle membership —
+// the gated zones (arena/abyss/frost/trial) stay outside it so the loop is walkable by any
+// build that can clear the open world.
+export const CONQUEST_ZONES = ["forest","ruins","caves","swamp"];
+// World-Tier tuning. All scaling is MULTIPLICATIVE and applied POST-SPAWN (layered clones in
+// applyZoneScale / spawnChampion, exactly the CAS-394 curse pattern) so tier 1 stays
+// byte-identical to the pre-CAS-450 baseline and the rr()/srand draw ORDER is never touched.
+//   cap      — highest reachable tier (the ascend offer stops here)
+//   hpPct/dmgPct — +25% enemy hp/dmg per tier ABOVE 1
+//   affixPct — elite-affix roll-rate bonus per tier above 1 (same knob as the swarm curse;
+//              the srand draw itself is unconditional, only the threshold moves → rng-neutral)
+//   depthPer — boon-draft effective-depth bonus per tier above 1 (loot payoff of climbing)
+//   apexDepth— depth bonus of the APEX draft itself (≥ CURSE_DEPTH_BONUS: the apex hand is
+//              the richest draft in the game, and ensureLegendary floors it at 1 legendary)
+export const WORLD_TIER = { cap:5, hpPct:0.25, dmgPct:0.25, affixPct:0.25, depthPer:2, apexDepth:6 };

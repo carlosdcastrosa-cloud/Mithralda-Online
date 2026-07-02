@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -193,6 +193,10 @@ function newHero(name,cls){
     // OFFERED this run (so the entry prompt fires exactly once per zone). Same run lifecycle as
     // `boons` — reset on death / new run (respawn / createHero), persisted additively.
     curses:{}, curseSeen:[],
+    // CAS-450: CONQUISTA + WORLD TIER (NG+ ligero). `tier` is the DURABLE world tier
+    // (1..WORLD_TIER.cap — survives death, persisted additively); `bossesDown` tracks the
+    // CONQUEST_ZONES whose climax fell THIS cycle (resets the instant the 4th falls → apex).
+    conquest:{ tier:1, bossesDown:[] },
     // gear: 3 equipped slots (instances by id) + a bag of loose instances. Stats
     // are resolved from data (sim/gear.js), never stored — see equippedDmg/Def.
     equip:{ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} },
@@ -287,6 +291,12 @@ function recalcBoons(h){ if(!h) return; const bb=zeroBB(); const list=h.boons||[
 function sanitizeBoons(arr){ const out=[]; if(!Array.isArray(arr)) return out;
   for(const id of arr){ if(BOON_MAP[id]) out.push(id); if(out.length>=40) break; } return out; }
 export function bbLoot(){ return (G.hero&&G.hero.bb)?G.hero.bb.loot:0; } // Codicia luck for rollGearInst
+// CAS-450: read-only Conquista/World-Tier snapshot — consumed by the HUD trophy chips
+// (game.js hudSnapshot) + harnesses. Pure view, never mutates.
+export function conquestSnap(){ const h=G.hero; const cq=(h&&h.conquest)||{tier:1,bossesDown:[]};
+  const down=cq.bossesDown||[];
+  return { tier:cq.tier||1, cap:WORLD_TIER.cap,
+    zones:CONQUEST_ZONES.map(z=>({ zone:z, down:down.indexOf(z)>=0 })) }; }
 
 // CAS-388/392: RARITY-WEIGHTED draw of `n` DISTINCT boon ids off the sim RNG. depth = #owned
 // boons (each prior champion clear added one), so the pool skews rarer the deeper the run runs.
@@ -299,8 +309,15 @@ export function bbLoot(){ return (G.hero&&G.hero.bb)?G.hero.bb.loot:0; } // Codi
 // AND guarantees ≥1 rare+ card (ensureRarePlus back-fills one slot from the rare+ subpool if the
 // weighted draw happened to roll all commons). Legendary odds stay inside their weight cap → no
 // flood. The flag rides on G.draft so a reroll of a cursed draft keeps the floor.
-function drawBoonChoices(h,n,cursed){
-  const depth=((h.boons&&h.boons.length)||0)+(cursed?CURSE_DEPTH_BONUS:0);
+// CAS-450: `apex` (the draft follows a full-conquest cycle) is the richest hand in the game —
+// it adds WORLD_TIER.apexDepth to the effective depth and GUARANTEES ≥1 legendary card
+// (ensureLegendary, same back-fill shape as the cursed rare+ floor). The world tier itself
+// also deepens every draft (depthPer per tier above 1) — the loot payoff of climbing. Both
+// are 0 at tier 1 / non-apex, so the baseline draw is untouched (same weights, same draws).
+function drawBoonChoices(h,n,cursed,apex){
+  const wt=((h.conquest&&h.conquest.tier)||1)-1;
+  const depth=((h.boons&&h.boons.length)||0)+(cursed?CURSE_DEPTH_BONUS:0)
+    +(apex?WORLD_TIER.apexDepth:0)+(wt>0?wt*WORLD_TIER.depthPer:0);
   const banned=(h.banished&&h.banished.length)?new Set(h.banished):null;
   const pool=banned?BOONS.filter(b=>!banned.has(b.id)):BOONS.slice();
   const picks=[]; n=Math.min(n||BOON_DRAFT_N,pool.length);
@@ -310,6 +327,7 @@ function drawBoonChoices(h,n,cursed){
     for(let j=0;j<pool.length;j++){ r-=boonRarityWeight(pool[j].rarity,depth); if(r<=0){ idx=j; break; } idx=j; }
     picks.push(pool.splice(idx,1)[0].id);
   }
+  if(apex) return ensureLegendary(h,picks,depth);
   return cursed?ensureRarePlus(h,picks,depth):picks;
 }
 // CAS-394: guarantee the cursed-zone draft surfaces at least one rare-or-better card. If the
@@ -323,6 +341,23 @@ function ensureRarePlus(h,picks,depth){
   const keep=new Set(picks.slice(0,-1));
   const pool=BOONS.filter(b=>b.rarity!=="common" && !keep.has(b.id) && !(banned&&banned.has(b.id)));
   if(!pool.length) return picks;
+  let total=0; for(const b of pool) total+=boonRarityWeight(b.rarity,depth);
+  let r=srand()*total, idx=0;
+  for(let j=0;j<pool.length;j++){ r-=boonRarityWeight(pool[j].rarity,depth); if(r<=0){ idx=j; break; } idx=j; }
+  picks[picks.length-1]=pool[idx].id;
+  return picks;
+}
+// CAS-450: guarantee the APEX draft surfaces at least one LEGENDARY card — the ceremony payoff
+// of a full conquest cycle. Same back-fill shape as ensureRarePlus: if the weighted draw already
+// rolled a legendary it's untouched; otherwise the LAST slot is replaced by a weighted draw
+// restricted to the legendary subpool (kept cards + banished honoured). If every legendary is
+// banished the hand falls back to the rare+ floor — banish stays a real commitment.
+function ensureLegendary(h,picks,depth){
+  if(picks.some(id=>{ const b=BOON_MAP[id]; return b&&b.rarity==="legendary"; })) return picks;
+  const banned=(h.banished&&h.banished.length)?new Set(h.banished):null;
+  const keep=new Set(picks.slice(0,-1));
+  const pool=BOONS.filter(b=>b.rarity==="legendary" && !keep.has(b.id) && !(banned&&banned.has(b.id)));
+  if(!pool.length) return ensureRarePlus(h,picks,depth);
   let total=0; for(const b of pool) total+=boonRarityWeight(b.rarity,depth);
   let r=srand()*total, idx=0;
   for(let j=0;j<pool.length;j++){ r-=boonRarityWeight(pool[j].rarity,depth); if(r<=0){ idx=j; break; } idx=j; }
@@ -344,11 +379,15 @@ function drawOneBoon(h,exclude){
 }
 // Open the 3-card draft after a zone champion clear. Pauses into the "draft" scene;
 // input.js/render.js own the card UI (incl. CAS-392 reroll/banish controls).
-function openDraft(source){ const h=G.hero; if(!h) return;
+// CAS-450: `apex` marks the full-conquest ceremony draft — guaranteed legendary
+// (drawBoonChoices → ensureLegendary) and, after the pick resolves, the World-Tier
+// ascend offer (pickBoon → offerAscend). The flag rides on G.draft so a reroll keeps
+// the legendary floor and the ascend hand-off survives rerolls/banishes.
+function openDraft(source,apex){ const h=G.hero; if(!h) return;
   // CAS-394: a draft opened after clearing a CURSED zone is biased up one tier (guaranteed rare+).
   // The flag rides on G.draft.cursed so a reroll keeps the floor. `source` is the zone id.
   const cursed=!!(h.curses && source && h.curses[source]);
-  G.draft={ choices:drawBoonChoices(h,BOON_DRAFT_N,cursed), sel:0, source:source||"", cursed }; G.draftSel=0; G.scene="draft";
+  G.draft={ choices:drawBoonChoices(h,BOON_DRAFT_N,cursed,apex), sel:0, source:source||"", cursed, apex:!!apex }; G.draftSel=0; G.scene="draft";
   audio&&audio.sfx&&audio.sfx.levelup&&audio.sfx.levelup();
 }
 // CAS-392: spend the run's single reroll charge to re-draw ALL cards at the SAME depth-scaled
@@ -358,7 +397,7 @@ function openDraft(source){ const h=G.hero; if(!h) return;
 export function rerollDraft(){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="draft") return false;
   if(!(h.rerollLeft>0)) return false;
   h.rerollLeft--;
-  d.choices=drawBoonChoices(h,BOON_DRAFT_N,d.cursed); d.sel=0; G.draftSel=0; // CAS-394: keep the cursed rare+ floor across a reroll
+  d.choices=drawBoonChoices(h,BOON_DRAFT_N,d.cursed,d.apex); d.sel=0; G.draftSel=0; // CAS-394/450: keep the cursed rare+ / apex legendary floor across a reroll
   audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
   return true;
 }
@@ -395,7 +434,12 @@ export function pickBoon(i){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="dr
   audio&&audio.sfx&&audio.sfx.loot&&audio.sfx.loot(leg?3:(b.rarity==="rare"?2:1));
   if(leg){ addFx("lvlring",h.x,h.y,{life:0.7}); shakeAdd(2.5);
     for(let k=0,n=rmCount(8);k<n;k++) addFx("flame",h.x+frr(-24,24),h.y+frr(-28,10)); }
+  const wasApex=!!d.apex;
   G.draft=null; G.scene="play";
+  // CAS-450: an APEX draft (full conquest cycle) chains into the opt-in World-Tier ascend
+  // offer once the boon is banked. Below the cap only — at tier 5 the apex payoff itself
+  // (legendary draft + tier-bumped gear) remains the repeatable ceiling reward.
+  if(wasApex) offerAscend();
   return true;
 }
 
@@ -428,6 +472,46 @@ export function acceptCurse(){ const h=G.hero, c=G.curse; if(!h||!c||G.scene!=="
 export function skipCurse(){ const h=G.hero, c=G.curse; if(!h||!c||G.scene!=="curse") return false;
   audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
   G.curse=null; G.scene="play"; return true;
+}
+
+// ----------------------- CAS-450: WORLD-TIER ASCEND OFFER -----------------------
+// Fired from pickBoon after an APEX draft resolves (full conquest cycle banked). Pauses into
+// the "ascend" scene — accept climbs one World Tier, decline stays put; either way the player
+// can re-decide after the NEXT full clear (the cycle tracker already reset when apex fired).
+// No offer at the cap: tier 5 keeps the apex payoff as the repeatable ceiling. No RNG here.
+function offerAscend(){ const h=G.hero; if(!h||!h.conquest) return;
+  const t=h.conquest.tier||1; if(t>=WORLD_TIER.cap) return;
+  G.ascend={ tier:t+1 }; G.scene="ascend";
+  audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
+}
+// Accept → worldTier++ and the world RE-ARMS for the new cycle: hunt board re-inits (H.cleared/
+// champ/quota reset → every climax is summonable again) and the per-run curse layer clears
+// (accepted mods + seen list → the entry offers re-fire per zone). All scaling reads the new
+// tier lazily at spawn time (applyZoneScale / spawnChampion / maybeAffix / drawBoonChoices),
+// so already-live enemies keep their stats — only the re-armed world escalates. No RNG.
+export function acceptAscend(){ const h=G.hero, a=G.ascend; if(!h||!a||G.scene!=="ascend") return false;
+  const cq=h.conquest||(h.conquest={tier:1,bossesDown:[]});
+  cq.tier=Math.min(WORLD_TIER.cap, (cq.tier||1)+1);
+  cq.bossesDown.length=0;
+  G.hunts=initHunts();
+  h.curses={}; if(h.curseSeen) h.curseSeen.length=0; else h.curseSeen=[]; G.curse=null;
+  toast(STR.ascendAccepted(cq.tier),3.6);
+  floater(h.x,h.y-40,"★ "+STR.ascendName(cq.tier),"#ffd24d",{pop:1.9,life:1.5});
+  audio&&audio.sfx&&audio.sfx.boss&&audio.sfx.boss();
+  for(let i=0,n=rmCount(12);i<n;i++) addFx("flame",h.x+frr(-30,30),h.y+frr(-34,12));
+  G.ascend=null; G.scene="play"; return true;
+}
+// Decline → stay on the current tier. The cycle tracker already reset when apex fired, so the
+// next full clear re-runs the apex ceremony AND re-offers the climb — a real re-decision.
+export function declineAscend(){ const h=G.hero, a=G.ascend; if(!h||!a||G.scene!=="ascend") return false;
+  audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
+  G.ascend=null; G.scene="play"; return true;
+}
+// The current World-Tier post-spawn multipliers, or null at tier 1 — the null path keeps the
+// baseline allocation-free and byte-identical (the CAS-394 curse-layer pattern). Pure math.
+function worldTierMods(){ const h=G.hero; const t=(h&&h.conquest&&h.conquest.tier)||1;
+  if(t<=1) return null; const k=t-1;
+  return { hpMul:1+WORLD_TIER.hpPct*k, dmgMul:1+WORLD_TIER.dmgPct*k, affixMul:1+WORLD_TIER.affixPct*k };
 }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
@@ -537,6 +621,11 @@ export function serializeSave(){
     // keeps them (a refresh mid-run doesn't re-offer or drop a curse). Additive — old saves lack them
     // → no curses / fresh offers → no SAVE_VERSION bump. Reset on death/new run like boons.
     curses:Object.assign({},h.curses||{}), curseSeen:(h.curseSeen||[]).slice(),
+    // CAS-450: persist the Conquista/World-Tier state. Additive — old saves lack it → tier 1,
+    // empty cycle → no SAVE_VERSION bump. The tier is DURABLE meta-progression (survives death,
+    // like stage1); bossesDown is the current cycle (also survives death — the hunt board only
+    // re-arms on reload/ascend, so a death mid-cycle keeps the trophies already earned).
+    conquest:{ tier:(h.conquest&&h.conquest.tier)||1, bossesDown:((h.conquest&&h.conquest.bossesDown)||[]).slice() },
     // CAS-149: durable lifetime elite-kill counter → Elite-Mastery rank. Additive (old
     // saves lack it → default 0 → rank 0), so no SAVE_VERSION bump / progress wipe. The
     // permanent +maxHp granted at each rank-up is already baked into the saved maxHp above,
@@ -592,6 +681,16 @@ export function loadSave(d){
     // a known ZONE_MOD id) + the offered-zone list (validated HUNTS keys). Absent in old saves → none.
     h.curses={}; if(d.curses && typeof d.curses==="object"){ for(const zk in d.curses){ if(HUNTS[zk] && ZONE_MOD_MAP[d.curses[zk]]) h.curses[zk]=d.curses[zk]; } }
     h.curseSeen=Array.isArray(d.curseSeen)?d.curseSeen.filter(zk=>!!HUNTS[zk]):[];
+    // CAS-450: rehydrate Conquista/World-Tier (validated: tier clamped 1..cap; bossesDown
+    // filtered to CONQUEST_ZONES + deduped, capped at the set size). Absent in old saves →
+    // tier 1 / empty cycle (the newHero default stands).
+    if(d.conquest && typeof d.conquest==="object"){
+      h.conquest.tier=Math.min(WORLD_TIER.cap, Math.max(1, Math.floor(num(d.conquest.tier,1))));
+      const seen=new Set();
+      if(Array.isArray(d.conquest.bossesDown)) for(const zk of d.conquest.bossesDown){
+        if(CONQUEST_ZONES.indexOf(zk)>=0 && !seen.has(zk) && seen.size<CONQUEST_ZONES.length) seen.add(zk); }
+      h.conquest.bossesDown=Array.from(seen);
+    }
     h.palette=sanitizePalette(d.palette, h.cls); h.variation=sanitizeVariation(d.variation); // CAS-169 cosmetics (validated, class-default fallback)
     recalcMastery(h);  // CAS-150: rebuild the reward-track perk bundle from the loaded count BEFORE heroMaxHp reads it
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
@@ -687,6 +786,13 @@ function applyZoneScale(e, zone){
   if(cm){ const b2=e.tpl;
     e.tpl=Object.assign({},b2,{ hp:Math.round(b2.hp*(cm.hpMul||1)), dmg:Math.round(b2.dmg*(cm.dmgMul||1)), spd:Math.round(b2.spd*(cm.spdMul||1)) });
     e.hp=e.maxHp=e.tpl.hp; }
+  // CAS-450: the World-Tier layer stacks the same way (multiplicative, post-spawn, hp/dmg only —
+  // speed stays readable). null at tier 1 → this whole branch is skipped and the baseline clone
+  // above is byte-identical to pre-CAS-450. No RNG in any layer → the srand/rr draw order holds.
+  const wtm=worldTierMods();
+  if(wtm){ const b3=e.tpl;
+    e.tpl=Object.assign({},b3,{ hp:Math.round(b3.hp*wtm.hpMul), dmg:Math.round(b3.dmg*wtm.dmgMul) });
+    e.hp=e.maxHp=e.tpl.hp; }
   return e;
 }
 
@@ -705,6 +811,10 @@ function maybeAffix(e){
   // CAS-394: a "swarm" zone modifier multiplies the elite-affix roll rate (reuses the SAME table +
   // roll, just a higher chance) — no new spawn logic. e.scaleZone was set by applyZoneScale above.
   let rate=MOB_AFFIX_RATE; const cm=curseMods(e.scaleZone); if(cm&&cm.affixMul) rate=Math.min(1,rate*cm.affixMul);
+  // CAS-450: World Tier boosts the elite-affix rate the same way (loot bonus of climbing). The
+  // srand() below draws UNCONDITIONALLY either way — only the threshold moves — so the sim RNG
+  // stream is identical at every tier and byte-identical at tier 1.
+  const wtm=worldTierMods(); if(wtm) rate=Math.min(1,rate*wtm.affixMul);
   if(srand()>=rate) return e;                                      // one srand per eligible spawn (only on the live world path, never in buildWorld → determinism fingerprint untouched)
   let pool=MOB_AFFIX_IDS;
   if(e.tpl.ranged) pool=MOB_AFFIX_IDS.filter(id=>!MOB_AFFIX[id].melee); // Vampiric needs contact → ranged kiters can't carry it
@@ -1006,6 +1116,11 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
   // readability, so speed/affix mods don't touch the champion). The reward upgrade fires on its clear.
   { const cm=curseMods(zone); if(cm){ const b2=e.tpl;
     e.tpl=Object.assign({},b2,{ hp:Math.round(b2.hp*(cm.hpMul||1)), dmg:Math.round(b2.dmg*(cm.dmgMul||1)) }); } }
+  // CAS-450: the World-Tier layer also toughens the climax (hp/dmg only, same restraint as the
+  // curse block above) — a re-armed tier-N boss must out-hit its tier-1 self or NG+ is a bluff.
+  // null at tier 1 → byte-identical baseline.
+  { const wtm=worldTierMods(); if(wtm){ const b3=e.tpl;
+    e.tpl=Object.assign({},b3,{ hp:Math.round(b3.hp*wtm.hpMul), dmg:Math.round(b3.dmg*wtm.dmgMul) }); } }
   e.hp=e.maxHp=e.tpl.hp; e.champion=true; e.zone=zone; e.state="chase";
   H.champ=e;
   audio.sfx.boss(); toast(STR.huntChampion(e.tpl.champName),3.2); shakeAdd(B?12:8);
@@ -1037,12 +1152,34 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   gainXP(e.rwdXp||cfgH.xp);
   toast(STR.huntCleared(zone),3.6);
   for(let i=0,n=rmCount(e.capstone?16:10);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
+  // CAS-450: CONQUISTA tracking — a CONQUEST_ZONES climax falling for the FIRST time this cycle
+  // is recorded; the 4th completes the cycle → APEX. The tracker resets HERE, the instant the
+  // cycle completes, so an interrupted ceremony (reload mid-draft) can never wedge the loop —
+  // the re-armed world (hunts re-init on load) simply starts a fresh cycle. Everything above
+  // this block (the standard clear payoff + its srand draws) is untouched → order preserved.
+  let apex=false;
+  { const h=G.hero, cq=h&&h.conquest;
+    if(cq && CONQUEST_ZONES.indexOf(zone)>=0 && cq.bossesDown.indexOf(zone)<0){
+      cq.bossesDown.push(zone);
+      if(cq.bossesDown.length>=CONQUEST_ZONES.length){ apex=true; cq.bossesDown.length=0; }
+      else if(!e.final) toast(STR.conquestProgress(cq.bossesDown.length,CONQUEST_ZONES.length),3.6); } }
+  // CAS-450: APEX ceremony payoff — ONE extra guaranteed gear roll at the zone's window bumped
+  // one tier (capped at the top tier), rare+ floor (the CAS-442 guaranteed-boss-drop pattern,
+  // fanned one roll further like bonusDrop). Drawn AFTER every pre-existing draw in this clear,
+  // so the established sequence above never shifts; the extra draw exists only when apex fires.
+  if(apex){
+    const wa=[Math.min(4,(win[0]||3)+1), Math.min(4,(win[1]||4)+1)];
+    dropGear(e.x+40,e.y+12, rollGearInst(srand,wa[0],wa[1],"rare"));
+    toast(STR.apexToast,4.0); shakeAdd(12);
+    for(let i=0,n=rmCount(18);i<n;i++) addFx("flame",e.x+frr(-36,36),e.y+frr(-36,36));
+  }
   // CAS-123: the FINAL boss (data flag) closes the Stage-1 arc → victory screen.
   // CAS-383: any OTHER zone champion clear is a run milestone → offer the inter-zone boon
   // draft (paused "draft" scene). The final boss goes to victory instead (run is over), so
-  // the two are mutually exclusive and never fight over the scene.
+  // the two are mutually exclusive and never fight over the scene. CAS-450: an apex clear
+  // opens the ceremony draft (guaranteed legendary → then the ascend offer via pickBoon).
   if(e.final) winStage1();
-  else openDraft(zone);
+  else openDraft(zone,apex);
 }
 
 // CAS-123 — Stage-1 victory. Fires once, when the final capstone dies. Snapshots the
@@ -1431,6 +1568,7 @@ export function respawn(){
   if(h.boons&&h.boons.length){ h.boons.length=0; } recalcBoons(h); // CAS-383: death ends the run → wipe drafted boons BEFORE heroMaxHp reads the reset pool
   h.rerollLeft=1; h.banishLeft=1; if(h.banished) h.banished.length=0; else h.banished=[]; // CAS-392: death resets the draft-agency budget + banished pool (per-run, same as boons)
   h.curses={}; if(h.curseSeen) h.curseSeen.length=0; else h.curseSeen=[]; G.curse=null; // CAS-394: death ends the run → clear accepted zone modifiers + re-arm the entry offers
+  G.ascend=null; // CAS-450 hygiene: no pending ascend offer can survive a death (conquest itself is durable — tier + cycle trophies persist)
   h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
@@ -2249,6 +2387,26 @@ export const dev = {
   // Re-init the hunt board (clears H.cleared/champ per zone) so a harness can re-arm+clear the SAME
   // zone twice (e.g. plain vs cursed reward A/B). Mirrors initHunts; does not touch hero/curses.
   resetHunts(){ G.hunts=initHunts(); return Object.keys(G.hunts); },
+  // --- CAS-450 Conquista/World-Tier harness hooks (tools/cas450-*.mjs); additive, REAL paths ---
+  // Read the live conquest state: tier, cycle trophies, the ascend offer, whether the open draft
+  // is the apex hand, and the current post-spawn multipliers (null at tier 1). Pure read.
+  conquestState(){ const h=G.hero; if(!h) return null; const cq=h.conquest||{tier:1,bossesDown:[]};
+    const m=worldTierMods();
+    return { tier:cq.tier||1, cap:WORLD_TIER.cap, bossesDown:(cq.bossesDown||[]).slice(),
+      zones:CONQUEST_ZONES.slice(), scene:G.scene, ascend:G.ascend?{ tier:G.ascend.tier }:null,
+      draftApex:!!(G.draft&&G.draft.apex), mods:m?{ hpMul:m.hpMul, dmgMul:m.dmgMul, affixMul:m.affixMul }:null }; },
+  // Directly set tier / cycle trophies (validated) so the harness can stage a 3/4 cycle or probe
+  // tier-N scaling without grinding four real clears per gate. Scaling tests still go through the
+  // REAL spawn paths (zoneTier/armHunt read worldTierMods lazily).
+  setConquest(tier,down){ const h=G.hero; if(!h) return null; const cq=h.conquest||(h.conquest={tier:1,bossesDown:[]});
+    if(tier!=null) cq.tier=Math.min(WORLD_TIER.cap,Math.max(1,tier|0));
+    if(Array.isArray(down)) cq.bossesDown=down.filter(z=>CONQUEST_ZONES.indexOf(z)>=0);
+    return { tier:cq.tier, bossesDown:cq.bossesDown.slice() }; },
+  // Accept / decline the open ascend offer through the REAL exports (same as the input handler).
+  acceptAscend(){ const ok=acceptAscend(); const h=G.hero;
+    return { ok, tier:(h&&h.conquest&&h.conquest.tier)||1, scene:G.scene }; },
+  declineAscend(){ const ok=declineAscend(); const h=G.hero;
+    return { ok, tier:(h&&h.conquest&&h.conquest.tier)||1, scene:G.scene }; },
   // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
   customizeState(){ return customizeState(); },
   setPartColor(slot,color){ return setPartColor(slot,color); },
