@@ -693,14 +693,12 @@ export function createRenderer(ctx){
     // CAS-121 CORAZA DE ESCARCHA telegraph: while the boss channels its Freeze Nova it
     // wears a pulsing ice shell (reads as IMMUNE) and a danger ring GROWS toward the nova
     // radius over the channel — the player reads "break it with a status, or roll out".
-    if(e.shielded){ const C=e.carapace, ch=(C&&C.channel)||2.4, prog=clamp(1-(e.st||0)/ch,0,1);
-      const Rmax=((C&&C.nova)?C.nova.spd*C.nova.life:210);
+    if(e.shielded){
       ctx.save();
-      // growing ground danger ring (nova footprint)
-      ctx.globalAlpha=0.16+0.18*prog; ctx.fillStyle="#7fd0ff";
-      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.4,Rmax*prog,Rmax*prog*0.5,0,0,6.28); ctx.fill();
-      ctx.globalAlpha=0.4+0.3*Math.abs(Math.sin(G.t*10)); ctx.strokeStyle="#bfefff"; ctx.lineWidth=2.5;
-      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.4,Rmax,Rmax*0.5,0,0,6.28); ctx.stroke();
+      // CAS-403 (board CAS-402): the growing ground danger ring (nova footprint) was a
+      // ground-marked area → removed. The ice shell stays: it's the boss's IMMUNE-state
+      // costume on the body, not a target-area marker; the nova shards themselves are
+      // visible projectiles (frostnova kind in drawProjectile).
       // ice shell around the boss (the immune carapace)
       const sr=e.tpl.size*1.05+Math.sin(G.t*6)*2;
       ctx.globalAlpha=0.55; ctx.strokeStyle="#dff4ff"; ctx.lineWidth=3;
@@ -715,15 +713,17 @@ export function createRenderer(ctx){
       if(cb()){ ctx.save(); ctx.globalAlpha=fl2?0.92:0.4; ctx.strokeStyle="#ffffff"; ctx.lineWidth=2; ctx.setLineDash([3,4]);
         ctx.beginPath(); ctx.arc(e.x, e.y, (e.tpl.size||16)*0.95+3, 0, 6.28); ctx.stroke();
         ctx.setLineDash([]); ctx.restore(); }
-      if(e.tpl.ranged){
-        // CAS-303 (board CAS-302): the ranged windup NO LONGER draws a directional aim-line or
-        // muzzle dot. That 240px dashed line pointed from the mob straight down its shot path and
-        // gave away exactly where the bolt/spear was coming from. Board wants the ranged threat
-        // harder to read ("mas dificil ver de donde viene el golpe"), so the trajectory tell is
-        // gone. The generic colour-blind "about to strike" ring above (cb-gated, non-directional)
-        // plus the windup flash/grow still signal that *an* attack is coming — just not its
-        // origin. Presentation-only: damage, range, cadence, projspd and hitbox are untouched
-        // (all in sim.js), and the projectile sprite (spear/bolt) still draws once fired.
+      // CAS-403 (board CAS-402): "elimina las areas y las flechas" — NO ground-marked danger
+      // areas, lanes, radius rings, tethers or direction arrowheads draw during windup any more.
+      // The per-arch telegraphs below (brute slam ellipse, rusher streak+arrowhead, charger
+      // lane+arrowhead, summoner glyph ring, healer tether, volatile blast ring, warlock claw
+      // arc, basic danger circle/arc, special-slam ring) are compiled out via TELEGRAPHS_OFF.
+      // What remains: the windup flash/grow on the sprite, the cb()-gated accessibility ring
+      // above (body-outline, non-directional, opt-in), the CAS-210 windupring flash fx, and —
+      // per CAS-403 — the attack itself now VISIBLE in flight (drawProjectile). sim.js untouched.
+      const TELEGRAPHS_OFF=true;
+      if(TELEGRAPHS_OFF || e.tpl.ranged){
+        // no directional/area telegraph
       } else if(e.tpl.arch==="brute"){
         // CAS-115 brute GROUND-SLAM tell: a red danger ellipse on the ground that grows
         // toward the AoE radius over the (long) windup, plus a pulsing full-size outline
@@ -809,7 +809,8 @@ export function createRenderer(ctx){
       }
       // CAS-109 special-slam tell: a red ring that GROWS over the (longer) windup so
       // the player reads "radial slam incoming — roll out/through" before it lands.
-      if(e.specialNow){ const wmax=(e.special&&e.special.windup)||e.tpl.windup;
+      // CAS-403: it's a ground-marked area → off with the rest of the telegraphs.
+      if(!TELEGRAPHS_OFF && e.specialNow){ const wmax=(e.special&&e.special.windup)||e.tpl.windup;
         const prog=clamp(1-(e.st||0)/wmax,0,1), R=34+prog*72, cy=e.y+e.tpl.size*0.45;
         ctx.save(); ctx.globalAlpha=0.30+0.30*Math.abs(Math.sin(G.t*16));
         ctx.strokeStyle="#ff5230"; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(e.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
@@ -963,16 +964,11 @@ export function createRenderer(ctx){
     if(mk){ ctx.fillStyle=mk==="!"?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(mk,n.x,topY-6+Math.sin(G.t*4)*2); }
   }
   function drawProjectile(p){
-    // CAS-304 (board CAS-302): mob directional ranged projectiles (spear/bolt) no longer draw
-    // their in-flight sprite. CAS-303 already removed the windup aim-line, but the travelling
-    // spear/bolt still gave away the shot's origin/path. Hiding the in-flight visual makes the
-    // ranged threat harder to read ("mas dificil ver de donde viene el golpe"). The windup ring
-    // (CAS-210/265) still signals that AN attack is coming. Presentation-only: damage, hit
-    // detection (sim.js updateProjectiles), timing, projspd and the hero hurt/impact flash are
-    // ALL untouched. Boss RADIAL AoE punish-rings (rune/frostnova) stay visible on purpose — they
-    // are non-directional telegraphs whose readability is core to a fair boss fight, and the bug
-    // is about hiding WHERE a directional shot comes from, which a radial burst has no single of.
-    if(p.enemy && (p.kind==="spear" || p.kind==="bolt")) return;
+    // CAS-403 (board CAS-402): EVERY ranged attack draws its in-flight sprite, enemy shots
+    // included. This reverses CAS-304's early-return that hid enemy spear/bolt — the board
+    // now wants the attacks themselves visible ("haz que los ataques sean visibles"); what
+    // must NOT show are the ground-marked target areas and direction arrows (removed in the
+    // windup telegraph block above). Presentation-only: sim.js untouched.
     if(p.kind==="fire"){ ctx.fillStyle=COL.flameL; ctx.beginPath(); ctx.arc(p.x,p.y,6,0,6.28); ctx.fill(); ctx.fillStyle=COL.flame; ctx.beginPath(); ctx.arc(p.x,p.y,4,0,6.28); ctx.fill(); }
     else if(p.kind==="rune"){ ctx.fillStyle=COL.rune; ctx.fillRect(p.x-4,p.y-4,8,8); ctx.fillStyle="#aac4ff"; ctx.fillRect(p.x-2,p.y-2,4,4); }
     // CAS-121 Freeze Nova shard — a pale-blue ice splinter (the boss's punish-ring).
@@ -1044,13 +1040,10 @@ export function createRenderer(ctx){
       ctx.globalAlpha=k*0.7; ctx.strokeStyle="#b3242a"; ctx.lineWidth=3; for(let i=0;i<8;i++){ const a=i/8*6.28; ctx.beginPath(); ctx.moveTo(f.x+Math.cos(a)*r2*0.55,f.y+Math.sin(a)*r2*0.55); ctx.lineTo(f.x+Math.cos(a)*r2,f.y+Math.sin(a)*r2); ctx.stroke(); } ctx.globalAlpha=1; }
     else if(f.kind==="orbburst"){ const r=sw*42; ctx.globalAlpha=k*0.8; ctx.fillStyle="#9bef5a"; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,6.28); ctx.fill(); ctx.globalAlpha=k; ctx.fillStyle="#eafff0"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*18,0,6.28); ctx.fill(); ctx.fillStyle="#bcff8a"; for(let i=0;i<8;i++){ const a=i/8*6.28+f.t*4; const r3=sw*46; ctx.fillRect(f.x+Math.cos(a)*r3-2,f.y+Math.sin(a)*r3-2,4,4);} ctx.globalAlpha=1; }
     else if(f.kind==="impact"){ ctx.globalAlpha=k; ctx.strokeStyle="#ffffff"; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(f.x,f.y,sw*22,0,6.28); ctx.stroke(); ctx.fillStyle="#ffffff"; for(let i=0;i<6;i++){ const a=(f.ang||0)+i/6*6.28; const r=sw*20; ctx.fillRect(f.x+Math.cos(a)*r-1.5,f.y+Math.sin(a)*r-1.5,3,3);} ctx.globalAlpha=1; }
-    // CAS-210: windup charge tell — orange→red ring that pulses outward while enemy winds up.
-    // Multiple overlapping pulses give a "charging" read so the player knows to dodge.
-    else if(f.kind==="windupring"){ const R=f.r||16, ease=sw*sw*(3-2*sw);
-      ctx.globalAlpha=k*0.75; ctx.strokeStyle=k>0.5?"#ff6600":"#ff2222"; ctx.lineWidth=2+k*2;
-      ctx.beginPath(); ctx.arc(f.x,f.y,R*(1+ease*0.6),0,6.28); ctx.stroke();
-      ctx.globalAlpha=k*0.35; ctx.strokeStyle="#ffddaa"; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.arc(f.x,f.y,R*(1+ease*0.9),0,6.28); ctx.stroke(); ctx.globalAlpha=1; }
+    // CAS-210 windup charge tell (orange→red pulse rings) — CAS-403 (board CAS-402): reads
+    // as a marked ground area → draw NOTHING. The fx still spawns in sim.js (addFx order and
+    // the fx RNG stream untouched → determinism intact); render just skips it.
+    else if(f.kind==="windupring"){ }
     else if(f.kind==="strikeflash"){ ctx.globalAlpha=k*0.9; ctx.strokeStyle="#dbeeff"; ctx.lineWidth=4; // CAS-211 (d): cold blue-white, FOUNTAINS signal-lock
       if(f.range){ ctx.beginPath(); ctx.arc(f.x,f.y,(f.range)*(0.6+sw*0.5),(f.ang||0)-0.7,(f.ang||0)+0.7); ctx.stroke(); }
       ctx.globalAlpha=k; ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*10+2,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
