@@ -41,6 +41,8 @@
 //   • Reversible by deleting this file + its one toggle key.
 // ===========================================================================
 
+import { uiLayout } from "./ui/layout.js"; // CAS-418: draggable panels + persistent layout (single position owner)
+
 export const hud = (()=>{
   const KEY="mithralda.hud.v1";   // own key — never the save / settings / analytics blob
   const REFRESH_MS=200;           // light cadence; only ticks while visible
@@ -330,6 +332,12 @@ export const hud = (()=>{
 
     document.body.appendChild(root);
     applyScale();
+    // CAS-418 — register the movable panels with the layout store (single position
+    // owner). In-document + scaled first, so a stored layout can measure + clamp.
+    // No stored key → attachDom only wires the drag listeners: zero visual change.
+    uiLayout.attachDom("vitals", tl);
+    uiLayout.attachDom("equip", doll, "rail");   // rail siblings detach together
+    uiLayout.attachDom("bag",   bag,  "rail");   // (fixing one reflows the other)
     return root;
   }
 
@@ -427,7 +435,9 @@ export const hud = (()=>{
       chip.textContent=(cb?sig.g+" ":"")+(st.type||"")+(st.dur?(" "+Math.ceil(st.dur)+"s"):""); }
   }
 
-  function show(){ build(); if(!root) return; on=true; root.style.display="block"; applyScale(); paint();
+  function show(){ build(); if(!root) return; on=true; root.style.display="block"; applyScale();
+    uiLayout.clampAll(); // CAS-418: panels measure 0 while display:none — re-clamp a stored layout now that they have size
+    paint();
     if(!timer) timer=setInterval(paint, REFRESH_MS); try{ window.addEventListener("resize",applyScale); }catch(e){} writePref(true); }
   function hide(){ on=false; if(root) root.style.display="none";
     if(timer){ clearInterval(timer); timer=0; } try{ window.removeEventListener("resize",applyScale); }catch(e){} writePref(false); }

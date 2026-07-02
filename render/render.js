@@ -23,6 +23,7 @@ import { resetGame, clearTutSeen } from "../persist.js";   // CAS-113: pause-men
 import * as settings from "../settings.js";   // CAS-265: rebind table + settings persistence
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import { bestiary } from "../bestiary.js";    // CAS-386: bestiary / codex collection view model
+import { uiLayout } from "../ui/layout.js";   // CAS-418: movable-widget positions (minimap / spell bar) + pause reset
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
   ANIM, ENEMY_ANIM, ENEMY_IMG, ENEMY_STRIP, ENEMY_STRIPS, resolveStrip, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
@@ -1157,6 +1158,7 @@ export function createRenderer(ctx){
     const pad=12, bw=Math.min(220,VW*0.42);
     const hudUI=hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
     auditRects = auditOn() ? {} : null; // CAS-416: collect drawn rects only under the QA flag
+    uiLayout.frame(); // CAS-418: stamp this HUD pass — pub()'d widget rects go stale when not drawn (touch)
     // CAS-118: while the hero suffers a status, frame the screen with a pulsing edge
     // tint in that status's colour + a compact chip row (icon + label + seconds left),
     // so "el jugador también los sufre" reads instantly without crowding the HUD.
@@ -1336,8 +1338,14 @@ export function createRenderer(ctx){
     AR("consumable", x-2, y-2, s+4, s+14);
   }
   function renderSpellBar(){ const h=G.hero; const n=4; const s=Math.min(46,VW*0.1); const gap=6; const total=n*s+(n-1)*gap;
-    const x0=VW/2-total/2; const y=VH-(isTouch?0:14)-s; if(isTouch) return; // touch uses buttons
+    if(isTouch) return; // touch uses buttons
+    // CAS-418: anchor from the layout store (default = bottom-centre, unchanged);
+    // cx/cy clamp a stored anchor to the live viewport EVERY draw (covers load+resize).
+    const x0=uiLayout.cx("spellbar", VW/2-total/2, total);
+    const y=uiLayout.cy("spellbar", VH-14-s, s+11);
+    uiLayout.pub("spellbar", x0, y, total, s+11); // hit-rect for the input drag router
     AR("spellbar", x0-2, y-2, total+4, s+13); // incl. the mp-cost caption line
+    if(uiLayout.dragging()==="spellbar"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x0-4,y-4,total+8,s+15); }
     // costs / colours / labels are data-driven from SPELLS[cls] (slot 0 = basic attack)
     const sp=SPELLS[h.cls]||SPELLS.warrior; const names=(STR.spellNames&&STR.spellNames[h.cls])||["","",""];
     const costs=[0,sp[0].cost,sp[1].cost,sp[2].cost];
@@ -1366,9 +1374,14 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
       if(costs[i]>0){ ctx.fillStyle="#8ab8ff"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
-  function renderMiniMap(){ const mw=120, mh=120; const x=VW-mw-12, y=VH-mh-12; if(isTouch) return;
+  function renderMiniMap(){ const mw=120, mh=120; if(isTouch) return;
+    // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
+    const x=uiLayout.cx("minimap", VW-mw-12, mw);
+    const y=uiLayout.cy("minimap", VH-mh-12, mh);
+    uiLayout.pub("minimap", x, y, mw, mh); // hit-rect for the input drag router
     AR("minimap", x-2, y-2, mw+4, mh+4);
     ctx.fillStyle="rgba(12,14,19,0.8)"; ctx.fillRect(x-2,y-2,mw+4,mh+4); ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
+    if(uiLayout.dragging()==="minimap"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x-4,y-4,mw+8,mh+8); }
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
     const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"],[world.frost,"#3a4e5e"],[world.trial,"#c8a24a"]];
     for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
@@ -2058,6 +2071,10 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingRollDir,px+10,oy+17);
       ctx.textAlign="right"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'"; ctx.fillText(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove,px+pw-10,oy+17);
       ui.pauseRects.push({x:px,y:oy,w:pw,h:26,act:()=>{ G.settings.rollAim=!G.settings.rollAim; save(); }}); oy+=34;
+      // CAS-418: restore every draggable HUD panel (DOM + minimap/spell bar) to defaults
+      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,24);
+      ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.settingResetHud,VW/2,oy+16);
+      ui.pauseRects.push({x:px,y:oy,w:pw,h:24,act:()=>uiLayout.reset()}); oy+=30;
     } else { // controls — 2-column rebind grid + reset
       ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.controlsHint,px,oy); oy+=14;
       const binds=G.settings.binds||settings.defaultBinds();

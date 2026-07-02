@@ -19,6 +19,7 @@ import { daily } from "./daily.js";   // CAS-134: bounty-board claim actions
 import { bestiary } from "./bestiary.js";   // CAS-386: bestiary claim actions
 import * as settings from "./settings.js"; // CAS-265: key-rebinding table + persistence
 import { analytics } from "./analytics.js"; // CAS-277: fire the CAS-132 retry/return funnel events
+import { uiLayout } from "./ui/layout.js";  // CAS-418: drag routing for the canvas widgets (minimap/spell bar)
 
 const G = sim.G;
 
@@ -197,6 +198,9 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
     for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
   if(handleUITap(x,y)) return;
   if(G.scene==="play"){
+    // CAS-418 — a press on a movable canvas widget (minimap / spell bar) starts a
+    // potential drag and is CONSUMED either way: a click on UI chrome never attacks.
+    if(uiLayout.canvasDown(x,y)) return;
     // touch zones: left half = move stick, right half handled by buttons; tap world = attack toward point
     if(isTouch && x<view.VW*0.42){ stick.active=true; stick.id=e.pointerId; stick.cx=x; stick.cy=y; stick.x=x; stick.y=y; }
     else if(!isTouch){ aimActive=true; mouseX=x; mouseY=y; faceMouse(); sim.castSpell(0); }
@@ -204,10 +208,12 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
 }
 function onPointerMove(e){ const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left,y=e.clientY-r.top;
   mouseX=x; mouseY=y; ui.mouseX=x; ui.mouseY=y; // CAS-119: feed the talent panel's hover
+  if(uiLayout.canvasMove(x,y)) return;          // CAS-418: live canvas-widget drag owns the pointer
   if(stick.active && e.pointerId===stick.id){ stick.x=x; stick.y=y; }
   else if(!isTouch && G.scene==="play" && aimActive){ faceMouse(); } // CAS-347: only re-aim to cursor while the mouse is held (aiming); a plain hover no longer swivels the hero — facing follows movement
 }
-function onPointerUp(e){ if(stick.active&&e.pointerId===stick.id){ stick.active=false; } aimActive=false; }
+function onPointerUp(e){ uiLayout.canvasUp(); // CAS-418: commit (clamp+persist) a widget drag; no-op otherwise
+  if(stick.active&&e.pointerId===stick.id){ stick.active=false; } aimActive=false; }
 function faceMouse(){ const h=G.hero; if(!h) return; const wx=G.cam.x+mouseX/zoom(), wy=G.cam.y+mouseY/zoom(); h.facing=Math.atan2(wy-h.y,wx-h.x); }
 
 function moveVec(){
@@ -396,6 +402,7 @@ export const io = {
 // bind DOM listeners; called once by the orchestrator with the canvas + inputs
 export function initInput(cnv){
   canvas = cnv;
+  uiLayout.setPlayCheck(()=>G.scene==="play"); // CAS-418: panels drag ONLY in play
   nameWrap = document.getElementById("nameWrap");
   nameInput = document.getElementById("nameInput");
   nameInput.placeholder = STR.namePlaceholder;

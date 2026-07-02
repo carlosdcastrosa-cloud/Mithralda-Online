@@ -208,6 +208,7 @@ export const STR = {
   settingReduceMotion: "Movimiento reducido",
   settingCRT: "Filtro CRT",
   settingRollDir: "Dirección de rodada",
+  settingResetHud: "Restablecer paneles (HUD)", // CAS-418: reset the draggable layout
   rollTowardMove: "Hacia el movimiento",
   rollTowardAim: "Hacia la mira",
   settingMute: "Silenciar",
