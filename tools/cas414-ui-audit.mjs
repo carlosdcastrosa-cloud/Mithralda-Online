@@ -1,8 +1,14 @@
 // ===========================================================================
 // CAS-414 — CTO first-hand audit of the live HUD before decomposition.
-//   Screenshots play HUD + inventory modal at 1920x1080 / 1366x768 / 800x600,
-//   and dumps #hud panel bounding rects + pairwise overlap report per viewport.
+// CAS-416 — extended to CANVAS widgets: render.js publishes the exact rects it
+//   draws (quest/hunt trackers, zone name, OBJETIVO banner, spell bar,
+//   consumable slot, minimap, badges) on window.__uiRects when the page sets
+//   window.__uiAudit=true. The pairwise overlap + offscreen report now covers
+//   DOM panels AND canvas widgets, plus an equip-chip containment gate
+//   (every .w-doll .slot must sit inside the .p-doll panel art).
+//   Screenshots play HUD + inventory modal at 1920x1080 / 1366x768 / 800x600.
 //   node tools/cas414-ui-audit.mjs [LIVE_URL]
+// Exit code 1 when any viewport reports overlaps / offscreen / uncontained chips.
 // ===========================================================================
 import puppeteer from "puppeteer-core";
 import { findChromium, LAUNCH_ARGS } from "./harness.mjs";
@@ -23,6 +29,7 @@ const VIEWPORTS = [
   { name: "800x600", width: 800, height: 600 },
 ];
 
+let failures = 0;
 for (const vp of VIEWPORTS) {
   const ctx = await browser.createBrowserContext();
   const page = await ctx.newPage();
@@ -41,25 +48,40 @@ for (const vp of VIEWPORTS) {
   await page.waitForFunction("window.__dev.scene()==='classsel'", { timeout: 12000 });
   await key("Digit1");
   await page.waitForFunction("window.__dev.scene()==='play'", { timeout: 12000 });
+  // CAS-416: arm the render.js audit-rect export, give it a couple frames to publish
+  await page.evaluate(() => { window.__uiAudit = true; });
   await wait(900);
 
-  // rect dump + pairwise overlap of visible top-level hud widgets
+  // rect dump + pairwise overlap of visible DOM panels + canvas widgets
   const report = await page.evaluate(() => {
-    const els = [...document.querySelectorAll("#hud [class*='w-'], #hud .bars, #hud .caption")];
-    const rects = els.map((e) => {
-      const r = e.getBoundingClientRect();
-      return { cls: e.className, x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), vis: getComputedStyle(e).visibility, disp: getComputedStyle(e).display };
-    }).filter((r) => r.w > 0 && r.h > 0 && r.vis !== "hidden" && r.disp !== "none");
+    // DOM: top-level visual surfaces only. Interior wells (.w-*) nest INSIDE their
+    // panel by design, so they'd be false-positive "overlaps"; the chip-containment
+    // gate below covers the one interior alignment contract that matters (CAS-416).
+    const SEL = ["#hud .p-stat", "#hud .p-doll", "#hud .p-bag", "#hud .p-con", "#hud .cap", "#hud .chips", "#hud .drawerBtn"];
+    const rects = [];
+    for (const sel of SEL) { const e = document.querySelector(sel); if (!e) continue;
+      const r = e.getBoundingClientRect(); const cs = getComputedStyle(e);
+      if (r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && cs.display !== "none")
+        rects.push({ id: "dom:" + sel.replace("#hud .", ""), x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }); }
+    // CANVAS: exact rects render.js just drew (gated export, CAS-416)
+    const cr = window.__uiRects || {};
+    for (const k of Object.keys(cr)) rects.push({ id: "cv:" + k, ...cr[k] });
     const overlaps = [];
     for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) {
       const a = rects[i], b = rects[j];
-      if (a.cls.includes(b.cls) || b.cls.includes(a.cls)) continue;
       const ox = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
       const oy = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
-      if (ox > 4 && oy > 4) overlaps.push({ a: a.cls, b: b.cls, ox, oy });
+      if (ox > 4 && oy > 4) overlaps.push({ a: a.id, b: b.id, ox, oy });
     }
-    const offscreen = rects.filter((r) => r.x < 0 || r.y < 0 || r.x + r.w > innerWidth || r.y + r.h > innerHeight);
-    return { rects, overlaps, offscreen };
+    const offscreen = rects.filter((r) => r.x < -2 || r.y < -2 || r.x + r.w > innerWidth + 2 || r.y + r.h > innerHeight + 2);
+    // CAS-416 acceptance gate: every equip chip contained by the paperdoll panel art
+    const doll = document.querySelector("#hud .p-doll");
+    const dr = doll ? doll.getBoundingClientRect() : null;
+    const chipsOut = [];
+    if (dr) for (const c of document.querySelectorAll("#hud .w-doll .slot")) { const r = c.getBoundingClientRect();
+      if (r.left < dr.left - 1 || r.top < dr.top - 1 || r.right > dr.right + 1 || r.bottom > dr.bottom + 1)
+        chipsOut.push({ chip: c.textContent, x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }); }
+    return { rects, overlaps, offscreen, chipsOut };
   });
   fs.writeFileSync(`${OUT}/rects-${vp.name}.json`, JSON.stringify(report, null, 2));
   await page.screenshot({ path: `${OUT}/play-${vp.name}.png` });
@@ -67,10 +89,15 @@ for (const vp of VIEWPORTS) {
   await key("KeyI"); await wait(600);
   await page.screenshot({ path: `${OUT}/inventory-${vp.name}.png` });
 
-  console.log(`   ${vp.name}: ${report.rects.length} widgets, ${report.overlaps.length} overlaps, ${report.offscreen.length} offscreen, ${errs.length} pageerrors`);
+  const bad = report.overlaps.length + report.offscreen.length + report.chipsOut.length + errs.length;
+  if (bad) failures++;
+  console.log(`   ${vp.name}: ${report.rects.length} widgets, ${report.overlaps.length} overlaps, ${report.offscreen.length} offscreen, ${report.chipsOut.length} chips-out, ${errs.length} pageerrors ${bad ? "✗" : "✓"}`);
   for (const o of report.overlaps) console.log(`     OVERLAP ${o.a}  ×  ${o.b}  (${o.ox}x${o.oy}px)`);
-  for (const o of report.offscreen) console.log(`     OFFSCREEN ${o.cls} @${o.x},${o.y} ${o.w}x${o.h}`);
+  for (const o of report.offscreen) console.log(`     OFFSCREEN ${o.id} @${o.x},${o.y} ${o.w}x${o.h}`);
+  for (const o of report.chipsOut) console.log(`     CHIP-OUT ${o.chip} @${o.x},${o.y} ${o.w}x${o.h}`);
+  for (const e of errs) console.log(`     ${e}`);
   await ctx.close();
 }
 await browser.close();
-console.log("done → " + OUT);
+console.log((failures ? "FAIL" : "PASS") + " → " + OUT);
+process.exit(failures ? 1 : 0);

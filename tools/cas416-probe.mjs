@@ -1,0 +1,31 @@
+// CAS-416 — close-up probe of the paperdoll chips: clip screenshot + rect dump.
+import puppeteer from "puppeteer-core";
+import { findChromium, LAUNCH_ARGS } from "./harness.mjs";
+import fs from "node:fs";
+const URL = (process.argv[2] || "http://127.0.0.1:34765").replace(/\/$/, "");
+const TAG = process.argv[3] || "before";
+fs.mkdirSync("shots/cas416", { recursive: true });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const b = await puppeteer.launch({ executablePath: findChromium(), headless: true, args: LAUNCH_ARGS });
+const p = await b.newPage();
+await p.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
+await p.goto(`${URL}/index.html?dev`, { waitUntil: "load", timeout: 60000 });
+await p.waitForFunction("window.__hud && window.__dev", { timeout: 30000 });
+await p.evaluate(() => { const el = document.getElementById("nameInput"); if (el) el.value = "CAS416";
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })); });
+await p.waitForFunction("window.__dev.scene()==='classsel'", { timeout: 12000 });
+await p.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true })));
+await p.waitForFunction("window.__dev.scene()==='play'", { timeout: 12000 });
+await wait(900);
+const r = await p.evaluate(() => {
+  const doll = document.querySelector("#hud .p-doll").getBoundingClientRect();
+  const well = document.querySelector("#hud .w-doll").getBoundingClientRect();
+  const chips = [...document.querySelectorAll("#hud .w-doll .slot")].map((e) => { const c = e.getBoundingClientRect();
+    return { t: e.textContent, x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.width), h: Math.round(c.height) }; });
+  const R = (q) => { const c = q; return { x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.width), h: Math.round(c.height) }; };
+  return { doll: R(doll), well: R(well), chips };
+});
+console.log(JSON.stringify(r, null, 1));
+await p.screenshot({ path: `shots/cas416/doll-${TAG}.png`, clip: { x: r.doll.x - 10, y: r.doll.y - 10, width: r.doll.w + 20, height: r.doll.h + 20 } });
+await b.close();
+console.log(`shot → shots/cas416/doll-${TAG}.png`);

@@ -83,7 +83,10 @@ export const hud = (()=>{
   // stat splits into the baked skull (left, untouched) + the 3-bar block (right well).
   const WELL = {
     statBars: {l:34.5, t:22, r:7,  b:18},  // right-side HP/MP/XP track block
-    doll:     {l:44,   t:27, r:16, b:14},  // dark panel right of the baked slot icons (below the baked "EQUIPMENT" title)
+    // CAS-416: re-measured to the TRUE dark display panel (art x118–218, y144–409 of
+    // 288×512 — tools/cas416-measure2.mjs); the old r:16 inset reached past the panel's
+    // right edge onto the gold frame, so the equip chips visibly overflowed the art.
+    doll:     {l:42,   t:29, r:25.5, b:21},
     bag:      {l:15.6, t:15.6, r:15.9, b:14.7}, // baked 6×6 grid
     con:      {l:18,   t:23, r:18, b:24},  // baked dark text interior (inside the gold frame line)
   };
@@ -137,10 +140,13 @@ export const hud = (()=>{
       "#hud .w-con{ "+well("con")+" overflow:hidden; padding:3px 6px; background:#0b0c11; border-radius:1px;"
         +" display:flex; flex-direction:column; gap:1px; justify-content:flex-end; }",
       "#hud .w-con .logln{ font-size:calc(10px*var(--s)); line-height:1.35; }",
-      // equip chips: compact, vertically centred over the baked paperdoll panel
-      "#hud .w-doll{ display:flex; flex-direction:column; gap:calc(3px*var(--s)); justify-content:center; }",
+      // CAS-416: equip chips are ROW-ALIGNED to the baked slot-icon column (helmet ·
+      // chest · legs · sword · shield · ring at art y-bands 131/181/225/269/308/356 of
+      // 512). Each live chip sits on ITS icon's row inside the dark display panel:
+      // child 1 Arma→sword row, child 2 Cuerpo→chest row, child 3 Escudo→shield row.
+      "#hud .w-doll{ position:absolute; }",
       // caption strip under the stat panel (name · class · level · gold) — no baked text region exists
-      "#hud .cap{ width:calc(268px*var(--s)); margin-top:calc(2px*var(--s)); display:flex; align-items:baseline; gap:6px; flex-wrap:wrap;"
+      "#hud .cap{ width:calc(268px*var(--s)); box-sizing:border-box; margin-top:calc(2px*var(--s)); display:flex; align-items:baseline; gap:6px; flex-wrap:wrap;"
         +" padding:2px 6px; background:rgba(6,7,10,.72); border:1px solid "+C.panelB2+"; border-radius:3px; }",
       // §5 typography
       "#hud .name{ color:"+C.textGold+"; font-size:calc(13px*var(--s)); letter-spacing:.5px; font-weight:bold; }",
@@ -170,9 +176,15 @@ export const hud = (()=>{
       "#hud .w-bag .slot{ background:transparent; border:0; border-radius:2px; min-width:0; color:"+C.goldL+"; font-size:calc(9px*var(--s)); }",
       "#hud .w-bag .slot.off{ background:transparent; opacity:1; }",
       "#hud .w-bag .slot.eq{ background:rgba(224,185,74,.16); border:1px solid "+C.gold+"; box-shadow:inset 0 0 4px rgba(224,185,74,.4); color:"+C.goldL+"; }",
-      // equip well: compact vertical chips over the baked paperdoll dark panel
-      "#hud .w-doll .slot{ width:100%; aspect-ratio:auto; min-width:0; height:calc(15px*var(--s)); justify-content:flex-start; padding:0 4px;"
+      // equip well: chips CONTAINED in the dark panel (box-sizing keeps padding+border
+      // inside width — the old content-box width:100% overflowed the art by ~10px) and
+      // pinned to their baked icon rows (% of the well ← art-space icon band centers).
+      "#hud .w-doll .slot{ position:absolute; left:0; right:0; box-sizing:border-box; aspect-ratio:auto; min-width:0; height:17.2%;"
+        +" justify-content:flex-start; padding:0 3px;"
         +" font-size:calc(9px*var(--s)); background:rgba(6,7,10,.55); border:1px solid "+C.panelB+"; border-radius:2px; overflow:hidden; white-space:nowrap; }",
+      "#hud .w-doll .slot:nth-child(1){ top:45.7%; }",  // Arma   → baked sword icon row
+      "#hud .w-doll .slot:nth-child(2){ top:11.5%; }",  // Cuerpo → baked chest icon row
+      "#hud .w-doll .slot:nth-child(3){ top:61.9%; }",  // Escudo → baked shield icon row
       "#hud .w-doll .slot.off{ background:rgba(6,7,10,.25); border-color:"+C.panelB2+"; }",
       "#hud .w-con .logln{ text-shadow:0 1px 2px "+C.bg+"; }",
       // status chips (§ B)
@@ -269,7 +281,7 @@ export const hud = (()=>{
     const rail=mk("div", ["position:absolute","right:12px","top:12px","width:172px","display:flex","flex-direction:column","gap:10px","align-items:flex-end"].join(";"), root);
     rail.className="rail";
     const doll=mk("div",null, rail); doll.className="p-doll act";
-    nodes.equip=mk("div","display:flex;flex-direction:column;gap:calc(3px*var(--s))", doll); nodes.equip.className="w-doll";
+    nodes.equip=mk("div",null, doll); nodes.equip.className="w-doll"; // CAS-416: rows are absolutely icon-aligned via CSS
     const bag=mk("div",null, rail); bag.className="p-bag act";
     nodes.inv=mk("div","display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:repeat(6,1fr);gap:0", bag); nodes.inv.className="w-bag";
     // CAS-336 + CAS-337 — FUNCTIONAL panels (board CAS-335 "no tiene funciones / sin

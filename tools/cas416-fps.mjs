@@ -1,0 +1,20 @@
+import puppeteer from "puppeteer-core";
+import { findChromium, LAUNCH_ARGS } from "./harness.mjs";
+const b = await puppeteer.launch({ executablePath: findChromium(), headless: true, args: LAUNCH_ARGS });
+const p = await b.newPage();
+const errs = [];
+p.on("pageerror", (e) => errs.push(e.message));
+await p.setViewport({ width: 1366, height: 768 });
+await p.goto("http://127.0.0.1:34765/index.html?dev", { waitUntil: "load" });
+await p.waitForFunction("window.__hud && window.__dev", { timeout: 30000 });
+await p.evaluate(() => { const el = document.getElementById("nameInput"); if (el) el.value = "FPS";
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })); });
+await p.waitForFunction("window.__dev.scene()==='classsel'", { timeout: 12000 });
+await p.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true })));
+await p.waitForFunction("window.__dev.scene()==='play'", { timeout: 12000 });
+await p.evaluate(() => { window.__uiAudit = true; }); // worst case: rect export armed
+const fps = await p.evaluate(() => new Promise((res) => { let n = 0; const t0 = performance.now();
+  const tick = () => { n++; if (performance.now() - t0 < 3000) requestAnimationFrame(tick); else res(n / 3); };
+  requestAnimationFrame(tick); }));
+console.log("fps=" + Math.round(fps), "pageerrors=" + errs.length, errs.slice(0, 3).join(" | "));
+await b.close();

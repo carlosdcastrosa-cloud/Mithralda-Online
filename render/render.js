@@ -1144,9 +1144,19 @@ export function createRenderer(ctx){
   // badges) stay on canvas but reflow clear of the HUD frames. Reads a live, read-only flag.
   function hudActive(){ try{ return !!(typeof window!=="undefined" && window.__hud && window.__hud.isOn()); }catch(e){ return false; } }
 
+  // CAS-416 — audit-only rect export. When a QA harness sets window.__uiAudit=true,
+  // renderHUD publishes the EXACT rects it just drew (trackers, banner, spell bar,
+  // consumable, minimap) on window.__uiRects so tools/cas414-ui-audit.mjs can run a
+  // DOM+canvas pairwise overlap check. Zero cost for players: one boolean test per
+  // frame when off, and presentation-only either way (never read by the sim).
+  let auditRects=null;
+  function auditOn(){ try{ return !!(typeof window!=="undefined" && window.__uiAudit); }catch(e){ return false; } }
+  function AR(k,x,y,w,h){ if(auditRects) auditRects[k]={x:Math.round(x),y:Math.round(y),w:Math.round(w),h:Math.round(h)}; }
+
   function renderHUD(){ const h=G.hero; ctx.textAlign="left";
     const pad=12, bw=Math.min(220,VW*0.42);
     const hudUI=hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
+    auditRects = auditOn() ? {} : null; // CAS-416: collect drawn rects only under the QA flag
     // CAS-118: while the hero suffers a status, frame the screen with a pulsing edge
     // tint in that status's colour + a compact chip row (icon + label + seconds left),
     // so "el jugador también los sufre" reads instantly without crowding the HUD.
@@ -1177,7 +1187,8 @@ export function createRenderer(ctx){
     const badgeX = hudUI ? pad : pad+bw+8;
     if((h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
       ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="left";
-      ctx.fillText("★"+h.talentPts+" (T)", badgeX, hudUI?258:pad+47); ctx.restore(); ctx.textAlign="left"; }
+      const tby=hudUI?258:pad+47; if(auditRects) AR("talentBadge", badgeX, tby-13, ctx.measureText("★"+h.talentPts+" (T)").width, 15);
+      ctx.fillText("★"+h.talentPts+" (T)", badgeX, tby); ctx.restore(); ctx.textAlign="left"; }
     // CAS-149: Elite-Mastery badge — the persistent, cross-session progression read-out,
     // kept always-visible (even rank 0, with kills-to-next) so the long-term hook that grows
     // across sessions is legible from minute one. CAS-299: reflows under the HUD panel.
@@ -1187,7 +1198,9 @@ export function createRenderer(ctx){
       // CAS-150: "(V)" hint opens the reward-track panel — only while a milestone is still
       // pending (an unmet goal to chase), so a fully-unlocked track stays clean.
       const hint = sim.masteryNextMilestone(h.eliteKills|0) ? " (V)" : "";
-      ctx.fillText(STR.masteryHud(mr)+prog+hint, badgeX, hudUI?238:pad+14); ctx.restore(); ctx.textAlign="left"; }
+      const mby=hudUI?238:pad+14; const mtx=STR.masteryHud(mr)+prog+hint;
+      if(auditRects) AR("masteryBadge", badgeX, mby-12, ctx.measureText(mtx).width, 14);
+      ctx.fillText(mtx, badgeX, mby); ctx.restore(); ctx.textAlign="left"; }
     if(!hudUI){ // gold + potions (HUD shows oro + carries equip/bag mirror)
       ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
       ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
@@ -1198,31 +1211,41 @@ export function createRenderer(ctx){
       if(G.skull.level>0){ const sc=[null,COL.skullW,COL.skullY,COL.skullR][G.skull.level]; ctx.fillStyle=sc; ctx.font="bold 16px 'Courier New'"; ctx.fillText("☠ "+h.name, pad, pad+104); }
       else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(h.name, pad, pad+102); }
     }
+    // zone name
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
+    const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,trial:STR.zoneTrial,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
+    AR("zone", VW/2-ctx.measureText(zn).width/2, 10, ctx.measureText(zn).width, 12);
+    ctx.fillText(zn, VW/2, 20);
+    // CAS-123: Stage-1 OBJECTIVE tracker — the single legible win-goal, top-centre and
+    // ALWAYS visible so a new player reads where the run is headed from minute one. The
+    // text + colour switch as the gate opens (locked → ready) and once the run is won.
+    // CAS-416: drawn BEFORE the quest/hunt trackers so they can dodge below it when the
+    // top strip gets cramped (800×600) instead of stacking on the banner.
+    const ob=drawObjective(h);
     // quest tracker (top-right under buttons). CAS-299: shift LEFT of the HUD right rail
     // (minimapa/equipo/mochila) so the trackers never sit under the rail frames.
     ctx.textAlign="right"; ctx.font="bold 12px 'Courier New'";
-    const qx=VW-(hudUI?176:12), qy=isTouch?64:18;
+    const qx=VW-(hudUI?176:12); let qy=isTouch?64:18;
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
-    const qw=ctx.measureText(qt).width+12; ctx.fillRect(qx-qw,qy-2,qw,20); ctx.fillStyle=G.quest.done?COL.heal:COL.textGold; ctx.fillText(qt,qx-6,qy+13);
+    const qw=ctx.measureText(qt).width+12;
+    // CAS-416: at narrow widths the centred OBJETIVO banner reaches the tracker column;
+    // drop the tracker stack just below the banner instead of overlapping it.
+    if(ob && qx-qw < ob.x+ob.w+6 && qy < ob.y+ob.h+4) qy=ob.y+ob.h+8;
+    AR("questTracker", qx-qw, qy-2, qw, 20);
+    ctx.fillRect(qx-qw,qy-2,qw,20); ctx.fillStyle=G.quest.done?COL.heal:COL.textGold; ctx.fillText(qt,qx-6,qy+13);
     // hunt-contract tracker (under the quest tracker) — only shows inside a hunt zone
     const hz=zoneOf(world,h.x,h.y); const HC=HUNTS[hz]; const HS=G.hunts&&G.hunts[hz];
     if(HC && HS){ let ht, hc; if(HS.cleared){ ht=STR.huntZoneCleared; hc=COL.heal; }
       else if(HS.champ){ ht=STR.huntChampApproaches; hc=COL.skullR; }
       else { ht=STR.huntLabel(HS.kills,HC.need); hc=COL.textGold; }
       const hy=qy+22; ctx.fillStyle=COL.out; const hw=ctx.measureText(ht).width+12;
+      AR("huntTracker", qx-hw, hy-2, hw, 20);
       ctx.fillRect(qx-hw,hy-2,hw,20); ctx.fillStyle=hc; ctx.fillText(ht,qx-6,hy+13); }
-    // zone name
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
-    const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,trial:STR.zoneTrial,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
-    ctx.fillText(zn, VW/2, 20);
-    // CAS-123: Stage-1 OBJECTIVE tracker — the single legible win-goal, top-centre and
-    // ALWAYS visible so a new player reads where the run is headed from minute one. The
-    // text + colour switch as the gate opens (locked → ready) and once the run is won.
-    drawObjective(h);
     // spell bar
     renderSpellBar();
     // minimap
     if(!isTouch || true) renderMiniMap();
+    if(auditRects){ try{ window.__uiRects=auditRects; }catch(e){} }
   }
   // CAS-123: the persistent Stage-1 objective banner (top-centre, under the zone name).
   function drawObjective(h){
@@ -1233,11 +1256,18 @@ export function createRenderer(ctx){
       else { txt=STR.objLocked(pw, req); col=COL.textGold; } }        // still building power
     const label=STR.objLabel+": "+txt;
     ctx.textAlign="center"; ctx.font="bold 11px 'Courier New'";
-    const w=ctx.measureText(label).width+16, x=VW/2, y=30;
+    const w=ctx.measureText(label).width+16; let x=VW/2; const y=30;
+    // CAS-416: at narrow widths the centred banner reaches the HUD stat frame
+    // (top-left DOM panel, 268px × HUD scale) — nudge it right just enough to clear.
+    if(hudActive()){ const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:0.78;
+      x=Math.max(x, 12+268*hs+8+w/2); }
     ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(x-w/2,y-1,w,18);
     ctx.fillStyle=col; ctx.fillRect(x-w/2,y-1,3,18);                  // accent tick
     ctx.fillStyle=col; ctx.fillText(label, x, y+12);
     ctx.textAlign="left";
+    const rect={x:x-w/2, y:y-1, w, h:18};                             // CAS-416: trackers dodge this
+    AR("objective", rect.x, rect.y, rect.w, rect.h);
+    return rect;
   }
   // CAS-192: the combat-consumable slot — bottom-left HUD widget. Shows the SELECTED
   // consumable (icon + short name), its remaining count, a top-down cooldown wipe while
@@ -1250,7 +1280,13 @@ export function createRenderer(ctx){
     // potions beside spells) so it never overlaps the console frame.
     let x=12, y=VH-12-s;
     if(hudUI){ const sb=Math.min(46,VW*0.1); const sbTotal=4*sb+3*6; const sbx=VW/2-sbTotal/2;
-      x=Math.max(12, Math.round(sbx-s-16)); y=VH-14-s; }
+      x=Math.max(12, Math.round(sbx-s-16)); y=VH-14-s;
+      // CAS-416: below ~930px wide the spell bar sits close enough to the left corner
+      // that "just LEFT of the spell bar" lands ON the HUD console frame (DOM panel,
+      // 340px × HUD scale wide). Flip the slot to the RIGHT of the spell bar instead
+      // (still combat-coherent, and the minimap corner stays clear down to 640px).
+      const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:0.78; // mirror hud.js applyScale --s
+      if(x<12+340*hs+8) x=Math.round(sbx+sbTotal+16); }
     const c=CONSUMABLES[h.consumSel|0]||CONSUMABLES[0]; const qty=(h.consum&&h.consum[c.id])|0;
     // active fury buff timer (shrinking bar) above the slot
     if(h.atkspdBuffT>0){ const f=clamp(h.atkspdBuffT/6,0,1);
@@ -1276,14 +1312,16 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-5,y+5,8,0,6.28); ctx.fill();
     ctx.fillStyle=qty>0?COL.textGold:"#7a7f88"; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
     ctx.fillText(qty,x+s-5,y+9);
-    // key hints
-    ctx.fillStyle=COL.out; ctx.fillRect(x-2,y+s+4,s+4,14);
+    // key hints — CAS-416: strip pulled up 2px + slimmed so it never clips below VH
+    ctx.fillStyle=COL.out; ctx.fillRect(x-2,y+s+2,s+4,10);
     ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="center";
-    ctx.fillText("[Q] usar  [R] ↻",x+s/2,y+s+14);
+    ctx.fillText("[Q] usar  [R] ↻",x+s/2,y+s+10);
     ctx.textAlign="left";
+    AR("consumable", x-2, y-2, s+4, s+14);
   }
   function renderSpellBar(){ const h=G.hero; const n=4; const s=Math.min(46,VW*0.1); const gap=6; const total=n*s+(n-1)*gap;
     const x0=VW/2-total/2; const y=VH-(isTouch?0:14)-s; if(isTouch) return; // touch uses buttons
+    AR("spellbar", x0-2, y-2, total+4, s+13); // incl. the mp-cost caption line
     // costs / colours / labels are data-driven from SPELLS[cls] (slot 0 = basic attack)
     const sp=SPELLS[h.cls]||SPELLS.warrior; const names=(STR.spellNames&&STR.spellNames[h.cls])||["","",""];
     const costs=[0,sp[0].cost,sp[1].cost,sp[2].cost];
@@ -1306,6 +1344,7 @@ export function createRenderer(ctx){
       if(costs[i]>0){ ctx.fillStyle="#8ab8ff"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
   function renderMiniMap(){ const mw=120, mh=120; const x=VW-mw-12, y=VH-mh-12; if(isTouch) return;
+    AR("minimap", x-2, y-2, mw+4, mh+4);
     ctx.fillStyle="rgba(12,14,19,0.8)"; ctx.fillRect(x-2,y-2,mw+4,mh+4); ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
     const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"],[world.frost,"#3a4e5e"],[world.trial,"#c8a24a"]];
