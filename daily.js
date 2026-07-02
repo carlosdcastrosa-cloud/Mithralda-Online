@@ -69,6 +69,11 @@ export const daily = (()=>{
     { id:"slay_quillback", obs:"slayType", bucket:"slay", mob:"quillback", n:[6,9], gold:[80,120],  xp:[120,170] },
     { id:"slay_wendigo",   obs:"slayType", bucket:"slay", mob:"wendigo",   n:[4,6], gold:[110,160], xp:[170,230] },
     { id:"slay_demon",     obs:"slayType", bucket:"slay", mob:"demon",     n:[4,6], gold:[110,160], xp:[170,230] },
+    // CAS-442 directed bounties on the Ciénaga de Bruma family (same `slay` bucket → the
+    // day's trio stays distinct). Targets sized to the swamp spawner mix (mudlurker 2× weight).
+    { id:"slay_mudlurker", obs:"slayType", bucket:"slay", mob:"mudlurker", n:[6,9], gold:[85,125],  xp:[125,175] },
+    { id:"slay_wisp",      obs:"slayType", bucket:"slay", mob:"wisp",      n:[4,6], gold:[100,150], xp:[160,220] },
+    { id:"slay_toadbrute", obs:"slayType", bucket:"slay", mob:"toadbrute", n:[4,6], gold:[110,160], xp:[170,230] },
     { id:"champ",  obs:"champion",            n:[1,2],  gold:[120,180], xp:[160,240] },
     { id:"clr_forest", obs:"clear", zone:"forest", n:[1,1], gold:[75,110],  xp:[100,150] },
     { id:"clr_ruins",  obs:"clear", zone:"ruins",  n:[1,1], gold:[95,135],  xp:[130,185] },

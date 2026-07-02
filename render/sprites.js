@@ -244,6 +244,52 @@ export const SP = {
     ".obbbbbbbbo.",
     ".o.o.oo.o.o.",
     "...o.oo.o..."]},
+  // CAS-442: the Ciénaga de Bruma family (art CAS-440). Procedural FALLBACKS only — the real
+  // art is the PixelLab strips via ENEMY_STRIPS.{mudlurker,wisp,toadbrute,bogtyrant}; these
+  // silhouettes render ONLY in the brief asset-load window or if the strips fail to load.
+  // MANDATORY (CAS-360 gotcha): a richAnim strip-only mob with SP[sprite]=undefined CRASHES
+  // the render before the strip downloads — every richAnim mob ships one of these.
+  // Ciénaga palette: teal mist, peat/olive bodies, ámbar eye-glow.
+  mudlurker: { pal:{o:COL.out,m:"#4a4232",M:"#5f5640",t:"#3f6b5e",e:"#ffb03a"}, rows:[
+    "....o..o....",
+    "..ooMmmMoo..",
+    ".oMmemmemMo.",
+    ".oMmmmmmmMo.",
+    "oMmtmmmmtmMo",
+    "oMmmmmmmmmMo",
+    ".oMmmmmmmMo.",
+    ".o.oo..oo.o.",
+    "...o....o..."]},
+  wisp: { pal:{o:COL.out,f:"#57c8b2",F:"#8fe8d4",c:"#2e6b5e",e:"#ffd75e"}, rows:[
+    "....oFo.....",
+    "...oFfFo....",
+    "..oFfffFo...",
+    "..ofecefo...",
+    "..oFfffFo...",
+    "...ocfco....",
+    "....ofo.....",
+    ".....o......"]},
+  toadbrute: { pal:{o:COL.out,g:"#4f5c33",G:"#6a7a44",d:"#33401f",e:"#ffb03a"}, rows:[
+    "..oGGo.oGGo.",
+    ".oGeGGGGeGo.",
+    "oGgggggggggo",
+    "oGgdgggdggGo",
+    "oGgggggggggo",
+    "oGgggggggggo",
+    ".oGgggggggo.",
+    ".oo.oGGo.oo.",
+    "..o..oo..o.."]},
+  bogtyrant: { pal:{o:COL.out,b:"#3d4a2c",B:"#55663c",d:"#26301a",w:"#5a4230",e:"#ffb03a"}, rows:[
+    "..oBBo..oBBo",
+    ".oBeBBBBeBow",
+    ".oBbbbbbbBow",
+    "oBbbddddbbBw",
+    "oBbbbbbbbbBw",
+    "oBbbbbbbbbBw",
+    ".oBbbbbbbBo.",
+    ".oBbbbbbbBo.",
+    ".oobb..bboo.",
+    "..oo....oo.."]},
   // --- town deco (CAS-60): market/city variety, drawn like other SP deco ---
   crate: { pal:{o:COL.out,W:"#5a4230",d:"#2c2925"}, rows:[
     "ooooooo",
@@ -437,6 +483,50 @@ export const ENEMY_STRIPS={
     attack2: _s(9,"wendigo_attack_strip"),
     hurt:    _s(5,"wendigo_hurt_strip"),
     death:   _s(9,"wendigo_death_strip"),
+  },
+  // CAS-442 (art CAS-440): the Ciénaga de Bruma family — 3 trash mobs at the standard 64px
+  // strip format (east-facing, flip for left, feet bottom-anchored per the cas355 union-bbox
+  // bake → no footPad; quillback/wendigo convention: standard mob scale size*2.4, no `tiles`).
+  // `richAnim:true` on their ETPL rows drives the extended states: attack1/hurt play ONE-SHOT
+  // (synced to e.animT), death plays on the presentation-only corpse. attack2 aliases the
+  // single attack strip so a champion/elite heavy still shows the swing frames.
+  mudlurker:{
+    idle:    _s(7,"mudlurker_idle_strip"),
+    walk:    _s(6,"mudlurker_walk_strip"),
+    attack1: _s(9,"mudlurker_attack_strip"),
+    attack2: _s(9,"mudlurker_attack_strip"),
+    hurt:    _s(6,"mudlurker_hurt_strip"),
+    death:   _s(7,"mudlurker_death_strip"),
+  },
+  wisp:{
+    idle:    _s(7,"wisp_idle_strip"),
+    walk:    _s(7,"wisp_walk_strip"),
+    attack1: _s(6,"wisp_attack_strip"),
+    attack2: _s(6,"wisp_attack_strip"),
+    hurt:    _s(7,"wisp_hurt_strip"),
+    death:   _s(9,"wisp_death_strip"),
+  },
+  toadbrute:{
+    idle:    _s(4,"toadbrute_idle_strip"),
+    walk:    _s(7,"toadbrute_walk_strip"),
+    attack1: _s(9,"toadbrute_attack_strip"),
+    attack2: _s(9,"toadbrute_attack_strip"),
+    hurt:    _s(6,"toadbrute_hurt_strip"),
+    death:   _s(7,"toadbrute_death_strip"),
+  },
+  // CAS-442 (art CAS-440): el Tirano del Pantano — the Ciénaga ZONE CAPSTONE. 6 PixelLab
+  // strips at the golem BOSS format (96px frames, east-facing, feet bottom-anchored — ~6px
+  // bottom gap measured, no footPad needed). `tiles` pins the on-screen boss height at the
+  // golem's proven 3.6-tile capstone scale (the generic size×2.9 champion mult would read
+  // smaller than the imposing 96px art deserves). attack1 = club-smash (windup telegraph in
+  // the strip), attack2 = club-sweep driven by the HUNTS special (specialNow → attack2).
+  bogtyrant:{
+    idle:    {key:"bogtyrant_idle_strip",    fc:9,  fw:96, fh:96, tiles:3.6},
+    walk:    {key:"bogtyrant_walk_strip",    fc:9,  fw:96, fh:96, tiles:3.6},
+    attack1: {key:"bogtyrant_attack1_strip", fc:11, fw:96, fh:96, tiles:3.6},
+    attack2: {key:"bogtyrant_attack2_strip", fc:11, fw:96, fh:96, tiles:3.6},
+    hurt:    {key:"bogtyrant_hurt_strip",    fc:7,  fw:96, fh:96, tiles:3.6},
+    death:   {key:"bogtyrant_death_strip",   fc:9,  fw:96, fh:96, tiles:3.6},
   },
 };
 // Resolve the best available strip for a mob + animState.

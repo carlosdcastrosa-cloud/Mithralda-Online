@@ -326,7 +326,7 @@ export const STR = {
   zoneName: (zone) => ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno", swamp:"la Ciénaga de Bruma" }[zone] || "la zona"),
   dailySlay: (n) => "Da caza a " + n + " enemigos",
   // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).
-  dailySlayType: (mob, n) => "Da caza a " + n + " " + ({ quillback:"Acechadores Espinosos", wendigo:"Wéndigos", demon:"Demonios Oscuros", skeleton:"esqueletos", orc:"orcos", wraith:"espectros", bandit:"bandidos", wolf:"lobos" }[mob] || (mob || "enemigos")),
+  dailySlayType: (mob, n) => "Da caza a " + n + " " + ({ quillback:"Acechadores Espinosos", wendigo:"Wéndigos", demon:"Demonios Oscuros", skeleton:"esqueletos", orc:"orcos", wraith:"espectros", bandit:"bandidos", wolf:"lobos", mudlurker:"Acechadores del Fango", wisp:"Fuegos Fatuos", toadbrute:"Brutos Sapo" }[mob] || (mob || "enemigos")),
   dailyChampion: (n) => "Derrota " + n + (n === 1 ? " campeón" : " campeones"),
   dailyClear: (zone) => "Despeja: " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", swamp:"la Ciénaga de Bruma" }[zone] || "la zona"),
   dailyClaimed: (g, xp) => "¡Contrato cobrado! +" + g + " oro, +" + xp + " XP",
@@ -344,6 +344,8 @@ export const STR = {
     charger:"Embestidor", summoner:"Nigromante", healer:"Sanador", volatile:"Volátil",
     revenant:"Renaciente", quillback:"Acechador Espinoso", demon:"Demonio Oscuro",
     wendigo:"Wéndigo", golem:"Gólem de Piedra", dragon:"Dragón Ancestral",
+    // CAS-442: the Ciénaga de Bruma family (art CAS-440) + its capstone.
+    mudlurker:"Acechador del Fango", wisp:"Fuego Fatuo", toadbrute:"Bruto Sapo", bogtyrant:"Tirano del Pantano",
   }[t] || (t || "Enemigo")),
   bestiaryTitle: "BESTIARIO",
   bestiarySub: (d, tot) => "Descubiertos " + d + "/" + tot,

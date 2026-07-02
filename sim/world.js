@@ -343,11 +343,12 @@ export function buildWorld(rng){
     else if(k<0.42) prop("prop_sw_mossy_rock_1",x,y,true,8);
     else if(k<0.74) prop("prop_sw_reeds_1",x,y,false);
     else prop("prop_sw_mushroom_1",x,y,false); }
-  // CAS-441 swamp IDENTITY (placeholder until CAS-442 lands the real roster + Tirano del
-  // Pantano): "la Niebla Hambrienta" — fast skirmishers (wolf/bat) harry you while bog
-  // casters (wraith slow-bolt, spearman poke) punish standing still and a poison bandit
-  // makes every graze linger. Tier-4 scaling (ZONE_TIER.swamp) = the arena's parallel.
-  spawners.push({rect:swamp,types:["wolf","bat","spearman","wraith","bandit"],max:12,cool:4,t:0,zone:"swamp"});
+  // CAS-442 swamp IDENTITY (art CAS-440, replaces the CAS-441 placeholder pack): the
+  // Ciénaga's OWN family — mudlurker ambushers surge out of the fango (rusher, weighted
+  // 2× as the zone's signature trash), fuegos fatuos zap from the mist (warlock caster)
+  // and bruto-sapo tanks own charge lanes (charger). Three distinct telegraphed reads;
+  // Tier-4 scaling (ZONE_TIER.swamp) = the arena's parallel. Capstone: HUNTS.swamp.boss.
+  spawners.push({rect:swamp,types:["mudlurker","mudlurker","wisp","toadbrute"],max:12,cool:4,t:0,zone:"swamp"});
   chests.push({x:(swamp.x+swamp.w-4)*TS,y:(swamp.y+swamp.h-4)*TS,opened:false,loot:"gold60"});
   fragments.push({x:(swamp.x+swamp.w-3)*TS,y:(swamp.y+3)*TS,taken:false,kind:"hp"});
   return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, swamp, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };

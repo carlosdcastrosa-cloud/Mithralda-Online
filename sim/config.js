@@ -237,6 +237,31 @@ export const ETPL = {
   // re-tuning any existing mob (soak-safe, deterministic, NOT persisted → no SAVE_VERSION bump).
   // size 24 → ~1.8 tiles tall (reads bigger than the wraith, leaner than the demon bruiser-caster).
   wendigo: {hp:118, dmg:21, spd:70, aggro:330, range:230, windup:0.85, recover:0.76, xp:54, gold:[14,26], sprite:"wendigo", size:24, knock:95, boss:false, gearChance:0.30, arch:"warlock", projspd:230, proj:"bolt", meleeR:50, richAnim:true},
+  // CAS-442 (art CAS-440 / zone CAS-441) — the Ciénaga de Bruma FAMILY. Three trash rows +
+  // the zone capstone, each on a PROVEN archetype (no new AI branch) so the marsh reads as a
+  // distinct fight: an ambusher that closes fast, a floating caster that zaps from the mist,
+  // and a charging tank that owns a lane. All richAnim → the 5 PixelLab strips per mob
+  // (idle/walk loop, attack1/hurt one-shot, death corpse — see ENEMY_STRIPS); the SP[key]
+  // procedural fallbacks in sprites.js cover the asset-load window (CAS-360 crash guard).
+  // Base stats sit in the standard trash band — ZONE_TIER.swamp (tier-4, 2.10/1.55) does the
+  // zone-side scaling, so these rows stay reusable and the balance path is untouched.
+  // mudlurker — Acechador del Fango: mud AMBUSHER (rusher). Bandit-band closer with a longer
+  // lunge (crouch-surge strip): the dashed lunge-line tell is the read, sidestep to punish.
+  mudlurker:{hp:64, dmg:18, spd:112, aggro:250, range:46, windup:0.48, recover:0.55, xp:30, gold:[9,17], sprite:"mudlurker", size:20, knock:120, boss:false, gearChance:0.26, arch:"rusher", lunge:126, richAnim:true},
+  // wisp — Fuego Fatuo: floating marsh-light CASTER on the proven warlock hybrid (CAS-321):
+  // zaps a hidden bolt from meleeR..range (the fireball-cast strip is the telegraph), scorches
+  // at contact inside meleeR. Fragile — close the gap and it folds.
+  wisp:     {hp:46, dmg:15, spd:64, aggro:330, range:235, windup:0.85, recover:0.8,  xp:32, gold:[10,18], sprite:"wisp", size:18, knock:50, boss:false, gearChance:0.26, arch:"warlock", projspd:235, proj:"bolt", meleeR:46, richAnim:true},
+  // toadbrute — Bruto Sapo: bloated TANK on the charger archetype (CAS-126): locks facing and
+  // barrels the full charge lane with massive knock (charge-slam strip). Dodge the lane, then
+  // punish the long recover.
+  toadbrute:{hp:145,dmg:25, spd:72, aggro:290, range:205, windup:0.68, recover:0.92, xp:46, gold:[12,22], sprite:"toadbrute", size:26, knock:225, boss:false, gearChance:0.30, arch:"charger", charge:280, richAnim:true},
+  // bogtyrant — Tirano del Pantano: the Ciénaga ZONE CAPSTONE (HUNTS.swamp.boss reads these
+  // stats verbatim, dragon convention). A telegraphed melee bruiser: attack1 = club-smash
+  // (windup telegraph baked into the strip), and `special` arms the club-SWEEP (attack2) every
+  // 3rd strike through the proven CAS-109 radial-slam channel. richAnim drives all 6 strips.
+  bogtyrant:{hp:940,dmg:35, spd:50, aggro:380, range:76, windup:0.94, recover:0.8,  xp:300,gold:[90,140],sprite:"bogtyrant",size:44, knock:88, boss:true, richAnim:true, bossLabel:"TIRANO DEL PANTANO",
+            special:{ name:"Barrido del Pantano", every:3, windup:1.0, slam:{ count:12, spd:170, dmg:20, life:1.15 } } },
 };
 
 // CAS-146 — ELITE AMBUSH / pack event. While the hero is actively fighting inside a hunt
@@ -492,15 +517,22 @@ export const HUNTS = {
            enrageAt:0.5, enrageSpd:1.3, enrageWindup:0.72,                          // phase 2: faster + tighter tells (no slam block → breath remains the special)
            special:{ name:"Aliento Dracónico", every:3, windup:1.0, slam:{ count:14, spd:180, dmg:22, life:1.2 } }, // CAS-331 dragon breath: telegraphed radial shard slam
            tier:[3,4], minR:"rare", xp:300, gold:140 } },                           // caves-tier guaranteed drop (rare+, NOT epic — arena keeps the first guaranteed epic)
-  // CAS-441 — the Ciénaga de Bruma hunt: a placeholder champion (orc base — melee,
-  // telegraphed, readable) at the caves reward window (tier 3-4 / rare floor) so the
-  // marsh clears pay like the tier they gate but NEVER hand out the arena's guaranteed
-  // epic. Having this row is what wires the zone into every shared system: the curse
-  // offer on 1st entry (CAS-394), the kill-quota → champion → clear resolver, and the
-  // inter-zone boon draft on clear (CAS-383). CAS-442 replaces the champion with the
-  // true capstone (Tirano del Pantano) — a data-row swap, no code.
+  // CAS-441/CAS-442 — the Ciénaga de Bruma hunt. The kill quota summons the TRUE capstone,
+  // el Tirano del Pantano (art CAS-440, 6-strip richAnim bog-brute — dragon convention: the
+  // boss block mirrors the live ETPL.bogtyrant stats verbatim, a presentation+placement layer,
+  // not a separate power build). Its club-SWEEP ("Barrido del Pantano") rides the CAS-109
+  // `special` channel — telegraphed growing-ring → radial slam every 3rd strike, which is also
+  // what drives the attack2 strip — and a mild enrage tightens the tells past 50% HP (no extra
+  // slam block → the sweep stays THE special). Kept at the caves reward window (tier 3-4 /
+  // rare floor, GUARANTEED gear on the clear via onChampionKill) so the marsh pays like the
+  // tier it gates but NEVER hands out the arena's guaranteed epic (gear ladder intact).
+  // The orc fields below are the pre-boss fallback (unused while `boss` is present).
   swamp:  { need:13, base:"orc",      name:"Bruto del Fango",  hpMul:8,  dmgMul:1.8, sizeMul:1.5,  tier:[3,4], minR:"rare",     xp:190, gold:100,
-    special:{ name:"Erupción de Lodo", every:3, windup:0.8, slam:{ count:12, spd:170, dmg:18, life:1.1 } } },
+    special:{ name:"Erupción de Lodo", every:3, windup:0.8, slam:{ count:12, spd:170, dmg:18, life:1.1 } },
+    boss:{ base:"bogtyrant", sprite:"bogtyrant", name:"Tirano del Pantano", hp:940, dmg:35, size:44, spd:50, knock:88, windup:0.94, recover:0.8,
+           enrageAt:0.5, enrageSpd:1.3, enrageWindup:0.75,                          // phase 2: faster + tighter tells (no slam block → the sweep remains the special)
+           special:{ name:"Barrido del Pantano", every:3, windup:1.0, slam:{ count:12, spd:170, dmg:20, life:1.15 } }, // club-sweep: telegraphed radial slam (attack2 strip)
+           tier:[3,4], minR:"rare", xp:300, gold:150 } },                           // swamp-tier guaranteed drop (rare+, NOT epic — arena keeps the first guaranteed epic)
   arena:  { need:14, base:"orc",      name:"Campeón del Foso", hpMul:7,  dmgMul:1.6, sizeMul:1.5,  tier:[2,3], minR:"rare",     xp:150, gold:75,
     boss:{ base:"golem", sprite:"golem", name:"Coloso del Foso", hp:900, dmg:34, size:40, spd:54, knock:70, windup:0.9, recover:0.7,
            enrageAt:0.5, enrageSpd:1.35, enrageWindup:0.72,                       // phase 2: faster + tighter tells

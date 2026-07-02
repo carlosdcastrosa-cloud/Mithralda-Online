@@ -43,7 +43,9 @@ export const bestiary = (()=>{
     "rat","wolf","bat","skeleton","spearman","orc","bandit","moose",
     "mage","wraith","charger","summoner","healer","volatile","revenant",
     "quillback","demon","wendigo",
+    "mudlurker","wisp","toadbrute", // CAS-442: the Ciénaga de Bruma family (art CAS-440)
     "golem","dragon",
+    "bogtyrant", // CAS-442: Tirano del Pantano — Ciénaga capstone (ETPL boss flag → boss tiers / 2× rewards)
   ];
 
   // Tier reward — a one-time collection bonus per tier, granted through the EXISTING
