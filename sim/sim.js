@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, zoneOf } from "./world.js";
@@ -383,8 +383,18 @@ export function banishBoon(i){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="
 export function pickBoon(i){ const h=G.hero, d=G.draft; if(!h||!d||G.scene!=="draft") return false;
   const id=d.choices[i]; const b=id&&BOON_MAP[id]; if(!b) return false;
   h.boons.push(id); recalcBoons(h);
-  floater(h.x,h.y-40,b.glyph+" "+b.name,"#ffd24d",{pop:1.5,life:1.3});
-  addFx&&addFx("buffaura",h.x,h.y,{col:"#ffd24d",life:0.6});
+  // CAS-272 (juice v2): the pick PAYS OFF by tier — floater/aura take the rarity colour and the
+  // existing rarity-scaled loot jingle plays (reused synth, no new audio); a legendary lands like
+  // a level-up (ring + ember burst + a small shake). Presentation only: the boon was applied
+  // above unchanged, fx draw from the fx RNG stream (frr) like level-ups — zero sim-RNG draws,
+  // zero balance. shakeAdd/rmCount are already reduce-motion-gated (CAS-127/265).
+  const rar=(BOON_RARITY&&BOON_RARITY[b.rarity])||null, rcol=(rar&&rar.col)||"#ffd24d";
+  const leg=b.rarity==="legendary";
+  floater(h.x,h.y-40,b.glyph+" "+b.name,rcol,{pop:leg?1.9:(b.rarity==="rare"?1.6:1.5),life:1.3});
+  addFx&&addFx("buffaura",h.x,h.y,{col:rcol,life:0.6});
+  audio&&audio.sfx&&audio.sfx.loot&&audio.sfx.loot(leg?3:(b.rarity==="rare"?2:1));
+  if(leg){ addFx("lvlring",h.x,h.y,{life:0.7}); shakeAdd(2.5);
+    for(let k=0,n=rmCount(8);k<n;k++) addFx("flame",h.x+frr(-24,24),h.y+frr(-28,10)); }
   G.draft=null; G.scene="play";
   return true;
 }
