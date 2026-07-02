@@ -1,0 +1,20 @@
+import { findChromium, LAUNCH_ARGS } from "./harness.mjs";
+import puppeteer from "puppeteer-core";
+const url="https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
+const b=await puppeteer.launch({executablePath:findChromium(),headless:true,args:LAUNCH_ARGS});
+const p=await b.newPage(); await p.setViewport({width:1280,height:720});
+const errs=[]; p.on("pageerror",e=>errs.push(String(e).slice(0,300)));
+const bad=[]; p.on("response",r=>{ if(r.status()>=400 && !r.url().includes("favicon")) bad.push(r.status()+" "+r.url()); });
+await p.goto(`${url}/index.html?dev`,{waitUntil:"load",timeout:45000});
+await p.waitForFunction("window.__dev&&window.__dev.scene&&window.__dev.scene()==='menu'",{timeout:25000});
+await p.evaluate(()=>{const i=document.getElementById("nameInput");if(i)i.value="Cas423";window.dispatchEvent(new KeyboardEvent("keydown",{code:"Enter",key:"Enter",bubbles:true}));});
+await p.waitForFunction("window.__dev.scene()==='classsel'",{timeout:8000});
+await p.evaluate(()=>window.dispatchEvent(new KeyboardEvent("keydown",{code:"Digit1",key:"1",bubbles:true})));
+await p.waitForFunction("window.__dev.scene()==='play'",{timeout:8000});
+async function shot(tx,ty,name){ await p.evaluate((x,y)=>window.__dev.tp(x,y),tx,ty); await new Promise(r=>setTimeout(r,1200)); await p.screenshot({path:name}); console.log("shot",name); }
+await shot(156,165,"/tmp/cas423-town.png");
+await shot(300,300,"/tmp/cas423-se.png");
+await shot(28,28,"/tmp/cas423-nw.png");
+console.log("pageerrors:",JSON.stringify(errs.slice(0,10),null,1));
+console.log("bad responses:",JSON.stringify(bad.slice(0,20),null,1));
+await b.close();

@@ -15,11 +15,15 @@
 // cooler heal). Signal hues stay the ONLY saturated glow per the formula.
 export const COL = {
   bg:"#06070a", night:"#0a0d12",
-  grass:"#26302a", grassL:"#334036", grassD:"#19211c", twig:"#2a2016",
-  dirt:"#2c2925", dirtL:"#3a352d", dirtD:"#1c1a16",
+  // CAS-423: outdoor ground tones re-lit — the CAS-209 cold-gloom pass crushed grass/dirt/sand
+  // to near-black and the board read the whole map as "el mapa se ve negro". Daylight ground
+  // (field/forest grass, town dirt paths, arena sand) gets natural mid tones again; dungeon
+  // stone/cobble stay dark on purpose (caves/abyss/crypt gloom is zone identity, not a bug).
+  grass:"#3e5040", grassL:"#50644c", grassD:"#2b392e", twig:"#4a3a24",
+  dirt:"#4a3f30", dirtL:"#5d5040", dirtD:"#332b20",
   stone:"#2b2f38", stoneL:"#3a4150", stoneD:"#1b1f26",
   cobble:"#23303a", cobbleL:"#33424f", cobbleD:"#161e26",
-  sand:"#322f29", sandL:"#423d33", sandD:"#1f1d18", bloodSand:"#3f1216",
+  sand:"#57503e", sandL:"#6b6350", sandD:"#3a352a", bloodSand:"#5a1c20",
   water:"#142329", waterL:"#234048", waterGlint:"#5f8e90",
   out:"#0a0c10",
   hpf:"#b3242a", hpb:"#2e1012", mpf:"#3f6bd0", mpb:"#101a30",
