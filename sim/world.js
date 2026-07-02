@@ -21,24 +21,32 @@ export function buildWorld(rng){
   const { srand, seed, rr, ri } = rng;
   seed(13371);
   const terr = new Uint8Array(MAP_W*MAP_H);
-  const town  = {x:46,y:46,w:18,h:18};
-  const forest= {x:64,y:34,w:44,h:42};
-  const caves = {x:30,y:4,w:52,h:34};
-  const arena = {x:42,y:66,w:26,h:38};
-  const ruins = {x:6,y:44,w:30,h:30};
+  // CAS-398: the map was tripled (MAP_W/MAP_H 110→330). The original zone cluster occupied a
+  // ~110-tile block; here we CENTER it in the enlarged world via a fixed tile offset (OX,OY)
+  // so the hub + zones sit mid-map, ringed on every side by the Bosque Salvaje, instead of
+  // jammed in a corner with 3/4 empty wilderness. Every downstream placement (spawns, NPCs,
+  // portals, chests, fragments, dirt paths, cave walls) derives from these rects, so shifting
+  // the rects shifts the ENTIRE world coherently. The offset adds/removes NO rng draw, so the
+  // spawn/prop RNG fingerprint (and thus balance) is byte-identical to the pre-triple world.
+  const OX=110, OY=110;                            // (MAP_W-110)/2 — centers the 110-tile content block
+  const town  = {x:46+OX,y:46+OY,w:18,h:18};
+  const forest= {x:64+OX,y:34+OY,w:44,h:42};
+  const caves = {x:30+OX,y:4+OY,w:52,h:34};
+  const arena = {x:42+OX,y:66+OY,w:26,h:38};
+  const ruins = {x:6+OX,y:44+OY,w:30,h:30};
   // CAS-114 — the Abismo: a self-contained dungeon in the SE corner, reached only by
   // the gated town portal (no walking path), so it reads as a separate, deeper place.
   // Dark stone floor (T_STONE, like the caves) sets it apart from the open grass zones.
-  const abyss = {x:80,y:78,w:26,h:28};
+  const abyss = {x:80+OX,y:78+OY,w:26,h:28};
   // CAS-121 — the Cripta Helada: a self-contained frozen dungeon in the SW corner,
   // reached only by a (higher) power-gated town portal. Pale-blue ice floor (T_ICE)
   // sets it apart at a glance from the grass zones and the dark-stone abyss.
-  const frost = {x:6,y:80,w:26,h:26};
+  const frost = {x:6+OX,y:80+OY,w:26,h:26};
   // CAS-196 — el Coliseo Eterno: a self-contained challenge arena in the NE corner (clear
   // of caves/forest), reached only by the deepest power-gated town portal. Flagstone floor
   // (T_COBBLE — the same grand colosseum stone as the town plaza/ruins) reads as a built
   // arena, distinct from the grass zones, the dark-stone abyss and the pale-ice Cripta.
-  const trial = {x:84,y:6,w:24,h:24};
+  const trial = {x:84+OX,y:6+OY,w:24,h:24};
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
     let t=T_GRASS;
     if(inRect(x,y,caves)) t=T_STONE;
