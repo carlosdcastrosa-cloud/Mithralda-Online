@@ -1,0 +1,11 @@
+import puppeteer from 'puppeteer-core';
+import fs from 'fs';
+const names=['mudlurker_s','mudlurker_e','wisp_s','wisp_e','toadbrute_s','toadbrute_e'];
+const cells=names.map(n=>{const b=fs.readFileSync(`art-reference/cas440/${n}.png`).toString('base64');return `<div style="text-align:center"><img style="image-rendering:pixelated;width:272px;background:#20242c;outline:1px solid #444" src="data:image/png;base64,${b}"><div style="color:#cfd;font:12px monospace">${n}</div></div>`;}).join('');
+const br=await puppeteer.launch({executablePath:'/usr/bin/chromium',args:['--no-sandbox']});
+const p=await br.newPage();
+await p.setViewport({width:900,height:640,deviceScaleFactor:1});
+await p.setContent(`<body style="margin:0;background:#161922;padding:10px"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${cells}</div></body>`);
+await p.waitForSelector('img');await new Promise(r=>setTimeout(r,300));
+await p.screenshot({path:'art-reference/cas440/bases_zoom.png'});
+await br.close();console.log('ok');
