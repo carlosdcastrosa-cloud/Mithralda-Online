@@ -44,6 +44,21 @@ const frr = (a,b)=>fxRng.rr(a,b);
 // the authoritative world (deterministic for the fixed seed)
 const world = buildWorld(rng);
 
+// CAS-397: spatial hash over world.solids. Making the wilderness trees/rocks solid pushes the
+// solid count from ~200 to ~1400; solidBlocked runs 2×/entity/frame, so the old O(n) linear scan
+// would blow the frame budget. Bucket solids into fixed cells once (solids never mutate at
+// runtime) and query only the cells a point's reach can touch → ~O(1) regardless of solid count.
+// Behaviour is byte-identical to the linear scan (same solids, same dist2 test), just pruned.
+const SGRID_CELL = 64;                               // px per bucket (> max solid.r + query.r span)
+const SGRID_W = Math.ceil((MAP_W*TS)/SGRID_CELL);
+let solidMaxR = 0;
+const solidGrid = new Map();
+for(const s of world.solids){
+  if(s.r>solidMaxR) solidMaxR=s.r;
+  const key=Math.floor(s.y/SGRID_CELL)*SGRID_W + Math.floor(s.x/SGRID_CELL);
+  let arr=solidGrid.get(key); if(!arr){ arr=[]; solidGrid.set(key,arr); } arr.push(s);
+}
+
 // injected dependencies (set by the orchestrator before the loop runs)
 let io = null, audio = null, view = null;
 export function configure(deps){ io = deps.io; audio = deps.audio; view = deps.view; }
@@ -615,7 +630,14 @@ function solidBlocked(x,y,r){
   const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
   if(world.terr[ty*MAP_W+tx]===T_WATER) return true;
   if(world.wallSet && world.wallSet.has(ty*MAP_W+tx)) return true;
-  for(const s of world.solids){ if(dist2(x,y,s.x,s.y) < (r+s.r)*(r+s.r)) return true; }
+  // CAS-397: only scan buckets within reach (r + largest solid radius) of the point.
+  const reach=r+solidMaxR;
+  const c0=Math.floor((x-reach)/SGRID_CELL), c1=Math.floor((x+reach)/SGRID_CELL);
+  const b0=Math.floor((y-reach)/SGRID_CELL), b1=Math.floor((y+reach)/SGRID_CELL);
+  for(let by=b0;by<=b1;by++) for(let bx=c0;bx<=c1;bx++){
+    const arr=solidGrid.get(by*SGRID_W+bx); if(!arr) continue;
+    for(const s of arr){ if(dist2(x,y,s.x,s.y) < (r+s.r)*(r+s.r)) return true; }
+  }
   return false;
 }
 function moveEnt(e,dx,dy,r){

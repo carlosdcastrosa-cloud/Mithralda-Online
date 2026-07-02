@@ -296,9 +296,16 @@ export function buildWorld(rng){
     const k=srand();
     if(k>=0.62) continue;                         // ~38% open gaps so the field stays walkable
     const cx=tx*TS+TS/2, cy=ty*TS+TS/2;          // tile center; jitter below breaks the grid
-    if(k<0.30)      prop(pick(srand()<0.6?FTREE:FPINE), cx+rr(-9,9), cy+rr(-5,7), false);   // canopy
-    else if(k<0.40) prop(pick(FROCK), cx+rr(-8,8), cy+rr(-7,7), false);                     // boulders
-    else            prop(pick(FLITTER), cx+rr(-11,11), cy+rr(-9,9), false);                 // undergrowth
+    // CAS-397 (board CAS-396): trees/pines/rocks were DECORATIVE-only here, so the hero walked
+    // straight through the wilderness. Give them a real collision footprint. Deco is drawn with
+    // its BASE at (x,y) (render.js: d.y-h), so the solid is anchored to the visible trunk/rock
+    // base — a tight r (well under a 32px tile) so the field slides, not sticks. Litter
+    // (flowers/grass/bush/logs) stays non-solid so the ground reads walkable. rr() call
+    // count/order is UNCHANGED → deterministic rng fingerprint intact; solidBlocked is now
+    // spatially bucketed in sim.js so the extra solids cost ~O(1) per query (60fps held).
+    if(k<0.30)      prop(pick(srand()<0.6?FTREE:FPINE), cx+rr(-9,9), cy+rr(-5,7), true, 9);  // canopy → solid trunk base
+    else if(k<0.40) prop(pick(FROCK), cx+rr(-8,8), cy+rr(-7,7), true, 8);                    // boulders → solid base
+    else            prop(pick(FLITTER), cx+rr(-11,11), cy+rr(-9,9), false);                 // undergrowth (walkable)
   }
   return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
 }
