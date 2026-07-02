@@ -32,7 +32,7 @@ import { findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
 
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 const LIVE = BASE + "/index.html?dev";
-const EXPECT_BUILD = "c224186543b6";
+const EXPECT_BUILD = process.env.EXPECT_BUILD || "c224186543b6";
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { live: LIVE, expectBuild: EXPECT_BUILD, checks: [], errors: [], shots: [], pass: false };
