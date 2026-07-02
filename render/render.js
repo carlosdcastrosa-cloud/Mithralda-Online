@@ -1893,6 +1893,18 @@ export function createRenderer(ctx){
   // the card's border + a small corner ribbon so the draw reads its tier at a glance.
   function boonRarCol(b){ const r=BOON_RARITY&&BOON_RARITY[b&&b.rarity]; return r?r.col:"#cfd6e0"; }
   function boonRarLabel(b){ const r=BOON_RARITY&&BOON_RARITY[b&&b.rarity]; return r?r.label:""; }
+  // CAS-272 (juice v2): draft-card REVEAL pop — presentation only. The tween keys on the draft
+  // OBJECT + its choice signature, so open/reroll/banish each retrigger it; hit rects register
+  // at full size from frame 0 (input never waits on the tween) and reduce-motion (CAS-265)
+  // lands the cards instantly. Steady-state cost once settled: one join + 3 compares per frame.
+  let draftPopRef=null, draftPopKey=null, draftPopT0=0;
+  const DRAFT_POP_MS=190, DRAFT_POP_STAG=55;
+  function draftPopP(d,i){ const key=(d.choices||[]).join("|");
+    if(d!==draftPopRef||key!==draftPopKey){ draftPopRef=d; draftPopKey=key; draftPopT0=performance.now(); }
+    if(G.settings&&G.settings.reduceMotion) return 1;
+    const t=(performance.now()-draftPopT0-i*DRAFT_POP_STAG)/DRAFT_POP_MS;
+    return t<=0?0:t>=1?1:t*(2-t); }
+  if(typeof window!=="undefined") window.__draftPop=()=>({key:draftPopKey,t0:draftPopT0,ms:DRAFT_POP_MS,stag:DRAFT_POP_STAG});
   function renderDraft(){ const d=G.draft; ui.draftRects=[]; ui.draftBanishRects=[]; ui.draftRerollRect=null; if(!d){ return; }
     const h=G.hero; const choices=d.choices||[];
     // CAS-392: a small red ✖ badge in a card's top-right corner banishes it (when a charge is left).
@@ -1918,6 +1930,9 @@ export function createRenderer(ctx){
       for(let i=0;i<choices.length;i++){ const b=BOON_MAP[choices[i]]; if(!b) continue;
         const cx=cx0+i*(cw+gap), cy=top; const on=i===sel; const cc=boonCatCol(b.cat);
         const rc=boonRarCol(b), leg=b.rarity==="legendary";
+        const p=draftPopP(d,i), popped=p<1; // CAS-272 reveal pop (rects below stay full-size)
+        if(popped){ ctx.save(); ctx.globalAlpha=Math.max(0,p); const pmx=cx+cw/2,pmy=cy+ch/2,ps=0.92+0.08*p;
+          ctx.translate(pmx,pmy); ctx.scale(ps,ps); ctx.translate(-pmx,-pmy); }
         ctx.fillStyle=on?"#2c3446":"#20262f"; ctx.fillRect(cx,cy,cw,ch);
         // CAS-388: rarity frame — legendary always reads bold/amber even unselected.
         ctx.strokeStyle=on?COL.textGold:rc; ctx.lineWidth=(on||leg)?2:1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
@@ -1930,12 +1945,16 @@ export function createRenderer(ctx){
         ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), cx+cw/2, cy+ch-12);
         ui.draftRects.push({x:cx,y:cy,w:cw,h:ch,idx:i});
         banishBadge(cx,cy,cw,i); // CAS-392 (after card body so it draws on top)
+        if(popped) ctx.restore(); // CAS-272 end reveal pop
       }
     } else {
       const rh=Math.min(96,(bh-64-botH-20)/choices.length-8), rw=bw-40, rx=x+20;
       for(let i=0;i<choices.length;i++){ const b=BOON_MAP[choices[i]]; if(!b) continue;
         const ry=top+i*(rh+8); const on=i===sel; const cc=boonCatCol(b.cat);
         const rc=boonRarCol(b), leg=b.rarity==="legendary";
+        const p=draftPopP(d,i), popped=p<1; // CAS-272 reveal pop (rects below stay full-size)
+        if(popped){ ctx.save(); ctx.globalAlpha=Math.max(0,p); const pmx=rx+rw/2,pmy=ry+rh/2,ps=0.92+0.08*p;
+          ctx.translate(pmx,pmy); ctx.scale(ps,ps); ctx.translate(-pmx,-pmy); }
         ctx.fillStyle=on?"#2c3446":"#20262f"; ctx.fillRect(rx,ry,rw,rh);
         ctx.strokeStyle=on?COL.textGold:rc; ctx.lineWidth=(on||leg)?2:1; ctx.strokeRect(rx+0.5,ry+0.5,rw,rh);
         ctx.fillStyle=cc; ctx.fillRect(rx,ry,4,rh);
@@ -1947,6 +1966,7 @@ export function createRenderer(ctx){
         ctx.textAlign="right"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), rx+rw-14, ry+rh/2+4);
         ui.draftRects.push({x:rx,y:ry,w:rw,h:rh,idx:i});
         banishBadge(rx,ry,rw,i); // CAS-392
+        if(popped) ctx.restore(); // CAS-272 end reveal pop
       }
     }
     // active-boon readout — the run's accumulating stack (glyphs), so builds read as they diverge
