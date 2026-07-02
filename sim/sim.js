@@ -908,6 +908,7 @@ function killEnemy(e){
     gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
   else if(e.champion){ onChampionKill(e); } // hunt climax — clears the zone, guaranteed payoff
   else { gainXP(tpl.xp);
+    audio.sfx.mobDie&&audio.sfx.mobDie(); // CAS-447: regular kills get an audible finisher (boss/champion keep sfx.boss)
     // CAS-273: every kill now lands a subtle, size-scaled screen-shake (the requested
     // "shake escalado por muerte" — previously only boss/champion/crit/volatile kills shook).
     // reduceMotion-gated via shakeAdd; bosses/champions keep their larger shakes on their own
@@ -1873,6 +1874,9 @@ function updateEnemies(dt){ const h=G.hero;
         // strike-window length per archetype: rusher lunge + charger charge need a longer
         // window for the dash to read/travel; everyone else lands on the "now!" instant.
         e.st=(e.specialNow)?0.12:(e.tpl.arch==="charger")?0.36:(e.tpl.arch==="rusher")?0.2:0.12;
+        // CAS-447: a boss/champion swing carries an audible whoosh at the COMMIT — the
+        // telegraph reads by ear even when the hit is dodged (specials keep their windup roar).
+        if(e.isBoss||e.champion||e.capstone){ audio.sfx.bossAtk&&audio.sfx.bossAtk(); }
         // CAS-321: warlock claw flashes at meleeR; its cast (and any ranged mob) uses range 0.
         const _sfRange = e.tpl.ranged ? 0 : (e.tpl.arch==="warlock" ? (e.castNow?0:(e.tpl.meleeR||e.tpl.range)) : e.tpl.range);
         addFx("strikeflash",e.x,e.y,{ang:e.facing,range:_sfRange,life:0.18}); // the "now!" instant

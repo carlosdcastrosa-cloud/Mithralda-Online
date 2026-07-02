@@ -157,6 +157,15 @@ export const audio = (()=>{
     // light UI blips — open rises, close falls.
     uiOpen(){ tone(520,0.06,"square",0.12,sfxGain,760); },
     uiClose(){ tone(520,0.06,"square",0.10,sfxGain,300); },
+    // CAS-447: completion pass — the sim already guarded-called click() (draft
+    // reroll/banish, curse offer) but it never existed, so those actions were
+    // silent; mobDie gives every regular kill an audible finisher (boss/champion
+    // keep the heavier sfx.boss on their own paths); bossAtk is the heavy swing
+    // whoosh when a boss/champion COMMITS a strike — an audible telegraph that
+    // fires even on a dodged hit, so the miss still reads.
+    click(){ tone(700,0.045,"square",0.11,sfxGain,520); },
+    mobDie(){ noise(0.12,0.14,650); tone(196,0.14,"triangle",0.13,sfxGain,90); },
+    bossAtk(){ noise(0.16,0.20,420); tone(130,0.16,"sawtooth",0.14,sfxGain,70); },
   };
 
   // ----------------------------- mix controls ------------------------------

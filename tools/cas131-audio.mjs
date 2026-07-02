@@ -46,6 +46,16 @@ async function enterPlay(page, name) {
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "Digit1", bubbles: true })));
   await page.waitForFunction("window.__dev.scene()==='play'", { timeout: 8000 });
 }
+// CAS-447: CAS-394 landed AFTER this harness — the FIRST entry into a combat zone
+// pauses into the curse-offer modal, freezing the sim tick (music/ambience stop
+// updating and spawned mobs never aggro). Every zone hop goes through tpz() so the
+// offer is skipped and the tick resumes.
+async function tpz(page, z) {
+  await page.evaluate((zz) => window.__dev.tpZone(zz), z);
+  await wait(250);
+  const sc = await page.evaluate(() => window.__dev.scene());
+  if (sc === "curse") { await page.evaluate(() => window.__dev.skipCurse()); await wait(120); }
+}
 
 try {
   const page = await browser.newPage();
@@ -65,8 +75,7 @@ try {
   else fail(`[MUSIC] expected town on enter, got ${JSON.stringify(s)}`);
 
   // ---- combat: a live chaser in a danger zone -----------------------------
-  await page.evaluate(() => window.__dev.tpZone("forest"));
-  await wait(150);
+  await tpz(page, "forest");
   await page.evaluate(() => { window.__dev.spawn("orc", 30, 0); window.__dev.spawn("orc", -30, 10); });
   await wait(900); // chasers aggro + the crossfade (220ms) completes
   s = await aud(page);
@@ -81,23 +90,62 @@ try {
   else fail(`[MUSIC] expected boss theme, got track="${s.track}"`);
 
   // ---- back to town (safe zone) de-escalates ------------------------------
-  await page.evaluate(() => window.__dev.tpZone("town"));
+  await tpz(page, "town");
   await wait(900);
   s = await aud(page);
   if (s.track === "town") pass(`[MUSIC] return to town (safe) → town theme`);
   else fail(`[MUSIC] expected town back in town, got track="${s.track}"`);
 
   // ---- [AMBIENT] per-biome bed follows the hero ---------------------------
-  const biomes = ["forest", "caves", "frost", "abyss", "ruins"];
+  // CAS-447: swamp added — the Ciénaga (CAS-441) must carry its own ambient bed too.
+  const biomes = ["forest", "caves", "frost", "abyss", "ruins", "swamp"];
   let ambOk = true;
   for (const b of biomes) {
-    await page.evaluate((z) => window.__dev.tpZone(z), b);
+    await tpz(page, b);
     await wait(200);
     s = await aud(page);
     if (s.ambZone !== b) { ambOk = false; fail(`[AMBIENT] ${b} not reflected (ambZone="${s.ambZone}")`); }
   }
   if (ambOk) pass(`[AMBIENT] ambient bed tracked all biomes: ${biomes.join(" → ")}`);
-  await page.evaluate(() => window.__dev.tpZone("town"));
+  await tpz(page, "town");
+
+  // ---- [SFX] CAS-447 completion pass: click / mobDie / bossAtk fire from ---
+  // REAL sim paths. The audio module is a singleton: importing it from the page
+  // yields the SAME instance the sim holds, so wrapping sfx.* counts real calls.
+  await page.evaluate(async () => {
+    const { audio } = await import(new URL("audio.js", location.href).href);
+    window.__sfxCalls = { click: 0, mobDie: 0, bossAtk: 0 };
+    for (const k of Object.keys(window.__sfxCalls)) {
+      const orig = audio.sfx[k];
+      if (typeof orig !== "function") { window.__sfxCalls[k] = -9999; continue; }
+      audio.sfx[k] = (...a) => { window.__sfxCalls[k]++; return orig.apply(audio.sfx, a); };
+    }
+  });
+  const calls = () => page.evaluate(() => window.__sfxCalls);
+  // mobDie: a regular (non-boss) kill through the real death path.
+  await page.evaluate(() => window.__dev.spawnKill("orc"));
+  await wait(300);
+  s = await calls();
+  if (s.mobDie >= 1) pass(`[SFX] regular mob death → sfx.mobDie fired (${s.mobDie})`);
+  else fail(`[SFX] sfx.mobDie did not fire on a real mob kill: ${JSON.stringify(s)}`);
+  // click: draft reroll (KeyR) — one of the 4 call sites that were silent pre-CAS-447.
+  await page.evaluate(() => window.__dev.openDraftZone("forest"));
+  await wait(200);
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyR", key: "r", bubbles: true })));
+  await wait(200);
+  s = await calls();
+  if (s.click >= 1) pass(`[SFX] draft reroll → sfx.click fired (${s.click})`);
+  else fail(`[SFX] sfx.click did not fire on draft reroll: ${JSON.stringify(s)}`);
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true }))); // resolve the draft
+  await wait(200);
+  // bossAtk: a live boss committing a strike near the hero (audible telegraph).
+  await tpz(page, "forest");
+  await page.evaluate(() => window.__dev.spawn("golem", 40, 0));
+  await wait(3500);
+  s = await calls();
+  if (s.bossAtk >= 1) pass(`[SFX] boss strike commit → sfx.bossAtk fired (${s.bossAtk})`);
+  else fail(`[SFX] sfx.bossAtk did not fire from a live boss strike: ${JSON.stringify(s)}`);
+  await tpz(page, "town");
 
   // ---- [MIX] sliders + mute drive the state -------------------------------
   await page.evaluate(() => { window.__dev.setMaster(0.42); window.__dev.setMusic(0.31); window.__dev.setSfx(0.88); });
@@ -123,7 +171,8 @@ try {
   // ---- [FPS] frame budget holds with the audio graph live -----------------
   await freshBoot(page); // a long run autosaved → clear it so we re-enter cleanly from the menu
   await enterPlay(page, "QAFps");
-  await page.evaluate(() => { window.__dev.tpZone("forest"); window.__dev.spawn("orc", 30, 0); });
+  await tpz(page, "forest");
+  await page.evaluate(() => window.__dev.spawn("orc", 30, 0));
   await wait(400);
   const fps = await page.evaluate(() => new Promise((res) => {
     let n = 0; const t0 = performance.now();
