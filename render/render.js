@@ -1274,6 +1274,20 @@ export function createRenderer(ctx){
   // h.consumCD is live, and the [Q] use / [R] cycle key hints. An active timed buff
   // (furia) reads its remaining seconds as a shrinking bar above the slot, so the player
   // always knows the buff is up and roughly how long is left (duration telegraph).
+  // CAS-417: per-consumable icon — the CAS-415 flask PNG recoloured ONCE to the
+  // consumable's signature colour (c.col: fury orange / antidote green / greater heal-green)
+  // via the color-blend + alpha-mask recipe, baked to an offscreen canvas and cached.
+  // Zero per-frame allocs; the old text glyph stays as fallback until the PNG lands.
+  const _consumIcon={};
+  function consumIcon(c){
+    if(_consumIcon[c.id]) return _consumIcon[c.id];
+    const base=IMG["icon_hud_potion_hp"]; if(!base||!base.complete||!base.naturalWidth) return null;
+    const cv=document.createElement("canvas"); cv.width=32; cv.height=32; const g=cv.getContext("2d");
+    g.imageSmoothingEnabled=false; g.drawImage(base,0,0,32,32);
+    g.globalCompositeOperation="color"; g.fillStyle=c.col||"#e0596a"; g.fillRect(0,0,32,32);
+    g.globalCompositeOperation="destination-in"; g.drawImage(base,0,0,32,32);
+    _consumIcon[c.id]=cv; return cv;
+  }
   function renderConsumableSlot(h, hudUI){ if(isTouch) return; const s=44;
     // CAS-299: the legacy slot lives bottom-left, where the HUD console now sits. When the
     // HUD is active, reflow the quick-use slot to just LEFT of the spell bar (combat-coherent:
@@ -1297,9 +1311,11 @@ export function createRenderer(ctx){
     // slot frame + body
     ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
     ctx.fillStyle=qty>0?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
-    // icon + short name (dimmed when empty)
+    // icon + short name (dimmed when empty) — CAS-417: real flask PNG, glyph = load fallback
     ctx.globalAlpha=qty>0?1:0.4; ctx.textAlign="center";
-    ctx.fillStyle=c.col; ctx.font="bold 20px 'Courier New'"; ctx.fillText(c.icon,x+s/2,y+24);
+    const cic=consumIcon(c);
+    if(cic){ ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(cic, Math.round(x+(s-32)/2), y+2, 32,32); ctx.restore(); }
+    else { ctx.fillStyle=c.col; ctx.font="bold 20px 'Courier New'"; ctx.fillText(c.icon,x+s/2,y+24); }
     ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.fillText(c.short,x+s/2,y+s-5);
     ctx.globalAlpha=1;
     // cooldown wipe (top-down) — per-consumable cd; the row's cd is the true denominator
@@ -1325,10 +1341,17 @@ export function createRenderer(ctx){
     // costs / colours / labels are data-driven from SPELLS[cls] (slot 0 = basic attack)
     const sp=SPELLS[h.cls]||SPELLS.warrior; const names=(STR.spellNames&&STR.spellNames[h.cls])||["","",""];
     const costs=[0,sp[0].cost,sp[1].cost,sp[2].cost];
+    const icls=SPELLS[h.cls]?h.cls:"warrior"; // icon files exist for the 5 canonical classes
     for(let i=0;i<n;i++){ const x=x0+i*(s+gap);
       ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
       ctx.fillStyle=h.mp>=costs[i]?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
-      ctx.fillStyle=(i===0)?"#cfd6de":(sp[i-1].col||"#cfd6de"); ctx.fillRect(x+6,y+6,s-12,s-12);
+      // CAS-417: real spell icon (CAS-415 art, 32x32) replaces the flat colour square;
+      // the square stays ONLY as fallback while/if the PNG hasn't loaded.
+      const ic=IMG["icon_spell_"+icls+"_"+i];
+      if(ic&&ic.complete&&ic.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false;
+        ctx.globalAlpha=h.mp>=costs[i]?1:0.45;
+        ctx.drawImage(ic, Math.round(x+(s-32)/2), Math.round(y+(s-32)/2), 32,32); ctx.restore(); }
+      else { ctx.fillStyle=(i===0)?"#cfd6de":(sp[i-1].col||"#cfd6de"); ctx.fillRect(x+6,y+6,s-12,s-12); }
       // CAS-120: status pip — a small dot in the effect colour marks a skill that
       // applies a CAS-118 status (veneno/quemadura/lentitud/aturdir), so the player
       // reads at a glance which skills deploy control/ignite.
@@ -1398,6 +1421,13 @@ export function createRenderer(ctx){
     for(let k=0;k<list.length;k++){ ctx.fillStyle="#9be7ff"; ctx.fillText("• "+affixLabel(list[k]), ax, ay+k*lh); } return list.length; }
   // A signed coloured delta token ("+12", "-3", "—"). CAS-117 equip-decision diff.
   function deltaTok(d){ if(!d) return {t:"—",c:COL.textDim}; return d>0?{t:"+"+d,c:COL.heal}:{t:""+d,c:"#d05555"}; }
+  // CAS-417: one icon+count segment for the inventory footer (16px icon, glyph fallback
+  // while the PNG loads); returns the x where the next segment starts.
+  function invCount(key,glyph,txt,cx,by){ const im=IMG[key];
+    if(im&&im.complete&&im.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false;
+      ctx.drawImage(im,cx,by-12,16,16); ctx.restore();
+      ctx.fillText(txt,cx+18,by); return cx+18+ctx.measureText(txt).width+14; }
+    ctx.fillText(glyph+" "+txt,cx,by); return cx+ctx.measureText(glyph+" "+txt).width+14; }
   function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,470), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
     panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28);
     // ---- left: Tibia-style equip slots flanking the LIVE animated portrait ----
@@ -1407,22 +1437,29 @@ export function createRenderer(ctx){
     // (clshero_<cls>) the world renderer uses — animated idle, not a placeholder.
     const leftW=bw*0.50, SS=Math.min(40,Math.round(bh*0.085)), rgap=SS+19;
     ui.invSlotRects=[];
-    function invSlot(sx,sy,ss,label,glyph,slotKey){
+    // CAS-417: slots draw the real CAS-415 icon (icon_slot_<kind>, 32x32) — dimmed when
+    // empty, full-strength as the ITEM icon when occupied (gear type == slot kind). The
+    // old text glyph survives ONLY as fallback while/if the PNG hasn't loaded.
+    function invSlot(sx,sy,ss,label,glyph,slotKey,iconKind){
       const inst=slotKey?h.equip[slotKey]:null;
       ctx.fillStyle="#10141b"; ctx.fillRect(sx,sy,ss,ss);
       ctx.strokeStyle=inst?gearCol(inst):"#3a4456"; ctx.lineWidth=inst?2:1; ctx.strokeRect(sx+0.5,sy+0.5,ss-1,ss-1);
       ctx.textAlign="center";
-      if(inst){ ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(ss*0.5)+"px 'Courier New'"; ctx.fillText(glyph, sx+ss/2, sy+ss*0.64);
-        ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="right"; ctx.fillText(String(gearStat(inst)), sx+ss-3, sy+ss-3); }
+      const ic=iconKind?IMG["icon_slot_"+iconKind]:null;
+      if(ic&&ic.complete&&ic.naturalWidth){ const ds=ss>=36?32:16; ctx.save(); ctx.imageSmoothingEnabled=false;
+        ctx.globalAlpha=inst?1:0.42;
+        ctx.drawImage(ic, Math.round(sx+(ss-ds)/2), Math.round(sy+(ss-ds)/2), ds,ds); ctx.restore(); }
+      else if(inst){ ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(ss*0.5)+"px 'Courier New'"; ctx.fillText(glyph, sx+ss/2, sy+ss*0.64); }
       else { ctx.fillStyle="#3f4856"; ctx.font="bold "+Math.round(ss*0.44)+"px 'Courier New'"; ctx.fillText(glyph, sx+ss/2, sy+ss*0.62); }
+      if(inst){ ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="right"; ctx.fillText(String(gearStat(inst)), sx+ss-3, sy+ss-3); }
       ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="8px 'Courier New'"; ctx.fillText(label, sx+ss/2, sy-3);
       ui.invSlotRects.push({x:sx,y:sy,w:ss,h:ss,slot:slotKey,inst:!!inst});
     }
     const sy0=y+78, lx=x+18, rrx=x+leftW-18-SS;
-    const LCOL=[[STR.slotHead,"^",null],[STR.slotBody,"▣","body"],[STR.slotLegs,"Π",null],[STR.slotFeet,"▾",null]];
-    const RCOL=[[STR.slotNeck,"◆",null],[STR.slotBack,"≈",null],[STR.slotRing,"○",null],[STR.slotBag,"▦",null]];
-    for(let i=0;i<LCOL.length;i++){ const s=LCOL[i]; invSlot(lx, sy0+i*rgap, SS, s[0], s[1], s[2]); }
-    for(let i=0;i<RCOL.length;i++){ const s=RCOL[i]; invSlot(rrx, sy0+i*rgap, SS, s[0], s[1], s[2]); }
+    const LCOL=[[STR.slotHead,"^",null,"head"],[STR.slotBody,"▣","body","body"],[STR.slotLegs,"Π",null,"legs"],[STR.slotFeet,"▾",null,"feet"]];
+    const RCOL=[[STR.slotNeck,"◆",null,"neck"],[STR.slotBack,"≈",null,"back"],[STR.slotRing,"○",null,"ring"],[STR.slotBag,"▦",null,"bag"]];
+    for(let i=0;i<LCOL.length;i++){ const s=LCOL[i]; invSlot(lx, sy0+i*rgap, SS, s[0], s[1], s[2], s[3]); }
+    for(let i=0;i<RCOL.length;i++){ const s=RCOL[i]; invSlot(rrx, sy0+i*rgap, SS, s[0], s[1], s[2], s[3]); }
     // portrait between the columns — REAL class, animated idle (CAS-209 strip)
     const px=x+leftW/2, pTop=y+72, pW=Math.min(92,leftW-(SS*2)-72), pH=Math.min(150,Math.round(bh*0.34));
     ctx.fillStyle="#0d1117"; ctx.fillRect(px-pW/2,pTop,pW,pH);
@@ -1438,15 +1475,19 @@ export function createRenderer(ctx){
     ctx.fillText((STR.classes&&STR.classes[h.cls]?STR.classes[h.cls].name:h.cls), px, pTop+pH+13);
     // hands row below the portrait: Mano Izq (escudo) + Mano Der (arma)
     const hy=pTop+pH+22, hgap=10;
-    invSlot(px-SS-hgap/2, hy, SS, STR.slotShield, "◈", "shield");
-    invSlot(px+hgap/2,    hy, SS, STR.slotWeapon, "⚔", "weapon");
+    invSlot(px-SS-hgap/2, hy, SS, STR.slotShield, "◈", "shield", "shield");
+    invSlot(px+hgap/2,    hy, SS, STR.slotWeapon, "⚔", "weapon", "weapon");
     // ---- combat totals (folds every equipped affix) ----
     const af=affixTotals(h); const ty=y+bh-56;
     ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'";
     ctx.fillText(STR.statsDmg+": "+equippedDmg(h)+"   "+STR.statsDef+": "+equippedDef(h), x+18, ty);
     ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'";
     ctx.fillText("♥ "+heroMaxHp(h)+(af.atkspd?"  ⚔+"+af.atkspd+"%":"")+(af.movespd?"  »+"+af.movespd+"%":"")+(af.onhit?"  ✦+"+af.onhit:""), x+18, ty+16);
-    ctx.fillStyle=COL.cream; ctx.fillText("♥ x"+h.potHP+"   ◆ x"+h.potMP+"   ✦ x"+h.blessings+"   ⚒ x"+(h.mats|0), x+18, ty+32);
+    // CAS-417: potion counters lead with the real CAS-415 flask icons (glyph = load fallback)
+    ctx.fillStyle=COL.cream; let ptx=x+18;
+    ptx=invCount("icon_hud_potion_hp","♥","x"+h.potHP, ptx, ty+32);
+    ptx=invCount("icon_hud_potion_mp","◆","x"+h.potMP, ptx, ty+32);
+    ctx.fillText("✦ x"+h.blessings+"   ⚒ x"+(h.mats|0), ptx, ty+32);
     // CAS-237: open the Forja (forge equipment) panel — accessible from the inventory.
     const fbw=104, fbh=22, fbx=x+bw-fbw-16, fby=y+12;
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(fbx,fby,fbw,fbh); ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(fbx+0.5,fby+0.5,fbw-1,fbh-1);
@@ -1642,7 +1683,12 @@ export function createRenderer(ctx){
     for(let i=0;i<fs.slots.length;i++){ const s=fs.slots[i]; const ry=iy+i*ih; const sel=i===G.forgeSel;
       ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(x+20,ry,bw-40,ih-10);
       if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x+20,ry,bw-40,ih-10); }
-      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 15px 'Courier New'"; ctx.fillText(GLY[s.slot]+" "+SLBL[s.slot], x+34, ry+22);
+      // CAS-417: slot icon (CAS-415) heads the row; glyph text = load fallback only
+      const fic=IMG["icon_slot_"+s.slot];
+      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 15px 'Courier New'";
+      if(fic&&fic.complete&&fic.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false;
+        ctx.drawImage(fic, x+32, ry+9, 16,16); ctx.restore(); ctx.fillText(SLBL[s.slot], x+54, ry+22); }
+      else ctx.fillText(GLY[s.slot]+" "+SLBL[s.slot], x+34, ry+22);
       if(s.name){
         // current forge level + resolved stat
         ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'";

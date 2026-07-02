@@ -45,6 +45,9 @@ export const hud = (()=>{
   const KEY="mithralda.hud.v1";   // own key — never the save / settings / analytics blob
   const REFRESH_MS=200;           // light cadence; only ticks while visible
   const ASSET="assets/pixellab/ui/cas286/"; // CEO-approved CAS-286 panels
+  // CAS-417: CAS-415 UI icon set (equip-slot chips + coin), same ?v= cache-bust scheme
+  const ICONS="assets/ui/icons/";
+  const iconV=()=> (typeof window!=="undefined"&&window.__BUILD)?("?v="+window.__BUILD):"";
   let root=null, styleEl=null, on=false, timer=0, booted=false, getState=null, reduce=false;
   let act={};                     // CAS-337 presentation→intent bridge (openInventory/openSettings/equipBag)
   let drawerOpen=false;           // mobile right-rail drawer state (presentation only)
@@ -171,6 +174,10 @@ export const hud = (()=>{
       "#hud .slot.off{ background:"+C.panelB2+"; opacity:.5; }",                            // disabled / empty
       "#hud .slot:focus-visible{ outline:2px dashed "+C.gold+"; outline-offset:1px; }",     // keyboard focus ring
       "#hud .cue{ color:"+C.textGold+"; margin-right:2px; }",
+      // CAS-417: slot-icon imgs inside chips (equip legend) — crisp, dimmed with empty chips
+      "#hud .slot img.sic{ width:calc(12px*var(--s)); height:calc(12px*var(--s)); image-rendering:pixelated; margin-right:2px; flex:0 0 auto; }",
+      "#hud .slot.off img.sic{ opacity:.45; }",
+      "#hud .cap img.sic{ width:12px; height:12px; image-rendering:pixelated; align-self:center; margin-right:-3px; }",
       // CAS-316 — bag grid: empty cells transparent (baked PixelLab grid shows through);
       // a filled cell shows a small gold token, not a solid box that hides the art.
       "#hud .w-bag .slot{ background:transparent; border:0; border-radius:2px; min-width:0; color:"+C.goldL+"; font-size:calc(9px*var(--s)); }",
@@ -180,8 +187,8 @@ export const hud = (()=>{
       // inside width — the old content-box width:100% overflowed the art by ~10px) and
       // pinned to their baked icon rows (% of the well ← art-space icon band centers).
       "#hud .w-doll .slot{ position:absolute; left:0; right:0; box-sizing:border-box; aspect-ratio:auto; min-width:0; height:17.2%;"
-        +" justify-content:flex-start; padding:0 3px;"
-        +" font-size:calc(9px*var(--s)); background:rgba(6,7,10,.55); border:1px solid "+C.panelB+"; border-radius:2px; overflow:hidden; white-space:nowrap; }",
+        +" justify-content:flex-start; padding:0 2px;"
+        +" font-size:calc(8px*var(--s)); background:rgba(6,7,10,.55); border:1px solid "+C.panelB+"; border-radius:2px; overflow:hidden; white-space:nowrap; }",
       "#hud .w-doll .slot:nth-child(1){ top:45.7%; }",  // Arma   → baked sword icon row
       "#hud .w-doll .slot:nth-child(2){ top:11.5%; }",  // Cuerpo → baked chest icon row
       "#hud .w-doll .slot:nth-child(3){ top:61.9%; }",  // Escudo → baked shield icon row
@@ -259,6 +266,9 @@ export const hud = (()=>{
     nodes.name=mk("span",null,cap); nodes.name.className="name"; nodes.name.textContent="—";
     nodes.cls=mk("span",null,cap); nodes.cls.className="sub"; nodes.cls.textContent="—";
     nodes.lvl=mk("span","margin-left:auto;color:"+C.textGold+";font-size:calc(12px*var(--s))",cap); nodes.lvl.textContent="Nv —";
+    // CAS-417: coin icon heads the gold caption (own <img> — gold span text repaints freely)
+    const coin=document.createElement("img"); coin.className="sic"; coin.alt="";
+    coin.src=ICONS+"hud_coin.png"+iconV(); cap.appendChild(coin);
     nodes.gold=mk("span",null,cap); nodes.gold.className="gold"; nodes.gold.textContent="0 oro";
     // CAS-337 — settings gear: opens the pause/settings hub (Escape equivalent). Interactive.
     nodes.gear=mk("span",null,cap); nodes.gear.className="gear act"; nodes.gear.textContent="⚙";
@@ -336,12 +346,21 @@ export const hud = (()=>{
 
   function paintSlots(host, items, n, cb){
     if(!host) return; items=items||[]; n=Math.max(items.length, n||0);
-    while(host.childElementCount<n){ const e=mk("div",null,host); e.className="slot"; e.tabIndex=-1; }
+    // CAS-417: each cell owns a persistent <img> (slot icon) + <span> (label) so the
+    // 200ms repaint only touches text/class; the img src changes ONLY when the slot
+    // kind changes (no per-tick DOM churn / image re-decode).
+    while(host.childElementCount<n){ const e=mk("div",null,host); e.className="slot"; e.tabIndex=-1;
+      const im=document.createElement("img"); im.className="sic"; im.alt=""; im.style.display="none"; e.appendChild(im);
+      e.appendChild(document.createElement("span")); }
     const kids=host.children;
-    for(let i=0;i<kids.length;i++){ const it=items[i]; const el=kids[i];
-      if(it && !it.empty){ el.className="slot eq"; el.textContent=(cb?cb(it):"")+(it.label||"·"); }
-      else if(it && it.empty){ el.className="slot off"; el.textContent=it.label||""; } // labelled-but-empty (equip legend)
-      else { el.className="slot off"; el.textContent=""; } }
+    for(let i=0;i<kids.length;i++){ const it=items[i]; const el=kids[i]; const im=el.firstChild, sp=el.lastChild;
+      const key=(it&&it.slot)?it.slot:null;
+      if(el._ick!==key){ el._ick=key;
+        if(key){ im.src=ICONS+"slot_"+key+".png"+iconV(); im.style.display=""; }
+        else { im.removeAttribute("src"); im.style.display="none"; } }
+      if(it && !it.empty){ el.className="slot eq"; sp.textContent=(cb?cb(it):"")+(it.label||"·"); }
+      else if(it && it.empty){ el.className="slot off"; sp.textContent=it.label||""; } // labelled-but-empty (equip legend)
+      else { el.className="slot off"; sp.textContent=""; } }
   }
 
   // derive a read-only combat log by diffing successive snapshots (presentation only)
