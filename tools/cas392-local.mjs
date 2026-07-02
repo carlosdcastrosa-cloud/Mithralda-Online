@@ -17,7 +17,10 @@ import puppeteer from "puppeteer-core";
 
 const exe = findChromium();
 if (!exe) { console.error("No Chromium binary"); process.exit(1); }
-const { url, close } = await startServer();
+// LIVE_URL env → run against the deployed gh-pages build (green gate); else local static server.
+const LIVE = process.env.LIVE_URL;
+const { url, close } = LIVE ? { url: LIVE.replace(/\/$/, ""), close: async () => {} } : await startServer();
+console.log(`target: ${url}${LIVE ? " (LIVE)" : " (local)"}`);
 const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: LAUNCH_ARGS });
 const page = await browser.newPage();
 const errors = [];
@@ -38,6 +41,8 @@ try {
   await page.waitForFunction("window.__dev.scene()==='play'", { timeout: 8000 });
   const booted = await page.evaluate(() => !!(window.__dev && window.__dev.boons));
   ok("boot to play + __dev.boons present", booted);
+  if (LIVE) { const build = await page.evaluate(() => window.__BUILD || null);
+    ok("live build id == 8039e48dbc09", build === "8039e48dbc09", `served=${build}`); }
 
   // 1. draft opens with fresh 1/1 charges
   let st = await page.evaluate(() => { window.__dev.openDraft(); return window.__dev.boons(); });
