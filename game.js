@@ -47,16 +47,40 @@ export function createGame(canvas, ctx, getView){
       // CAS-277: fire the CAS-132 funnel event when the end-of-run recap first appears,
       // so its "one more run" impact is measurable (retry events fire from input.js).
       if(s==="dead") analytics.event("recap_shown");
+      positionChatInput(); // CAS: chat input only shows in the play scene
       prevScene=s; } }
   function render(alpha){ renderer.render(alpha); }
-  // CAS: fixed left sidebar (Tibia-style). Wide screens reserve SIDEBAR_W px on the left for
-  // the canvas HUD column; the ornate DOM HUD is force-hidden there (no double UI). Narrow /
-  // mobile collapses the sidebar (gx=0) and keeps the existing HUD + a small floating minimap.
-  const SIDEBAR_W=300, SIDEBAR_MIN=900;
-  function applySidebar(){
-    view.gx = (view.VW>=SIDEBAR_MIN) ? SIDEBAR_W : 0;
-    try{ hud.setForcedOff(view.gx>0); }catch(e){}
+  // CAS: fixed Tibia-style chrome on wide screens — a sidebar on the RIGHT (SIDEBAR_W) plus a
+  // bottom bar (BOTTOMBAR_H: the attacks hotbar with a chat input beneath it). The ornate DOM
+  // HUD is force-hidden while active (no double UI); narrow/mobile collapses both to 0.
+  const SIDEBAR_W=216, SIDEBAR_MIN=900, BOTTOMBAR_H=94;
+  let chatEl=null;
+  function pushChat(who,text){ if(!G.chatLog) G.chatLog=[]; G.chatLog.push({who,text}); if(G.chatLog.length>40) G.chatLog.shift(); }
+  function ensureChat(){ if(chatEl || typeof document==="undefined") return;
+    chatEl=document.createElement("input");
+    chatEl.id="chatInput"; chatEl.maxLength=120; chatEl.autocomplete="off"; chatEl.spellcheck=false;
+    chatEl.setAttribute("aria-label","Chat"); chatEl.placeholder="Escribe y pulsa Enter…";
+    chatEl.style.cssText="position:fixed;display:none;z-index:30;box-sizing:border-box;font:13px 'Courier New',monospace;"
+      +"color:#d8d3c4;background:#0c0e13;border:1px solid #3a3f49;border-radius:3px;outline:none;padding:5px 9px;";
+    // typing must never leak to the game (WASD/hotkeys); only send on Enter, cancel on Escape.
+    chatEl.addEventListener("keydown",(e)=>{ e.stopPropagation();
+      if(e.key==="Enter"){ const t=chatEl.value.trim(); if(t) pushChat((G.hero&&G.hero.name)||"Tú", t); chatEl.value=""; chatEl.blur(); }
+      else if(e.key==="Escape"){ chatEl.value=""; chatEl.blur(); } });
+    chatEl.addEventListener("focus",()=>{ chatEl.style.borderColor="#e0b94a"; });
+    chatEl.addEventListener("blur",()=>{ chatEl.style.borderColor="#3a3f49"; });
+    document.body.appendChild(chatEl);
   }
+  function positionChatInput(){ ensureChat(); if(!chatEl) return;
+    if(view.bbh>0 && G.scene==="play"){ const m=8, w=Math.max(80,view.gw()-2*m);
+      chatEl.style.display="block"; chatEl.style.left=m+"px"; chatEl.style.top=(view.VH-30)+"px";
+      chatEl.style.width=w+"px"; chatEl.style.height="26px"; }
+    else { chatEl.style.display="none"; if(document.activeElement===chatEl) chatEl.blur(); } }
+  function applySidebar(){ const on=view.VW>=SIDEBAR_MIN;
+    view.sbw = on ? SIDEBAR_W : 0; view.bbh = on ? BOTTOMBAR_H : 0;
+    // wide screens: right sidebar + bottom bar replace the DOM HUD. Narrow/mobile keeps the
+    // existing HUD for now (a dedicated "small map only" mobile pass is separate).
+    try{ hud.setForcedOff(on); }catch(e){}
+    positionChatInput(); }
   function onResize(w,h){ view.VW=w; view.VH=h; applySidebar(); if(G.scene==="menu") positionNameInput(); }
   function onFocusLost(){ if(G.scene==="play") G.scene="pause"; }
   function devInfo(){ return "ent:"+G.enemies.length+" fx:"+G.fx.length+" scene:"+G.scene; }

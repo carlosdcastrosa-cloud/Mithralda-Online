@@ -1174,7 +1174,7 @@ export function createRenderer(ctx){
     // CAS: fixed left sidebar (Tibia-style). When active it is the SOLE HUD — the DOM HUD is
     // force-hidden (game.js) and the scattered canvas vitals are suppressed (hudUI). Overlays
     // that belong over the world (zone/objective/banners) recentre on the visible game area.
-    const sidebar=view.gx>0, GCX=view.gcx();
+    const sidebar=view.sbw>0, GCX=view.gcx();
     const hudUI=sidebar||hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
     auditRects = auditOn() ? {} : null; // CAS-416: collect drawn rects only under the QA flag
     uiLayout.frame(); // CAS-418: stamp this HUD pass — pub()'d widget rects go stale when not drawn (touch)
@@ -1200,7 +1200,7 @@ export function createRenderer(ctx){
     const mhp=heroMaxHp(h); // CAS-117: bar reflects the +vida affix pool
     // CAS: draw the fixed sidebar column (opaque bg + vitals + buttons) UNDER the minimap /
     // spell bar / consumable that render later so they overlay it. Recentred game overlays follow.
-    if(sidebar) drawSidebarPanel(h, mhp);
+    if(sidebar){ drawSidebarPanel(h, mhp); drawBottomBar(h); }
     if(!hudUI){ // CAS-299: legacy vitals (HP/MP/XP bars · gold/potions · name/skull) — HUD owns these
       bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
       bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
@@ -1249,7 +1249,7 @@ export function createRenderer(ctx){
     // quest tracker (top-right under buttons). CAS-299: shift LEFT of the HUD right rail
     // (minimapa/equipo/mochila) so the trackers never sit under the rail frames.
     ctx.textAlign="right"; ctx.font="bold 12px 'Courier New'";
-    const qx=VW-((hudUI&&!sidebar)?176:12); let qy=isTouch?64:18;
+    const qx=sidebar?(view.sbx()-12):(VW-(hudUI?176:12)); let qy=isTouch?64:18;
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
     const qw=ctx.measureText(qt).width+12;
     // CAS-416: at narrow widths the centred OBJETIVO banner reaches the tracker column;
@@ -1316,10 +1316,11 @@ export function createRenderer(ctx){
     // CAS-299: the legacy slot lives bottom-left, where the HUD console now sits. When the
     // HUD is active, reflow the quick-use slot to just LEFT of the spell bar (combat-coherent:
     // potions beside spells) so it never overlaps the console frame.
-    const sidebar=view.gx>0;
+    const sidebar=view.sbw>0;
     let x=12, y=VH-12-s;
-    if(sidebar){ // CAS: quick-use slot sits just ABOVE the sidebar hotbar, centred in the column
-      x=Math.round((view.gx-s)/2); y=VH-14-Math.min(46,VW*0.1)-11 - s - 12; }
+    if(sidebar){ // CAS: quick-use slot sits in the bottom bar, just LEFT of the attacks hotbar
+      const sb=Math.min(46,VW*0.1), sbTotal=4*sb+3*6, hbx=Math.round(view.gcx()-sbTotal/2);
+      x=Math.max(10, hbx-s-14); y=VH-view.bbh+8; }
     else if(hudUI){ const sb=Math.min(46,VW*0.1); const sbTotal=4*sb+3*6; const sbx=VW/2-sbTotal/2;
       x=Math.max(12, Math.round(sbx-s-16)); y=VH-14-s;
       // CAS-416: below ~930px wide the spell bar sits close enough to the left corner
@@ -1366,10 +1367,11 @@ export function createRenderer(ctx){
     if(isTouch) return; // touch uses buttons
     // CAS-418: anchor from the layout store (default = bottom-centre, unchanged);
     // cx/cy clamp a stored anchor to the live viewport EVERY draw (covers load+resize).
-    const sidebar=view.gx>0;
+    const sidebar=view.sbw>0;
     let x0, y;
-    if(sidebar){ // CAS: hotbar docked at the foot of the fixed sidebar
-      x0=Math.round((view.gx-total)/2); y=VH-14-s-11; }
+    if(sidebar){ // CAS: attacks hotbar sits in the bottom bar, centred over the game area, just
+      // above the chat input (which the DOM owns at y≈VH-30)
+      x0=Math.round(view.gcx()-total/2); y=VH-view.bbh+8; }
     else {
       x0=uiLayout.cx("spellbar", VW/2-total/2, total);
       y=uiLayout.cy("spellbar", VH-14-s, s+11);
@@ -1404,27 +1406,26 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
       if(costs[i]>0){ ctx.fillStyle="#8ab8ff"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
-  // CAS: the fixed left sidebar (Tibia-style). Opaque column covering x∈[0,view.gx] with the
-  // hero identity + vitals at the top, then the docked minimap (renderMiniMap), a stack of
-  // action buttons (open inventory / talents / mastery / wardrobe / map / menu), a compact
-  // mastery read-out, the quick-use slot and the hotbar at the foot. Buttons are hit-tested in
-  // input.js sidebarBtns() — this only DRAWS them from the same rects.
+  // CAS: the fixed RIGHT sidebar (Tibia-style). Opaque column covering x∈[view.sbx(),VW] with
+  // the hero identity + vitals at the top, then the docked minimap (renderMiniMap) and a stack
+  // of action buttons (inventory / talents / mastery / wardrobe / map / menu) + a mastery
+  // read-out. Buttons are hit-tested in input.js sidebarBtns() — this only DRAWS them.
   function drawSidebarPanel(h, mhp){
-    const W=view.gx, P=14, iw=W-2*P;
-    ctx.fillStyle="#0e1016"; ctx.fillRect(0,0,W,VH);                 // opaque column
-    ctx.fillStyle=COL.panelB; ctx.fillRect(W-2,0,2,VH);             // right divider
+    const W=view.sbw, L=view.sbx(), P=14, iw=W-2*P, x0=L+P;
+    ctx.fillStyle="#0e1016"; ctx.fillRect(L,0,W,VH);                 // opaque column
+    ctx.fillStyle=COL.panelB; ctx.fillRect(L,0,2,VH);               // left divider
     // identity + gold
     let y=P; ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'";
-    ctx.fillText(h.name||"—", P, y+13);
-    ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText((h.gold|0)+" oro", W-P, y+12);
+    ctx.fillText(h.name||"—", x0, y+13);
+    ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText((h.gold|0)+" oro", VW-P, y+12);
     ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
     const clsName=(STR.classes&&STR.classes[h.cls]&&STR.classes[h.cls].name)||h.cls;
-    ctx.fillText(clsName+" · "+STR.level(h.lvl), P, y+27);
+    ctx.fillText(clsName+" · "+STR.level(h.lvl), x0, y+27);
     // vitals bars
     y+=34;
-    bar(P,y,    iw,16, h.hp/mhp,      COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
-    bar(P,y+20, iw,13, h.mp/h.maxMp,  COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
-    bar(P,y+37, iw,9,  h.xp/h.xpNext, COL.xpf,COL.xpb, STR.level(h.lvl));
+    bar(x0,y,    iw,16, h.hp/mhp,      COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
+    bar(x0,y+20, iw,13, h.mp/h.maxMp,  COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
+    bar(x0,y+37, iw,9,  h.xp/h.xpNext, COL.xpf,COL.xpb, STR.level(h.lvl));
     // action buttons (minimap is drawn later by renderMiniMap into the gap at y≈104)
     const sb=sidebarBtns();
     if(sb){ for(const k in sb){ const b=sb[k];
@@ -1438,16 +1439,32 @@ export function createRenderer(ctx){
     const mr=sim.masteryRank(h.eliteKills|0), nx=sim.masteryNextAt(mr);
     const btop=(sb&&sb.menu)?sb.menu.y+sb.menu.h+12:VH-140;
     ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'";
-    ctx.fillText(STR.masteryHud(mr)+(nx!=null?(" "+(h.eliteKills|0)+"/"+nx):" MÁX"), P, btop);
+    ctx.fillText(STR.masteryHud(mr)+(nx!=null?(" "+(h.eliteKills|0)+"/"+nx):" MÁX"), x0, btop);
     if((h.talentPts|0)>0){ const pl=0.6+0.4*Math.abs(Math.sin(G.t*4));
-      ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.goldL; ctx.fillText("★ "+h.talentPts+" talento(s) (T)", P, btop+16); ctx.restore(); }
+      ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.goldL; ctx.fillText("★ "+h.talentPts+" talento(s) (T)", x0, btop+16); ctx.restore(); }
     ctx.textAlign="left";
   }
+  // CAS: the fixed BOTTOM bar — opaque strip under the game area holding the attacks hotbar
+  // (drawn later by renderSpellBar) with the chat CONSOLE + input beneath it. The <input> itself
+  // is a DOM element (game.js) so it can take real keyboard focus; here we draw the console log
+  // and the bar background. Spans the game width (x∈[0, view.sbx()]).
+  function drawBottomBar(h){
+    const BY=VH-view.bbh, W=view.sbx();
+    ctx.fillStyle="#0b0d12"; ctx.fillRect(0,BY,W,view.bbh);          // opaque bar
+    ctx.fillStyle=COL.panelB; ctx.fillRect(0,BY,W,2);               // top divider
+    // recent chat lines, just above the input row (newest last), left-aligned
+    const chat=G.chatLog||[]; const n=Math.min(chat.length,2);
+    ctx.textAlign="left"; ctx.font="12px 'Courier New'";
+    for(let i=0;i<n;i++){ const c=chat[chat.length-n+i]; const ly=VH-52+i*15;
+      ctx.fillStyle=COL.textGold; const who=(c.who||"")+": ";
+      ctx.fillText(who, 12, ly); const ww=ctx.measureText(who).width;
+      ctx.fillStyle=COL.cream; ctx.fillText(c.text, 12+ww, ly); }
+  }
   function renderMiniMap(){ if(isTouch) return;
-    const sidebar=view.gx>0;
+    const sidebar=view.sbw>0;
     let mw=120, mh=120, x, y;
-    if(sidebar){ // CAS: minimap docked in the fixed sidebar (under the vitals), centred
-      mw=mh=Math.min(view.gx-28,176); x=Math.round((view.gx-mw)/2); y=104; }
+    if(sidebar){ // CAS: minimap docked in the right sidebar (under the vitals), centred
+      mw=mh=Math.min(view.sbw-28,176); x=view.sbx()+Math.round((view.sbw-mw)/2); y=104; }
     else { // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
       x=uiLayout.cx("minimap", VW-mw-12, mw);
       y=uiLayout.cy("minimap", VH-mh-12, mh);

@@ -276,13 +276,13 @@ export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH)
   map:{x:VW-14-b*4.9, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
   pause:{x:VW-14-b*6.0, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
 
-// CAS: fixed-sidebar action buttons (desktop). Single source of the button rects — render.js
-// reads this to DRAW them and input hit-tests it to dispatch. Rects are relative to the whole
-// canvas (the sidebar occupies x∈[0, view.gx]). SIDEBAR_BTN_TOP must clear the vitals + minimap
-// that render draws above it. Returns null when the sidebar is collapsed (narrow/mobile).
+// CAS: fixed-sidebar action buttons (desktop, RIGHT side). Single source of the button rects —
+// render.js reads this to DRAW them and input hit-tests it to dispatch. Rects are canvas-space
+// (the sidebar occupies x∈[view.sbx(), VW]). SIDEBAR_BTN_TOP must clear the vitals + minimap
+// render draws above it. Returns null when the sidebar is collapsed (narrow/mobile).
 export const SIDEBAR_BTN_TOP=286, SIDEBAR_BTN_H=30, SIDEBAR_BTN_GAP=7;
-export function sidebarBtns(){ if(!view.gx) return null;
-  const P=14, x=P, w=view.gx-2*P;
+export function sidebarBtns(){ if(!view.sbw) return null;
+  const P=14, x=view.sbx()+P, w=view.sbw-2*P;
   const items=[
     ["inv","🎒","Inventario", ()=>{ G.scene=G.scene==="inventory"?"play":"inventory"; }],
     ["tal","✦","Habilidades", ()=>{ G.scene=G.scene==="talents"?"play":"talents"; }],
@@ -295,11 +295,15 @@ export function sidebarBtns(){ if(!view.gx) return null;
   items.forEach(([id,icon,label,act],i)=>{ out[id]={x, y:SIDEBAR_BTN_TOP+i*(SIDEBAR_BTN_H+SIDEBAR_BTN_GAP), w, h:SIDEBAR_BTN_H, icon, label, act}; });
   return out;
 }
-// hit-test the sidebar (buttons + any press inside the panel is CONSUMED so it never attacks)
-function sidebarTap(x,y){ if(!view.gx || x>=view.gx || G.scene!=="play") return false;
-  const sb=sidebarBtns();
-  if(sb) for(const k in sb){ const b=sb[k]; if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){ audio.sfx&&audio.sfx.uiOpen&&audio.sfx.uiOpen(); b.act(); return true; } }
-  return true; // press was on the sidebar chrome — swallow it (no world attack behind the panel)
+// hit-test the fixed chrome: any press on the RIGHT sidebar or the BOTTOM bar fires its button
+// (if any) and is CONSUMED so it never attacks the world behind the opaque panels.
+function sidebarTap(x,y){ if(G.scene!=="play") return false;
+  const onSidebar = view.sbw>0 && x>=view.sbx();
+  const onBottom  = view.bbh>0 && y>=view.VH-view.bbh && x<view.sbx();
+  if(!onSidebar && !onBottom) return false;
+  if(onSidebar){ const sb=sidebarBtns();
+    if(sb) for(const k in sb){ const b=sb[k]; if(x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h){ audio.sfx&&audio.sfx.uiOpen&&audio.sfx.uiOpen(); b.act(); return true; } } }
+  return true; // press was on the sidebar / bottom-bar chrome — swallow it
 }
 
 // CAS-277: the two end-of-run recap actions. Each fires its CAS-132 funnel event (so the
