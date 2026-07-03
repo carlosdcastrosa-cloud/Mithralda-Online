@@ -1242,7 +1242,10 @@ export function createRenderer(ctx){
     // quest tracker (top-right under buttons). CAS-299: shift LEFT of the HUD right rail
     // (minimapa/equipo/mochila) so the trackers never sit under the rail frames.
     ctx.textAlign="right"; ctx.font="bold 12px 'Courier New'";
-    const qx=VW-(hudUI?176:12); let qy=isTouch?64:18;
+    const qx=VW-(hudUI?176:12);
+    // CAS-452: at ≤480px the stat DOM panel (top:12, ~120px tall) covers the tracker;
+    // push tracker below the stat frame so it's visible on canvas at 390px.
+    let qy=isTouch?(VW<=480?124:64):18;
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
     const qw=ctx.measureText(qt).width+12;
     // CAS-416: at narrow widths the centred OBJETIVO banner reaches the tracker column;
@@ -1276,8 +1279,9 @@ export function createRenderer(ctx){
     const w=ctx.measureText(label).width+16; let x=VW/2; const y=30;
     // CAS-416: at narrow widths the centred banner reaches the HUD stat frame
     // (top-left DOM panel, 268px × HUD scale) — nudge it right just enough to clear.
-    if(hudActive()){ const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:0.78;
-      x=Math.max(x, 12+268*hs+8+w/2); }
+    // CAS-452: also clamp left so banner never overflows the right viewport edge at 390px.
+    if(hudActive()){ const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:VW>=480?0.78:0.70;
+      x=Math.min(Math.max(x, 12+268*hs+8+w/2), VW-w/2-12); }
     ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(x-w/2,y-1,w,18);
     ctx.fillStyle=col; ctx.fillRect(x-w/2,y-1,3,18);                  // accent tick
     ctx.fillStyle=col; ctx.fillText(label, x, y+12);
@@ -1316,7 +1320,7 @@ export function createRenderer(ctx){
       // that "just LEFT of the spell bar" lands ON the HUD console frame (DOM panel,
       // 340px × HUD scale wide). Flip the slot to the RIGHT of the spell bar instead
       // (still combat-coherent, and the minimap corner stays clear down to 640px).
-      const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:0.78; // mirror hud.js applyScale --s
+      const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:VW>=480?0.78:0.70; // mirror hud.js applyScale --s
       if(x<12+340*hs+8) x=Math.round(sbx+sbTotal+16); }
     const c=CONSUMABLES[h.consumSel|0]||CONSUMABLES[0]; const qty=(h.consum&&h.consum[c.id])|0;
     // active fury buff timer (shrinking bar) above the slot

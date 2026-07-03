@@ -230,6 +230,9 @@ export const hud = (()=>{
       "  #hud .hotrow{ overflow-x:auto; justify-content:flex-start !important; }",
       "  #hud .slot{ min-width:44px; }",                 // ≥44px touch targets
       "}",
+      // CAS-452: ≤480px preset — hide console (overlaps touch buttons/minimap at 390px),
+      // reduce stat-frame scale so tracker column clears the vitals panel.
+      "@media (max-width:480px){ #hud .p-con{ display:none !important; } }",
       // touch: suppress hover affordance
       "@media (pointer:coarse){ #hud .slot:hover{ border-color:"+C.panelB+"; background:"+C.bg+"; } #hud .slot{ min-width:44px; } }",
       "@media (prefers-reduced-motion:reduce){ #hud .fill{ transition:none !important; } #hud .spec{ animation:none !important; } }",
@@ -344,7 +347,7 @@ export const hud = (()=>{
   // ---- §3 responsive scale: single --s var off viewport width, integer-ish steps ----
   function applyScale(){
     if(!root) return; let s=1;
-    try{ const w=window.innerWidth||1280; s = w>=1280?1 : w>=1024?0.92 : w>=640?0.84 : 0.78; }catch(e){}
+    try{ const w=window.innerWidth||1280; s = w>=1280?1 : w>=1024?0.92 : w>=640?0.84 : w>=480?0.78 : 0.70; }catch(e){}
     root.style.setProperty("--s", String(s));
   }
 
