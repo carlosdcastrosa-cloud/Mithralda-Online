@@ -739,6 +739,7 @@ function solidBlocked(x,y,r){
   const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
   if(world.terr[ty*MAP_W+tx]===T_WATER) return true;
   if(world.wallSet && world.wallSet.has(ty*MAP_W+tx)) return true;
+  if(world.blockSet && world.blockSet.has(ty*MAP_W+tx)) return true; // CAS: enterable-house walls
   // CAS-397: only scan buckets within reach (r + largest solid radius) of the point.
   const reach=r+solidMaxR;
   const c0=Math.floor((x-reach)/SGRID_CELL), c1=Math.floor((x+reach)/SGRID_CELL);

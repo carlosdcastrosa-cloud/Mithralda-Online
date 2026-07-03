@@ -284,6 +284,40 @@ export function createRenderer(ctx){
     if(G.settings.crt) renderCRT();
   }
 
+  // CAS: procedural ENTERABLE house sprite (open-top / cutaway) → cached offscreen canvas per
+  // kind+size. Stone perimeter walls, warm wood-plank interior, a south door gap, and simple
+  // furniture. tw×th tiles; collision (world.blockSet) is authored to match in sim/world.js.
+  const _bldCache={};
+  function buildingCanvas(kind, tw, th, door){
+    if(typeof document==="undefined") return null;
+    const key=kind+"_"+tw+"_"+th+"_"+door;
+    if(_bldCache[key]) return _bldCache[key];
+    const W=tw*TS, H=th*TS;
+    const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+    const c=cv.getContext("2d"); c.imageSmoothingEnabled=false;
+    const WALL="#3a3f49", WALL_HI="#4e5460", WALL_LO="#22262e";
+    const FLR="#8a6a44", FLR_HI="#a9814f", FLR_LO="#5f472f";
+    const WOOD="#5a4632", WOOD_HI="#7a603e", BED="#963434", PILLOW="#d6d1c4", GOLD="#d8b25e";
+    // interior wood floor + plank seams + inner wall shadow
+    const ix=TS, iy=TS, iw=W-2*TS, ih=H-2*TS;
+    c.fillStyle=FLR; c.fillRect(ix,iy,iw,ih);
+    for(let py=iy; py<iy+ih; py+=8){ c.fillStyle=FLR_LO; c.fillRect(ix,py,iw,1); c.fillStyle=FLR_HI; c.fillRect(ix,py+1,iw,1); }
+    c.fillStyle="rgba(0,0,0,0.34)"; c.fillRect(ix,iy,iw,4); c.fillStyle="rgba(0,0,0,0.20)"; c.fillRect(ix,iy,4,ih);
+    const wallH=(x,y,w)=>{ c.fillStyle=WALL; c.fillRect(x,y,w,TS); c.fillStyle=WALL_HI; c.fillRect(x,y,w,3); c.fillStyle=WALL_LO; c.fillRect(x,y+TS-4,w,4);
+      c.fillStyle=WALL_LO; for(let bx=x;bx<x+w;bx+=16){ c.fillRect(bx,y+6,1,TS-10); c.fillRect(bx+8,y+3,1,4); } };
+    const wallV=(x,y,h)=>{ c.fillStyle=WALL; c.fillRect(x,y,TS,h); c.fillStyle=WALL_HI; c.fillRect(x,y,3,h); c.fillStyle=WALL_LO; c.fillRect(x+TS-4,y,4,h);
+      c.fillStyle=WALL_LO; for(let by=y;by<y+h;by+=16) c.fillRect(x+6,by,TS-10,1); };
+    wallH(0,0,W); wallV(0,TS,H-2*TS); wallV(W-TS,TS,H-2*TS);
+    const dgap=2*TS, dx=door*TS;
+    wallH(0,H-TS,dx); wallH(dx+dgap,H-TS,W-(dx+dgap));
+    c.fillStyle=WOOD_HI; c.fillRect(dx-2,H-TS,3,TS); c.fillRect(dx+dgap-1,H-TS,3,TS);     // door posts
+    c.fillStyle=WOOD; c.fillRect(dx,H-6,dgap,6); c.fillStyle="rgba(0,0,0,0.55)"; c.fillRect(dx,H-TS,dgap,3); // threshold + lintel shade
+    if(kind==="house"||kind==="cottage"){ c.fillStyle=WOOD; c.fillRect(TS+4,TS+4,26,40); c.fillStyle=BED; c.fillRect(TS+6,TS+6,22,36); c.fillStyle=PILLOW; c.fillRect(TS+6,TS+6,22,10); }
+    if(kind==="house"||kind==="shop"){ const tx=W/2-14,ty=H/2-6; c.fillStyle=WOOD_HI; c.fillRect(tx,ty,28,18); c.fillStyle=WOOD; c.fillRect(tx+2,ty+16,4,8); c.fillRect(tx+22,ty+16,4,8); }
+    if(kind==="shop"){ c.fillStyle=WOOD; c.fillRect(W-TS-22,TS+6,16,H-2*TS-12); c.fillStyle=WOOD_HI; c.fillRect(W-TS-22,TS+6,16,4); c.fillStyle=GOLD; c.fillRect(W-TS-18,TS+12,3,3); c.fillRect(W-TS-13,TS+16,3,3); }
+    if(kind==="cottage"){ c.fillStyle="#463240"; c.fillRect(W/2-10,H/2+2,20,14); c.fillStyle=WOOD; c.fillRect(W-TS-16,H-TS-20,12,16); c.fillStyle=WOOD_HI; c.fillRect(W-TS-16,H-TS-20,12,4); }
+    _bldCache[key]=cv; return cv;
+  }
   function renderWorld(camX,camY,Z){
     const x0=Math.max(0,Math.floor(camX/TS)-1), y0=Math.max(0,Math.floor(camY/TS)-1);
     const x1=Math.min(MAP_W-1,Math.ceil((camX+VW/Z)/TS)+1), y1=Math.min(MAP_H-1,Math.ceil((camY+VH/Z)/TS)+1);
@@ -337,6 +371,15 @@ export function createRenderer(ctx){
       if(hash2(x+7,y+3)<0.28){ ctx.fillStyle=tileLight[t]; ctx.fillRect(px+ ((hash2(x,y+1)*22)|0)+5, py+((hash2(x+1,y)*22)|0)+5, 3,3); }
       if(t===T_GRASS && hash2(x*2,y)<0.10){ ctx.fillStyle=COL.twig; ctx.fillRect(px+10,py+14,3,6); }
       if(t===T_SAND && hash2(x,y*2)<0.08){ ctx.fillStyle=COL.bloodSand; ctx.fillRect(px+8,py+10,6,5); }
+    }
+    // CAS: enterable walled-city houses (open-top / cutaway). Pre-rendered per kind+size to a
+    // cached canvas, blitted at GROUND level here so entities (player/NPCs) draw ON TOP → you
+    // walk inside on the same screen. Walls block via world.blockSet (sim); door gap is open.
+    if(world.buildings) for(const b of world.buildings){
+      const bxp=b.tx*TS, byp=b.ty*TS, bw=b.tw*TS, bh=b.th*TS;
+      if(bxp>camX+VW/Z+48 || bxp+bw<camX-48 || byp>camY+VH/Z+48 || byp+bh<camY-48) continue; // view-cull
+      const cv=buildingCanvas(b.kind, b.tw, b.th, b.door);
+      if(cv){ ctx.imageSmoothingEnabled=false; ctx.drawImage(cv, bxp, byp); }
     }
     // fountains (water pools)
     for(const f of world.fountains){ const r=20;

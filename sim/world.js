@@ -162,6 +162,37 @@ export function buildWorld(rng){
     if(yy<cy0+6) continue;              // keep boss area (top) clear
     wallSet.add(yy*MAP_W+xx); }
   function isWall(tx,ty){ return wallSet.has(ty*MAP_W+tx); }
+
+  // ---- CENTRAL WALLED CITY (Puerto Solana) --------------------------------------------
+  // A stone rampart rings the town rect with a GATE on each of the four road exits (town-
+  // local cols/rows 8-9), plus a cluster of ENTERABLE houses: open-top (cutaway) buildings
+  // whose perimeter walls BLOCK but whose door gap + wooden interior are WALKABLE, so the
+  // player walks inside on the same screen. Purely additive (wallSet + a new blockSet +
+  // a buildings list, no rng draws) → the spawn/prop fingerprint and balance are untouched.
+  const bx0=town.x, by0=town.y, bx1=town.x+town.w-1, by1=town.y+town.h-1;
+  const gate=[town.w-10, town.w-9]; // town-local 8,9 → the road columns/rows
+  const inGateX=(x)=>{ const l=x-town.x; return l===gate[0]||l===gate[1]; };
+  const inGateY=(y)=>{ const l=y-town.y; return l===gate[0]||l===gate[1]; };
+  for(let x=bx0;x<=bx1;x++){ if(!inGateX(x)){ wallSet.add(by0*MAP_W+x); wallSet.add(by1*MAP_W+x); } }
+  for(let y=by0;y<=by1;y++){ if(!inGateY(y)){ wallSet.add(y*MAP_W+bx0); wallSet.add(y*MAP_W+bx1); } }
+  // enterable houses — tile rects with a south-facing door gap (2 cells wide at local `door`)
+  const buildings=[
+    { tx:town.x+2,        ty:town.y+2,        tw:5, th:4, kind:"house",   door:2 },
+    { tx:town.x+town.w-7, ty:town.y+2,        tw:5, th:4, kind:"shop",    door:2 },
+    { tx:town.x+2,        ty:town.y+town.h-6, tw:5, th:4, kind:"cottage", door:2 },
+    { tx:town.x+town.w-7, ty:town.y+town.h-6, tw:5, th:4, kind:"house",   door:2 },
+  ];
+  // collision: every perimeter wall cell of every building blocks; the 2-cell south door gap
+  // and the interior floor stay walkable. Rendered procedurally in render.js (open-top).
+  const blockSet=new Set();
+  for(const b of buildings){
+    for(let yy=0;yy<b.th;yy++) for(let xx=0;xx<b.tw;xx++){
+      const edge = xx===0||xx===b.tw-1||yy===0||yy===b.th-1;
+      if(!edge) continue;                                   // interior floor = walkable
+      if(yy===b.th-1 && (xx===b.door||xx===b.door+1)) continue; // south door gap = walkable
+      blockSet.add((b.ty+yy)*MAP_W+(b.tx+xx));
+    }
+  }
   // props from the purchased packs — decorate the caves (and a little of the arena)
   function prop(kind,x,y,solid,r){ deco.push({x,y,kind}); if(solid) solids.push({x,y,r:r||10,kind}); }
   for(let i=0;i<16;i++){ const tx=caves.x+rr(2,caves.w-2), ty=caves.y+rr(3,caves.h-2); if(isWall(tx,ty)) continue; const x=tx*TS, y=ty*TS;
@@ -351,7 +382,7 @@ export function buildWorld(rng){
   spawners.push({rect:swamp,types:["mudlurker","mudlurker","wisp","toadbrute"],max:12,cool:4,t:0,zone:"swamp"});
   chests.push({x:(swamp.x+swamp.w-4)*TS,y:(swamp.y+swamp.h-4)*TS,opened:false,loot:"gold60"});
   fragments.push({x:(swamp.x+swamp.w-3)*TS,y:(swamp.y+3)*TS,taken:false,kind:"hp"});
-  return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, swamp, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet };
+  return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, swamp, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet, buildings, blockSet };
 }
 
 export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
