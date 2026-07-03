@@ -168,7 +168,7 @@ const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=8, CLASS_WALK8_FPS=8; // 8f@8fps → cycl
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
 function dir8FromAngle(ang){ return ((Math.round(ang/(Math.PI/4))%8)+8)%8; }
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
-import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
+import { ui, stick, tbtns, topBtns, isTouch, sidebarBtns } from "../input.js";
 
 export function createRenderer(ctx){
   const G = sim.G, world = sim.world;
@@ -1171,7 +1171,11 @@ export function createRenderer(ctx){
 
   function renderHUD(){ const h=G.hero; ctx.textAlign="left";
     const pad=12, bw=Math.min(220,VW*0.42);
-    const hudUI=hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
+    // CAS: fixed left sidebar (Tibia-style). When active it is the SOLE HUD — the DOM HUD is
+    // force-hidden (game.js) and the scattered canvas vitals are suppressed (hudUI). Overlays
+    // that belong over the world (zone/objective/banners) recentre on the visible game area.
+    const sidebar=view.gx>0, GCX=view.gcx();
+    const hudUI=sidebar||hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
     auditRects = auditOn() ? {} : null; // CAS-416: collect drawn rects only under the QA flag
     uiLayout.frame(); // CAS-418: stamp this HUD pass — pub()'d widget rects go stale when not drawn (touch)
     // CAS-118: while the hero suffers a status, frame the screen with a pulsing edge
@@ -1194,6 +1198,9 @@ export function createRenderer(ctx){
       }
     }
     const mhp=heroMaxHp(h); // CAS-117: bar reflects the +vida affix pool
+    // CAS: draw the fixed sidebar column (opaque bg + vitals + buttons) UNDER the minimap /
+    // spell bar / consumable that render later so they overlay it. Recentred game overlays follow.
+    if(sidebar) drawSidebarPanel(h, mhp);
     if(!hudUI){ // CAS-299: legacy vitals (HP/MP/XP bars · gold/potions · name/skull) — HUD owns these
       bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
       bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
@@ -1202,14 +1209,14 @@ export function createRenderer(ctx){
     // CAS-119: unspent talent-point badge — prompts the player to open the tree (T). CAS-299:
     // when the HUD owns the top-left, the badge moves to the left column UNDER the HUD panel.
     const badgeX = hudUI ? pad : pad+bw+8;
-    if((h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
+    if(!sidebar && (h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
       ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="left";
       const tby=hudUI?258:pad+47; if(auditRects) AR("talentBadge", badgeX, tby-13, ctx.measureText("★"+h.talentPts+" (T)").width, 15);
       ctx.fillText("★"+h.talentPts+" (T)", badgeX, tby); ctx.restore(); ctx.textAlign="left"; }
     // CAS-149: Elite-Mastery badge — the persistent, cross-session progression read-out,
     // kept always-visible (even rank 0, with kills-to-next) so the long-term hook that grows
     // across sessions is legible from minute one. CAS-299: reflows under the HUD panel.
-    { const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
+    if(!sidebar){ const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
       ctx.save(); ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
       const prog = nx!=null ? (" "+(h.eliteKills|0)+"/"+nx) : " MÁX";
       // CAS-150: "(V)" hint opens the reward-track panel — only while a milestone is still
@@ -1231,8 +1238,8 @@ export function createRenderer(ctx){
     // zone name
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
     const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,trial:STR.zoneTrial,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
-    AR("zone", VW/2-ctx.measureText(zn).width/2, 10, ctx.measureText(zn).width, 12);
-    ctx.fillText(zn, VW/2, 20);
+    AR("zone", GCX-ctx.measureText(zn).width/2, 10, ctx.measureText(zn).width, 12);
+    ctx.fillText(zn, GCX, 20);
     // CAS-123: Stage-1 OBJECTIVE tracker — the single legible win-goal, top-centre and
     // ALWAYS visible so a new player reads where the run is headed from minute one. The
     // text + colour switch as the gate opens (locked → ready) and once the run is won.
@@ -1242,7 +1249,7 @@ export function createRenderer(ctx){
     // quest tracker (top-right under buttons). CAS-299: shift LEFT of the HUD right rail
     // (minimapa/equipo/mochila) so the trackers never sit under the rail frames.
     ctx.textAlign="right"; ctx.font="bold 12px 'Courier New'";
-    const qx=VW-(hudUI?176:12); let qy=isTouch?64:18;
+    const qx=VW-((hudUI&&!sidebar)?176:12); let qy=isTouch?64:18;
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
     const qw=ctx.measureText(qt).width+12;
     // CAS-416: at narrow widths the centred OBJETIVO banner reaches the tracker column;
@@ -1273,7 +1280,7 @@ export function createRenderer(ctx){
       else { txt=STR.objLocked(pw, req); col=COL.textGold; } }        // still building power
     const label=STR.objLabel+": "+txt;
     ctx.textAlign="center"; ctx.font="bold 11px 'Courier New'";
-    const w=ctx.measureText(label).width+16; let x=VW/2; const y=30;
+    const w=ctx.measureText(label).width+16; let x=view.gcx(); const y=30;
     // CAS-416: at narrow widths the centred banner reaches the HUD stat frame
     // (top-left DOM panel, 268px × HUD scale) — nudge it right just enough to clear.
     if(hudActive()){ const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:0.78;
@@ -1309,8 +1316,11 @@ export function createRenderer(ctx){
     // CAS-299: the legacy slot lives bottom-left, where the HUD console now sits. When the
     // HUD is active, reflow the quick-use slot to just LEFT of the spell bar (combat-coherent:
     // potions beside spells) so it never overlaps the console frame.
+    const sidebar=view.gx>0;
     let x=12, y=VH-12-s;
-    if(hudUI){ const sb=Math.min(46,VW*0.1); const sbTotal=4*sb+3*6; const sbx=VW/2-sbTotal/2;
+    if(sidebar){ // CAS: quick-use slot sits just ABOVE the sidebar hotbar, centred in the column
+      x=Math.round((view.gx-s)/2); y=VH-14-Math.min(46,VW*0.1)-11 - s - 12; }
+    else if(hudUI){ const sb=Math.min(46,VW*0.1); const sbTotal=4*sb+3*6; const sbx=VW/2-sbTotal/2;
       x=Math.max(12, Math.round(sbx-s-16)); y=VH-14-s;
       // CAS-416: below ~930px wide the spell bar sits close enough to the left corner
       // that "just LEFT of the spell bar" lands ON the HUD console frame (DOM panel,
@@ -1356,9 +1366,14 @@ export function createRenderer(ctx){
     if(isTouch) return; // touch uses buttons
     // CAS-418: anchor from the layout store (default = bottom-centre, unchanged);
     // cx/cy clamp a stored anchor to the live viewport EVERY draw (covers load+resize).
-    const x0=uiLayout.cx("spellbar", VW/2-total/2, total);
-    const y=uiLayout.cy("spellbar", VH-14-s, s+11);
-    uiLayout.pub("spellbar", x0, y, total, s+11); // hit-rect for the input drag router
+    const sidebar=view.gx>0;
+    let x0, y;
+    if(sidebar){ // CAS: hotbar docked at the foot of the fixed sidebar
+      x0=Math.round((view.gx-total)/2); y=VH-14-s-11; }
+    else {
+      x0=uiLayout.cx("spellbar", VW/2-total/2, total);
+      y=uiLayout.cy("spellbar", VH-14-s, s+11);
+      uiLayout.pub("spellbar", x0, y, total, s+11); } // hit-rect for the input drag router
     AR("spellbar", x0-2, y-2, total+4, s+13); // incl. the mp-cost caption line
     if(uiLayout.dragging()==="spellbar"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x0-4,y-4,total+8,s+15); }
     // costs / colours / labels are data-driven from SPELLS[cls] (slot 0 = basic attack)
@@ -1389,11 +1404,54 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
       if(costs[i]>0){ ctx.fillStyle="#8ab8ff"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
-  function renderMiniMap(){ const mw=120, mh=120; if(isTouch) return;
-    // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
-    const x=uiLayout.cx("minimap", VW-mw-12, mw);
-    const y=uiLayout.cy("minimap", VH-mh-12, mh);
-    uiLayout.pub("minimap", x, y, mw, mh); // hit-rect for the input drag router
+  // CAS: the fixed left sidebar (Tibia-style). Opaque column covering x∈[0,view.gx] with the
+  // hero identity + vitals at the top, then the docked minimap (renderMiniMap), a stack of
+  // action buttons (open inventory / talents / mastery / wardrobe / map / menu), a compact
+  // mastery read-out, the quick-use slot and the hotbar at the foot. Buttons are hit-tested in
+  // input.js sidebarBtns() — this only DRAWS them from the same rects.
+  function drawSidebarPanel(h, mhp){
+    const W=view.gx, P=14, iw=W-2*P;
+    ctx.fillStyle="#0e1016"; ctx.fillRect(0,0,W,VH);                 // opaque column
+    ctx.fillStyle=COL.panelB; ctx.fillRect(W-2,0,2,VH);             // right divider
+    // identity + gold
+    let y=P; ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'";
+    ctx.fillText(h.name||"—", P, y+13);
+    ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText((h.gold|0)+" oro", W-P, y+12);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
+    const clsName=(STR.classes&&STR.classes[h.cls]&&STR.classes[h.cls].name)||h.cls;
+    ctx.fillText(clsName+" · "+STR.level(h.lvl), P, y+27);
+    // vitals bars
+    y+=34;
+    bar(P,y,    iw,16, h.hp/mhp,      COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
+    bar(P,y+20, iw,13, h.mp/h.maxMp,  COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
+    bar(P,y+37, iw,9,  h.xp/h.xpNext, COL.xpf,COL.xpb, STR.level(h.lvl));
+    // action buttons (minimap is drawn later by renderMiniMap into the gap at y≈104)
+    const sb=sidebarBtns();
+    if(sb){ for(const k in sb){ const b=sb[k];
+      const hot=!isTouch && ui.mouseX>=b.x && ui.mouseX<=b.x+b.w && ui.mouseY>=b.y && ui.mouseY<=b.y+b.h;
+      ctx.fillStyle=hot?"#20242f":"#171a22"; ctx.fillRect(b.x,b.y,b.w,b.h);
+      ctx.strokeStyle=hot?COL.textGold:COL.panelB; ctx.lineWidth=1; ctx.strokeRect(b.x+0.5,b.y+0.5,b.w-1,b.h-1);
+      ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="13px 'Courier New'"; ctx.fillText(b.icon, b.x+9, b.y+b.h/2+5);
+      ctx.fillStyle=hot?COL.goldL:COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(b.label, b.x+34, b.y+b.h/2+4);
+    } }
+    // compact mastery / talent read-out below the buttons
+    const mr=sim.masteryRank(h.eliteKills|0), nx=sim.masteryNextAt(mr);
+    const btop=(sb&&sb.menu)?sb.menu.y+sb.menu.h+12:VH-140;
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'";
+    ctx.fillText(STR.masteryHud(mr)+(nx!=null?(" "+(h.eliteKills|0)+"/"+nx):" MÁX"), P, btop);
+    if((h.talentPts|0)>0){ const pl=0.6+0.4*Math.abs(Math.sin(G.t*4));
+      ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.goldL; ctx.fillText("★ "+h.talentPts+" talento(s) (T)", P, btop+16); ctx.restore(); }
+    ctx.textAlign="left";
+  }
+  function renderMiniMap(){ if(isTouch) return;
+    const sidebar=view.gx>0;
+    let mw=120, mh=120, x, y;
+    if(sidebar){ // CAS: minimap docked in the fixed sidebar (under the vitals), centred
+      mw=mh=Math.min(view.gx-28,176); x=Math.round((view.gx-mw)/2); y=104; }
+    else { // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
+      x=uiLayout.cx("minimap", VW-mw-12, mw);
+      y=uiLayout.cy("minimap", VH-mh-12, mh);
+      uiLayout.pub("minimap", x, y, mw, mh); } // hit-rect for the input drag router
     AR("minimap", x-2, y-2, mw+4, mh+4);
     ctx.fillStyle="rgba(12,14,19,0.8)"; ctx.fillRect(x-2,y-2,mw+4,mh+4); ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
     if(uiLayout.dragging()==="minimap"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x-4,y-4,mw+8,mh+8); }

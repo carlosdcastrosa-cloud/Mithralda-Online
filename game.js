@@ -49,7 +49,15 @@ export function createGame(canvas, ctx, getView){
       if(s==="dead") analytics.event("recap_shown");
       prevScene=s; } }
   function render(alpha){ renderer.render(alpha); }
-  function onResize(w,h){ view.VW=w; view.VH=h; if(G.scene==="menu") positionNameInput(); }
+  // CAS: fixed left sidebar (Tibia-style). Wide screens reserve SIDEBAR_W px on the left for
+  // the canvas HUD column; the ornate DOM HUD is force-hidden there (no double UI). Narrow /
+  // mobile collapses the sidebar (gx=0) and keeps the existing HUD + a small floating minimap.
+  const SIDEBAR_W=300, SIDEBAR_MIN=900;
+  function applySidebar(){
+    view.gx = (view.VW>=SIDEBAR_MIN) ? SIDEBAR_W : 0;
+    try{ hud.setForcedOff(view.gx>0); }catch(e){}
+  }
+  function onResize(w,h){ view.VW=w; view.VH=h; applySidebar(); if(G.scene==="menu") positionNameInput(); }
   function onFocusLost(){ if(G.scene==="play") G.scene="pause"; }
   function devInfo(){ return "ent:"+G.enemies.length+" fx:"+G.fx.length+" scene:"+G.scene; }
 

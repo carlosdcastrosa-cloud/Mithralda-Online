@@ -1895,7 +1895,9 @@ export function update(dtMs){
 
   if(h.hp<=0) heroDie();
   // camera (presentation-only; reads plain viewport numbers, never the DOM)
-  G.cam.x=lerp(G.cam.x, h.x-view.VW/2/view.zoom(), 0.14);
+  // CAS: centre the hero in the VISIBLE game area (right of the fixed left sidebar), not the
+  // whole canvas — the world is drawn full-screen and the sidebar covers the left gx px.
+  G.cam.x=lerp(G.cam.x, h.x-view.gcx()/view.zoom(), 0.14);
   G.cam.y=lerp(G.cam.y, h.y-view.VH/2/view.zoom(), 0.14);
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*30);
 }

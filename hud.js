@@ -462,6 +462,15 @@ export const hud = (()=>{
   function hide(){ on=false; if(root) root.style.display="none";
     if(timer){ clearInterval(timer); timer=0; } try{ window.removeEventListener("resize",applyScale); }catch(e){} writePref(false); }
   function toggle(){ on?hide():show(); }
+  // CAS: non-persisting suppression for the fixed-sidebar layout (the canvas sidebar owns the
+  // UI on wide screens). Unlike hide(), this NEVER writes the pref — flip it off and the DOM
+  // HUD returns to whatever the player chose. isOn() reports false while forced off so the
+  // renderer treats the sidebar as the sole HUD.
+  let forcedOff=false;
+  function setForcedOff(v){ forcedOff=!!v;
+    if(root) root.style.display = (on && !forcedOff) ? "block" : "none";
+    if(forcedOff){ if(timer){ clearInterval(timer); timer=0; } }
+    else if(on && !timer){ timer=setInterval(paint, REFRESH_MS); paint(); } }
 
   // boot(getState): getState is a READ-ONLY snapshot accessor injected by game.js.
   // CAS-299 — DEFAULT-ON cutover (board-approved a35ddd26): the redesigned HUD is the
@@ -483,10 +492,10 @@ export const hud = (()=>{
     catch(e){ want = (flag!=null) ? flag : true; }
     if(want) show();
     // dev/QA hook — toggle + read the same snapshot the HUD paints, headlessly.
-    window.__hud={ show, hide, toggle, isOn:()=>on, state:()=>{ try{ return getState(); }catch(e){ return null; } },
+    window.__hud={ show, hide, toggle, isOn:()=>on&&!forcedOff, state:()=>{ try{ return getState(); }catch(e){ return null; } },
       drawer:(v)=>{ drawerOpen=(v==null?!drawerOpen:!!v); if(root) root.classList.toggle("draw",drawerOpen); return drawerOpen; },
       scale:()=>{ try{ return getComputedStyle(root).getPropertyValue("--s").trim(); }catch(e){ return null; } }, KEY };
   }
 
-  return { boot, show, hide, toggle, isOn:()=>on, KEY };
+  return { boot, show, hide, toggle, setForcedOff, isOn:()=>on&&!forcedOff, KEY };
 })();
