@@ -26,3 +26,9 @@ deploy/
 
 # Headless QA screenshot artifacts (regenerable via npm run smoke / atlas-qa)
 tools/*.png
+shots/
+
+# Raw purchased ERW Ancient Ruins tileset sheets (source art, ~5MB). The game ships
+# only the tiny derived 32px tiles in assets/tiles|props/erw_*; regenerate them with
+# tools/erw-slice-city.py after re-uploading the pack into assets/erw/city/.
+assets/erw/

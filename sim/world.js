@@ -195,6 +195,10 @@ export function buildWorld(rng){
   }
   // props from the purchased packs — decorate the caves (and a little of the arena)
   function prop(kind,x,y,solid,r){ deco.push({x,y,kind}); if(solid) solids.push({x,y,r:r||10,kind}); }
+  // ERW little wall-fountains flanking the north city gate (visual only — non-solid deco,
+  // no rng draw, so the spawn/balance fingerprint is untouched).
+  prop("prop_erw_fountain",(town.x+5)*TS,(town.y+2)*TS,false);
+  prop("prop_erw_fountain",(town.x+town.w-5)*TS,(town.y+2)*TS,false);
   for(let i=0;i<16;i++){ const tx=caves.x+rr(2,caves.w-2), ty=caves.y+rr(3,caves.h-2); if(isWall(tx,ty)) continue; const x=tx*TS, y=ty*TS;
     const k=srand(); if(k<0.30) prop("prop_barrel",x,y,true,9);
     else if(k<0.50) prop("prop_pillar",x,y,true,9);

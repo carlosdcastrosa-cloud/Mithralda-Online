@@ -323,7 +323,16 @@ export function createRenderer(ctx){
     const x1=Math.min(MAP_W-1,Math.ceil((camX+VW/Z)/TS)+1), y1=Math.min(MAP_H-1,Math.ceil((camY+VH/Z)/TS)+1);
     for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
       const t=world.terr[y*MAP_W+x]; const px=x*TS, py=y*TS;
-      if(world.wallSet && world.wallSet.has(y*MAP_W+x)){ const wimg=(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
+      if(world.wallSet && world.wallSet.has(y*MAP_W+x)){
+        // CAS: the CENTRAL WALLED CITY rampart is re-skinned with real ERW Ancient Ruins wall
+        // art — mossy sandstone crown (erw_wall_h) along the N/S runs + corners, stone-brick
+        // face (erw_wall_v) down the E/W sides. Scoped to the town rect border so cave walls
+        // elsewhere keep their own tiles; falls back to the cave wall art until ERW loads.
+        const T=world.town; let wimg;
+        if(T && x>=T.x && x<=T.x+T.w-1 && y>=T.y && y<=T.y+T.h-1 && (x===T.x||x===T.x+T.w-1||y===T.y||y===T.y+T.h-1)){
+          const erw=(y===T.y||y===T.y+T.h-1)?IMG.erw_wall_h:IMG.erw_wall_v;
+          wimg=(erw&&erw.complete&&erw.naturalWidth)?erw:(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
+        } else wimg=(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
         if(wimg&&wimg.complete&&wimg.naturalWidth) ctx.drawImage(wimg,px,py,TS,TS); else { ctx.fillStyle="#2b313a"; ctx.fillRect(px,py,TS,TS); }
         continue; }
       if(t===T_STONE){ const r=hash2(x,y); const img = (r<0.10?IMG.cave_blood:(r<0.65?IMG.cave_floor:IMG.cave_floor2)); // CAS-217: flagstone-dominant + void + rare war-torn blood accent
@@ -349,7 +358,13 @@ export function createRenderer(ctx){
       // pays in flagstone; forest/ruins/field (T_GRASS) in grass. Two deterministic
       // variants per kind via hash2(); fall through to the procedural fill below when
       // the image hasn't loaded (unit tooling / first frame). Collision is untouched.
-      if(t===T_COBBLE){ const img=(hash2(x,y)<0.5?IMG.ruins_floor:IMG.ruins_floor2);
+      if(t===T_COBBLE){
+        // CAS: the walled-city plaza (T_COBBLE inside the town rect) pays in real ERW flagstone;
+        // the colosseum/ruins flagstone elsewhere keeps ruins_floor. ERW tiles fall back to the
+        // ruins flagstone until they load so the plaza never flashes bare.
+        const T=world.town, inTown=T&&x>=T.x&&x<T.x+T.w&&y>=T.y&&y<T.y+T.h;
+        let img=inTown ? (hash2(x,y)<0.5?IMG.erw_flag:IMG.erw_flag2) : null;
+        if(!(img&&img.complete&&img.naturalWidth)) img=(hash2(x,y)<0.5?IMG.ruins_floor:IMG.ruins_floor2);
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
