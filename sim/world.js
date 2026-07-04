@@ -199,6 +199,11 @@ export function buildWorld(rng){
   // no rng draw, so the spawn/balance fingerprint is untouched).
   prop("prop_erw_fountain",(town.x+5)*TS,(town.y+2)*TS,false);
   prop("prop_erw_fountain",(town.x+town.w-5)*TS,(town.y+2)*TS,false);
+  // CAS: central SHRINE monument — a real ERW Ancient Ruins greek-key altar crowning the plaza
+  // (the circular ruin-plaza ring + sun/moon glyphs are drawn in render.js around this point).
+  // Set 2.5 tiles NORTH of dead-centre so it stands BEHIND the healer NPC (at tcx,tcy) instead
+  // of on her; solid base blocks like the market stalls. No rng draw → balance untouched.
+  prop("prop_erw_altar", tcx, tcy-2.5*TS, true, 16);
   for(let i=0;i<16;i++){ const tx=caves.x+rr(2,caves.w-2), ty=caves.y+rr(3,caves.h-2); if(isWall(tx,ty)) continue; const x=tx*TS, y=ty*TS;
     const k=srand(); if(k<0.30) prop("prop_barrel",x,y,true,9);
     else if(k<0.50) prop("prop_pillar",x,y,true,9);

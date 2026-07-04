@@ -559,7 +559,7 @@ export const CLASS_DIRS=["down","up","side"];
 // (CAS-21, board-approved 2026-06-27). Not the class-select card preview, which
 // fits-to-card independently.
 export const HERO_SPRITE_SCALE=1.85;
-export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58, prop_erw_fountain:0.5 };
+export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58, prop_erw_fountain:0.5, prop_erw_altar:0.5 };
 // CAS-353: nature pack (board-supplied) for the wilderness forest that fills the empty
 // field (the "tiles negras" — the dark negative space outside every zone). Authored at
 // tile resolution (trees 48×80, pines 32×80, rocks 16–48px, foliage 16–32px), so they
@@ -606,6 +606,11 @@ export function loadAllAssets(){
   loadImg("erw_flag","./assets/tiles/erw_flag.png");
   loadImg("erw_flag2","./assets/tiles/erw_flag2.png");
   loadImg("prop_erw_fountain","./assets/props/erw_fountain.png");
+  // ERW Atlas-Props (real art) → the central shrine plaza monument. The greek-key altar is a
+  // y-sorted deco prop (player walks behind it); the radiant sun glyph is blitted flat on the
+  // plaza. Alt centerpieces (sword monument, colossus foot, altar basin) ship for easy swap.
+  loadImg("prop_erw_altar","./assets/props/erw_altar.png");
+  loadImg("erw_sun","./assets/props/erw_sun.png");
   // CAS-441: Ciénaga de Bruma marsh floor (CAS-439 art) — T_SWAMP paints these four
   // 32px tiles (mud base / moss-flecked mud / puddle / water pool) via hash2 variants.
   loadImg("swamp_mud","./assets/tiles/swamp_mud.png");

@@ -19,6 +19,8 @@ const CHANGED = [
   "assets/tiles/erw_flag.png",
   "assets/tiles/erw_flag2.png",
   "assets/props/erw_fountain.png",
+  "assets/props/erw_altar.png",
+  "assets/props/erw_sun.png",
 ];
 const git = (...a) => execFileSync("git", a, { maxBuffer: 256 * 1024 * 1024 });
 const gitStr = (...a) => git(...a).toString().trim();

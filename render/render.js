@@ -318,6 +318,55 @@ export function createRenderer(ctx){
     if(kind==="cottage"){ c.fillStyle="#463240"; c.fillRect(W/2-10,H/2+2,20,14); c.fillStyle=WOOD; c.fillRect(W-TS-16,H-TS-20,12,16); c.fillStyle=WOOD_HI; c.fillRect(W-TS-16,H-TS-20,12,4); }
     _bldCache[key]=cv; return cv;
   }
+  // CAS: central SHRINE plaza — a circular ERW-style ancient-ruins ring (outer sandstone band +
+  // brown processional track + a ring of diamond flagstones) cached once per radius and blitted
+  // flat at the town centre, UNDER the fountains/NPCs/altar. Interior stays transparent so the
+  // ERW flagstone floor shows through. Sun (real art) + moon (below) are drawn on top separately.
+  const _plazaCache={};
+  function plazaCanvas(R){
+    if(typeof document==="undefined") return null;
+    if(_plazaCache[R]) return _plazaCache[R];
+    const S=2*R, cx=R, cy=R;
+    const cv=document.createElement("canvas"); cv.width=S; cv.height=S;
+    const c=cv.getContext("2d"); c.imageSmoothingEnabled=false;
+    const SAND_HI="#e7d6a2", SAND="#cdb578", SAND_LO="#9c8248", TRACK="#8a6a3f", TRACK_LO="#6a4f2e", MOSS="#7d9450";
+    const bandW=Math.round(R*0.17), ringR=R-bandW/2;
+    // outer sandstone band (the paved rim)
+    c.lineCap="butt";
+    c.strokeStyle=SAND; c.lineWidth=bandW; c.beginPath(); c.arc(cx,cy,ringR,0,6.283); c.stroke();
+    c.strokeStyle=SAND_HI; c.lineWidth=2; c.beginPath(); c.arc(cx,cy,R-1,0,6.283); c.stroke();          // bright outer lip
+    c.strokeStyle=SAND_LO; c.lineWidth=2; c.beginPath(); c.arc(cx,cy,R-bandW+1,0,6.283); c.stroke();     // inner shadow lip
+    // radial block seams across the band
+    const seams=32;
+    c.strokeStyle=SAND_LO; c.lineWidth=1;
+    for(let i=0;i<seams;i++){ const a=i/seams*6.283, co=Math.cos(a), si=Math.sin(a);
+      c.beginPath(); c.moveTo(cx+co*(R-bandW+1), cy+si*(R-bandW+1)); c.lineTo(cx+co*(R-1), cy+si*(R-1)); c.stroke(); }
+    // brown processional track just inside the band
+    const trackW=Math.round(R*0.085), trackR=R-bandW-trackW/2-1;
+    c.strokeStyle=TRACK; c.lineWidth=trackW; c.beginPath(); c.arc(cx,cy,trackR,0,6.283); c.stroke();
+    c.strokeStyle=TRACK_LO; c.lineWidth=2; c.beginPath(); c.arc(cx,cy,trackR-trackW/2+1,0,6.283); c.stroke();
+    // ring of diamond flagstones on the inner court
+    const diamR=Math.round(R*0.60), dN=16, dh=Math.round(R*0.06);
+    for(let i=0;i<dN;i++){ const a=i/dN*6.283, dx=cx+Math.cos(a)*diamR, dy=cy+Math.sin(a)*diamR;
+      c.save(); c.translate(dx,dy); c.rotate(Math.PI/4);
+      c.fillStyle=SAND; c.fillRect(-dh,-dh,dh*2,dh*2); c.fillStyle=SAND_HI; c.fillRect(-dh,-dh,dh*2,2); c.restore(); }
+    // a few moss tufts breaking the rim (deterministic)
+    c.fillStyle=MOSS;
+    for(let i=0;i<seams;i+=5){ const a=i/seams*6.283; c.fillRect(Math.round(cx+Math.cos(a)*(R-2))-1, Math.round(cy+Math.sin(a)*(R-2))-1, 2,2); }
+    _plazaCache[R]=cv; return cv;
+  }
+  // procedural crescent moon glyph (no moon art in the pack) — pale sage stone inlay, mirror of
+  // the real ERW sun disc it's paired with on the shrine plaza.
+  function drawMoonGlyph(x,y,r){
+    ctx.save();
+    ctx.fillStyle="#aeb89c"; ctx.beginPath();
+    ctx.arc(x,y,r, Math.PI*0.42, Math.PI*1.58);                 // outer edge
+    ctx.arc(x+r*0.5,y,r*0.86, Math.PI*1.5, Math.PI*0.5, true);  // inner bite (crescent)
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle="#7c886a"; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle="#d3dcc4"; ctx.beginPath(); ctx.arc(x-r*0.35,y-r*0.4,1.6,0,6.283); ctx.fill(); // glint
+    ctx.restore();
+  }
   function renderWorld(camX,camY,Z){
     const x0=Math.max(0,Math.floor(camX/TS)-1), y0=Math.max(0,Math.floor(camY/TS)-1);
     const x1=Math.min(MAP_W-1,Math.ceil((camX+VW/Z)/TS)+1), y1=Math.min(MAP_H-1,Math.ceil((camY+VH/Z)/TS)+1);
@@ -395,6 +444,21 @@ export function createRenderer(ctx){
       if(bxp>camX+VW/Z+48 || bxp+bw<camX-48 || byp>camY+VH/Z+48 || byp+bh<camY-48) continue; // view-cull
       const cv=buildingCanvas(b.kind, b.tw, b.th, b.door);
       if(cv){ ctx.imageSmoothingEnabled=false; ctx.drawImage(cv, bxp, byp); }
+    }
+    // CAS: central SHRINE plaza (ERW ruins) — circular ring under the town centre, with the
+    // real ERW radiant sun glyph W and a procedural crescent moon E (mirroring the mockup).
+    // The greek-key altar itself is a y-sorted deco prop placed in sim/world.js. Drawn here at
+    // ground level (under fountains/NPCs) and view-culled against the plaza bounds.
+    if(world.town){
+      const T=world.town, R=Math.round(4.5*TS);
+      const cxp=Math.round((T.x+T.w/2)*TS), cyp=Math.round((T.y+T.h/2)*TS);
+      if(!(cxp-R>camX+VW/Z+48 || cxp+R<camX-48 || cyp-R>camY+VH/Z+48 || cyp+R<camY-48)){
+        const pv=plazaCanvas(R); if(pv){ ctx.imageSmoothingEnabled=false; ctx.drawImage(pv, cxp-R, cyp-R); }
+        const sImg=IMG.erw_sun;
+        if(sImg&&sImg.complete&&sImg.naturalWidth){ const ss=0.62, sw=sImg.naturalWidth*ss, sh=sImg.naturalHeight*ss;
+          ctx.drawImage(sImg, Math.round(cxp-2.7*TS-sw/2), Math.round(cyp+0.4*TS-sh/2), Math.round(sw), Math.round(sh)); }
+        drawMoonGlyph(cxp+2.7*TS, cyp+0.4*TS, 15);
+      }
     }
     // fountains (water pools)
     for(const f of world.fountains){ const r=20;

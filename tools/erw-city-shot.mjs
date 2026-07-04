@@ -24,7 +24,7 @@ await key("Digit1","keydown"); await key("Digit1","keyup");
 await fr.waitForFunction("window.__dev.scene()==='play'",{timeout:8000});
 await sleep(1500);
 // town = {x:156,y:156,w:18,h:18} → center ≈ (165,165). Also shoot the north gate & a corner.
-const spots=[[165,165,"erw-city-center.png"],[164,157,"erw-city-north.png"],[158,158,"erw-city-nw.png"],[165,174,"erw-city-south.png"]];
+const spots=[[165,165,"erw-city-center.png"],[165,159,"erw-shrine-altar.png"],[158,158,"erw-city-nw.png"],[165,174,"erw-city-south.png"]];
 for(const [tx,ty,name] of spots){
   await fr.evaluate((tx,ty)=>window.__dev.tp(tx,ty),tx,ty);
   await sleep(900);
