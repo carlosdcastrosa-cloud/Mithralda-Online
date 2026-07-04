@@ -5,7 +5,7 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_ICE, T_SWAMP, T_WATER, TOWN_MAP, TOWN_LEGEND } from "./config.js";
 import { inRect } from "./math.js";
 
 // CAS-80: resolve a town-local cell (lx,ly within the 18×18 town rect) to its terrain
@@ -28,27 +28,46 @@ export function buildWorld(rng){
   // portals, chests, fragments, dirt paths, cave walls) derives from these rects, so shifting
   // the rects shifts the ENTIRE world coherently. The offset adds/removes NO rng draw, so the
   // spawn/prop RNG fingerprint (and thus balance) is byte-identical to the pre-triple world.
-  const OX=110, OY=110;                            // (MAP_W-110)/2 — centers the 110-tile content block
-  const town  = {x:46+OX,y:46+OY,w:18,h:18};
-  const forest= {x:64+OX,y:34+OY,w:44,h:42};
-  const caves = {x:30+OX,y:4+OY,w:52,h:34};
-  const arena = {x:42+OX,y:66+OY,w:26,h:38};
-  const ruins = {x:6+OX,y:44+OY,w:30,h:30};
+  // CAS-461: el CONTINENTE DE MITHRALDA — the world is now an irregular island
+  // (authored in Tiled, ported here as the deterministic continent mask below):
+  // an ellipse (center CCX/CCY, radii CRX/CRY) + 14 coast lobes − 10 bays, ocean
+  // (T_WATER, already solid via solidBlocked) everywhere outside. Zone rects are
+  // repositioned onto the landmass per the authored map: town at the continent
+  // center, open zones ringing it, the three portal dungeons on far capes.
+  // The mask uses its OWN tiny seeded rng (mulberry32) so terrain sampling never
+  // touches the sim rng stream — spawn/prop draws keep a stable fingerprint.
+  const CCX=380, CCY=285, CRX=350, CRY=262;
+  const mul32=(a)=>()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
+  const mrand=mul32(1234);
+  const lobes=[], bays=[];
+  for(let i=0;i<14;i++){ const a=mrand()*6.283; lobes.push([CCX+CRX*0.95*Math.cos(a), CCY+CRY*0.95*Math.sin(a), 35+mrand()*50, 30+mrand()*40]); }
+  for(let i=0;i<10;i++){ const a=mrand()*6.283; bays.push([CCX+CRX*1.02*Math.cos(a), CCY+CRY*1.02*Math.sin(a), 25+mrand()*23, 22+mrand()*20]); }
+  function landAt(tx,ty){
+    let land = ((tx-CCX)/CRX)**2 + ((ty-CCY)/CRY)**2 <= 1;
+    if(!land) for(const [lx,ly,rx,ry] of lobes){ if(((tx-lx)/rx)**2+((ty-ly)/ry)**2<=1){ land=true; break; } }
+    if(land)  for(const [bx,by,rx,ry] of bays){ if(((tx-bx)/rx)**2+((ty-by)/ry)**2<=1){ land=false; break; } }
+    return land;
+  }
+  const town  = {x:371,y:276,w:18,h:18};   // centro del continente
+  const forest= {x:405,y:210,w:44,h:42};   // NE del pueblo
+  const caves = {x:330,y:140,w:52,h:34};   // norte
+  const arena = {x:365,y:335,w:26,h:38};   // sur
+  const ruins = {x:300,y:260,w:30,h:30};   // oeste
   // CAS-114 — the Abismo: a self-contained dungeon in the SE corner, reached only by
   // the gated town portal (no walking path), so it reads as a separate, deeper place.
   // Dark stone floor (T_STONE, like the caves) sets it apart from the open grass zones.
-  const abyss = {x:80+OX,y:78+OY,w:26,h:28};
+  const abyss = {x:545,y:420,w:26,h:28};   // cabo SE
   // CAS-121 — the Cripta Helada: a self-contained frozen dungeon in the SW corner,
   // reached only by a (higher) power-gated town portal. Pale-blue ice floor (T_ICE)
   // sets it apart at a glance from the grass zones and the dark-stone abyss.
-  const frost = {x:6+OX,y:80+OY,w:26,h:26};
+  const frost = {x:180,y:415,w:26,h:26};   // cabo SO
   // CAS-196 — el Coliseo Eterno: a self-contained challenge arena in the NE corner (clear
   // of caves/forest), reached only by the deepest power-gated town portal. Flagstone floor
   // (T_COBBLE — the same grand colosseum stone as the town plaza/ruins) reads as a built
   // arena, distinct from the grass zones, the dark-stone abyss and the pale-ice Cripta.
-  const trial = {x:84+OX,y:6+OY,w:24,h:24};
+  const trial = {x:530,y:115,w:24,h:24};   // cabo NE
   for(let y=0;y<MAP_H;y++)for(let x=0;x<MAP_W;x++){
-    let t=T_GRASS;
+    let t = landAt(x,y) ? T_GRASS : T_WATER;   // CAS-461: océano fuera del continente
     if(inRect(x,y,caves)) t=T_STONE;
     else if(inRect(x,y,abyss)) t=T_STONE;
     else if(inRect(x,y,frost)) t=T_ICE;
@@ -65,6 +84,13 @@ export function buildWorld(rng){
       if(Math.abs(y-cyp)<1.5 && x<town.x && x>ruins.x+2) t=T_DIRT; // west path to ruins
     }
     terr[y*MAP_W+x]=t;
+  }
+  // CAS-461: lagos interiores del mapa autorado (agua = colisión real, paisaje)
+  for(const [lx,ly,lr,lry] of [[480,380,7,5],[205,370,6,4],[452,262,9,6]]){
+    for(let y=Math.max(0,ly-lry-1);y<=Math.min(MAP_H-1,ly+lry+1);y++)
+      for(let x=Math.max(0,lx-lr-1);x<=Math.min(MAP_W-1,lx+lr+1);x++){
+        if(((x-lx)/lr)**2+((y-ly)/lry)**2<=1 && terr[y*MAP_W+x]===T_GRASS) terr[y*MAP_W+x]=T_WATER;
+      }
   }
   const solids=[]; // {x,y,r,kind}
   const deco=[];   // {x,y,kind}  (drawn, tree/rock collide)
@@ -302,7 +328,9 @@ export function buildWorld(rng){
     if(terr[ty*MAP_W+tx]!==T_GRASS) continue;   // grass only → skips zone floors + dirt paths
     if(nearZone(tx,ty,1)) continue;             // 1-tile gutter off every zone edge (clear entrances)
     const k=srand();
-    if(k>=0.62) continue;                         // ~38% open gaps so the field stays walkable
+    // CAS-461: pradera abierta del continente autorado — mucho más despejada que el
+    // bosque denso anterior (el mapa fuente pide claros amplios entre arboledas).
+    if(k>=0.16) continue;
     const cx=tx*TS+TS/2, cy=ty*TS+TS/2;          // tile center; jitter below breaks the grid
     // CAS-397 (board CAS-396): trees/pines/rocks were DECORATIVE-only here, so the hero walked
     // straight through the wilderness. Give them a real collision footprint. Deco is drawn with
@@ -311,9 +339,44 @@ export function buildWorld(rng){
     // (flowers/grass/bush/logs) stays non-solid so the ground reads walkable. rr() call
     // count/order is UNCHANGED → deterministic rng fingerprint intact; solidBlocked is now
     // spatially bucketed in sim.js so the extra solids cost ~O(1) per query (60fps held).
-    if(k<0.30)      prop(pick(srand()<0.6?FTREE:FPINE), cx+rr(-9,9), cy+rr(-5,7), true, 9);  // canopy → solid trunk base
-    else if(k<0.40) prop(pick(FROCK), cx+rr(-8,8), cy+rr(-7,7), true, 8);                    // boulders → solid base
-    else            prop(pick(FLITTER), cx+rr(-11,11), cy+rr(-9,9), false);                 // undergrowth (walkable)
+    if(k<0.055)      prop(pick(srand()<0.6?FTREE:FPINE), cx+rr(-9,9), cy+rr(-5,7), true, 9); // canopy → solid trunk base
+    else if(k<0.085) prop(pick(FROCK), cx+rr(-8,8), cy+rr(-7,7), true, 8);                   // boulders → solid base
+    else             prop(pick(FLITTER), cx+rr(-11,11), cy+rr(-9,9), false);                // undergrowth (walkable)
+  }
+  // ---- CAS-461: sitios del mapa autorado de Mithralda (mockups Ancient Ruins) ----
+  // Landmarks repartidos por el continente, construidos con los props existentes.
+  // Sin draws de rng (posiciones fijas) → no altera el fingerprint de spawns.
+  {
+    const S=(k,tx,ty,solid,r)=>prop(k,tx*TS,ty*TS,solid,r);
+    // círculo ritual (NO): anillo de rocas + obelisco + estatua
+    for(let i=0;i<9;i++){ const a=i/9*6.283;
+      S("prop_rock", 210+4.4*Math.cos(a), 195+3.6*Math.sin(a), false); }
+    S("prop_ruin_obelisk",210,194,true,12); S("prop_ruin_statue",206,192,true,11);
+    // campos de obeliscos (N y S)
+    for(const [ox,oy] of [[300,105],[282,442]]){
+      S("prop_ruin_obelisk",ox,oy,true,12);
+      S("prop_ruin_obelisk",ox-5,oy+3,true,12); S("prop_ruin_obelisk",ox+5,oy-3,true,12);
+      S("prop_pillar",ox-3,oy-4,true,9); S("prop_ruin_pillar2",ox+4,oy+4,true,9);
+      S("prop_pillar",ox+7,oy+1,true,9); S("prop_rock",ox-6,oy-1,false);
+    }
+    // trío de menhires (centro-oeste)
+    S("prop_ruin_obelisk",247,143,true,12); S("prop_ruin_pillar2",250,145,true,9); S("prop_rock",245,146,false);
+    // pies del gigante caído (O): estatuas + lanza clavada
+    S("prop_ruin_statue",153,284,true,11); S("prop_ruin_statue",157,286,true,11);
+    S("prop_spear",155,282,true,8); S("prop_bones",154,288,false);
+    // altares de 4 pilares (S y E)
+    for(const [ax,ay] of [[380,468],[570,260]]){
+      S("prop_pillar",ax-3,ay-2,true,9); S("prop_pillar",ax+3,ay-2,true,9);
+      S("prop_pillar",ax-3,ay+3,true,9); S("prop_pillar",ax+3,ay+3,true,9);
+      S("prop_ruin_arch",ax,ay,true,14); S("prop_bones",ax-1,ay+1,false);
+    }
+    // ruinas genéricas (NE): arcos + pilares
+    S("prop_ruin_arch",566,146,true,14); S("prop_ruin_arch",572,150,true,14);
+    S("prop_ruin_pillar2",562,150,true,9); S("prop_pillar",570,142,true,9);
+    S("prop_ruin_obelisk",576,146,true,12); S("prop_rock",568,153,false);
+    // portal de anillo (E): arco solitario entre rocas
+    S("prop_ruin_arch",626,218,true,14);
+    S("prop_rock",623,220,false); S("prop_rock",629,221,false); S("prop_rock",626,222,false);
   }
   // ---- CAS-441: la Ciénaga de Bruma — the 4th open biome (board CAS-438) ----
   // Carved in the outer wilderness ring EAST of the cluster, straddling the town's east
@@ -324,7 +387,7 @@ export function buildWorld(rng){
   // draw that shaped the existing zones/field is byte-identical to the previous build; the
   // swamp only APPENDS draws at the end of the stream. The wilderness props that landed on
   // the rect while it was still grass are compacted out below (pure filtering, no rng).
-  const swamp = {x:240,y:150,w:34,h:30};
+  const swamp = {x:495,y:270,w:34,h:30};   // CAS-461: al este, sobre el camino este del pueblo
   for(let ty=swamp.y; ty<swamp.y+swamp.h; ty++) for(let tx=swamp.x; tx<swamp.x+swamp.w; tx++) terr[ty*MAP_W+tx]=T_SWAMP;
   const inSw=(px,py)=>{ const tx=px/TS, ty=py/TS;
     return tx>=swamp.x-1 && tx<swamp.x+swamp.w+1 && ty>=swamp.y-1 && ty<swamp.y+swamp.h+1; };
