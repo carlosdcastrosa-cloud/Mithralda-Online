@@ -17,6 +17,7 @@ const BASE = LIVE_URL || (srv = await startServer(), srv.url);
 const browser = await puppeteer.launch({
   executablePath: exe, headless: true,
   args: [...LAUNCH_ARGS, "--autoplay-policy=user-gesture-required"],
+  timeout: 90000, protocolTimeout: 180000, // tolerate heavy concurrent load on this host
 });
 
 let pass = 0, fail = 0;
@@ -31,17 +32,25 @@ async function bootToPlay(page) {
     const raf = requestAnimationFrame.bind(window);
     window.requestAnimationFrame = cb => raf(t => { window.__frames++; return cb(t); });
   });
-  await page.goto(BASE + "/index.html?dev", { waitUntil: "load" });
+  await page.goto(BASE + "/index.html?dev", { waitUntil: "load", timeout: 60000 });
   await page.mouse.click(640, 360);
-  await page.waitForFunction("window.__dev && window.__dev.scene && window.__dev.scene() === 'menu'", { timeout: 15000 });
-  await page.evaluate(() => {
-    const i = document.getElementById("nameInput");
-    if (i) i.value = "QABot";
-    window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true }));
-  });
-  await page.waitForFunction("window.__dev.scene() === 'classsel'", { timeout: 6000 });
-  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true })));
-  await page.waitForFunction("window.__dev.scene() === 'play'", { timeout: 6000 });
+  await page.waitForFunction("window.__dev && window.__dev.scene && window.__dev.scene() === 'menu'", { timeout: 30000 });
+  // name entry → classsel; retry the Enter dispatch under load (a single key can be dropped
+  // while the boot frame is still settling on a memory-pressured host)
+  for (let a = 0; a < 4; a++) {
+    await page.evaluate(() => {
+      const i = document.getElementById("nameInput");
+      if (i) i.value = "QABot";
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true }));
+    });
+    try { await page.waitForFunction("window.__dev.scene() === 'classsel'", { timeout: 8000 }); break; }
+    catch (e) { if (a === 3) throw e; }
+  }
+  for (let a = 0; a < 4; a++) {
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true })));
+    try { await page.waitForFunction("window.__dev.scene() === 'play'", { timeout: 8000 }); break; }
+    catch (e) { if (a === 3) throw e; }
+  }
   await new Promise(r => setTimeout(r, 400));
 }
 
