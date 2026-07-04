@@ -1302,9 +1302,13 @@ export function createRenderer(ctx){
     const w=ctx.measureText(label).width+16; let x=VW/2; let y=30;
     // CAS-1174: at ≤480px the banner is wider than the gap beside the vitals panel,
     // so it can't sit top-centre without clipping/overlapping. Drop it BELOW the vitals
-    // panel + drawer button (y=112) and clamp both edges into the viewport so the full
+    // panel + drawer button and clamp both edges into the viewport so the full
     // OBJETIVO text is always visible at 390px.
-    if(VW<=480){ y=112; x=Math.min(Math.max(x, w/2+8), VW-w/2-8); }
+    // CAS-1063: y=112 cleared the stat panel top but not the `.cap` caption strip
+    // (name·class·Nv·oro) that hangs ~34px under it (bottom ≈116px at 0.70 scale) — the
+    // banner's left half overlapped it by 5px. Drop to y=122 so it clears the caption;
+    // the quest tracker below auto-dodges via the ob.y+ob.h test further down.
+    if(VW<=480){ y=122; x=Math.min(Math.max(x, w/2+8), VW-w/2-8); }
     // CAS-416: at narrow widths the centred banner reaches the HUD stat frame
     // (top-left DOM panel, 268px × HUD scale) — nudge it right just enough to clear.
     // CAS-452: also clamp left so banner never overflows the right viewport edge at 390px.
