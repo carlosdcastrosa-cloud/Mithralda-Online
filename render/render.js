@@ -1218,14 +1218,19 @@ export function createRenderer(ctx){
     // kept always-visible (even rank 0, with kills-to-next) so the long-term hook that grows
     // across sessions is legible from minute one. CAS-299: reflows under the HUD panel.
     { const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
-      ctx.save(); ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
+      ctx.save(); ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
       const prog = nx!=null ? (" "+(h.eliteKills|0)+"/"+nx) : " MÁX";
       // CAS-150: "(V)" hint opens the reward-track panel — only while a milestone is still
       // pending (an unmet goal to chase), so a fully-unlocked track stays clean.
       const hint = sim.masteryNextMilestone(h.eliteKills|0) ? " (V)" : "";
       const mby=hudUI?238:pad+14; const mtx=STR.masteryHud(mr)+prog+hint;
-      if(auditRects) AR("masteryBadge", badgeX, mby-12, ctx.measureText(mtx).width, 14);
-      ctx.fillText(mtx, badgeX, mby); ctx.restore(); ctx.textAlign="left"; }
+      const mtw=ctx.measureText(mtx).width;
+      // CAS-457: semi-transparent banner plate so the gold badge reads over light grass
+      // (poor contrast otherwise). Same style as the OBJETIVO banner: dark plate + accent tick.
+      ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(badgeX-6,mby-12,mtw+12,17);
+      ctx.fillStyle=COL.textGold; ctx.fillRect(badgeX-6,mby-12,3,17);
+      if(auditRects) AR("masteryBadge", badgeX, mby-12, mtw, 14);
+      ctx.fillStyle=COL.textGold; ctx.fillText(mtx, badgeX, mby); ctx.restore(); ctx.textAlign="left"; }
     if(!hudUI){ // gold + potions (HUD shows oro + carries equip/bag mirror)
       ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
       ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
@@ -1237,10 +1242,18 @@ export function createRenderer(ctx){
       else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(h.name, pad, pad+102); }
     }
     // zone name
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
+    ctx.font="11px 'Courier New'";
     const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,trial:STR.zoneTrial,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
-    AR("zone", VW/2-ctx.measureText(zn).width/2, 10, ctx.measureText(zn).width, 12);
-    ctx.fillText(zn, VW/2, 20);
+    const znw=ctx.measureText(zn).width;
+    // CAS-457: semi-transparent banner plate behind the zone label so it reads over light
+    // grass (same dark plate as the OBJETIVO banner). Plate is anchored to the label's edge.
+    const zpw=znw+12, zpx=(VW<=480)?(VW-12-znw-6):(VW/2-znw/2-6);
+    ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(zpx,8,zpw,16);
+    ctx.fillStyle=COL.textDim;
+    // CAS-1174: at ≤480px the centred zone name overlaps the top-left vitals panel;
+    // right-align it (clear of the stat frame) so nothing sits over the vitals.
+    if(VW<=480){ ctx.textAlign="right"; AR("zone", VW-12-znw, 10, znw, 12); ctx.fillText(zn, VW-12, 20); }
+    else { ctx.textAlign="center"; AR("zone", VW/2-znw/2, 10, znw, 12); ctx.fillText(zn, VW/2, 20); }
     // CAS-123: Stage-1 OBJECTIVE tracker — the single legible win-goal, top-centre and
     // ALWAYS visible so a new player reads where the run is headed from minute one. The
     // text + colour switch as the gate opens (locked → ready) and once the run is won.
@@ -1250,10 +1263,12 @@ export function createRenderer(ctx){
     // quest tracker (top-right under buttons). CAS-299: shift LEFT of the HUD right rail
     // (minimapa/equipo/mochila) so the trackers never sit under the rail frames.
     ctx.textAlign="right"; ctx.font="bold 12px 'Courier New'";
-    const qx=VW-(hudUI?176:12);
-    // CAS-452: at ≤480px the stat DOM panel (top:12, ~120px tall) covers the tracker;
-    // push tracker below the stat frame so it's visible on canvas at 390px.
-    let qy=isTouch?(VW<=480?124:64):18;
+    // CAS-1174: at ≤480px the right rail is a slide-out drawer (off-canvas), so don't
+    // reserve its 176px — anchor at VW-12 so the wide quest label never clips off-left.
+    const qx=(VW<=480)?(VW-12):(VW-(hudUI?176:12));
+    // CAS-452/CAS-1174: at ≤480px the stat DOM panel + drawer button cover the top strip;
+    // push the tracker stack below the vitals panel AND the relocated OBJETIVO banner.
+    let qy=(VW<=480)?138:(isTouch?64:18);
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
     const qw=ctx.measureText(qt).width+12;
     // CAS-416: at narrow widths the centred OBJETIVO banner reaches the tracker column;
@@ -1284,11 +1299,16 @@ export function createRenderer(ctx){
       else { txt=STR.objLocked(pw, req); col=COL.textGold; } }        // still building power
     const label=STR.objLabel+": "+txt;
     ctx.textAlign="center"; ctx.font="bold 11px 'Courier New'";
-    const w=ctx.measureText(label).width+16; let x=VW/2; const y=30;
+    const w=ctx.measureText(label).width+16; let x=VW/2; let y=30;
+    // CAS-1174: at ≤480px the banner is wider than the gap beside the vitals panel,
+    // so it can't sit top-centre without clipping/overlapping. Drop it BELOW the vitals
+    // panel + drawer button (y=112) and clamp both edges into the viewport so the full
+    // OBJETIVO text is always visible at 390px.
+    if(VW<=480){ y=112; x=Math.min(Math.max(x, w/2+8), VW-w/2-8); }
     // CAS-416: at narrow widths the centred banner reaches the HUD stat frame
     // (top-left DOM panel, 268px × HUD scale) — nudge it right just enough to clear.
     // CAS-452: also clamp left so banner never overflows the right viewport edge at 390px.
-    if(hudActive()){ const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:VW>=480?0.78:0.70;
+    else if(hudActive()){ const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:VW>=480?0.78:0.70;
       x=Math.min(Math.max(x, 12+268*hs+8+w/2), VW-w/2-12); }
     ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(x-w/2,y-1,w,18);
     ctx.fillStyle=col; ctx.fillRect(x-w/2,y-1,3,18);                  // accent tick
@@ -1317,7 +1337,7 @@ export function createRenderer(ctx){
     g.globalCompositeOperation="destination-in"; g.drawImage(base,0,0,32,32);
     _consumIcon[c.id]=cv; return cv;
   }
-  function renderConsumableSlot(h, hudUI){ if(isTouch) return; const s=44;
+  function renderConsumableSlot(h, hudUI){ if(isTouch || VW<=480) return; const s=44; // CAS-1174: hidden ≤480px (no room beside the scaled minimap); [Q] key still works
     // CAS-299: the legacy slot lives bottom-left, where the HUD console now sits. When the
     // HUD is active, reflow the quick-use slot to just LEFT of the spell bar (combat-coherent:
     // potions beside spells) so it never overlaps the console frame.
@@ -1411,7 +1431,7 @@ export function createRenderer(ctx){
       // CAS-456: larger mana cost label for readability (10px vs old 8px)
       if(costs[i]>0){ ctx.fillStyle=enoughMp?"#8ab8ff":"#e06060"; ctx.font="bold 10px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+10);} }
   }
-  function renderMiniMap(){ const mw=120, mh=120; if(isTouch) return;
+  function renderMiniMap(){ const mw=(VW<=480)?84:120, mh=mw; if(isTouch) return; // CAS-1174: scale minimap to 84px ≤480px so it clears the bottom-centre spell bar
     // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
     const x=uiLayout.cx("minimap", VW-mw-12, mw);
     const y=uiLayout.cy("minimap", VH-mh-12, mh);
@@ -1477,6 +1497,12 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="right"; ctx.fillText("E / tap ▸ "+STR.dialogContinue, x+bw-14, y+bh-12);
   }
   function wrapText(txt,x,y,maxW,lh){ const words=txt.split(" "); let line="",yy=y; for(const w of words){ const t=line+w+" "; if(ctx.measureText(t).width>maxW){ ctx.fillText(line,x,yy); line=w+" "; yy+=lh;} else line=t; } ctx.fillText(line,x,yy); }
+  // CAS-453: footer shortcut hints overflowed narrow (390px) modals and got clipped.
+  // Auto-shrink the font until the hint fits maxW (min 7px), then draw. Caller sets
+  // fillStyle + textAlign; we only own font size + fillText. Fixes "atajos recortados".
+  function hintFit(txt,cx,y,maxW,maxPx){ let px=maxPx||11; ctx.font=px+"px 'Courier New'";
+    while(px>7 && ctx.measureText(txt).width>maxW){ px--; ctx.font=px+"px 'Courier New'"; }
+    ctx.fillText(txt,cx,y); }
 
   // Compare arrow vs the piece currently equipped in this item's slot. Now factors
   // affixes in: a same-base-stat piece with stronger affixes still reads as an
@@ -1497,13 +1523,20 @@ export function createRenderer(ctx){
       ctx.fillText(txt,cx+18,by); return cx+18+ctx.measureText(txt).width+14; }
     ctx.fillText(glyph+" "+txt,cx,by); return cx+ctx.measureText(glyph+" "+txt).width+14; }
   function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,470), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
-    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28);
+    const narrow=VW<=480; // CAS-453: mobile (390px) layout guards
+    panel(x,y,bw,bh); ctx.fillStyle=COL.textGold;
+    // CAS-453: on narrow panels the centered title ran into the top-right "Forjar (G)"
+    // button — left-align + shrink it so it clears the button band.
+    if(narrow){ ctx.textAlign="left"; ctx.font="bold 15px 'Courier New'"; ctx.fillText(STR.invTitle,x+16,y+27); }
+    else { ctx.textAlign="center"; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28); }
     // ---- left: Tibia-style equip slots flanking the LIVE animated portrait ----
     // CAS-226. Only weapon/body/shield are functional (data-driven GEAR); the
     // other 7 slots are empty placeholders (no content/art yet) drawn dim. The
     // portrait shows the player's REAL class via the same baked per-state strip
     // (clshero_<cls>) the world renderer uses — animated idle, not a placeholder.
-    const leftW=bw*0.50, SS=Math.min(40,Math.round(bh*0.085)), rgap=SS+19;
+    // CAS-453: shrink slot size on narrow panels so the two edge columns + the hands
+    // row (2 slots) no longer overlap the centre portrait / each other at 390px.
+    const leftW=bw*0.50, SS=narrow?28:Math.min(40,Math.round(bh*0.085)), rgap=SS+19;
     ui.invSlotRects=[];
     // CAS-417: slots draw the real CAS-415 icon (icon_slot_<kind>, 32x32) — dimmed when
     // empty, full-strength as the ITEM icon when occupied (gear type == slot kind). The
@@ -1608,7 +1641,7 @@ export function createRenderer(ctx){
       for(const [lbl,dv] of parts){ const tk=deltaTok(dv); const seg=lbl+" "; ctx.fillStyle=COL.textDim; ctx.fillText(seg,dx,dyb); dx+=ctx.measureText(seg).width;
         ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; hintFit(STR.equipHint,VW/2,y+bh-7,bw-20,11);
     // ---- CAS-419: DnD overlays — reject flash, target highlights, cursor ghost. ----
     // Pure presentation read from input state (ui.invDrag / ui.invReject) in the same
     // per-frame modal pass; zero RNG, zero state mutation (drops resolve in sim seams).
@@ -1687,7 +1720,7 @@ export function createRenderer(ctx){
     }
     // description box (hovered, else keyboard-focused node)
     const dn = hover || talentNode(h.cls, focusId);
-    const dy=y+bh-92, dbx=x+24, dbw=bw-48, dbh=52;
+    const dy=y+bh-100, dbx=x+24, dbw=bw-48, dbh=50; // CAS-453: freed footer room for button+hint
     panelLocal(dbx,dy,dbw,dbh);
     if(dn){ const st=nodeState(h,dn); ctx.textAlign="left";
       ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(dn.name+"  ["+STR.talentRank(nodeRank(h,dn.id),dn.max)+"]", dbx+10, dy+18);
@@ -1696,13 +1729,14 @@ export function createRenderer(ctx){
       if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
       if(hint){ ctx.fillStyle="#d0a0a0"; ctx.font="10px 'Courier New'"; ctx.fillText(hint, dbx+10, dy+48); }
     }
-    // respec button + hint
-    const rbw=210, rbh=26, rbx=VW/2-rbw/2, rby=y+bh-32;
+    // respec button + hint — CAS-453: button lifted so the shortcut line no longer
+    // renders behind it; hint auto-fits the panel width.
+    const rbw=Math.min(210,bw-40), rbh=24, rbx=VW/2-rbw/2, rby=y+bh-44;
     const canR=talentSpent(h)>0;
     ctx.fillStyle=canR?"#3a2c1e":"#23262c"; ctx.fillRect(rbx,rby,rbw,rbh);
-    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+17);
+    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+16);
     ui.talentRects.push({x:rbx,y:rby,w:rbw,h:rbh, act:()=>sim.respecTalents()});
-    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.talentHint, VW/2, y+bh-6);
+    ctx.fillStyle=COL.textDim; hintFit(STR.talentHint, VW/2, y+bh-6, bw-24, 10);
   }
 
   // CAS-150 — ELITE-MASTERY REWARD-TRACK panel. The cross-session hook made legible: a
@@ -1813,10 +1847,11 @@ export function createRenderer(ctx){
       // full-row select rect (keyboard/tap focus); pushed to the BACK so a button tap on the same row wins first
       ui.forgeRects.push({x:x+20,y:ry,w:bw-40,h:ih-10, sel:i});
     }
-    const cy=y+bh-28; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,22);
+    // CAS-453: close button lifted clear of the shortcut line (was drawn over it).
+    const cy=y+bh-42; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,22);
     ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText("Cerrar (G)",VW/2,cy+15);
     ui.forgeRects.push({x:x+bw/2-60,y:cy,w:120,h:22,act:()=>{G.scene="play";}});
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.forgeHint,VW/2,y+bh-8);
+    ctx.fillStyle=COL.textDim; hintFit(STR.forgeHint,VW/2,y+bh-8,bw-24,11);
   }
 
   // CAS-134: the Bounty Board — today's daily contracts (progress + claim) and the login
@@ -2240,22 +2275,34 @@ export function createRenderer(ctx){
     }
     // ---- pinned footer (Resume + replay guide + new game) ----
     let fy=y+bh-118;
-    ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
-    // CAS-267: "reset onboarding" — replay now AND re-arm the persisted first-load
-    // flag (clearTutSeen) so the coachmark also auto-shows again on the next fresh load.
-    ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ clearTutSeen(); G.scene="play"; sim.startTutorial(); }}); fy+=30;
-    // CAS-113: "Nueva partida" — two-tap arm/confirm so a misclick can't nuke a run.
+    // CAS-113/CAS-458: "Nueva partida" wipes the save. The base button reads destructive-red
+    // so the danger registers before the first tap, and tapping it ARMS an explicit
+    // confirmation dialog (not a bare button swap). While armed the dialog covers the
+    // replay + new-game band and those two buttons are NOT registered — pauseTap is
+    // first-match-wins, so a stray tap can never fall through the dialog and nuke a run.
     if(G.resetArm){
-      const half=(pw-8)/2;
-      ctx.fillStyle="#3a2222"; ctx.fillRect(px,fy,half,24); ctx.fillStyle="#f0a0a0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText("SÍ, BORRAR",px+half/2,fy+16);
-      ui.pauseRects.push({x:px,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; resetGame(); }});
-      ctx.fillStyle="#20262f"; ctx.fillRect(px+half+8,fy,half,24); ctx.fillStyle=COL.cream; ctx.fillText("Cancelar",px+half+8+half/2,fy+16);
-      ui.pauseRects.push({x:px+half+8,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; }});
+      const dh=54;
+      ctx.textAlign="center";
+      ctx.fillStyle="rgba(48,16,16,0.97)"; ctx.fillRect(px,fy,pw,dh);
+      ctx.strokeStyle="#8a3030"; ctx.lineWidth=2; ctx.strokeRect(px+1,fy+1,pw-2,dh-2);
+      ctx.fillStyle="#f2b2b2"; ctx.font="bold 12px 'Courier New'"; ctx.fillText("¿Borrar la partida guardada?",VW/2,fy+16);
+      ctx.fillStyle="#d79494"; ctx.font="10px 'Courier New'"; ctx.fillText("Esta acción no se puede deshacer.",VW/2,fy+30);
+      const half=(pw-16)/2, byb=fy+35;
+      ctx.fillStyle="#a51f1f"; ctx.fillRect(px+4,byb,half,15); ctx.strokeStyle="#e07070"; ctx.lineWidth=1; ctx.strokeRect(px+4.5,byb+0.5,half-1,14);
+      ctx.fillStyle="#ffe0e0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText("SÍ, BORRAR",px+4+half/2,byb+11);
+      ui.pauseRects.push({x:px+4,y:byb,w:half,h:15,act:()=>{ G.resetArm=false; resetGame(); }});
+      ctx.fillStyle="#20262f"; ctx.fillRect(px+12+half,byb,half,15); ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.fillText("Cancelar",px+12+half+half/2,byb+11);
+      ui.pauseRects.push({x:px+12+half,y:byb,w:half,h:15,act:()=>{ G.resetArm=false; }});
     } else {
-      ctx.fillStyle="#2a1c14"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle="#caa07a"; ctx.font="12px 'Courier New'"; ctx.fillText("Nueva partida (borrar guardado)",VW/2,fy+16);
-      ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ G.resetArm=true; }});
+      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
+      // CAS-267: "reset onboarding" — replay now AND re-arm the persisted first-load coachmark flag.
+      ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ clearTutSeen(); G.scene="play"; sim.startTutorial(); }});
+      const ny=fy+30;
+      ctx.fillStyle="#3a1616"; ctx.fillRect(px,ny,pw,24); ctx.strokeStyle="#7a2a2a"; ctx.lineWidth=1; ctx.strokeRect(px+0.5,ny+0.5,pw-1,23);
+      ctx.fillStyle="#e79090"; ctx.font="12px 'Courier New'"; ctx.fillText("Nueva partida (borrar guardado)",VW/2,ny+16);
+      ui.pauseRects.push({x:px,y:ny,w:pw,h:24,act:()=>{ G.resetArm=true; }});
     }
-    fy+=32;
+    fy+=62;
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(VW/2-90,fy,180,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,fy+20);
     ui.pauseRects.push({x:VW/2-90,y:fy,w:180,h:30,act:()=>{ G.resetArm=false; G.rebind=null; G.scene="play"; }});
   }
@@ -2499,7 +2546,7 @@ export function createRenderer(ctx){
     rrng.seed(11); for(let i=0;i<40;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
     ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.customizeTitle, VW/2, 34);
-    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(STR.customizeHint, VW/2, 54);
+    ctx.fillStyle=COL.cream; hintFit(STR.customizeHint, VW/2, 54, VW-24, 11);
 
     // ---- live preview (baked clshero strip, breathing idle loop) ----
     const pvW=Math.min(150,VW*0.34), pvX=VW*0.5-VW*0.30, pvY=72, pvH=Math.min(190,VH*0.34);
@@ -2548,7 +2595,7 @@ export function createRenderer(ctx){
     }
     // ---- buttons ----
     ctx.textAlign="center";
-    const by=VH-46, bw=Math.min(150,VW*0.4), bh=32, gap=14;
+    const by=VH-54, bw=Math.min(150,VW*0.4), bh=32, gap=14; // CAS-453: lifted clear of keys hint
     const dX=VW/2+gap/2, sX=VW/2-gap/2-bw;
     ctx.fillStyle="#1d3324"; ctx.fillRect(dX,by,bw,bh); ctx.strokeStyle=COL.heal; ctx.lineWidth=2; ctx.strokeRect(dX,by,bw,bh);
     ctx.fillStyle=COL.heal; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.customizeDone, dX+bw/2, by+21);
@@ -2556,7 +2603,7 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.fillText(STR.customizeReset, sX+bw/2, by+21);
     ui.customRects.push({kind:"done",x:dX,y:by,w:bw,h:bh});
     ui.customRects.push({kind:"reset",x:sX,y:by,w:bw,h:bh});
-    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.customizeKeys, VW/2, VH-8);
+    ctx.fillStyle=COL.textDim; hintFit(STR.customizeKeys, VW/2, VH-8, VW-24, 10);
     ctx.textAlign="left";
   }
   function drawMenuEmblem(x,y){ ctx.save(); ctx.translate(x,y);
