@@ -7,17 +7,19 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 
 const ROOT_FILES = ["index.html","game.js","audio.js","input.js","view.js","strings.js","analytics.js","analytics.html","overlay.js","hud.js","daily.js","bestiary.js","persist.js","settings.js"];
-const CHANGED = [
-  "index.html",
-  "sim/config.js",
-  "sim/sim.js",
-  "sim/world.js",
-  "sim/tiled-map-data.js",
-];
 const git = (...a) => execFileSync("git", a, { maxBuffer: 256 * 1024 * 1024 });
 const gitStr = (...a) => git(...a).toString().trim();
 
 git("fetch","origin","gh-pages","--quiet");
+
+// Deploy EVERY shipped game file that differs between HEAD and gh-pages (whole-file overlay), so a
+// partial CHANGED list can never let gh-pages drift from HEAD again. Excludes dev tooling and the
+// gitignored raw map source; assets are already on gh-pages unless newly added.
+const CHANGED = gitStr("diff","--name-only","origin/gh-pages","HEAD","--",
+    "*.js","*.html","*.css","sim","render","ui","assets/tiles","assets/props","assets/maps")
+  .split("\n").map(s=>s.trim()).filter(Boolean)
+  .filter(f => !f.startsWith("tools/") && !f.startsWith("assets/maps/src/"));
+console.log("deploying "+CHANGED.length+" changed file(s):\n  "+CHANGED.join("\n  "));
 
 function computeBuild() {
   const tracked = git("ls-tree","-r","--name-only","origin/gh-pages","--","sim","render","assets","ui").toString().split("\n").filter(Boolean);
