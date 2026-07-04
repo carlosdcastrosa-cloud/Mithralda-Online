@@ -1450,9 +1450,15 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText("M / tap: cerrar",VW/2,y+mh+18);
   }
 
+  // CAS-455: ornate gold frame panel — matches HUD gold aesthetic on all modals.
   function panel(x,y,w,h){ ctx.fillStyle="rgba(8,10,14,0.92)"; ctx.fillRect(0,0,VW,VH); ctx.fillStyle=COL.panel; ctx.fillRect(x,y,w,h);
-    ctx.fillStyle=COL.panelB2; ctx.fillRect(x,y,w,6); ctx.fillRect(x,y+h-6,w,6); ctx.fillRect(x,y,6,h); ctx.fillRect(x+w-6,y,6,h);
-    ctx.fillStyle=COL.panelB; ctx.fillRect(x+3,y+3,w-6,3); ctx.fillRect(x+3,y+h-6,w-6,3); }
+    ctx.fillStyle="#1a1712"; ctx.fillRect(x,y,w,40);
+    ctx.strokeStyle=COL.gold; ctx.lineWidth=2; ctx.strokeRect(x+1,y+1,w-2,h-2);
+    ctx.strokeStyle="#2e3240"; ctx.lineWidth=1; ctx.strokeRect(x+5,y+5,w-10,h-10);
+    ctx.globalAlpha=0.6; ctx.fillStyle=COL.gold; ctx.fillRect(x+8,y+40,w-16,1); ctx.globalAlpha=1;
+    const oc=6; ctx.fillStyle=COL.gold;
+    ctx.fillRect(x+3,y+3,oc,oc); ctx.fillRect(x+w-3-oc,y+3,oc,oc);
+    ctx.fillRect(x+3,y+h-3-oc,oc,oc); ctx.fillRect(x+w-3-oc,y+h-3-oc,oc,oc); }
   function panelLocal(x,y,w,h){ ctx.fillStyle=COL.panel; ctx.fillRect(x,y,w,h); ctx.fillStyle=COL.panelB2; ctx.fillRect(x,y,w,5); ctx.fillRect(x,y+h-5,w,5); ctx.fillRect(x,y,5,h); ctx.fillRect(x+w-5,y,5,h); }
 
   function renderDialogue(){ const d=G.dialog; if(!d) return;
@@ -1554,43 +1560,50 @@ export function createRenderer(ctx){
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(fbx,fby,fbw,fbh); ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(fbx+0.5,fby+0.5,fbw-1,fbh-1);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.invForge, fbx+fbw/2, fby+15);
     ui.invForgeRect={x:fbx,y:fby,w:fbw,h:fbh};
-    // ---- right: backpack list with compare arrows ----
+    // ---- right: backpack grid 6×6 (CAS-455) ----
     const rx=x+bw*0.50, rw=bw*0.46;
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(STR.backpack, rx, y+54);
     ui.invRects=[];
     const bag=h.bag; if(G.invSel==null) G.invSel=0; G.invSel=Math.max(0,Math.min(G.invSel, Math.max(0,bag.length-1)));
-    const cmpH=92; const rowH=28, listY=y+62, maxRows=Math.max(1,Math.floor((bh-120-cmpH)/rowH));
-    if(!bag.length){ ctx.fillStyle=COL.textDim; ctx.fillText(STR.bagEmpty, rx, listY+18); }
-    for(let i=0;i<bag.length && i<maxRows;i++){ const inst=bag[i]; const ay=listY+i*rowH; const sel=i===G.invSel;
-      ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(rx,ay,rw,rowH-4);
-      if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=1.5; ctx.strokeRect(rx,ay,rw,rowH-4); }
-      ctx.textAlign="left"; ctx.fillStyle=gearCol(inst); ctx.font="12px 'Courier New'";
-      // CAS-265: prepend a per-rarity SHAPE mark (◦/◆/★) in colour-blind mode so rarity
-      // reads without depending on the name's hue (empty for common → unchanged otherwise).
-      ctx.fillText(rarityMark(inst)+gearName(inst)+" ("+gearStat(inst)+")", rx+8, ay+16);
-      const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="10px 'Courier New'"; ctx.fillText("◈".repeat(na), rx+8, ay+rowH-7); }
-      const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+16);
-      ui.invRects.push({x:rx,y:ay,w:rw,h:rowH-4, idx:i});
+    const GCOLS=6, GROWS=6, GAP=2;
+    const cs=Math.max(22,Math.min(38,Math.floor((rw-GAP*(GCOLS-1))/GCOLS)));
+    const gridW=GCOLS*(cs+GAP)-GAP, gridY=y+62;
+    for(let gi=0;gi<GCOLS*GROWS;gi++){
+      const gcol=gi%GCOLS, grow=Math.floor(gi/GCOLS);
+      const gx=rx+gcol*(cs+GAP), gy=gridY+grow*(cs+GAP);
+      const ginst=gi<bag.length?bag[gi]:null;
+      const gsel=gi===G.invSel&&!!ginst;
+      ctx.fillStyle=ginst?(gsel?"#2e3647":"#20262f"):"#13161c"; ctx.fillRect(gx,gy,cs,cs);
+      ctx.strokeStyle=ginst?(gsel?COL.textGold:gearCol(ginst)):"#23262e"; ctx.lineWidth=gsel?1.5:1; ctx.strokeRect(gx+0.5,gy+0.5,cs-1,cs-1);
+      if(ginst){
+        const ic=IMG["icon_slot_"+ginst.slot];
+        if(ic&&ic.complete&&ic.naturalWidth){ const ds=Math.min(cs-4,24); ctx.save(); ctx.imageSmoothingEnabled=false;
+          ctx.drawImage(ic,Math.round(gx+(cs-ds)/2),Math.round(gy+(cs-ds)/2),ds,ds); ctx.restore(); }
+        else { ctx.fillStyle=gearCol(ginst); ctx.font="bold "+Math.round(cs*0.5)+"px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("▣",gx+cs/2,gy+cs*0.64); }
+        ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="right"; ctx.fillText(String(gearStat(ginst)),gx+cs-2,gy+cs-2);
+        ui.invRects.push({x:gx,y:gy,w:cs,h:cs,idx:gi});
+      }
     }
-    // CAS-419: the visible list area is itself a drop target (bag drag → move to end;
-    // equip drag → reject: functional slots are non-nullable in the save shape).
-    ui.invBagAreaRect={x:rx,y:listY,w:rw,h:maxRows*rowH};
+    const gridH=GROWS*(cs+GAP)-GAP;
+    // CAS-419: grid area is drop target (bag drag → move to end; equip drag → reject).
+    ui.invBagAreaRect={x:rx,y:gridY,w:gridW,h:gridH};
+    if(!bag.length){ ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.bagEmpty,rx+gridW/2,gridY+gridH/2); }
     // ---- compare box: equipped vs selected (the equip DECISION). CAS-117 ----
-    const cy=listY+Math.min(bag.length,maxRows)*rowH+6; const sel=bag[G.invSel];
-    if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
-      const eq=h.equip[sel.slot];
-      ctx.textAlign="left"; ctx.font="10px 'Courier New'"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
-      ctx.fillStyle=gearCol(eq); ctx.fillText(rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")", rx+6, cy+25);
-      drawAffixLines(eq, rx+10, cy+36, 10);
+    const cmpH=92; const compY=gridY+gridH+8; const compSel=bag[G.invSel];
+    if(compSel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,compY,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,compY,rw,cmpH);
+      const eq=h.equip[compSel.slot];
+      ctx.textAlign="left"; ctx.font="10px 'Courier New'"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, compY+13);
+      ctx.fillStyle=gearCol(eq); ctx.fillText(rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")", rx+6, compY+25);
+      drawAffixLines(eq, rx+10, compY+36, 10);
       const midX=rx+rw*0.52;
-      ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpNew, midX, cy+13);
-      ctx.fillStyle=gearCol(sel); ctx.fillText("("+gearStat(sel)+")", midX, cy+25);
-      drawAffixLines(sel, midX+4, cy+36, 10);
+      ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpNew, midX, compY+13);
+      ctx.fillStyle=gearCol(compSel); ctx.fillText("("+gearStat(compSel)+")", midX, compY+25);
+      drawAffixLines(compSel, midX+4, compY+36, 10);
       // net combat deltas if equipped (the tradeoff at a glance)
-      const before={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const old=h.equip[sel.slot]; h.equip[sel.slot]=sel;
-      const after={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const a2=affixTotals(h); h.equip[sel.slot]=old; const a1=affixTotals(h);
+      const before={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const old=h.equip[compSel.slot]; h.equip[compSel.slot]=compSel;
+      const after={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const a2=affixTotals(h); h.equip[compSel.slot]=old; const a1=affixTotals(h);
       const parts=[["Dmg",after.dmg-before.dmg],["Def",after.def-before.def],["HP",after.hp-before.hp],["AtkV%",a2.atkspd-a1.atkspd],["MovV%",a2.movespd-a1.movespd]];
-      let dx=rx+6; ctx.font="bold 10px 'Courier New'"; const dyb=cy+cmpH-8;
+      let dx=rx+6; ctx.font="bold 10px 'Courier New'"; const dyb=compY+cmpH-8;
       for(const [lbl,dv] of parts){ const tk=deltaTok(dv); const seg=lbl+" "; ctx.fillStyle=COL.textDim; ctx.fillText(seg,dx,dyb); dx+=ctx.measureText(seg).width;
         ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
