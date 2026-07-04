@@ -428,3 +428,8 @@ export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
   if(world.swamp && inRect(tx,ty,world.swamp)) return "swamp";  // CAS-441
   if(inRect(tx,ty,world.forest)) return "forest";
   return "field"; }
+
+// CAS-461: compat shim — the gh-pages runtime's sim.js (Tiled-world experiment,
+// "?world=tiled") imports buildTiledWorld. The authored Tiled continent IS now the
+// default buildWorld above, so the opt-in path simply returns the same world.
+export function buildTiledWorld(rng){ return buildWorld(rng); }
