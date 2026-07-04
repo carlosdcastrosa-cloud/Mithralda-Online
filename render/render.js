@@ -165,6 +165,14 @@ const CLASS_DASH8_ANIM=["warrior"]; const CLASS_DASH8_FC=8;
 // the rejected regens, so they keep clshero_/clswalk_ + L/R flip (flip=Math.cos(facing)<0).
 const CLASS_DIR8_ANIM=["warrior"];
 const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=8, CLASS_WALK8_FPS=8; // 8f@8fps → cycle 1.0s (footfall 0.5s, in CAS-219/240 0.4–0.6s band)
+// CAS-786: per-strip, per-row anchor-x for warrior 8-dir strips.
+// Body center measured from sprite pixels; varies by direction cluster (south-ish vs north-ish).
+// Row order: S=0, SE=1, E=2, NE=3, N=4, NW=5, W=6, SW=7 (dir8FromAngle mapping).
+const DIR8_AX={
+  clsidle8_warrior:[87,87,87,52,52,52,87,87],
+  clswalk8_warrior:[96,96,96,43,43,43,96,96],
+  clsdash8_warrior:[184,184,184,216,216,216,184,184],
+};
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
 function dir8FromAngle(ang){ return ((Math.round(ang/(Math.PI/4))%8)+8)%8; }
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
@@ -593,7 +601,7 @@ export function createRenderer(ctx){
     // height/rows (166 for the 8-dir strips) and the source row is offset by row*fh. Legacy
     // single-row strips keep rows=1 → fh==naturalHeight and sy==0, i.e. byte-identical path.
     const fw=Math.round(img.naturalWidth/fc), fh=Math.round(img.naturalHeight/rows);
-    const ax=(fw>CLASS_FW)?fw/2:CLASS_AX, foot=fh-(CLASS_FH-CLASS_FOOT);
+    const _axTable=DIR8_AX[key]; const ax=(_axTable&&rows>1)?_axTable[row]:(fw>CLASS_FW?fw/2:CLASS_AX); const foot=fh-(CLASS_FH-CLASS_FOOT);
     const S=CLASS_ANIM_SCALE, dw=fw*S*sqX, dh=fh*S*sqY, sx=(fi||0)*fw, sy=row*fh;
     const dx=cx-ax*S*sqX, dy=feet-foot*S*sqY-(bobUp||0);
     const useFlip=flipOff?false:flip; // 8-dir strips carry real per-facing art → never mirror
