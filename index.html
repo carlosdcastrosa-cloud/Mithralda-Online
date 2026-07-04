@@ -69,7 +69,7 @@
   // generated map is byte-identical to the previous root-absolute one (no behavior change).
   const BASE = location.pathname.replace(/[^/]*$/, ""); // dir of this document, trailing "/"
   const MODS = ["game.js","audio.js","view.js","input.js","strings.js","analytics.js","overlay.js","hud.js","daily.js","bestiary.js","persist.js","settings.js",
-    "sim/sim.js","sim/config.js","sim/math.js","sim/rng.js","sim/world.js","sim/gear.js","sim/talents.js",
+    "sim/sim.js","sim/config.js","sim/math.js","sim/rng.js","sim/world.js","sim/tiled-map-data.js","sim/gear.js","sim/talents.js",
     "render/render.js","render/sprites.js","render/palette.js","render/customize.js"];
   const imports = {};
   for (const m of MODS) imports[BASE + m] = BASE + m + "?v=" + build;

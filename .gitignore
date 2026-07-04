@@ -32,3 +32,6 @@ shots/
 # only the tiny derived 32px tiles in assets/tiles|props/erw_*; regenerate them with
 # tools/erw-slice-city.py after re-uploading the pack into assets/erw/city/.
 assets/erw/
+
+# Raw Tiled map source (14MB .tmx + tilesets) — the game ships the generated sim/tiled-map-data.js
+assets/maps/src/

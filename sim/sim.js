@@ -17,7 +17,7 @@ import { STR } from "../strings.js";
 import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
-import { buildWorld, zoneOf } from "./world.js";
+import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
 import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost } from "./gear.js";
 import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, sanitizeTalents, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
@@ -41,8 +41,10 @@ const { srand, seed, rr, ri } = rng;
 const fxRng = createRNG();
 const frr = (a,b)=>fxRng.rr(a,b);
 
-// the authoritative world (deterministic for the fixed seed)
-const world = buildWorld(rng);
+// the authoritative world (deterministic for the fixed seed). ?world=tiled loads the hand-built
+// Tiled continent (760×570) instead of the procedural world — behind a flag until fully wired.
+const USE_TILED = typeof location!=="undefined" && /[?&]world=tiled/.test(location.search||"");
+const world = USE_TILED ? buildTiledWorld() : buildWorld(rng);
 
 // CAS-397: spatial hash over world.solids. Making the wilderness trees/rocks solid pushes the
 // solid count from ~200 to ~1400; solidBlocked runs 2×/entity/frame, so the old O(n) linear scan

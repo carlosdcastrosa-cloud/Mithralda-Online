@@ -4,7 +4,8 @@
 // playable class list. Designers/balance live here, not in code paths.
 // ===========================================================================
 export const TS = 32;                 // world pixels per tile
-export const MAP_W = 330, MAP_H = 330;   // CAS-398: map tripled (110→330) — a vast wilderness ringing the zone cluster (see world.js OX/OY centering)
+export let MAP_W = 330, MAP_H = 330;      // CAS-398: map tripled (110→330). Now a `let` (live binding)
+export function setMapDims(w,h){ MAP_W=w; MAP_H=h; }  // so the Tiled continent loader can grow to 760×570.
 
 // terrain tile ids
 export const T_GRASS = 0, T_DIRT = 1, T_STONE = 2, T_COBBLE = 3, T_SAND = 4, T_WATER = 5;

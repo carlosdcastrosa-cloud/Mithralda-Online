@@ -5,8 +5,9 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND, setMapDims } from "./config.js";
 import { inRect } from "./math.js";
+import { MAP as TILED_MAP } from "./tiled-map-data.js";
 
 // CAS-80: resolve a town-local cell (lx,ly within the 18×18 town rect) to its terrain
 // tile id from the data-driven TOWN_MAP. Out-of-bounds (defensive) falls back to plaza
@@ -392,6 +393,33 @@ export function buildWorld(rng){
   chests.push({x:(swamp.x+swamp.w-4)*TS,y:(swamp.y+swamp.h-4)*TS,opened:false,loot:"gold60"});
   fragments.push({x:(swamp.x+swamp.w-3)*TS,y:(swamp.y+3)*TS,taken:false,kind:"hp"});
   return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, swamp, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet, buildings, blockSet };
+}
+
+// ---- Tiled continent loader (the hand-built 760×570 world) ------------------------------------
+// Decodes the generated sim/tiled-map-data.js into the SAME world shape buildWorld() returns, so
+// the existing renderer/collision/gameplay are reused. Grows MAP_W/MAP_H to the map's dims. Phase 1
+// wires terrain + walls + the central hub (spawn/respawn); trees/sites/mobs/zones land in later
+// phases (their arrays are empty here). Behind a flag until complete (see sim.js USE_TILED).
+function unrle(rle, len){ const a=new Uint8Array(len); let i=0;
+  for(let k=0;k<rle.length;k+=2){ const v=rle[k]; let c=rle[k+1]; while(c-->0) a[i++]=v; } return a; }
+export function buildTiledWorld(){
+  const M=TILED_MAP; setMapDims(M.W, M.H);
+  const N=M.W*M.H;
+  const terr=unrle(M.terrRLE, N);
+  const wmask=unrle(M.wallRLE, N);
+  const wallSet=new Set(); for(let i=0;i<N;i++) if(wmask[i]) wallSet.add(i);
+  const tcx=M.hub.x, tcy=M.hub.y;
+  const templeF={x:tcx, y:tcy-TS*2, temple:true};
+  const hubTx=Math.round(tcx/TS), hubTy=Math.round(tcy/TS);
+  const town={x:hubTx-9, y:hubTy-9, w:18, h:18};
+  const off={x:0,y:0,w:1,h:1};   // placeholder zone rects (unreachable ocean corner) — Phase 3 fills these
+  // decode deco (trees / ruins / ground clutter); solid items also feed the collision grid
+  const deco=[], solids=[]; const K=M.decoKinds||[];
+  for(const d of (M.deco||[])){ const o={x:d[0], y:d[1], kind:K[d[2]]}; deco.push(o);
+    if(d[3]>0) solids.push({x:o.x, y:o.y, r:d[3], kind:o.kind}); }
+  return { terr, town, forest:off, caves:off, arena:off, ruins:off, abyss:off, frost:off, trial:off, swamp:off,
+    solids, deco, chests:[], fragments:[], fountains:[templeF], npcs:[], spawners:[], portals:[],
+    templeF, tcx, tcy, wallSet, buildings:[], blockSet:new Set() };
 }
 
 export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
