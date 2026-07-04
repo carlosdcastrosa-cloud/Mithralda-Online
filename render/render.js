@@ -1399,15 +1399,27 @@ export function createRenderer(ctx){
     const y=uiLayout.cy("minimap", VH-mh-12, mh);
     uiLayout.pub("minimap", x, y, mw, mh); // hit-rect for the input drag router
     AR("minimap", x-2, y-2, mw+4, mh+4);
-    ctx.fillStyle="rgba(12,14,19,0.8)"; ctx.fillRect(x-2,y-2,mw+4,mh+4); ctx.strokeStyle=COL.panelB; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
-    if(uiLayout.dragging()==="minimap"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x-4,y-4,mw+8,mh+8); }
+    // CAS-454: gold border matching Tibia panels; dark fill
+    ctx.fillStyle="rgba(12,14,19,0.88)"; ctx.fillRect(x-2,y-2,mw+4,mh+4);
+    ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
+    if(uiLayout.dragging()==="minimap"){ ctx.strokeStyle="#ffe39a"; ctx.lineWidth=2; ctx.strokeRect(x-4,y-4,mw+8,mh+8); }
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
-    const zr=[[world.forest,COL.grass],[world.caves,COL.stone],[world.arena,COL.sand],[world.town,COL.cobble],[world.ruins,COL.grass],[world.abyss,"#3a2350"],[world.frost,"#3a4e5e"],[world.trial,"#c8a24a"],[world.swamp,"#3f5a4c"]];
+    // CAS-454: brightened minimap-only zone palette so the map reads in the cold-gloom world
+    const MM={forest:"#4e7054",caves:"#484f5e",arena:"#7a7058",town:"#4a5c6a",ruins:"#5a6e52",abyss:"#5a3d70",frost:"#4e6878",trial:"#c8a24a",swamp:"#567a62"};
+    const zr=[[world.forest,MM.forest],[world.caves,MM.caves],[world.arena,MM.arena],[world.town,MM.town],[world.ruins,MM.ruins],[world.abyss,MM.abyss],[world.frost,MM.frost],[world.trial,MM.trial],[world.swamp,MM.swamp]];
     for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
+    // CAS-454: viewport rectangle showing camera frustum
+    const Z=zoom(); const vpW=VW/Z, vpH=VH/Z;
+    ctx.strokeStyle="rgba(255,255,255,0.35)"; ctx.lineWidth=1;
+    ctx.strokeRect(x+G.cam.x*sx, y+G.cam.y*sy, vpW*sx, vpH*sy);
     // CAS-114 — portal blips on the minimap (violet)
     if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-1,y+p.y*sy-1,3,3); } }
     ctx.fillStyle="#ff5a4a"; for(const e of G.enemies){ ctx.fillRect(x+e.x*sx-1,y+e.y*sy-1,2,2); }
-    ctx.fillStyle=COL.textGold; ctx.fillRect(x+G.hero.x*sx-2,y+G.hero.y*sy-2,4,4);
+    // CAS-454: directional arrow for player position
+    const hx=x+G.hero.x*sx, hy=y+G.hero.y*sy, fa=G.hero.facing, ar=5;
+    ctx.save(); ctx.translate(hx,hy); ctx.rotate(fa);
+    ctx.fillStyle=COL.textGold; ctx.beginPath(); ctx.moveTo(ar,0); ctx.lineTo(-ar*0.7,ar*0.6); ctx.lineTo(-ar*0.7,-ar*0.6); ctx.closePath(); ctx.fill();
+    ctx.restore();
   }
   function renderBigMap(){ const mw=Math.min(VW*0.7,420), mh=mw; const x=(VW-mw)/2, y=(VH-mh)/2;
     panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
