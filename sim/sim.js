@@ -41,10 +41,11 @@ const { srand, seed, rr, ri } = rng;
 const fxRng = createRNG();
 const frr = (a,b)=>fxRng.rr(a,b);
 
-// the authoritative world (deterministic for the fixed seed). ?world=tiled loads the hand-built
-// Tiled continent (760×570) instead of the procedural world — behind a flag until fully wired.
-const USE_TILED = typeof location!=="undefined" && /[?&]world=tiled/.test(location.search||"");
-const world = USE_TILED ? buildTiledWorld(rng) : buildWorld(rng);
+// the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
+// dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
+// determinism self-test drives buildWorld() directly, so it stays unaffected either way.
+const USE_CLASSIC = typeof location!=="undefined" && /[?&]world=classic/.test(location.search||"");
+const world = USE_CLASSIC ? buildWorld(rng) : buildTiledWorld(rng);
 
 // CAS-397: spatial hash over world.solids. Making the wilderness trees/rocks solid pushes the
 // solid count from ~200 to ~1400; solidBlocked runs 2×/entity/frame, so the old O(n) linear scan

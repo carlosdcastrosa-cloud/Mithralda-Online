@@ -33,7 +33,7 @@ const browser = await puppeteer.launch({ executablePath: exe, headless: true, ar
 let failed = 0;
 try {
   const page = await browser.newPage();
-  await page.goto(`${srv.url}/index.html?dev`, { waitUntil: "load" });
+  await page.goto(`${srv.url}/index.html?dev&world=classic`, { waitUntil: "load" });
   await page.waitForFunction("window.__dev && typeof window.__dev.worldFingerprint === 'function'", { timeout: 15000 });
 
   // 1) Repeatability: REPEATS independent buildWorld() runs must be identical.
@@ -56,7 +56,7 @@ try {
   // 2) Cross-page: a fresh page load must reproduce the same world (no
   //    dependence on load order, timing, or in-session state).
   const page2 = await browser.newPage();
-  await page2.goto(`${srv.url}/index.html?dev`, { waitUntil: "load" });
+  await page2.goto(`${srv.url}/index.html?dev&world=classic`, { waitUntil: "load" });
   await page2.waitForFunction("window.__dev && window.__dev.worldFingerprint", { timeout: 15000 });
   const fresh = await page2.evaluate(() => window.__dev.worldFingerprint(13371));
   if (eq(fresh, base)) {
