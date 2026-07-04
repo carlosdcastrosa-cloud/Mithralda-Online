@@ -1357,10 +1357,11 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-5,y+5,8,0,6.28); ctx.fill();
     ctx.fillStyle=qty>0?COL.textGold:"#7a7f88"; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
     ctx.fillText(qty,x+s-5,y+9);
-    // key hints — CAS-416: strip pulled up 2px + slimmed so it never clips below VH
+    // key hint — CAS-456: single [Q] use hint (spec: "un solo hint [Q]"); the count is the
+    // corner badge above, so the strip no longer needs the [R] cycle glyph cluttering the slot.
     ctx.fillStyle=COL.out; ctx.fillRect(x-2,y+s+2,s+4,10);
     ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="center";
-    ctx.fillText("[Q] usar  [R] ↻",x+s/2,y+s+10);
+    ctx.fillText("[Q] usar",x+s/2,y+s+10);
     ctx.textAlign="left";
     AR("consumable", x-2, y-2, s+4, s+14);
   }
