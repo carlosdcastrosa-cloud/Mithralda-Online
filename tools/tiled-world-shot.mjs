@@ -13,7 +13,7 @@ const page=await (await browser.createBrowserContext()).newPage();
 page.on("pageerror",e=>errs.push("PAGEERR: "+e));
 page.on("console",m=>{ if(m.type()==="error" && !/Failed to load resource/.test(m.text())) errs.push("CONSOLE: "+m.text()); });
 await page.setViewport({width:1280,height:800,deviceScaleFactor:1});
-await page.goto(`${srv.url}/index.html?world=tiled&dev&nohud`,{waitUntil:"domcontentloaded",timeout:45000});
+await page.goto(`${srv.url}/index.html?dev&nohud`,{waitUntil:"domcontentloaded",timeout:45000});  // plain URL = the new default (Tiled)
 const fr=await (async()=>{ const dl=Date.now()+25000;
   while(Date.now()<dl){ for(const f of page.frames()){ try{ if(await f.evaluate(()=>!!(window.__dev&&window.__dev.scene))) return f; }catch{} } await sleep(200);} throw new Error("no frame"); })();
 const key=(c,t)=>fr.evaluate((c,t)=>window.dispatchEvent(new KeyboardEvent(t,{code:c,key:c.replace("Key","").toLowerCase(),bubbles:true})),c,t);
@@ -31,6 +31,11 @@ for(const [tx,ty,name] of spots){
   await page.screenshot({path:join(OUT,name)});
   console.log("wrote",name);
 }
+// a hunt zone with live combat (mobs spawn after a few seconds)
+await fr.evaluate(()=>window.__dev.tp(170,159));
+await sleep(4500);
+await page.screenshot({path:join(OUT,"tiled-combat.png")});
+console.log("wrote tiled-combat.png");
 // verify the grafted dungeons/old-lands exist (translated below the continent)
 for(const z of ["town","caves","arena","abyss","frost","trial"]){
   const r=await fr.evaluate((z)=>window.__dev.tpZone(z),z);
