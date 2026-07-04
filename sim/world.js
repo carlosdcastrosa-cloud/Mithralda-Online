@@ -5,7 +5,7 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND, setMapDims } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_WATER, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND, setMapDims } from "./config.js";
 import { inRect } from "./math.js";
 import { MAP as TILED_MAP } from "./tiled-map-data.js";
 
@@ -402,24 +402,70 @@ export function buildWorld(rng){
 // phases (their arrays are empty here). Behind a flag until complete (see sim.js USE_TILED).
 function unrle(rle, len){ const a=new Uint8Array(len); let i=0;
   for(let k=0;k<rle.length;k+=2){ const v=rle[k]; let c=rle[k+1]; while(c-->0) a[i++]=v; } return a; }
-export function buildTiledWorld(){
-  const M=TILED_MAP; setMapDims(M.W, M.H);
-  const N=M.W*M.H;
-  const terr=unrle(M.terrRLE, N);
-  const wmask=unrle(M.wallRLE, N);
-  const wallSet=new Set(); for(let i=0;i<N;i++) if(wmask[i]) wallSet.add(i);
+export function buildTiledWorld(rng){
+  const M=TILED_MAP;
+  // GRAFT the full procedural world (dungeons/bosses/portals/town) FIRST while MAP_W/H are still the
+  // classic 330×330, then STACK it below the Tiled continent in one bigger grid. The continent is the
+  // primary overworld (spawn/hub); an ungated portal near the hub links to the old lands + their
+  // power-gated dungeons — so "overworld + keep the dungeons". buildWorld consumes the rng stream
+  // identically to the classic path (determinism untouched).
+  const proc = buildWorld(rng);
+  const procW=MAP_W, procH=MAP_H;                 // 330×330 (read before we grow the world)
+  const CW=M.W, GAP=8, procOY=M.H+GAP, CH=procOY+procH;   // continent on top, old lands below
+  setMapDims(CW, CH);
+  const dyPx=procOY*TS;
+  // ---- terrain: ocean canvas, continent stamped at (0,0), proc world stamped at (0,procOY) --------
+  const terr=new Uint8Array(CW*CH); terr.fill(T_WATER);
+  const cterr=unrle(M.terrRLE, M.W*M.H);
+  for(let i=0;i<M.W*M.H;i++) terr[i]=cterr[i];    // continent width == CW → direct copy, no reindex
+  for(let py=0;py<procH;py++){ const cb=(py+procOY)*CW, pb=py*procW;
+    for(let px=0;px<procW;px++) terr[cb+px]=proc.terr[pb+px]; }
+  // ---- walls: continent mask (index valid at width CW) + proc walls translated -------------------
+  const wallSet=new Set();
+  const wmask=unrle(M.wallRLE, M.W*M.H);
+  for(let i=0;i<M.W*M.H;i++) if(wmask[i]) wallSet.add(i);
+  for(const i of proc.wallSet){ const px=i%procW, py=(i/procW)|0; wallSet.add((py+procOY)*CW+px); }
+  const blockSet=new Set();
+  for(const i of proc.blockSet){ const px=i%procW, py=(i/procW)|0; blockSet.add((py+procOY)*CW+px); }
+  // ---- continent hub + objects ------------------------------------------------------------------
   const tcx=M.hub.x, tcy=M.hub.y;
   const templeF={x:tcx, y:tcy-TS*2, temple:true};
-  const hubTx=Math.round(tcx/TS), hubTy=Math.round(tcy/TS);
-  const town={x:hubTx-9, y:hubTy-9, w:18, h:18};
-  const off={x:0,y:0,w:1,h:1};   // placeholder zone rects (unreachable ocean corner) — Phase 3 fills these
-  // decode deco (trees / ruins / ground clutter); solid items also feed the collision grid
   const deco=[], solids=[]; const K=M.decoKinds||[];
   for(const d of (M.deco||[])){ const o={x:d[0], y:d[1], kind:K[d[2]]}; deco.push(o);
     if(d[3]>0) solids.push({x:o.x, y:o.y, r:d[3], kind:o.kind}); }
-  return { terr, town, forest:off, caves:off, arena:off, ruins:off, abyss:off, frost:off, trial:off, swamp:off,
-    solids, deco, chests:[], fragments:[], fountains:[templeF], npcs:[], spawners:[], portals:[],
-    templeF, tcx, tcy, wallSet, buildings:[], blockSet:new Set() };
+  const NPC_MAP={
+    healer:    { sprite:"healernpc", role:"fountain", name:STR.npcHealer,   lines:STR.healerLines },
+    merchant:  { sprite:"merchant",  role:"merchant", name:STR.npcMerchant, lines:STR.merchantLines },
+    blacksmith:{ sprite:"npcBram",   role:"shop",     name:STR.npcBram,     lines:STR.bramLines },
+  };
+  const npcs=[]; let sx=tcx, sy=tcy, cn=1;
+  for(const n of (M.npcs||[])){ const d=NPC_MAP[n.especie]; if(!d) continue;
+    npcs.push({x:n.x, y:n.y, sprite:d.sprite, name:d.name, role:d.role, lines:d.lines, neutral:true});
+    sx+=n.x; sy+=n.y; cn++; }
+  const townTx=Math.round((sx/cn)/TS), townTy=Math.round((sy/cn)/TS);
+  const town={x:townTx-14, y:townTy-14, w:28, h:28};
+  const TMAX={forest:6, ruins:7, caves:8, arena:9};
+  const spawners=(M.huntZones||[]).map(z=>({ rect:{x:z.x,y:z.y,w:z.w,h:z.h}, types:z.types, max:TMAX[z.tier]||8, cool:3.5, t:0, zone:z.tier }));
+  // ---- merge the proc world's objects (translated down by procOY) -------------------------------
+  const shift=(o)=>Object.assign({}, o, {y:o.y+dyPx});
+  const shR=(r)=> r?Object.assign({}, r, {y:r.y+procOY}):r;
+  for(const o of proc.deco)   deco.push(shift(o));
+  for(const o of proc.solids) solids.push(shift(o));
+  for(const o of proc.npcs)   npcs.push(shift(o));
+  for(const s of proc.spawners) spawners.push(Object.assign({}, s, {rect:shR(s.rect)}));
+  const chests=proc.chests.map(shift), fragments=proc.fragments.map(shift);
+  const fountains=[templeF, ...proc.fountains.map(shift)];
+  const buildings=(proc.buildings||[]).map(b=>Object.assign({}, b, {ty:b.ty+procOY}));
+  // portals: proc portals translated (position + destination), plus the continent↔oldlands link
+  const portals=proc.portals.map(p=>Object.assign({}, p, {y:p.y+dyPx, dy:p.dy+dyPx}));
+  const procTX=proc.tcx, procTY=proc.tcy+dyPx;
+  portals.push({x:tcx+4*TS, y:tcy, to:"oldlands", dx:procTX, dy:procTY+TS*2, kind:"down"});
+  portals.push({x:procTX+5*TS, y:procTY-6*TS, to:"continent", dx:tcx+4*TS, dy:tcy+TS*2, kind:"up"});
+  return { terr, town,
+    forest:shR(proc.forest), caves:shR(proc.caves), arena:shR(proc.arena), ruins:shR(proc.ruins),
+    abyss:shR(proc.abyss), frost:shR(proc.frost), trial:shR(proc.trial), swamp:shR(proc.swamp),
+    solids, deco, chests, fragments, fountains, npcs, spawners, portals,
+    templeF, tcx, tcy, wallSet, buildings, blockSet };
 }
 
 export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;

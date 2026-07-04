@@ -31,5 +31,12 @@ for(const [tx,ty,name] of spots){
   await page.screenshot({path:join(OUT,name)});
   console.log("wrote",name);
 }
+// verify the grafted dungeons/old-lands exist (translated below the continent)
+for(const z of ["town","caves","arena","abyss","frost","trial"]){
+  const r=await fr.evaluate((z)=>window.__dev.tpZone(z),z);
+  await sleep(700);
+  await page.screenshot({path:join(OUT,"tiled-zone-"+z+".png")});
+  console.log("zone",z,"->",r);
+}
 await browser.close(); await srv.close();
 console.log(errs.length?("ERRORS:\n"+errs.slice(0,10).join("\n")):"no console errors");

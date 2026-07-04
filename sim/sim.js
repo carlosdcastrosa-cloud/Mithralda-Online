@@ -44,7 +44,7 @@ const frr = (a,b)=>fxRng.rr(a,b);
 // the authoritative world (deterministic for the fixed seed). ?world=tiled loads the hand-built
 // Tiled continent (760×570) instead of the procedural world — behind a flag until fully wired.
 const USE_TILED = typeof location!=="undefined" && /[?&]world=tiled/.test(location.search||"");
-const world = USE_TILED ? buildTiledWorld() : buildWorld(rng);
+const world = USE_TILED ? buildTiledWorld(rng) : buildWorld(rng);
 
 // CAS-397: spatial hash over world.solids. Making the wilderness trees/rocks solid pushes the
 // solid count from ~200 to ~1400; solidBlocked runs 2×/entity/frame, so the old O(n) linear scan
