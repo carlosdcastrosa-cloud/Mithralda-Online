@@ -987,9 +987,12 @@ export function createRenderer(ctx){
     // the strip loads or for non-animated NPCs. topY = head height for the E/! marker.
     const ach=NPC_ANIM[n.sprite]; let topY;
     if(ach && IMG[ach+"_idle"] && IMG[ach+"_idle"].complete && IMG[ach+"_idle"].naturalWidth){
-      const S=1.0, feet=n.y+14, fi=frameIndex(ach,"idle",G.t,6,true);
-      drawAnim(ctx,ach,"idle",fi,n.x,feet,S,false,null);
-      topY=feet-ANIM[ach].fh.idle*S;
+      const S=1.0, feet=n.y+14;
+      const cst=(n.castT!=null && (G.t-n.castT)<0.9 && ANIM[ach].fc.cast);  // CAS-466
+      const st=cst?"cast":"idle";
+      const fi=cst?frameIndex(ach,"cast",G.t-n.castT,7,false):frameIndex(ach,"idle",G.t,6,true);
+      drawAnim(ctx,ach,st,fi,n.x,feet,S,false,null);
+      topY=feet-ANIM[ach].fh[st]*S;
     } else { const spr=SP[n.sprite];
       // CAS-113: an animated NPC has NO SP fallback entry — while its strip image is
       // still loading (e.g. when we rehydrate a save straight into play), skip the
@@ -1449,6 +1452,15 @@ export function createRenderer(ctx){
       // CAS-456: larger mana cost label for readability (10px vs old 8px)
       if(costs[i]>0){ ctx.fillStyle=enoughMp?"#8ab8ff":"#e06060"; ctx.font="bold 10px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+10);} }
   }
+  // CAS-466: silueta del continente para el minimapa (1px = 2 tiles, cacheada)
+  let mmTerra=null, mmTerraW=0;
+  function mmBuildTerra(){ const sc=2, cw=Math.ceil(MAP_W/sc), ch=Math.ceil(MAP_H/sc);
+    const cv=document.createElement("canvas"); cv.width=cw; cv.height=ch;
+    const c2=cv.getContext("2d"); const img=c2.createImageData(cw,ch); const px=img.data;
+    const C=[[96,130,96],[152,124,84],[62,68,82],[164,154,124],[192,172,116],[40,102,138],[150,190,212],[80,116,92]];
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){ const c=C[world.terr[(y*sc)*MAP_W+(x*sc)]]||[50,50,50];
+      const i=(y*cw+x)*4; px[i]=c[0];px[i+1]=c[1];px[i+2]=c[2];px[i+3]=255; }
+    c2.putImageData(img,0,0); mmTerra=cv; mmTerraW=cw; }
   function renderMiniMap(){ const mw=(VW<=480)?84:120, mh=mw; if(isTouch) return; // CAS-1174: scale minimap to 84px ≤480px so it clears the bottom-centre spell bar
     // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
     const x=uiLayout.cx("minimap", VW-mw-12, mw);
@@ -1459,23 +1471,47 @@ export function createRenderer(ctx){
     ctx.fillStyle="rgba(12,14,19,0.88)"; ctx.fillRect(x-2,y-2,mw+4,mh+4);
     ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
     if(uiLayout.dragging()==="minimap"){ ctx.strokeStyle="#ffe39a"; ctx.lineWidth=2; ctx.strokeRect(x-4,y-4,mw+8,mh+8); }
-    const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
+    // CAS-466: silueta del continente + ventana con zoom centrada en el héroe
+    if(!mmTerra || mmTerraW!==Math.ceil(MAP_W/2)) mmBuildTerra();
+    const mz=(uiLayout.mmZoom?uiLayout.mmZoom():1);
+    const vwPx=MAP_W*TS/mz, vhPx=MAP_H*TS/mz;
+    let vx=G.hero.x-vwPx/2, vy=G.hero.y-vhPx/2;
+    vx=Math.max(0,Math.min(MAP_W*TS-vwPx,vx)); vy=Math.max(0,Math.min(MAP_H*TS-vhPx,vy));
+    const pi=ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled=false;
+    if(mmTerra) ctx.drawImage(mmTerra, vx/(TS*2), vy/(TS*2), vwPx/(TS*2), vhPx/(TS*2), x, y, mw, mh);
+    ctx.imageSmoothingEnabled=pi;
+    ctx.save(); ctx.beginPath(); ctx.rect(x,y,mw,mh); ctx.clip();
+    const sx=mw/vwPx, sy=mh/vhPx, mmox=x-vx*sx, mmoy=y-vy*sy;
     // CAS-454: brightened minimap-only zone palette so the map reads in the cold-gloom world
     const MM={forest:"#4e7054",caves:"#484f5e",arena:"#7a7058",town:"#4a5c6a",ruins:"#5a6e52",abyss:"#5a3d70",frost:"#4e6878",trial:"#c8a24a",swamp:"#567a62"};
     const zr=[[world.forest,MM.forest],[world.caves,MM.caves],[world.arena,MM.arena],[world.town,MM.town],[world.ruins,MM.ruins],[world.abyss,MM.abyss],[world.frost,MM.frost],[world.trial,MM.trial],[world.swamp,MM.swamp]];
-    for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
+    ctx.globalAlpha=0.45;
+    for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(mmox+r.x*TS*sx,mmoy+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
+    ctx.globalAlpha=1;
     // CAS-454: viewport rectangle showing camera frustum
     const Z=zoom(); const vpW=VW/Z, vpH=VH/Z;
     ctx.strokeStyle="rgba(255,255,255,0.35)"; ctx.lineWidth=1;
-    ctx.strokeRect(x+G.cam.x*sx, y+G.cam.y*sy, vpW*sx, vpH*sy);
+    ctx.strokeRect(mmox+G.cam.x*sx, mmoy+G.cam.y*sy, vpW*sx, vpH*sy);
     // CAS-114 — portal blips on the minimap (violet)
-    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-1,y+p.y*sy-1,3,3); } }
-    ctx.fillStyle="#ff5a4a"; for(const e of G.enemies){ ctx.fillRect(x+e.x*sx-1,y+e.y*sy-1,2,2); }
+    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(mmox+p.x*sx-1,mmoy+p.y*sy-1,3,3); } }
+    ctx.fillStyle="#ff5a4a"; for(const e of G.enemies){ ctx.fillRect(mmox+e.x*sx-1,mmoy+e.y*sy-1,2,2); }
     // CAS-454: directional arrow for player position
-    const hx=x+G.hero.x*sx, hy=y+G.hero.y*sy, fa=G.hero.facing, ar=5;
+    const hx=mmox+G.hero.x*sx, hy=mmoy+G.hero.y*sy, fa=G.hero.facing, ar=5;
     ctx.save(); ctx.translate(hx,hy); ctx.rotate(fa);
     ctx.fillStyle=COL.textGold; ctx.beginPath(); ctx.moveTo(ar,0); ctx.lineTo(-ar*0.7,ar*0.6); ctx.lineTo(-ar*0.7,-ar*0.6); ctx.closePath(); ctx.fill();
-    ctx.restore();
+    ctx.restore();   // heroe (translate/rotate)
+    ctx.restore();   // CAS-466: clip de la ventana del minimapa
+    // CAS-466: botones de zoom [+]/[-] (ruteados por uiLayout.canvasDown)
+    const bs=14, bx0=x+mw-bs-2;
+    const mmBtns=[["mmZoomIn",y+2,"+"],["mmZoomOut",y+2+bs+3,"-"]];
+    for(const [bid,by0,lbl] of mmBtns){
+      ctx.fillStyle="rgba(12,14,19,0.85)"; ctx.fillRect(bx0,by0,bs,bs);
+      ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(bx0,by0,bs,bs);
+      ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText(lbl,bx0+bs/2,by0+bs-3);
+      if(uiLayout.pubBtn) uiLayout.pubBtn(bid,bx0,by0,bs,bs);
+    }
+    if(mz>1){ ctx.fillStyle=COL.cream; ctx.font="10px 'Courier New'"; ctx.textAlign="left"; ctx.fillText("x"+mz,x+3,y+11); }
   }
   function renderBigMap(){ const mw=Math.min(VW*0.7,420), mh=mw; const x=(VW-mw)/2, y=(VH-mh)/2;
     panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
