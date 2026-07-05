@@ -1656,13 +1656,26 @@ export function createRenderer(ctx){
       if(i>0){ const st=sp[i-1].status; if(st && STATUS[st.type]){ const pc=STATUS[st.type].col;
         ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-8,y+8,4.5,0,6.28); ctx.fill();
         ctx.fillStyle=pc; ctx.beginPath(); ctx.arc(x+s-8,y+8,3,0,6.28); ctx.fill(); } }
-      // cooldown sweep (top-down dark wipe) for slots 1-3
-      if(i>0 && h.spellCD && h.spellCD[i]>0 && h.spellCDmax[i]>0){ const f=clamp(h.spellCD[i]/h.spellCDmax[i],0,1);
-        ctx.fillStyle="rgba(8,10,14,0.66)"; ctx.fillRect(x,y,s,s*f); }
+      // CAS-1539 (refs CAS-456): cooldown feedback for slots 1-3 — a radial "pie"
+      // sweep (clock-style, 12-o'clock origin, draining clockwise) plus the seconds
+      // remaining, so the player reads how close a skill is to ready at a glance.
+      if(i>0 && h.spellCD && h.spellCD[i]>0 && h.spellCDmax[i]>0){
+        const f=clamp(h.spellCD[i]/h.spellCDmax[i],0,1);
+        const cx=x+s/2, cy=y+s/2, top=-Math.PI/2;
+        ctx.fillStyle="rgba(8,10,14,0.42)"; ctx.fillRect(x,y,s,s);           // whole-slot dim = "on cooldown"
+        ctx.fillStyle="rgba(8,10,14,0.62)";                                  // pie over the REMAINING cooldown
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,s*0.72,top,top+f*6.2832,false); ctx.closePath(); ctx.fill();
+        const secs=h.spellCD[i]; const tx=(secs>=10)?(""+Math.ceil(secs)):secs.toFixed(1);
+        ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillStyle=COL.out; ctx.fillText(tx,cx+1,cy+1); ctx.fillStyle="#ffffff"; ctx.fillText(tx,cx,cy);
+        ctx.textBaseline="alphabetic";
+      } else if(i>0 && costs[i]>0 && h.mp<costs[i]){
+        ctx.fillStyle="rgba(150,32,32,0.30)"; ctx.fillRect(x,y,s,s);         // CAS-1539: red wash when ready but mana-gated
+      }
       ctx.fillStyle=COL.out; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText((i+1),x+3,y+13);
       const label=(i===0) ? ((STR.spellSlot0&&STR.spellSlot0[h.cls])||STR.spells[0]) : names[i-1];
       ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
-      if(costs[i]>0){ ctx.fillStyle="#8ab8ff"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
+      if(costs[i]>0){ ctx.fillStyle=(h.mp>=costs[i])?"#8ab8ff":"#ff6b6b"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
   // CAS: the fixed RIGHT sidebar (Tibia-style). Opaque column covering x∈[view.sbx(),VW] with
   // the hero identity + vitals at the top, then the docked minimap (renderMiniMap) and a stack
