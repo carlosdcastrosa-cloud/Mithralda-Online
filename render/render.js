@@ -1742,6 +1742,12 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="right"; ctx.fillText("E / tap ▸ "+STR.dialogContinue, x+bw-14, y+bh-12);
   }
   function wrapText(txt,x,y,maxW,lh){ const words=txt.split(" "); let line="",yy=y; for(const w of words){ const t=line+w+" "; if(ctx.measureText(t).width>maxW){ ctx.fillText(line,x,yy); line=w+" "; yy+=lh;} else line=t; } ctx.fillText(line,x,yy); }
+  // CAS-453: footer shortcut hints overflowed narrow (390px) modals and got clipped.
+  // Auto-shrink the font until the hint fits maxW (min 7px), then draw. Caller sets
+  // fillStyle + textAlign; we only own font size + fillText. Fixes "atajos recortados".
+  function hintFit(txt,cx,y,maxW,maxPx){ let px=maxPx||11; ctx.font=px+"px 'Courier New'";
+    while(px>7 && ctx.measureText(txt).width>maxW){ px--; ctx.font=px+"px 'Courier New'"; }
+    ctx.fillText(txt,cx,y); }
 
   // Compare arrow vs the piece currently equipped in this item's slot. Now factors
   // affixes in: a same-base-stat piece with stronger affixes still reads as an
@@ -1762,13 +1768,20 @@ export function createRenderer(ctx){
       ctx.fillText(txt,cx+18,by); return cx+18+ctx.measureText(txt).width+14; }
     ctx.fillText(glyph+" "+txt,cx,by); return cx+ctx.measureText(glyph+" "+txt).width+14; }
   function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,470), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
-    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28);
+    const narrow=VW<=480; // CAS-453: mobile (390px) layout guards
+    panel(x,y,bw,bh); ctx.fillStyle=COL.textGold;
+    // CAS-453: on narrow panels the centered title ran into the top-right "Forjar (G)"
+    // button — left-align + shrink it so it clears the button band.
+    if(narrow){ ctx.textAlign="left"; ctx.font="bold 15px 'Courier New'"; ctx.fillText(STR.invTitle,x+16,y+27); }
+    else { ctx.textAlign="center"; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28); }
     // ---- left: Tibia-style equip slots flanking the LIVE animated portrait ----
     // CAS-226. Only weapon/body/shield are functional (data-driven GEAR); the
     // other 7 slots are empty placeholders (no content/art yet) drawn dim. The
     // portrait shows the player's REAL class via the same baked per-state strip
     // (clshero_<cls>) the world renderer uses — animated idle, not a placeholder.
-    const leftW=bw*0.50, SS=Math.min(40,Math.round(bh*0.085)), rgap=SS+19;
+    // CAS-453: shrink slot size on narrow panels so the two edge columns + the hands
+    // row (2 slots) no longer overlap the centre portrait / each other at 390px.
+    const leftW=bw*0.50, SS=narrow?28:Math.min(40,Math.round(bh*0.085)), rgap=SS+19;
     ui.invSlotRects=[];
     // CAS-417: slots draw the real CAS-415 icon (icon_slot_<kind>, 32x32) — dimmed when
     // empty, full-strength as the ITEM icon when occupied (gear type == slot kind). The
@@ -1873,7 +1886,7 @@ export function createRenderer(ctx){
       for(const [lbl,dv] of parts){ const tk=deltaTok(dv); const seg=lbl+" "; ctx.fillStyle=COL.textDim; ctx.fillText(seg,dx,dyb); dx+=ctx.measureText(seg).width;
         ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; hintFit(STR.equipHint,VW/2,y+bh-7,bw-20,11);
     // ---- CAS-419: DnD overlays — reject flash, target highlights, cursor ghost. ----
     // Pure presentation read from input state (ui.invDrag / ui.invReject) in the same
     // per-frame modal pass; zero RNG, zero state mutation (drops resolve in sim seams).
@@ -1952,7 +1965,7 @@ export function createRenderer(ctx){
     }
     // description box (hovered, else keyboard-focused node)
     const dn = hover || talentNode(h.cls, focusId);
-    const dy=y+bh-92, dbx=x+24, dbw=bw-48, dbh=52;
+    const dy=y+bh-100, dbx=x+24, dbw=bw-48, dbh=50; // CAS-453: freed footer room for button+hint
     panelLocal(dbx,dy,dbw,dbh);
     if(dn){ const st=nodeState(h,dn); ctx.textAlign="left";
       ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(dn.name+"  ["+STR.talentRank(nodeRank(h,dn.id),dn.max)+"]", dbx+10, dy+18);
@@ -1961,13 +1974,14 @@ export function createRenderer(ctx){
       if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
       if(hint){ ctx.fillStyle="#d0a0a0"; ctx.font="10px 'Courier New'"; ctx.fillText(hint, dbx+10, dy+48); }
     }
-    // respec button + hint
-    const rbw=210, rbh=26, rbx=VW/2-rbw/2, rby=y+bh-32;
+    // respec button + hint — CAS-453: button lifted so the shortcut line no longer
+    // renders behind it; hint auto-fits the panel width.
+    const rbw=Math.min(210,bw-40), rbh=24, rbx=VW/2-rbw/2, rby=y+bh-44;
     const canR=talentSpent(h)>0;
     ctx.fillStyle=canR?"#3a2c1e":"#23262c"; ctx.fillRect(rbx,rby,rbw,rbh);
-    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+17);
+    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+16);
     ui.talentRects.push({x:rbx,y:rby,w:rbw,h:rbh, act:()=>sim.respecTalents()});
-    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.talentHint, VW/2, y+bh-6);
+    ctx.fillStyle=COL.textDim; hintFit(STR.talentHint, VW/2, y+bh-6, bw-24, 10);
   }
 
   // CAS-150 — ELITE-MASTERY REWARD-TRACK panel. The cross-session hook made legible: a
@@ -2078,10 +2092,11 @@ export function createRenderer(ctx){
       // full-row select rect (keyboard/tap focus); pushed to the BACK so a button tap on the same row wins first
       ui.forgeRects.push({x:x+20,y:ry,w:bw-40,h:ih-10, sel:i});
     }
-    const cy=y+bh-28; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,22);
+    // CAS-453: close button lifted clear of the shortcut line (was drawn over it).
+    const cy=y+bh-42; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,22);
     ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText("Cerrar (G)",VW/2,cy+15);
     ui.forgeRects.push({x:x+bw/2-60,y:cy,w:120,h:22,act:()=>{G.scene="play";}});
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.forgeHint,VW/2,y+bh-8);
+    ctx.fillStyle=COL.textDim; hintFit(STR.forgeHint,VW/2,y+bh-8,bw-24,11);
   }
 
   // CAS-134: the Bounty Board — today's daily contracts (progress + claim) and the login
@@ -2764,7 +2779,7 @@ export function createRenderer(ctx){
     rrng.seed(11); for(let i=0;i<40;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
     ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.customizeTitle, VW/2, 34);
-    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(STR.customizeHint, VW/2, 54);
+    ctx.fillStyle=COL.cream; hintFit(STR.customizeHint, VW/2, 54, VW-24, 11);
 
     // ---- live preview (baked clshero strip, breathing idle loop) ----
     const pvW=Math.min(150,VW*0.34), pvX=VW*0.5-VW*0.30, pvY=72, pvH=Math.min(190,VH*0.34);
@@ -2813,7 +2828,7 @@ export function createRenderer(ctx){
     }
     // ---- buttons ----
     ctx.textAlign="center";
-    const by=VH-46, bw=Math.min(150,VW*0.4), bh=32, gap=14;
+    const by=VH-54, bw=Math.min(150,VW*0.4), bh=32, gap=14; // CAS-453: lifted clear of keys hint
     const dX=VW/2+gap/2, sX=VW/2-gap/2-bw;
     ctx.fillStyle="#1d3324"; ctx.fillRect(dX,by,bw,bh); ctx.strokeStyle=COL.heal; ctx.lineWidth=2; ctx.strokeRect(dX,by,bw,bh);
     ctx.fillStyle=COL.heal; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.customizeDone, dX+bw/2, by+21);
@@ -2821,7 +2836,7 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.fillText(STR.customizeReset, sX+bw/2, by+21);
     ui.customRects.push({kind:"done",x:dX,y:by,w:bw,h:bh});
     ui.customRects.push({kind:"reset",x:sX,y:by,w:bw,h:bh});
-    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.customizeKeys, VW/2, VH-8);
+    ctx.fillStyle=COL.textDim; hintFit(STR.customizeKeys, VW/2, VH-8, VW-24, 10);
     ctx.textAlign="left";
   }
   function drawMenuEmblem(x,y){ ctx.save(); ctx.translate(x,y);
