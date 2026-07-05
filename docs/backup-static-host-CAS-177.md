@@ -1,5 +1,15 @@
 # CAS-177 — Backup static host spike
 
+> **⚠️ HISTORICAL (superseded — CAS-412 / CAS-1549).** This doc dates from when
+> Higgsfield `tender-bridge-504` was still the live URL and this "backup" host
+> was a spike. That is no longer true: `tender-bridge-504` is **DEAD/retired**
+> (board directive CAS-412) and the `gh-pages` project site
+> `https://carlosdcastrosa-cloud.github.io/Mithralda-Online/` is now the **ONLY
+> sanctioned live URL**. Every reference below to "the live URL `tender-bridge-504`
+> is not touched / untouched" is a description of the SPIKE's original scope, not
+> current deploy reality. For the live deploy recipe see
+> `docs/deploy-runbook-CAS-193.md`.
+
 **Status:** spike complete, prototype green, go-live gated on board (CEO) OK.
 **Date:** 2026-06-28 · **Owner:** CTO
 **Non-destructive:** the live fixed URL `tender-bridge-504` is **not** touched.
