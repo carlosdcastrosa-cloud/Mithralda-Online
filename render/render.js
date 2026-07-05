@@ -23,7 +23,9 @@ import { resetGame, clearTutSeen } from "../persist.js";   // CAS-113: pause-men
 import * as settings from "../settings.js";   // CAS-265: rebind table + settings persistence
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import { bestiary } from "../bestiary.js";    // CAS-386: bestiary / codex collection view model
-import { uiLayout } from "../ui/layout.js";   // CAS-418: movable-widget positions (minimap / spell bar) + pause reset
+import { uiLayout } from "../ui/layout.js";
+import { GROUND } from "./tiled-ground-data.js";   // CAS-462: suelo visual del mapa Tiled
+import { TDECO } from "../sim/tiled-deco-data.js"; // CAS-462: props visuales del mapa Tiled   // CAS-418: movable-widget positions (minimap / spell bar) + pause reset
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
   ANIM, ENEMY_ANIM, ENEMY_IMG, ENEMY_STRIP, ENEMY_STRIPS, resolveStrip, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
@@ -198,6 +200,7 @@ export function createRenderer(ctx){
     if(code==="ArrowUp") return "↑"; if(code==="ArrowDown") return "↓";
     if(code==="ArrowLeft") return "←"; if(code==="ArrowRight") return "→";
     return code; };
+  loadImg("tiled_ground", GROUND.atlas); loadImg("tiled_props", TDECO.atlas); // CAS-462
   loadImg("hero_erw", ERW_HERO_SRC);   // CAS-82: hooded pose (now the load-time fallback)
   for(const k in HERO_STRIPS) loadImg(HERO_STRIPS[k].img, `./assets/erw/hero/${HERO_STRIPS[k].img}.png`); // CAS-92 anim strips
   for(const k of CLASS_HERO_KEYS) loadImg("clshero_"+k, `./assets/erw/hero/classes/${k}.png`); // CAS-98 per-class clean cutouts
@@ -297,6 +300,12 @@ export function createRenderer(ctx){
     const x1=Math.min(MAP_W-1,Math.ceil((camX+VW/Z)/TS)+1), y1=Math.min(MAP_H-1,Math.ceil((camY+VH/Z)/TS)+1);
     for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
       const t=world.terr[y*MAP_W+x]; const px=x*TS, py=y*TS;
+      // CAS-462: dentro del continente Tiled el suelo se dibuja del atlas horneado del TMX
+      // (incluye muros de casas, caminos, agua, plaza). terr sigue mandando en colision/minimapa.
+      if(world.tiledVisual && x<GROUND.W && y<GROUND.H){ const ga=IMG.tiled_ground;
+        if(ga&&ga.complete&&ga.naturalWidth){ let gi=GROUND.grid[y*GROUND.W+x];
+          if(gi>=GROUND.animStart) gi+=((G.t*8)|0)%GROUND.animFrames;   // CAS-463: agua/sangre animadas
+          ctx.drawImage(ga,(gi%GROUND.cols)*TS,((gi/GROUND.cols)|0)*TS,TS,TS,px,py,TS,TS); continue; } }
       if(world.wallSet && world.wallSet.has(y*MAP_W+x)){ const wimg=(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
         if(wimg&&wimg.complete&&wimg.naturalWidth) ctx.drawImage(wimg,px,py,TS,TS); else { ctx.fillStyle="#2b313a"; ctx.fillRect(px,py,TS,TS); }
         continue; }
@@ -383,8 +392,13 @@ export function createRenderer(ctx){
     // dense forest costs one cheap bounds test per prop instead of a draw call. Off-screen
     // props are skipped entirely. Margin is asymmetric: props above (smaller y) can be tall.
     const order=[];
-    const vL=camX-48, vR=camX+VW/Z+48, vT=camY-120, vB=camY+VH/Z+24;
+    const tvm=world.tiledVisual?1:0; const vL=camX-48-(tvm?336:0), vR=camX+VW/Z+48+(tvm?336:0), vT=camY-120, vB=camY+VH/Z+24+(tvm?616:0); // CAS-462: margen para sprites grandes (templo)
     for(const d of world.deco){ if(d.x<vL||d.x>vR||d.y<vT||d.y>vB) continue; order.push({y:d.y,draw:()=>{
+      if(d.kind && d.kind.startsWith("tp:")){ let ei=+d.kind.slice(3);
+        const fr=TDECO.anim&&TDECO.anim[ei]; if(fr&&fr.length) ei=fr[((G.t*7)|0)%fr.length]; // CAS-463: portal/cálices animados
+        const e=TDECO.entries[ei], pa=IMG.tiled_props;
+        if(e&&pa&&pa.complete&&pa.naturalWidth) ctx.drawImage(pa,e[0],e[1],e[2],e[3],Math.round(d.x-e[2]/2),Math.round(d.y-e[3]),e[2],e[3]);
+        return; }
       if(d.kind && d.kind.startsWith("prop_")){ const img=IMG[d.kind]; if(img&&img.complete&&img.naturalWidth){
           const s=PROP_SCALE[d.kind]||1, w=img.naturalWidth*s, h=img.naturalHeight*s; ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h));
           if(d.kind==="prop_torch"){ const fy=d.y-h+10;
@@ -1302,9 +1316,13 @@ export function createRenderer(ctx){
     const w=ctx.measureText(label).width+16; let x=VW/2; let y=30;
     // CAS-1174: at ≤480px the banner is wider than the gap beside the vitals panel,
     // so it can't sit top-centre without clipping/overlapping. Drop it BELOW the vitals
-    // panel + drawer button (y=112) and clamp both edges into the viewport so the full
+    // panel + drawer button and clamp both edges into the viewport so the full
     // OBJETIVO text is always visible at 390px.
-    if(VW<=480){ y=112; x=Math.min(Math.max(x, w/2+8), VW-w/2-8); }
+    // CAS-1063: y=112 cleared the stat panel top but not the `.cap` caption strip
+    // (name·class·Nv·oro) that hangs ~34px under it (bottom ≈116px at 0.70 scale) — the
+    // banner's left half overlapped it by 5px. Drop to y=122 so it clears the caption;
+    // the quest tracker below auto-dodges via the ob.y+ob.h test further down.
+    if(VW<=480){ y=122; x=Math.min(Math.max(x, w/2+8), VW-w/2-8); }
     // CAS-416: at narrow widths the centred banner reaches the HUD stat frame
     // (top-left DOM panel, 268px × HUD scale) — nudge it right just enough to clear.
     // CAS-452: also clamp left so banner never overflows the right viewport edge at 390px.
