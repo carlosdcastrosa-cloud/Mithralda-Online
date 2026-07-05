@@ -173,8 +173,10 @@ const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=8, CLASS_WALK8_FPS=8;
 // (65) el cuerpo se dibujaba hasta +-27px de lado -> "la espada sale del lado contrario /
 // capa volando" al girar o parar. Orden dir8FromAngle (0=E 1=SE 2=S 3=SW 4=W 5=NW 6=N 7=NE).
 const DIR8_AX={
-  clsidle8_warrior:[53,86,84,53,86,87,81,52],
-  clswalk8_warrior:[92,88,85,50,46,49,83,89],
+  // CAS-470: grids rediseñados desde el arte ORIGINAL de Clarice (idle/run laterales,
+  // espada re-anclada a la mano DELANTERA). Filas laterales centradas al hornear.
+  clsidle8_warrior:[70,70,84,69,69,69,81,70],
+  clswalk8_warrior:[70,70,85,69,69,69,83,70],
   clsdash8_warrior:[162,163,162,236,236,233,158,166],
 }; // 8f@8fps → cycle 1.0s (footfall 0.5s, in CAS-219/240 0.4–0.6s band)
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
