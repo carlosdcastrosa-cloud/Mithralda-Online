@@ -1377,8 +1377,10 @@ export function createRenderer(ctx){
       // pending (an unmet goal to chase), so a fully-unlocked track stays clean.
       const hint = sim.masteryNextMilestone(h.eliteKills|0) ? " (V)" : "";
       const mby=hudUI?238:pad+14; const mtx=STR.masteryHud(mr)+prog+hint;
-      if(auditRects) AR("masteryBadge", badgeX, mby-12, ctx.measureText(mtx).width, 14);
-      ctx.fillText(mtx, badgeX, mby); ctx.restore(); ctx.textAlign="left"; }
+      const mw=ctx.measureText(mtx).width+10;
+      if(auditRects) AR("masteryBadge", badgeX-4, mby-12, mw, 16);
+      ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(badgeX-4,mby-12,mw,16); // CAS-457: legibility plate behind mastery badge
+      ctx.fillStyle=COL.textGold; ctx.fillText(mtx, badgeX, mby); ctx.restore(); ctx.textAlign="left"; }
     if(!hudUI){ // gold + potions (HUD shows oro + carries equip/bag mirror)
       ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
       ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
@@ -1389,14 +1391,19 @@ export function createRenderer(ctx){
       if(G.skull.level>0){ const sc=[null,COL.skullW,COL.skullY,COL.skullR][G.skull.level]; ctx.fillStyle=sc; ctx.font="bold 16px 'Courier New'"; ctx.fillText("☠ "+h.name, pad, pad+104); }
       else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(h.name, pad, pad+102); }
     }
-    // zone name
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
+    // zone name — CAS-457: semi-transparent legibility plate behind the label so it reads
+    // over bright/busy backgrounds. Plate follows whichever alignment the responsive branch picks.
+    ctx.font="11px 'Courier New'";
     const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,trial:STR.zoneTrial,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
-    const znw=ctx.measureText(zn).width;
+    const znw=ctx.measureText(zn).width; const znpw=znw+10;
     // CAS-1174: at ≤480px the centred zone name overlaps the top-left vitals panel;
     // right-align it (clear of the stat frame) so nothing sits over the vitals.
-    if(VW<=480){ ctx.textAlign="right"; AR("zone", VW-12-znw, 10, znw, 12); ctx.fillText(zn, VW-12, 20); }
-    else { AR("zone", GCX-znw/2, 10, znw, 12); ctx.fillText(zn, GCX, 20); }
+    if(VW<=480){ ctx.textAlign="right"; AR("zone", VW-12-znw, 10, znw, 12);
+      ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(VW-12-znw-5, 8, znpw, 14); // CAS-457 plate
+      ctx.fillStyle=COL.textDim; ctx.fillText(zn, VW-12, 20); }
+    else { ctx.textAlign="center"; AR("zone", GCX-znw/2, 10, znw, 12);
+      ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(GCX-znpw/2, 8, znpw, 14); // CAS-457 plate
+      ctx.fillStyle=COL.textDim; ctx.fillText(zn, GCX, 20); }
     // CAS-123: Stage-1 OBJECTIVE tracker — the single legible win-goal, top-centre and
     // ALWAYS visible so a new player reads where the run is headed from minute one. The
     // text + colour switch as the gate opens (locked → ready) and once the run is won.
