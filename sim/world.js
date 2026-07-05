@@ -434,12 +434,15 @@ export function buildTiledWorld(rng){
   // CAS-462: los props ahora vienen del bake VISUAL del TMX (sprites reales de Ancient
   // Ruins via atlas). kind "tp:<idx>" -> render/render.js los blitea del props_atlas.
   const deco=[], solids=[];
-  for(const d of TDECO.place){ const o={x:d[0], y:d[1], kind:"tp:"+d[2]}; deco.push(o);
-    if(d[3]>0) solids.push({x:o.x, y:o.y, r:d[3], kind:o.kind}); }
+  // CAS-467: visual (place) y colisión (solids multi-círculo por estructura) separados;
+  // blocked = tiles de charca de sangre -> T_WATER (misma colisión que el estanque).
+  for(const d of TDECO.place) deco.push({x:d[0], y:d[1], kind:"tp:"+d[2]});
+  for(const s of (TDECO.solids||[])) solids.push({x:s[0], y:s[1], r:s[2], kind:"tp"});
+  for(const bi of (TDECO.blocked||[])) terr[bi]=T_WATER;
   const NPC_MAP={
     healer:    { sprite:"healernpc", role:"fountain", name:STR.npcHealer,   lines:STR.healerLines },
     merchant:  { sprite:"merchant",  role:"merchant", name:STR.npcMerchant, lines:STR.merchantLines },
-    blacksmith:{ sprite:"npcBram",   role:"shop",     name:STR.npcBram,     lines:STR.bramLines },
+    blacksmith:{ sprite:"blacksmithnpc", role:"shop", name:STR.npcBram, lines:STR.bramLines }, // CAS-464: sprite real del pack
   };
   const npcs=[]; let sx=tcx, sy=tcy, cn=1;
   for(const n of (M.npcs||[])){ const d=NPC_MAP[n.especie]; if(!d) continue;
@@ -449,6 +452,11 @@ export function buildTiledWorld(rng){
   const town={x:townTx-14, y:townTy-14, w:28, h:28};
   const TMAX={forest:6, ruins:7, caves:8, arena:9};
   const spawners=(M.huntZones||[]).map(z=>({ rect:{x:z.x,y:z.y,w:z.w,h:z.h}, types:z.types, max:TMAX[z.tier]||8, cool:3.5, t:0, zone:z.tier }));
+  // CAS-465: fauna del mapa Tiled — alces (6 colores originales ERW) y golems de piedra
+  // en las posiciones autoradas del TMX (TDECO.mobs). Los golems son élites raros.
+  for(const mb of (TDECO.mobs||[])){ const mtx=(mb[0]/TS)|0, mty=(mb[1]/TS)|0; const gol=mb[2]===1;
+    spawners.push({ rect:{x:mtx-5,y:mty-5,w:10,h:10}, types: gol?["golem"]:["moose"],
+      max: gol?1:2, cool: gol?150:6, t:0, zone: gol?"ruins":"forest" }); }
   // ---- merge the proc world's objects (translated down by procOY) -------------------------------
   const shift=(o)=>Object.assign({}, o, {y:o.y+dyPx});
   const shR=(r)=> r?Object.assign({}, r, {y:r.y+procOY}):r;

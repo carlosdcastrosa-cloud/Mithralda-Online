@@ -1633,6 +1633,7 @@ function openDialogue(n){
   // No cooldown, no UI, no shop (the fountain had none); on-style heal juice for feedback.
   if(n.role==="fountain"){ const h=G.hero;
     h.hp=heroMaxHp(h); h.mp=h.maxMp; h.respawn={x:n.x,y:n.y+TS};
+    n.castT=G.t;   // CAS-466: la Sanadora hace su animación de cast al curar
     toast(STR.fountainRest); audio.sfx.heal();
     addFx("healburst",h.x,h.y,{col:"#7dffa0",life:0.5});
     for(let k=0;k<8;k++) addFx("heal",h.x+frr(-16,16),h.y+frr(-20,8));
