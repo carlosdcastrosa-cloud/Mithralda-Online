@@ -175,10 +175,8 @@ const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=8, CLASS_WALK8_FPS=8;
 const DIR8_AX={
   // CAS-470: grids rediseñados desde el arte ORIGINAL de Clarice (idle/run laterales,
   // espada re-anclada a la mano DELANTERA). Filas laterales centradas al hornear.
-  // CAS-471: el sim guarda facing con +PI -> los grids van instalados ROTADOS 180
-  // (slot0=W, slot2=N espalda, slot4=E, slot6=S frente). Anclas medidas por slot.
-  clsidle8_warrior:[69,69,81,70,70,70,84,69],
-  clswalk8_warrior:[69,69,83,70,70,70,85,69],
+  clsidle8_warrior:[70,70,84,69,69,69,81,70],
+  clswalk8_warrior:[70,70,85,69,69,69,83,70],
   clsdash8_warrior:[162,163,162,236,236,233,158,166],
 }; // 8f@8fps → cycle 1.0s (footfall 0.5s, in CAS-219/240 0.4–0.6s band)
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
