@@ -17,7 +17,7 @@ import { STR } from "../strings.js";
 import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
-import { buildWorld, zoneOf } from "./world.js";
+import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
 import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost } from "./gear.js";
 import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, sanitizeTalents, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
@@ -41,8 +41,11 @@ const { srand, seed, rr, ri } = rng;
 const fxRng = createRNG();
 const frr = (a,b)=>fxRng.rr(a,b);
 
-// the authoritative world (deterministic for the fixed seed)
-const world = buildWorld(rng);
+// the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
+// dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
+// determinism self-test drives buildWorld() directly, so it stays unaffected either way.
+const USE_CLASSIC = typeof location!=="undefined" && /[?&]world=classic/.test(location.search||"");
+const world = USE_CLASSIC ? buildWorld(rng) : buildTiledWorld(rng);
 
 // CAS-397: spatial hash over world.solids. Making the wilderness trees/rocks solid pushes the
 // solid count from ~200 to ~1400; solidBlocked runs 2×/entity/frame, so the old O(n) linear scan
@@ -739,6 +742,7 @@ function solidBlocked(x,y,r){
   const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
   if(world.terr[ty*MAP_W+tx]===T_WATER) return true;
   if(world.wallSet && world.wallSet.has(ty*MAP_W+tx)) return true;
+  if(world.blockSet && world.blockSet.has(ty*MAP_W+tx)) return true; // CAS: enterable-house walls
   // CAS-397: only scan buckets within reach (r + largest solid radius) of the point.
   const reach=r+solidMaxR;
   const c0=Math.floor((x-reach)/SGRID_CELL), c1=Math.floor((x+reach)/SGRID_CELL);
@@ -1895,8 +1899,10 @@ export function update(dtMs){
 
   if(h.hp<=0) heroDie();
   // camera (presentation-only; reads plain viewport numbers, never the DOM)
-  G.cam.x=lerp(G.cam.x, h.x-view.VW/2/view.zoom(), 0.14);
-  G.cam.y=lerp(G.cam.y, h.y-view.VH/2/view.zoom(), 0.14);
+  // CAS: centre the hero in the VISIBLE game area (left of the right sidebar, above the bottom
+  // bar), not the whole canvas — the world is drawn full-screen and the panels cover the rest.
+  G.cam.x=lerp(G.cam.x, h.x-view.gcx()/view.zoom(), 0.14);
+  G.cam.y=lerp(G.cam.y, h.y-view.gcy()/view.zoom(), 0.14);
   if(G.shake>0) G.shake=Math.max(0,G.shake-dt*30);
 }
 
