@@ -166,7 +166,17 @@ const CLASS_DASH8_ANIM=["warrior"]; const CLASS_DASH8_FC=8;
 // The four HOODED classes stay flip-only (CAS-300/350/359 rule): their only 8-dir sheets are
 // the rejected regens, so they keep clshero_/clswalk_ + L/R flip (flip=Math.cos(facing)<0).
 const CLASS_DIR8_ANIM=["warrior"];
-const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=8, CLASS_WALK8_FPS=8; // 8f@8fps → cycle 1.0s (footfall 0.5s, in CAS-219/240 0.4–0.6s band)
+const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=8, CLASS_WALK8_FPS=8;
+// CAS-469 (port de CAS-786): anchor-x POR FILA de los grids 8-dir del warrior. Las filas
+// espejo del grid son hflip de la CELDA completa, asi que el cuerpo queda a x distinta
+// segun la fila (~52 vs ~86 en celdas de 140, medido de los pixeles). Con CLASS_AX fijo
+// (65) el cuerpo se dibujaba hasta +-27px de lado -> "la espada sale del lado contrario /
+// capa volando" al girar o parar. Orden dir8FromAngle (0=E 1=SE 2=S 3=SW 4=W 5=NW 6=N 7=NE).
+const DIR8_AX={
+  clsidle8_warrior:[53,86,84,53,86,87,81,52],
+  clswalk8_warrior:[92,88,85,50,46,49,83,89],
+  clsdash8_warrior:[162,163,162,236,236,233,158,166],
+}; // 8f@8fps → cycle 1.0s (footfall 0.5s, in CAS-219/240 0.4–0.6s band)
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
 function dir8FromAngle(ang){ return ((Math.round(ang/(Math.PI/4))%8)+8)%8; }
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
@@ -506,7 +516,7 @@ export function createRenderer(ctx){
     // props are skipped entirely. Margin is asymmetric: props above (smaller y) can be tall.
     const order=[];
     const tvm=world.tiledVisual?1:0; const vL=camX-48-(tvm?336:0), vR=camX+VW/Z+48+(tvm?336:0), vT=camY-120, vB=camY+VH/Z+24+(tvm?616:0); // CAS-462
-    for(const d of world.deco){ if(d.x<vL||d.x>vR||d.y<vT||d.y>vB) continue; order.push({y:d.y,draw:()=>{
+    for(const d of world.deco){ if(d.x<vL||d.x>vR||d.y<vT||d.y>vB) continue; order.push({y:(d.kind&&d.kind.startsWith("tp:"))?d.y-16:d.y,draw:()=>{
       if(d.kind && d.kind.startsWith("tp:")){ let ei=+d.kind.slice(3);
         const fr=TDECO.anim&&TDECO.anim[ei]; if(fr&&fr.length) ei=fr[((G.t*7)|0)%fr.length]; // CAS-463
         const e=TDECO.entries[ei], pa=IMG.tiled_props;
@@ -728,7 +738,8 @@ export function createRenderer(ctx){
     // height/rows (166 for the 8-dir strips) and the source row is offset by row*fh. Legacy
     // single-row strips keep rows=1 → fh==naturalHeight and sy==0, i.e. byte-identical path.
     const fw=Math.round(img.naturalWidth/fc), fh=Math.round(img.naturalHeight/rows);
-    const ax=(fw>CLASS_FW)?fw/2:CLASS_AX, foot=fh-(CLASS_FH-CLASS_FOOT);
+    const _axT=DIR8_AX[key];  // CAS-469: anchor por fila para strips 8-dir
+    const ax=(_axT&&rows>1)?_axT[row]:((fw>CLASS_FW)?fw/2:CLASS_AX), foot=fh-(CLASS_FH-CLASS_FOOT);
     const S=CLASS_ANIM_SCALE, dw=fw*S*sqX, dh=fh*S*sqY, sx=(fi||0)*fw, sy=row*fh;
     const dx=cx-ax*S*sqX, dy=feet-foot*S*sqY-(bobUp||0);
     const useFlip=flipOff?false:flip; // 8-dir strips carry real per-facing art → never mirror
