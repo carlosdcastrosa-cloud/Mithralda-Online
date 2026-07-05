@@ -1534,10 +1534,11 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-5,y+5,8,0,6.28); ctx.fill();
     ctx.fillStyle=qty>0?COL.textGold:"#7a7f88"; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
     ctx.fillText(qty,x+s-5,y+9);
-    // key hints — CAS-416: strip pulled up 2px + slimmed so it never clips below VH
+    // key hint — CAS-456: single [Q] use hint (spec: "un solo hint [Q]"); the count is the
+    // corner badge above, so the strip no longer needs the [R] cycle glyph cluttering the slot.
     ctx.fillStyle=COL.out; ctx.fillRect(x-2,y+s+2,s+4,10);
     ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="center";
-    ctx.fillText("[Q] usar  [R] ↻",x+s/2,y+s+10);
+    ctx.fillText("[Q] usar",x+s/2,y+s+10);
     ctx.textAlign="left";
     AR("consumable", x-2, y-2, s+4, s+14);
   }
@@ -1562,27 +1563,36 @@ export function createRenderer(ctx){
     const icls=SPELLS[h.cls]?h.cls:"warrior"; // icon files exist for the 5 canonical classes
     for(let i=0;i<n;i++){ const x=x0+i*(s+gap);
       ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
-      ctx.fillStyle=h.mp>=costs[i]?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
+      const enoughMp=h.mp>=costs[i];
+      ctx.fillStyle=enoughMp?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
       // CAS-417: real spell icon (CAS-415 art, 32x32) replaces the flat colour square;
       // the square stays ONLY as fallback while/if the PNG hasn't loaded.
       const ic=IMG["icon_spell_"+icls+"_"+i];
       if(ic&&ic.complete&&ic.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false;
-        ctx.globalAlpha=h.mp>=costs[i]?1:0.45;
+        ctx.globalAlpha=enoughMp?1:0.4;
         ctx.drawImage(ic, Math.round(x+(s-32)/2), Math.round(y+(s-32)/2), 32,32); ctx.restore(); }
       else { ctx.fillStyle=(i===0)?"#cfd6de":(sp[i-1].col||"#cfd6de"); ctx.fillRect(x+6,y+6,s-12,s-12); }
+      // CAS-456: red tint overlay when mana is insufficient (clearer than dim alone)
+      if(!enoughMp && costs[i]>0){ ctx.fillStyle="rgba(160,30,30,0.28)"; ctx.fillRect(x,y,s,s); }
       // CAS-120: status pip — a small dot in the effect colour marks a skill that
       // applies a CAS-118 status (veneno/quemadura/lentitud/aturdir), so the player
       // reads at a glance which skills deploy control/ignite.
       if(i>0){ const st=sp[i-1].status; if(st && STATUS[st.type]){ const pc=STATUS[st.type].col;
         ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-8,y+8,4.5,0,6.28); ctx.fill();
         ctx.fillStyle=pc; ctx.beginPath(); ctx.arc(x+s-8,y+8,3,0,6.28); ctx.fill(); } }
-      // cooldown sweep (top-down dark wipe) for slots 1-3
+      // CAS-456: radial cooldown arc (clock-style, 12-o-clock origin, clockwise drain) for slots 1-3
       if(i>0 && h.spellCD && h.spellCD[i]>0 && h.spellCDmax[i]>0){ const f=clamp(h.spellCD[i]/h.spellCDmax[i],0,1);
-        ctx.fillStyle="rgba(8,10,14,0.66)"; ctx.fillRect(x,y,s,s*f); }
+        const cxs=x+s/2, cys=y+s/2, rs=s/2+2;
+        ctx.save(); ctx.beginPath(); ctx.moveTo(cxs,cys);
+        ctx.arc(cxs,cys,rs,-Math.PI/2,-Math.PI/2+f*Math.PI*2,false); ctx.closePath();
+        ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fill(); ctx.restore();
+        ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
+        ctx.fillText(Math.ceil(h.spellCD[i]),cxs,cys+4); }
       ctx.fillStyle=COL.out; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText((i+1),x+3,y+13);
       const label=(i===0) ? ((STR.spellSlot0&&STR.spellSlot0[h.cls])||STR.spells[0]) : names[i-1];
       ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
-      if(costs[i]>0){ ctx.fillStyle="#8ab8ff"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
+      // CAS-456: larger mana cost label for readability (10px vs old 8px)
+      if(costs[i]>0){ ctx.fillStyle=enoughMp?"#8ab8ff":"#e06060"; ctx.font="bold 10px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+10);} }
   }
   // CAS: the fixed RIGHT sidebar (Tibia-style). Opaque column covering x∈[view.sbx(),VW] with
   // the hero identity + vitals at the top, then the docked minimap (renderMiniMap) and a stack
