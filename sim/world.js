@@ -465,7 +465,7 @@ export function buildTiledWorld(rng){
   for(const o of proc.npcs)   npcs.push(shift(o));
   for(const s of proc.spawners) spawners.push(Object.assign({}, s, {rect:shR(s.rect)}));
   const chests=proc.chests.map(shift), fragments=proc.fragments.map(shift);
-  const fountains=[templeF, ...proc.fountains.map(shift)];
+  const fountains=proc.fountains.map(shift);  // CAS-468: sin la fuente procedural vieja junto al healer (templeF sigue siendo el ancla de respawn)
   const buildings=(proc.buildings||[]).map(b=>Object.assign({}, b, {ty:b.ty+procOY}));
   // portals: proc portals translated (position + destination), plus the continent↔oldlands link
   const portals=proc.portals.map(p=>Object.assign({}, p, {y:p.y+dyPx, dy:p.dy+dyPx}));
