@@ -2520,22 +2520,34 @@ export function createRenderer(ctx){
     }
     // ---- pinned footer (Resume + replay guide + new game) ----
     let fy=y+bh-118;
-    ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
-    // CAS-267: "reset onboarding" — replay now AND re-arm the persisted first-load
-    // flag (clearTutSeen) so the coachmark also auto-shows again on the next fresh load.
-    ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ clearTutSeen(); G.scene="play"; sim.startTutorial(); }}); fy+=30;
-    // CAS-113: "Nueva partida" — two-tap arm/confirm so a misclick can't nuke a run.
+    // CAS-113/CAS-458: "Nueva partida" wipes the save. The base button reads destructive-red
+    // so the danger registers before the first tap, and tapping it ARMS an explicit
+    // confirmation dialog (not a bare button swap). While armed the dialog covers the
+    // replay + new-game band and those two buttons are NOT registered — pauseTap is
+    // first-match-wins, so a stray tap can never fall through the dialog and nuke a run.
     if(G.resetArm){
-      const half=(pw-8)/2;
-      ctx.fillStyle="#3a2222"; ctx.fillRect(px,fy,half,24); ctx.fillStyle="#f0a0a0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText("SÍ, BORRAR",px+half/2,fy+16);
-      ui.pauseRects.push({x:px,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; resetGame(); }});
-      ctx.fillStyle="#20262f"; ctx.fillRect(px+half+8,fy,half,24); ctx.fillStyle=COL.cream; ctx.fillText("Cancelar",px+half+8+half/2,fy+16);
-      ui.pauseRects.push({x:px+half+8,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; }});
+      const dh=54;
+      ctx.textAlign="center";
+      ctx.fillStyle="rgba(48,16,16,0.97)"; ctx.fillRect(px,fy,pw,dh);
+      ctx.strokeStyle="#8a3030"; ctx.lineWidth=2; ctx.strokeRect(px+1,fy+1,pw-2,dh-2);
+      ctx.fillStyle="#f2b2b2"; ctx.font="bold 12px 'Courier New'"; ctx.fillText("¿Borrar la partida guardada?",VW/2,fy+16);
+      ctx.fillStyle="#d79494"; ctx.font="10px 'Courier New'"; ctx.fillText("Esta acción no se puede deshacer.",VW/2,fy+30);
+      const half=(pw-16)/2, byb=fy+35;
+      ctx.fillStyle="#a51f1f"; ctx.fillRect(px+4,byb,half,15); ctx.strokeStyle="#e07070"; ctx.lineWidth=1; ctx.strokeRect(px+4.5,byb+0.5,half-1,14);
+      ctx.fillStyle="#ffe0e0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText("SÍ, BORRAR",px+4+half/2,byb+11);
+      ui.pauseRects.push({x:px+4,y:byb,w:half,h:15,act:()=>{ G.resetArm=false; resetGame(); }});
+      ctx.fillStyle="#20262f"; ctx.fillRect(px+12+half,byb,half,15); ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.fillText("Cancelar",px+12+half+half/2,byb+11);
+      ui.pauseRects.push({x:px+12+half,y:byb,w:half,h:15,act:()=>{ G.resetArm=false; }});
     } else {
-      ctx.fillStyle="#2a1c14"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle="#caa07a"; ctx.font="12px 'Courier New'"; ctx.fillText("Nueva partida (borrar guardado)",VW/2,fy+16);
-      ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ G.resetArm=true; }});
+      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
+      // CAS-267: "reset onboarding" — replay now AND re-arm the persisted first-load coachmark flag.
+      ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ clearTutSeen(); G.scene="play"; sim.startTutorial(); }});
+      const ny=fy+30;
+      ctx.fillStyle="#3a1616"; ctx.fillRect(px,ny,pw,24); ctx.strokeStyle="#7a2a2a"; ctx.lineWidth=1; ctx.strokeRect(px+0.5,ny+0.5,pw-1,23);
+      ctx.fillStyle="#e79090"; ctx.font="12px 'Courier New'"; ctx.fillText("Nueva partida (borrar guardado)",VW/2,ny+16);
+      ui.pauseRects.push({x:px,y:ny,w:pw,h:24,act:()=>{ G.resetArm=true; }});
     }
-    fy+=32;
+    fy+=62;
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(VW/2-90,fy,180,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,fy+20);
     ui.pauseRects.push({x:VW/2-90,y:fy,w:180,h:30,act:()=>{ G.resetArm=false; G.rebind=null; G.scene="play"; }});
   }
