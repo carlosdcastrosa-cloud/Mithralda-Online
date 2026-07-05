@@ -45,11 +45,31 @@ export function gitTracked(...paths) {
 // CAS-287: hud.js (the redesigned Tibia-style HUD overlay, default OFF) is a shipped runtime module too.
 // CAS-386: bestiary.js (the Bestiary/Codex collection meta-goal) is a shipped runtime module — hashed
 // here AND registered in index.html's import map so a returning player's cached copy busts on change.
-const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "analytics.js", "analytics.html", "overlay.js", "hud.js", "daily.js", "bestiary.js", "persist.js", "settings.js"];
+export const ROOT_FILES = ["index.html", "game.js", "audio.js", "input.js", "view.js", "strings.js", "analytics.js", "analytics.html", "overlay.js", "hud.js", "daily.js", "bestiary.js", "persist.js", "settings.js"];
 
 // The exact, sorted set of files whose bytes define the build id — tracked only.
 export function buildFileList() {
   return [...ROOT_FILES, ...gitTracked("sim", "render", "assets")].sort();
+}
+
+// CAS-1547 — Paths GitHub Pages' legacy builder chokes on. A full-tree republish
+// (backup-host: publish HEAD 3919406 / 988eb84) once pushed 24 dev-only asset
+// files whose names contain spaces or brackets onto gh-pages; the Pages builder
+// HUNG on that tree and froze the live deploy for ~1h40m (see CAS-1546). Any path
+// matching this must never reach gh-pages.
+export const UNSAFE_PUBLISH_PATH = /[ \[\]]/;
+export const isSafePublishPath = (p) => !UNSAFE_PUBLISH_PATH.test(p);
+
+// CAS-1547 — The exact tracked fileset the backup host SERVES: the cache-bustable
+// module/asset graph (roots + sim/render/assets/ui, mirroring cas457-deploy.mjs)
+// plus version.json. This is NOT the whole repo tree — dev-only dirs (godot/,
+// shots/, tools/, docs/, hosting/) are excluded so a stray dev-file dump can never
+// freeze Pages. Returns { files, dropped }: `files` are safe-to-publish paths,
+// sorted+deduped; `dropped` are tracked served-scope paths refused for containing
+// a space/bracket (logged by the publish path, AC#1).
+export function servedFileList() {
+  const all = [...new Set([...ROOT_FILES, "version.json", ...gitTracked("sim", "render", "assets", "ui")])].sort();
+  return { files: all.filter(isSafePublishPath), dropped: all.filter((p) => !isSafePublishPath(p)) };
 }
 
 // Recompute the build id from the working tree. Returns { build, files }.

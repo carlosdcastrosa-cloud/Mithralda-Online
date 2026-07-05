@@ -28,6 +28,7 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync, cpSync, rmSync } 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ROOT } from "./harness.mjs";
+import { isSafePublishPath } from "./build-id.mjs";
 
 const OUT = join(ROOT, "deploy", "backup-host");
 const BRANCH = "gh-pages";
@@ -64,6 +65,16 @@ try {
   git("config", "user.name", "Paperclip CTO");
   git("config", "user.email", "noreply@paperclip.ing");
   git("add", "-A");
+  // CAS-1547 GUARD: last line of defense before the tree reaches gh-pages. If any
+  // staged path contains a space/bracket, the Pages legacy builder can freeze
+  // (CAS-1546). Refuse the push rather than ship a tree that can freeze live.
+  const staged = git("ls-files", "-z").split("\0").filter(Boolean);
+  const offenders = staged.filter((p) => !isSafePublishPath(p));
+  if (offenders.length) {
+    console.error(`✖ CAS-1547 GUARD: ${offenders.length} space/bracket file(s) in the publish tree — refusing to push to ${BRANCH}:`);
+    for (const f of offenders) console.error(`    ✖ ${f}`);
+    process.exit(1);
+  }
   git("commit", "-q", "-m", `backup-host: publish HEAD ${head} (build ${build})`);
   console.log(`· force-pushing ${BRANCH} (${head}, build ${build})…`);
   git("push", "-q", "-f", pushUrl, `${BRANCH}:${BRANCH}`);
