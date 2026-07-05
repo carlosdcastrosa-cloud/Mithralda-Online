@@ -486,10 +486,17 @@ export const hud = (()=>{
     catch(e){ want = (flag!=null) ? flag : true; }
     if(want) show();
     // dev/QA hook — toggle + read the same snapshot the HUD paints, headlessly.
-    window.__hud={ show, hide, toggle, isOn:()=>on, state:()=>{ try{ return getState(); }catch(e){ return null; } },
+    window.__hud={ show, hide, toggle, isOn:()=>window.__hudForced?false:on, state:()=>{ try{ return getState(); }catch(e){ return null; } },
       drawer:(v)=>{ drawerOpen=(v==null?!drawerOpen:!!v); if(root) root.classList.toggle("draw",drawerOpen); return drawerOpen; },
       scale:()=>{ try{ return getComputedStyle(root).getPropertyValue("--s").trim(); }catch(e){ return null; } }, KEY };
   }
 
-  return { boot, show, hide, toggle, isOn:()=>on, KEY };
+    // CAS: supresión no persistente para el layout de sidebar fijo (la columna Tibia del
+  // canvas es la UI en pantallas anchas). A diferencia de hide(), NUNCA escribe la pref.
+  let forcedOff=false;
+  function setForcedOff(v){ forcedOff=!!v;
+    if(root) root.style.display = (on && !forcedOff) ? "block" : "none";
+    if(forcedOff){ if(timer){ clearInterval(timer); timer=0; } }
+    else if(on && !timer){ timer=setInterval(paint, REFRESH_MS); paint(); } }
+  return { boot, show, hide, toggle, setForcedOff, isOn:()=>on&&!forcedOff, KEY };
 })();

@@ -23,7 +23,9 @@ import { resetGame, clearTutSeen } from "../persist.js";   // CAS-113: pause-men
 import * as settings from "../settings.js";   // CAS-265: rebind table + settings persistence
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import { bestiary } from "../bestiary.js";    // CAS-386: bestiary / codex collection view model
-import { uiLayout } from "../ui/layout.js";   // CAS-418: movable-widget positions (minimap / spell bar) + pause reset
+import { uiLayout } from "../ui/layout.js";
+import { GROUND } from "./tiled-ground-data.js";   // CAS-462: suelo visual Tiled
+import { TDECO } from "../sim/tiled-deco-data.js"; // CAS-462: props visuales Tiled   // CAS-418: movable-widget positions (minimap / spell bar) + pause reset
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
   ANIM, ENEMY_ANIM, ENEMY_IMG, ENEMY_STRIP, ENEMY_STRIPS, resolveStrip, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
@@ -164,19 +166,23 @@ const CLASS_DASH8_ANIM=["warrior"]; const CLASS_DASH8_FC=8;
 // The four HOODED classes stay flip-only (CAS-300/350/359 rule): their only 8-dir sheets are
 // the rejected regens, so they keep clshero_/clswalk_ + L/R flip (flip=Math.cos(facing)<0).
 const CLASS_DIR8_ANIM=["warrior"];
-const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=8, CLASS_WALK8_FPS=8; // 8f@8fps → cycle 1.0s (footfall 0.5s, in CAS-219/240 0.4–0.6s band)
-// CAS-786: per-strip, per-row anchor-x for warrior 8-dir strips.
-// Body center measured from sprite pixels; varies by direction cluster (south-ish vs north-ish).
-// Row order: S=0, SE=1, E=2, NE=3, N=4, NW=5, W=6, SW=7 (dir8FromAngle mapping).
+const CLASS_IDLE8_FC=1, CLASS_WALK8_FC=8, CLASS_WALK8_FPS=8;
+// CAS-469 (port de CAS-786): anchor-x POR FILA de los grids 8-dir del warrior. Las filas
+// espejo del grid son hflip de la CELDA completa, asi que el cuerpo queda a x distinta
+// segun la fila (~52 vs ~86 en celdas de 140, medido de los pixeles). Con CLASS_AX fijo
+// (65) el cuerpo se dibujaba hasta +-27px de lado -> "la espada sale del lado contrario /
+// capa volando" al girar o parar. Orden dir8FromAngle (0=E 1=SE 2=S 3=SW 4=W 5=NW 6=N 7=NE).
 const DIR8_AX={
-  clsidle8_warrior:[87,87,87,52,52,52,87,87],
-  clswalk8_warrior:[96,96,96,43,43,43,96,96],
-  clsdash8_warrior:[184,184,184,216,216,216,184,184],
-};
+  // CAS-470: grids rediseñados desde el arte ORIGINAL de Clarice (idle/run laterales,
+  // espada re-anclada a la mano DELANTERA). Filas laterales centradas al hornear.
+  clsidle8_warrior:[70,70,84,69,69,69,81,70],
+  clswalk8_warrior:[70,70,85,69,69,69,83,70],
+  clsdash8_warrior:[162,163,162,236,236,233,158,166],
+}; // 8f@8fps → cycle 1.0s (footfall 0.5s, in CAS-219/240 0.4–0.6s band)
 // Snap a screen-space facing angle (atan2(dy,dx), y-down) to one of 8 row buckets.
 function dir8FromAngle(ang){ return ((Math.round(ang/(Math.PI/4))%8)+8)%8; }
 // input owns the UI hit-rects + touch state/layout; render writes rects, reads layout.
-import { ui, stick, tbtns, topBtns, isTouch } from "../input.js";
+import { ui, stick, tbtns, topBtns, isTouch, sidebarBtns } from "../input.js";
 
 export function createRenderer(ctx){
   const G = sim.G, world = sim.world;
@@ -198,6 +204,7 @@ export function createRenderer(ctx){
     if(code==="ArrowUp") return "↑"; if(code==="ArrowDown") return "↓";
     if(code==="ArrowLeft") return "←"; if(code==="ArrowRight") return "→";
     return code; };
+  loadImg("tiled_ground", GROUND.atlas); loadImg("tiled_props", TDECO.atlas); // CAS-462
   loadImg("hero_erw", ERW_HERO_SRC);   // CAS-82: hooded pose (now the load-time fallback)
   for(const k in HERO_STRIPS) loadImg(HERO_STRIPS[k].img, `./assets/erw/hero/${HERO_STRIPS[k].img}.png`); // CAS-92 anim strips
   for(const k of CLASS_HERO_KEYS) loadImg("clshero_"+k, `./assets/erw/hero/classes/${k}.png`); // CAS-98 per-class clean cutouts
@@ -292,12 +299,109 @@ export function createRenderer(ctx){
     if(G.settings.crt) renderCRT();
   }
 
+  // CAS: procedural ENTERABLE house sprite (open-top / cutaway) → cached offscreen canvas per
+  // kind+size. Stone perimeter walls, warm wood-plank interior, a south door gap, and simple
+  // furniture. tw×th tiles; collision (world.blockSet) is authored to match in sim/world.js.
+  const _bldCache={};
+  function buildingCanvas(kind, tw, th, door){
+    if(typeof document==="undefined") return null;
+    const key=kind+"_"+tw+"_"+th+"_"+door;
+    if(_bldCache[key]) return _bldCache[key];
+    const W=tw*TS, H=th*TS;
+    const cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+    const c=cv.getContext("2d"); c.imageSmoothingEnabled=false;
+    const WALL="#3a3f49", WALL_HI="#4e5460", WALL_LO="#22262e";
+    const FLR="#8a6a44", FLR_HI="#a9814f", FLR_LO="#5f472f";
+    const WOOD="#5a4632", WOOD_HI="#7a603e", BED="#963434", PILLOW="#d6d1c4", GOLD="#d8b25e";
+    // interior wood floor + plank seams + inner wall shadow
+    const ix=TS, iy=TS, iw=W-2*TS, ih=H-2*TS;
+    c.fillStyle=FLR; c.fillRect(ix,iy,iw,ih);
+    for(let py=iy; py<iy+ih; py+=8){ c.fillStyle=FLR_LO; c.fillRect(ix,py,iw,1); c.fillStyle=FLR_HI; c.fillRect(ix,py+1,iw,1); }
+    c.fillStyle="rgba(0,0,0,0.34)"; c.fillRect(ix,iy,iw,4); c.fillStyle="rgba(0,0,0,0.20)"; c.fillRect(ix,iy,4,ih);
+    const wallH=(x,y,w)=>{ c.fillStyle=WALL; c.fillRect(x,y,w,TS); c.fillStyle=WALL_HI; c.fillRect(x,y,w,3); c.fillStyle=WALL_LO; c.fillRect(x,y+TS-4,w,4);
+      c.fillStyle=WALL_LO; for(let bx=x;bx<x+w;bx+=16){ c.fillRect(bx,y+6,1,TS-10); c.fillRect(bx+8,y+3,1,4); } };
+    const wallV=(x,y,h)=>{ c.fillStyle=WALL; c.fillRect(x,y,TS,h); c.fillStyle=WALL_HI; c.fillRect(x,y,3,h); c.fillStyle=WALL_LO; c.fillRect(x+TS-4,y,4,h);
+      c.fillStyle=WALL_LO; for(let by=y;by<y+h;by+=16) c.fillRect(x+6,by,TS-10,1); };
+    wallH(0,0,W); wallV(0,TS,H-2*TS); wallV(W-TS,TS,H-2*TS);
+    const dgap=2*TS, dx=door*TS;
+    wallH(0,H-TS,dx); wallH(dx+dgap,H-TS,W-(dx+dgap));
+    c.fillStyle=WOOD_HI; c.fillRect(dx-2,H-TS,3,TS); c.fillRect(dx+dgap-1,H-TS,3,TS);     // door posts
+    c.fillStyle=WOOD; c.fillRect(dx,H-6,dgap,6); c.fillStyle="rgba(0,0,0,0.55)"; c.fillRect(dx,H-TS,dgap,3); // threshold + lintel shade
+    if(kind==="house"||kind==="cottage"){ c.fillStyle=WOOD; c.fillRect(TS+4,TS+4,26,40); c.fillStyle=BED; c.fillRect(TS+6,TS+6,22,36); c.fillStyle=PILLOW; c.fillRect(TS+6,TS+6,22,10); }
+    if(kind==="house"||kind==="shop"){ const tx=W/2-14,ty=H/2-6; c.fillStyle=WOOD_HI; c.fillRect(tx,ty,28,18); c.fillStyle=WOOD; c.fillRect(tx+2,ty+16,4,8); c.fillRect(tx+22,ty+16,4,8); }
+    if(kind==="shop"){ c.fillStyle=WOOD; c.fillRect(W-TS-22,TS+6,16,H-2*TS-12); c.fillStyle=WOOD_HI; c.fillRect(W-TS-22,TS+6,16,4); c.fillStyle=GOLD; c.fillRect(W-TS-18,TS+12,3,3); c.fillRect(W-TS-13,TS+16,3,3); }
+    if(kind==="cottage"){ c.fillStyle="#463240"; c.fillRect(W/2-10,H/2+2,20,14); c.fillStyle=WOOD; c.fillRect(W-TS-16,H-TS-20,12,16); c.fillStyle=WOOD_HI; c.fillRect(W-TS-16,H-TS-20,12,4); }
+    _bldCache[key]=cv; return cv;
+  }
+  // CAS: central SHRINE plaza — a circular ERW-style ancient-ruins ring (outer sandstone band +
+  // brown processional track + a ring of diamond flagstones) cached once per radius and blitted
+  // flat at the town centre, UNDER the fountains/NPCs/altar. Interior stays transparent so the
+  // ERW flagstone floor shows through. Sun (real art) + moon (below) are drawn on top separately.
+  const _plazaCache={};
+  function plazaCanvas(R){
+    if(typeof document==="undefined") return null;
+    if(_plazaCache[R]) return _plazaCache[R];
+    const S=2*R, cx=R, cy=R;
+    const cv=document.createElement("canvas"); cv.width=S; cv.height=S;
+    const c=cv.getContext("2d"); c.imageSmoothingEnabled=false;
+    const SAND_HI="#e7d6a2", SAND="#cdb578", SAND_LO="#9c8248", TRACK="#8a6a3f", TRACK_LO="#6a4f2e", MOSS="#7d9450";
+    const bandW=Math.round(R*0.17), ringR=R-bandW/2;
+    // outer sandstone band (the paved rim)
+    c.lineCap="butt";
+    c.strokeStyle=SAND; c.lineWidth=bandW; c.beginPath(); c.arc(cx,cy,ringR,0,6.283); c.stroke();
+    c.strokeStyle=SAND_HI; c.lineWidth=2; c.beginPath(); c.arc(cx,cy,R-1,0,6.283); c.stroke();          // bright outer lip
+    c.strokeStyle=SAND_LO; c.lineWidth=2; c.beginPath(); c.arc(cx,cy,R-bandW+1,0,6.283); c.stroke();     // inner shadow lip
+    // radial block seams across the band
+    const seams=32;
+    c.strokeStyle=SAND_LO; c.lineWidth=1;
+    for(let i=0;i<seams;i++){ const a=i/seams*6.283, co=Math.cos(a), si=Math.sin(a);
+      c.beginPath(); c.moveTo(cx+co*(R-bandW+1), cy+si*(R-bandW+1)); c.lineTo(cx+co*(R-1), cy+si*(R-1)); c.stroke(); }
+    // brown processional track just inside the band
+    const trackW=Math.round(R*0.085), trackR=R-bandW-trackW/2-1;
+    c.strokeStyle=TRACK; c.lineWidth=trackW; c.beginPath(); c.arc(cx,cy,trackR,0,6.283); c.stroke();
+    c.strokeStyle=TRACK_LO; c.lineWidth=2; c.beginPath(); c.arc(cx,cy,trackR-trackW/2+1,0,6.283); c.stroke();
+    // ring of diamond flagstones on the inner court
+    const diamR=Math.round(R*0.60), dN=16, dh=Math.round(R*0.06);
+    for(let i=0;i<dN;i++){ const a=i/dN*6.283, dx=cx+Math.cos(a)*diamR, dy=cy+Math.sin(a)*diamR;
+      c.save(); c.translate(dx,dy); c.rotate(Math.PI/4);
+      c.fillStyle=SAND; c.fillRect(-dh,-dh,dh*2,dh*2); c.fillStyle=SAND_HI; c.fillRect(-dh,-dh,dh*2,2); c.restore(); }
+    // a few moss tufts breaking the rim (deterministic)
+    c.fillStyle=MOSS;
+    for(let i=0;i<seams;i+=5){ const a=i/seams*6.283; c.fillRect(Math.round(cx+Math.cos(a)*(R-2))-1, Math.round(cy+Math.sin(a)*(R-2))-1, 2,2); }
+    _plazaCache[R]=cv; return cv;
+  }
+  // procedural crescent moon glyph (no moon art in the pack) — pale sage stone inlay, mirror of
+  // the real ERW sun disc it's paired with on the shrine plaza.
+  function drawMoonGlyph(x,y,r){
+    ctx.save();
+    ctx.fillStyle="#aeb89c"; ctx.beginPath();
+    ctx.arc(x,y,r, Math.PI*0.42, Math.PI*1.58);                 // outer edge
+    ctx.arc(x+r*0.5,y,r*0.86, Math.PI*1.5, Math.PI*0.5, true);  // inner bite (crescent)
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle="#7c886a"; ctx.lineWidth=1.5; ctx.stroke();
+    ctx.fillStyle="#d3dcc4"; ctx.beginPath(); ctx.arc(x-r*0.35,y-r*0.4,1.6,0,6.283); ctx.fill(); // glint
+    ctx.restore();
+  }
   function renderWorld(camX,camY,Z){
     const x0=Math.max(0,Math.floor(camX/TS)-1), y0=Math.max(0,Math.floor(camY/TS)-1);
     const x1=Math.min(MAP_W-1,Math.ceil((camX+VW/Z)/TS)+1), y1=Math.min(MAP_H-1,Math.ceil((camY+VH/Z)/TS)+1);
     for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
       const t=world.terr[y*MAP_W+x]; const px=x*TS, py=y*TS;
-      if(world.wallSet && world.wallSet.has(y*MAP_W+x)){ const wimg=(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
+      // CAS-462: dentro del continente Tiled el suelo se dibuja del atlas horneado del TMX.
+      if(world.tiledVisual && x<GROUND.W && y<GROUND.H){ const ga=IMG.tiled_ground;
+        if(ga&&ga.complete&&ga.naturalWidth){ let gi=GROUND.grid[y*GROUND.W+x];
+          if(gi>=GROUND.animStart) gi+=((G.t*8)|0)%GROUND.animFrames;   // CAS-463: agua animada
+          ctx.drawImage(ga,(gi%GROUND.cols)*TS,((gi/GROUND.cols)|0)*TS,TS,TS,px,py,TS,TS); continue; } }
+      if(world.wallSet && world.wallSet.has(y*MAP_W+x)){
+        // CAS: the CENTRAL WALLED CITY rampart is re-skinned with real ERW Ancient Ruins wall
+        // art — mossy sandstone crown (erw_wall_h) along the N/S runs + corners, stone-brick
+        // face (erw_wall_v) down the E/W sides. Scoped to the town rect border so cave walls
+        // elsewhere keep their own tiles; falls back to the cave wall art until ERW loads.
+        const T=world.town; let wimg;
+        if(T && x>=T.x && x<=T.x+T.w-1 && y>=T.y && y<=T.y+T.h-1 && (x===T.x||x===T.x+T.w-1||y===T.y||y===T.y+T.h-1)){
+          const erw=(y===T.y||y===T.y+T.h-1)?IMG.erw_wall_h:IMG.erw_wall_v;
+          wimg=(erw&&erw.complete&&erw.naturalWidth)?erw:(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
+        } else wimg=(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
         if(wimg&&wimg.complete&&wimg.naturalWidth) ctx.drawImage(wimg,px,py,TS,TS); else { ctx.fillStyle="#2b313a"; ctx.fillRect(px,py,TS,TS); }
         continue; }
       if(t===T_STONE){ const r=hash2(x,y); const img = (r<0.10?IMG.cave_blood:(r<0.65?IMG.cave_floor:IMG.cave_floor2)); // CAS-217: flagstone-dominant + void + rare war-torn blood accent
@@ -323,7 +427,13 @@ export function createRenderer(ctx){
       // pays in flagstone; forest/ruins/field (T_GRASS) in grass. Two deterministic
       // variants per kind via hash2(); fall through to the procedural fill below when
       // the image hasn't loaded (unit tooling / first frame). Collision is untouched.
-      if(t===T_COBBLE){ const img=(hash2(x,y)<0.5?IMG.ruins_floor:IMG.ruins_floor2);
+      if(t===T_COBBLE){
+        // CAS: the walled-city plaza (T_COBBLE inside the town rect) pays in real ERW flagstone;
+        // the colosseum/ruins flagstone elsewhere keeps ruins_floor. ERW tiles fall back to the
+        // ruins flagstone until they load so the plaza never flashes bare.
+        const T=world.town, inTown=T&&x>=T.x&&x<T.x+T.w&&y>=T.y&&y<T.y+T.h;
+        let img=inTown ? (hash2(x,y)<0.5?IMG.erw_flag:IMG.erw_flag2) : null;
+        if(!(img&&img.complete&&img.naturalWidth)) img=(hash2(x,y)<0.5?IMG.ruins_floor:IMG.ruins_floor2);
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
@@ -345,6 +455,30 @@ export function createRenderer(ctx){
       if(hash2(x+7,y+3)<0.28){ ctx.fillStyle=tileLight[t]; ctx.fillRect(px+ ((hash2(x,y+1)*22)|0)+5, py+((hash2(x+1,y)*22)|0)+5, 3,3); }
       if(t===T_GRASS && hash2(x*2,y)<0.10){ ctx.fillStyle=COL.twig; ctx.fillRect(px+10,py+14,3,6); }
       if(t===T_SAND && hash2(x,y*2)<0.08){ ctx.fillStyle=COL.bloodSand; ctx.fillRect(px+8,py+10,6,5); }
+    }
+    // CAS: enterable walled-city houses (open-top / cutaway). Pre-rendered per kind+size to a
+    // cached canvas, blitted at GROUND level here so entities (player/NPCs) draw ON TOP → you
+    // walk inside on the same screen. Walls block via world.blockSet (sim); door gap is open.
+    if(world.buildings) for(const b of world.buildings){
+      const bxp=b.tx*TS, byp=b.ty*TS, bw=b.tw*TS, bh=b.th*TS;
+      if(bxp>camX+VW/Z+48 || bxp+bw<camX-48 || byp>camY+VH/Z+48 || byp+bh<camY-48) continue; // view-cull
+      const cv=buildingCanvas(b.kind, b.tw, b.th, b.door);
+      if(cv){ ctx.imageSmoothingEnabled=false; ctx.drawImage(cv, bxp, byp); }
+    }
+    // CAS: central SHRINE plaza (ERW ruins) — circular ring under the town centre, with the
+    // real ERW radiant sun glyph W and a procedural crescent moon E (mirroring the mockup).
+    // The greek-key altar itself is a y-sorted deco prop placed in sim/world.js. Drawn here at
+    // ground level (under fountains/NPCs) and view-culled against the plaza bounds.
+    if(world.town && !world.tiledVisual){   // CAS-468: en el continente Tiled la plaza vieja se elimina (pedido del board)
+      const T=world.town, R=Math.round(4.5*TS);
+      const cxp=Math.round((T.x+T.w/2)*TS), cyp=Math.round((T.y+T.h/2)*TS);
+      if(!(cxp-R>camX+VW/Z+48 || cxp+R<camX-48 || cyp-R>camY+VH/Z+48 || cyp+R<camY-48)){
+        const pv=plazaCanvas(R); if(pv){ ctx.imageSmoothingEnabled=false; ctx.drawImage(pv, cxp-R, cyp-R); }
+        const sImg=IMG.erw_sun;
+        if(sImg&&sImg.complete&&sImg.naturalWidth){ const ss=0.62, sw=sImg.naturalWidth*ss, sh=sImg.naturalHeight*ss;
+          ctx.drawImage(sImg, Math.round(cxp-2.7*TS-sw/2), Math.round(cyp+0.4*TS-sh/2), Math.round(sw), Math.round(sh)); }
+        drawMoonGlyph(cxp+2.7*TS, cyp+0.4*TS, 15);
+      }
     }
     // fountains (water pools)
     for(const f of world.fountains){ const r=20;
@@ -383,8 +517,13 @@ export function createRenderer(ctx){
     // dense forest costs one cheap bounds test per prop instead of a draw call. Off-screen
     // props are skipped entirely. Margin is asymmetric: props above (smaller y) can be tall.
     const order=[];
-    const vL=camX-48, vR=camX+VW/Z+48, vT=camY-120, vB=camY+VH/Z+24;
-    for(const d of world.deco){ if(d.x<vL||d.x>vR||d.y<vT||d.y>vB) continue; order.push({y:d.y,draw:()=>{
+    const tvm=world.tiledVisual?1:0; const vL=camX-48-(tvm?336:0), vR=camX+VW/Z+48+(tvm?336:0), vT=camY-120, vB=camY+VH/Z+24+(tvm?616:0); // CAS-462
+    for(const d of world.deco){ if(d.x<vL||d.x>vR||d.y<vT||d.y>vB) continue; order.push({y:(d.kind&&d.kind.startsWith("tp:"))?d.y-16:d.y,draw:()=>{
+      if(d.kind && d.kind.startsWith("tp:")){ let ei=+d.kind.slice(3);
+        const fr=TDECO.anim&&TDECO.anim[ei]; if(fr&&fr.length) ei=fr[((G.t*7)|0)%fr.length]; // CAS-463
+        const e=TDECO.entries[ei], pa=IMG.tiled_props;
+        if(e&&pa&&pa.complete&&pa.naturalWidth) ctx.drawImage(pa,e[0],e[1],e[2],e[3],Math.round(d.x-e[2]/2),Math.round(d.y-e[3]),e[2],e[3]);
+        return; }
       if(d.kind && d.kind.startsWith("prop_")){ const img=IMG[d.kind]; if(img&&img.complete&&img.naturalWidth){
           const s=PROP_SCALE[d.kind]||1, w=img.naturalWidth*s, h=img.naturalHeight*s; ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h));
           if(d.kind==="prop_torch"){ const fy=d.y-h+10;
@@ -601,7 +740,8 @@ export function createRenderer(ctx){
     // height/rows (166 for the 8-dir strips) and the source row is offset by row*fh. Legacy
     // single-row strips keep rows=1 → fh==naturalHeight and sy==0, i.e. byte-identical path.
     const fw=Math.round(img.naturalWidth/fc), fh=Math.round(img.naturalHeight/rows);
-    const _axTable=DIR8_AX[key]; const ax=(_axTable&&rows>1)?_axTable[row]:(fw>CLASS_FW?fw/2:CLASS_AX); const foot=fh-(CLASS_FH-CLASS_FOOT);
+    const _axT=DIR8_AX[key];  // CAS-469: anchor por fila para strips 8-dir
+    const ax=(_axT&&rows>1)?_axT[row]:((fw>CLASS_FW)?fw/2:CLASS_AX), foot=fh-(CLASS_FH-CLASS_FOOT);
     const S=CLASS_ANIM_SCALE, dw=fw*S*sqX, dh=fh*S*sqY, sx=(fi||0)*fw, sy=row*fh;
     const dx=cx-ax*S*sqX, dy=feet-foot*S*sqY-(bobUp||0);
     const useFlip=flipOff?false:flip; // 8-dir strips carry real per-facing art → never mirror
@@ -973,9 +1113,15 @@ export function createRenderer(ctx){
     // the strip loads or for non-animated NPCs. topY = head height for the E/! marker.
     const ach=NPC_ANIM[n.sprite]; let topY;
     if(ach && IMG[ach+"_idle"] && IMG[ach+"_idle"].complete && IMG[ach+"_idle"].naturalWidth){
-      const S=1.0, feet=n.y+14, fi=frameIndex(ach,"idle",G.t,6,true);
-      drawAnim(ctx,ach,"idle",fi,n.x,feet,S,false,null);
-      topY=feet-ANIM[ach].fh.idle*S;
+      // CAS-468: escala por NPC — healer (34px) y blacksmith (50px) se dibujan al
+      // tamano del heroe (~63px, HERO_SPRITE_SCALE 1.85); el merchant (64px) ya coincide.
+      const NS={healernpc:1.85, blacksmithnpc:1.25};
+      const S=NS[ach]||1.0, feet=n.y+14;
+      const cst=(n.castT!=null && (G.t-n.castT)<0.9 && ANIM[ach].fc.cast);  // CAS-466
+      const st=cst?"cast":"idle";
+      const fi=cst?frameIndex(ach,"cast",G.t-n.castT,7,false):frameIndex(ach,"idle",G.t,6,true);
+      drawAnim(ctx,ach,st,fi,n.x,feet,S,false,null);
+      topY=feet-ANIM[ach].fh[st]*S;
     } else { const spr=SP[n.sprite];
       // CAS-113: an animated NPC has NO SP fallback entry — while its strip image is
       // still loading (e.g. when we rehydrate a save straight into play), skip the
@@ -1179,7 +1325,11 @@ export function createRenderer(ctx){
 
   function renderHUD(){ const h=G.hero; ctx.textAlign="left";
     const pad=12, bw=Math.min(220,VW*0.42);
-    const hudUI=hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
+    // CAS: fixed left sidebar (Tibia-style). When active it is the SOLE HUD — the DOM HUD is
+    // force-hidden (game.js) and the scattered canvas vitals are suppressed (hudUI). Overlays
+    // that belong over the world (zone/objective/banners) recentre on the visible game area.
+    const sidebar=view.sbw>0, GCX=view.gcx();
+    const hudUI=sidebar||hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
     auditRects = auditOn() ? {} : null; // CAS-416: collect drawn rects only under the QA flag
     uiLayout.frame(); // CAS-418: stamp this HUD pass — pub()'d widget rects go stale when not drawn (touch)
     // CAS-118: while the hero suffers a status, frame the screen with a pulsing edge
@@ -1202,6 +1352,9 @@ export function createRenderer(ctx){
       }
     }
     const mhp=heroMaxHp(h); // CAS-117: bar reflects the +vida affix pool
+    // CAS: draw the fixed sidebar column (opaque bg + vitals + buttons) UNDER the minimap /
+    // spell bar / consumable that render later so they overlay it. Recentred game overlays follow.
+    if(sidebar){ drawSidebarPanel(h, mhp); drawBottomBar(h); }
     if(!hudUI){ // CAS-299: legacy vitals (HP/MP/XP bars · gold/potions · name/skull) — HUD owns these
       bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
       bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
@@ -1210,27 +1363,22 @@ export function createRenderer(ctx){
     // CAS-119: unspent talent-point badge — prompts the player to open the tree (T). CAS-299:
     // when the HUD owns the top-left, the badge moves to the left column UNDER the HUD panel.
     const badgeX = hudUI ? pad : pad+bw+8;
-    if((h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
+    if(!sidebar && (h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
       ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="left";
       const tby=hudUI?258:pad+47; if(auditRects) AR("talentBadge", badgeX, tby-13, ctx.measureText("★"+h.talentPts+" (T)").width, 15);
       ctx.fillText("★"+h.talentPts+" (T)", badgeX, tby); ctx.restore(); ctx.textAlign="left"; }
     // CAS-149: Elite-Mastery badge — the persistent, cross-session progression read-out,
     // kept always-visible (even rank 0, with kills-to-next) so the long-term hook that grows
     // across sessions is legible from minute one. CAS-299: reflows under the HUD panel.
-    { const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
-      ctx.save(); ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
+    if(!sidebar){ const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
+      ctx.save(); ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
       const prog = nx!=null ? (" "+(h.eliteKills|0)+"/"+nx) : " MÁX";
       // CAS-150: "(V)" hint opens the reward-track panel — only while a milestone is still
       // pending (an unmet goal to chase), so a fully-unlocked track stays clean.
       const hint = sim.masteryNextMilestone(h.eliteKills|0) ? " (V)" : "";
       const mby=hudUI?238:pad+14; const mtx=STR.masteryHud(mr)+prog+hint;
-      const mtw=ctx.measureText(mtx).width;
-      // CAS-457: semi-transparent banner plate so the gold badge reads over light grass
-      // (poor contrast otherwise). Same style as the OBJETIVO banner: dark plate + accent tick.
-      ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(badgeX-6,mby-12,mtw+12,17);
-      ctx.fillStyle=COL.textGold; ctx.fillRect(badgeX-6,mby-12,3,17);
-      if(auditRects) AR("masteryBadge", badgeX, mby-12, mtw, 14);
-      ctx.fillStyle=COL.textGold; ctx.fillText(mtx, badgeX, mby); ctx.restore(); ctx.textAlign="left"; }
+      if(auditRects) AR("masteryBadge", badgeX, mby-12, ctx.measureText(mtx).width, 14);
+      ctx.fillText(mtx, badgeX, mby); ctx.restore(); ctx.textAlign="left"; }
     if(!hudUI){ // gold + potions (HUD shows oro + carries equip/bag mirror)
       ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
       ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
@@ -1242,18 +1390,13 @@ export function createRenderer(ctx){
       else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(h.name, pad, pad+102); }
     }
     // zone name
-    ctx.font="11px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
     const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,trial:STR.zoneTrial,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
     const znw=ctx.measureText(zn).width;
-    // CAS-457: semi-transparent banner plate behind the zone label so it reads over light
-    // grass (same dark plate as the OBJETIVO banner). Plate is anchored to the label's edge.
-    const zpw=znw+12, zpx=(VW<=480)?(VW-12-znw-6):(VW/2-znw/2-6);
-    ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(zpx,8,zpw,16);
-    ctx.fillStyle=COL.textDim;
     // CAS-1174: at ≤480px the centred zone name overlaps the top-left vitals panel;
     // right-align it (clear of the stat frame) so nothing sits over the vitals.
     if(VW<=480){ ctx.textAlign="right"; AR("zone", VW-12-znw, 10, znw, 12); ctx.fillText(zn, VW-12, 20); }
-    else { ctx.textAlign="center"; AR("zone", VW/2-znw/2, 10, znw, 12); ctx.fillText(zn, VW/2, 20); }
+    else { AR("zone", GCX-znw/2, 10, znw, 12); ctx.fillText(zn, GCX, 20); }
     // CAS-123: Stage-1 OBJECTIVE tracker — the single legible win-goal, top-centre and
     // ALWAYS visible so a new player reads where the run is headed from minute one. The
     // text + colour switch as the gate opens (locked → ready) and once the run is won.
@@ -1265,7 +1408,7 @@ export function createRenderer(ctx){
     ctx.textAlign="right"; ctx.font="bold 12px 'Courier New'";
     // CAS-1174: at ≤480px the right rail is a slide-out drawer (off-canvas), so don't
     // reserve its 176px — anchor at VW-12 so the wide quest label never clips off-left.
-    const qx=(VW<=480)?(VW-12):(VW-(hudUI?176:12));
+    const qx=(VW<=480)?(VW-12):(sidebar?(view.sbx()-12):(VW-(hudUI?176:12)));
     // CAS-452/CAS-1174: at ≤480px the stat DOM panel + drawer button cover the top strip;
     // push the tracker stack below the vitals panel AND the relocated OBJETIVO banner.
     let qy=(VW<=480)?138:(isTouch?64:18);
@@ -1299,19 +1442,18 @@ export function createRenderer(ctx){
       else { txt=STR.objLocked(pw, req); col=COL.textGold; } }        // still building power
     const label=STR.objLabel+": "+txt;
     ctx.textAlign="center"; ctx.font="bold 11px 'Courier New'";
-    const w=ctx.measureText(label).width+16; let x=VW/2; let y=30;
+    const w=ctx.measureText(label).width+16; let x=view.gcx(); let y=30;
     // CAS-1174: at ≤480px the banner is wider than the gap beside the vitals panel,
     // so it can't sit top-centre without clipping/overlapping. Drop it BELOW the vitals
     // panel + drawer button and clamp both edges into the viewport so the full
     // OBJETIVO text is always visible at 390px.
-    // CAS-1063: y=112 cleared the stat panel top but not the `.cap` caption strip
-    // (name·class·Nv·oro) that hangs ~34px under it (bottom ≈116px at 0.70 scale) — the
-    // banner's left half overlapped it by 5px. Drop to y=122 so it clears the caption;
-    // the quest tracker below auto-dodges via the ob.y+ob.h test further down.
+    // CAS-1063: y=122 clears the `.cap` caption strip (name·class·Nv·oro, bottom ≈116px
+    // at 0.70 scale) hanging under the stat panel; the quest tracker below auto-dodges
+    // via the ob.y+ob.h test further down.
     if(VW<=480){ y=122; x=Math.min(Math.max(x, w/2+8), VW-w/2-8); }
     // CAS-416: at narrow widths the centred banner reaches the HUD stat frame
     // (top-left DOM panel, 268px × HUD scale) — nudge it right just enough to clear.
-    // CAS-452: also clamp left so banner never overflows the right viewport edge at 390px.
+    // CAS-452: also clamp so the banner never overflows the right viewport edge.
     else if(hudActive()){ const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:VW>=480?0.78:0.70;
       x=Math.min(Math.max(x, 12+268*hs+8+w/2), VW-w/2-12); }
     ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fillRect(x-w/2,y-1,w,18);
@@ -1345,8 +1487,12 @@ export function createRenderer(ctx){
     // CAS-299: the legacy slot lives bottom-left, where the HUD console now sits. When the
     // HUD is active, reflow the quick-use slot to just LEFT of the spell bar (combat-coherent:
     // potions beside spells) so it never overlaps the console frame.
+    const sidebar=view.sbw>0;
     let x=12, y=VH-12-s;
-    if(hudUI){ const sb=Math.min(46,VW*0.1); const sbTotal=4*sb+3*6; const sbx=VW/2-sbTotal/2;
+    if(sidebar){ // CAS: quick-use slot sits in the bottom bar, just LEFT of the attacks hotbar
+      const sb=Math.min(46,VW*0.1), sbTotal=4*sb+3*6, hbx=Math.round(view.gcx()-sbTotal/2);
+      x=Math.max(10, hbx-s-14); y=VH-view.bbh+8; }
+    else if(hudUI){ const sb=Math.min(46,VW*0.1); const sbTotal=4*sb+3*6; const sbx=VW/2-sbTotal/2;
       x=Math.max(12, Math.round(sbx-s-16)); y=VH-14-s;
       // CAS-416: below ~930px wide the spell bar sits close enough to the left corner
       // that "just LEFT of the spell bar" lands ON the HUD console frame (DOM panel,
@@ -1381,11 +1527,10 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-5,y+5,8,0,6.28); ctx.fill();
     ctx.fillStyle=qty>0?COL.textGold:"#7a7f88"; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
     ctx.fillText(qty,x+s-5,y+9);
-    // key hint — CAS-456: single [Q] use hint (spec: "un solo hint [Q]"); the count is the
-    // corner badge above, so the strip no longer needs the [R] cycle glyph cluttering the slot.
+    // key hints — CAS-416: strip pulled up 2px + slimmed so it never clips below VH
     ctx.fillStyle=COL.out; ctx.fillRect(x-2,y+s+2,s+4,10);
     ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="center";
-    ctx.fillText("[Q] usar",x+s/2,y+s+10);
+    ctx.fillText("[Q] usar  [R] ↻",x+s/2,y+s+10);
     ctx.textAlign="left";
     AR("consumable", x-2, y-2, s+4, s+14);
   }
@@ -1393,9 +1538,15 @@ export function createRenderer(ctx){
     if(isTouch) return; // touch uses buttons
     // CAS-418: anchor from the layout store (default = bottom-centre, unchanged);
     // cx/cy clamp a stored anchor to the live viewport EVERY draw (covers load+resize).
-    const x0=uiLayout.cx("spellbar", VW/2-total/2, total);
-    const y=uiLayout.cy("spellbar", VH-14-s, s+11);
-    uiLayout.pub("spellbar", x0, y, total, s+11); // hit-rect for the input drag router
+    const sidebar=view.sbw>0;
+    let x0, y;
+    if(sidebar){ // CAS: attacks hotbar sits in the bottom bar, centred over the game area, just
+      // above the chat input (which the DOM owns at y≈VH-30)
+      x0=Math.round(view.gcx()-total/2); y=VH-view.bbh+8; }
+    else {
+      x0=uiLayout.cx("spellbar", VW/2-total/2, total);
+      y=uiLayout.cy("spellbar", VH-14-s, s+11);
+      uiLayout.pub("spellbar", x0, y, total, s+11); } // hit-rect for the input drag router
     AR("spellbar", x0-2, y-2, total+4, s+13); // incl. the mp-cost caption line
     if(uiLayout.dragging()==="spellbar"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x0-4,y-4,total+8,s+15); }
     // costs / colours / labels are data-driven from SPELLS[cls] (slot 0 = basic attack)
@@ -1404,64 +1555,147 @@ export function createRenderer(ctx){
     const icls=SPELLS[h.cls]?h.cls:"warrior"; // icon files exist for the 5 canonical classes
     for(let i=0;i<n;i++){ const x=x0+i*(s+gap);
       ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
-      const enoughMp=h.mp>=costs[i];
-      ctx.fillStyle=enoughMp?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
+      ctx.fillStyle=h.mp>=costs[i]?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
       // CAS-417: real spell icon (CAS-415 art, 32x32) replaces the flat colour square;
       // the square stays ONLY as fallback while/if the PNG hasn't loaded.
       const ic=IMG["icon_spell_"+icls+"_"+i];
       if(ic&&ic.complete&&ic.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false;
-        ctx.globalAlpha=enoughMp?1:0.4;
+        ctx.globalAlpha=h.mp>=costs[i]?1:0.45;
         ctx.drawImage(ic, Math.round(x+(s-32)/2), Math.round(y+(s-32)/2), 32,32); ctx.restore(); }
       else { ctx.fillStyle=(i===0)?"#cfd6de":(sp[i-1].col||"#cfd6de"); ctx.fillRect(x+6,y+6,s-12,s-12); }
-      // CAS-456: red tint overlay when mana is insufficient (clearer than dim alone)
-      if(!enoughMp && costs[i]>0){ ctx.fillStyle="rgba(160,30,30,0.28)"; ctx.fillRect(x,y,s,s); }
       // CAS-120: status pip — a small dot in the effect colour marks a skill that
       // applies a CAS-118 status (veneno/quemadura/lentitud/aturdir), so the player
       // reads at a glance which skills deploy control/ignite.
       if(i>0){ const st=sp[i-1].status; if(st && STATUS[st.type]){ const pc=STATUS[st.type].col;
         ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-8,y+8,4.5,0,6.28); ctx.fill();
         ctx.fillStyle=pc; ctx.beginPath(); ctx.arc(x+s-8,y+8,3,0,6.28); ctx.fill(); } }
-      // CAS-456: radial cooldown arc (clock-style, 12-o-clock origin, clockwise drain) for slots 1-3
+      // cooldown sweep (top-down dark wipe) for slots 1-3
       if(i>0 && h.spellCD && h.spellCD[i]>0 && h.spellCDmax[i]>0){ const f=clamp(h.spellCD[i]/h.spellCDmax[i],0,1);
-        const cxs=x+s/2, cys=y+s/2, rs=s/2+2;
-        ctx.save(); ctx.beginPath(); ctx.moveTo(cxs,cys);
-        ctx.arc(cxs,cys,rs,-Math.PI/2,-Math.PI/2+f*Math.PI*2,false); ctx.closePath();
-        ctx.fillStyle="rgba(8,10,14,0.72)"; ctx.fill(); ctx.restore();
-        ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
-        ctx.fillText(Math.ceil(h.spellCD[i]),cxs,cys+4); }
+        ctx.fillStyle="rgba(8,10,14,0.66)"; ctx.fillRect(x,y,s,s*f); }
       ctx.fillStyle=COL.out; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText((i+1),x+3,y+13);
       const label=(i===0) ? ((STR.spellSlot0&&STR.spellSlot0[h.cls])||STR.spells[0]) : names[i-1];
       ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
-      // CAS-456: larger mana cost label for readability (10px vs old 8px)
-      if(costs[i]>0){ ctx.fillStyle=enoughMp?"#8ab8ff":"#e06060"; ctx.font="bold 10px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+10);} }
+      if(costs[i]>0){ ctx.fillStyle="#8ab8ff"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
-  function renderMiniMap(){ const mw=(VW<=480)?84:120, mh=mw; if(isTouch) return; // CAS-1174: scale minimap to 84px ≤480px so it clears the bottom-centre spell bar
-    // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
-    const x=uiLayout.cx("minimap", VW-mw-12, mw);
-    const y=uiLayout.cy("minimap", VH-mh-12, mh);
-    uiLayout.pub("minimap", x, y, mw, mh); // hit-rect for the input drag router
+  // CAS: the fixed RIGHT sidebar (Tibia-style). Opaque column covering x∈[view.sbx(),VW] with
+  // the hero identity + vitals at the top, then the docked minimap (renderMiniMap) and a stack
+  // of action buttons (inventory / talents / mastery / wardrobe / map / menu) + a mastery
+  // read-out. Buttons are hit-tested in input.js sidebarBtns() — this only DRAWS them.
+  function drawSidebarPanel(h, mhp){
+    const W=view.sbw, L=view.sbx(), P=14, iw=W-2*P, x0=L+P;
+    ctx.fillStyle="#0e1016"; ctx.fillRect(L,0,W,VH);                 // opaque column
+    ctx.fillStyle=COL.panelB; ctx.fillRect(L,0,2,VH);               // left divider
+    // identity + gold
+    let y=P; ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'";
+    ctx.fillText(h.name||"—", x0, y+13);
+    ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText((h.gold|0)+" oro", VW-P, y+12);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
+    const clsName=(STR.classes&&STR.classes[h.cls]&&STR.classes[h.cls].name)||h.cls;
+    ctx.fillText(clsName+" · "+STR.level(h.lvl), x0, y+27);
+    // vitals bars
+    y+=34;
+    bar(x0,y,    iw,16, h.hp/mhp,      COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
+    bar(x0,y+20, iw,13, h.mp/h.maxMp,  COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
+    bar(x0,y+37, iw,9,  h.xp/h.xpNext, COL.xpf,COL.xpb, STR.level(h.lvl));
+    // action buttons (minimap is drawn later by renderMiniMap into the gap at y≈104)
+    const sb=sidebarBtns();
+    if(sb){ for(const k in sb){ const b=sb[k];
+      const hot=!isTouch && ui.mouseX>=b.x && ui.mouseX<=b.x+b.w && ui.mouseY>=b.y && ui.mouseY<=b.y+b.h;
+      ctx.fillStyle=hot?"#20242f":"#171a22"; ctx.fillRect(b.x,b.y,b.w,b.h);
+      ctx.strokeStyle=hot?COL.textGold:COL.panelB; ctx.lineWidth=1; ctx.strokeRect(b.x+0.5,b.y+0.5,b.w-1,b.h-1);
+      ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="13px 'Courier New'"; ctx.fillText(b.icon, b.x+9, b.y+b.h/2+5);
+      ctx.fillStyle=hot?COL.goldL:COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(b.label, b.x+34, b.y+b.h/2+4);
+    } }
+    // compact mastery / talent read-out below the buttons
+    const mr=sim.masteryRank(h.eliteKills|0), nx=sim.masteryNextAt(mr);
+    const btop=(sb&&sb.menu)?sb.menu.y+sb.menu.h+12:VH-140;
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'";
+    ctx.fillText(STR.masteryHud(mr)+(nx!=null?(" "+(h.eliteKills|0)+"/"+nx):" MÁX"), x0, btop);
+    if((h.talentPts|0)>0){ const pl=0.6+0.4*Math.abs(Math.sin(G.t*4));
+      ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.goldL; ctx.fillText("★ "+h.talentPts+" talento(s) (T)", x0, btop+16); ctx.restore(); }
+    ctx.textAlign="left";
+  }
+  // CAS: the fixed BOTTOM bar — opaque strip under the game area holding the attacks hotbar
+  // (drawn later by renderSpellBar) with the chat CONSOLE + input beneath it. The <input> itself
+  // is a DOM element (game.js) so it can take real keyboard focus; here we draw the console log
+  // and the bar background. Spans the game width (x∈[0, view.sbx()]).
+  function drawBottomBar(h){
+    const BY=VH-view.bbh, W=view.sbx();
+    ctx.fillStyle="#0b0d12"; ctx.fillRect(0,BY,W,view.bbh);          // opaque bar
+    ctx.fillStyle=COL.panelB; ctx.fillRect(0,BY,W,2);               // top divider
+    // recent chat lines, just above the input row (newest last), left-aligned
+    const chat=G.chatLog||[]; const n=Math.min(chat.length,2);
+    ctx.textAlign="left"; ctx.font="12px 'Courier New'";
+    for(let i=0;i<n;i++){ const c=chat[chat.length-n+i]; const ly=VH-52+i*15;
+      ctx.fillStyle=COL.textGold; const who=(c.who||"")+": ";
+      ctx.fillText(who, 12, ly); const ww=ctx.measureText(who).width;
+      ctx.fillStyle=COL.cream; ctx.fillText(c.text, 12+ww, ly); }
+  }
+  // CAS-466: silueta del continente para el minimapa (1px = 2 tiles, cacheada)
+  let mmTerra=null, mmTerraW=0;
+  function mmBuildTerra(){ const sc=2, cw=Math.ceil(MAP_W/sc), ch=Math.ceil(MAP_H/sc);
+    const cv=document.createElement("canvas"); cv.width=cw; cv.height=ch;
+    const c2=cv.getContext("2d"); const img=c2.createImageData(cw,ch); const px=img.data;
+    const C=[[96,130,96],[152,124,84],[62,68,82],[164,154,124],[192,172,116],[40,102,138],[150,190,212],[80,116,92]];
+    for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){ const c=C[world.terr[(y*sc)*MAP_W+(x*sc)]]||[50,50,50];
+      const i=(y*cw+x)*4; px[i]=c[0];px[i+1]=c[1];px[i+2]=c[2];px[i+3]=255; }
+    c2.putImageData(img,0,0); mmTerra=cv; mmTerraW=cw; }
+  function renderMiniMap(){ if(isTouch) return;
+    const sidebar=view.sbw>0;
+    // CAS-1174: scale minimap to 84px ≤480px so it clears the bottom-centre spell bar
+    let mw=(VW<=480)?84:120, mh=(VW<=480)?84:120, x, y;
+    if(sidebar){ // CAS: minimap docked in the right sidebar (under the vitals), centred
+      mw=mh=Math.min(view.sbw-28,176); x=view.sbx()+Math.round((view.sbw-mw)/2); y=104; }
+    else { // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
+      x=uiLayout.cx("minimap", VW-mw-12, mw);
+      y=uiLayout.cy("minimap", VH-mh-12, mh);
+      uiLayout.pub("minimap", x, y, mw, mh); } // hit-rect for the input drag router
     AR("minimap", x-2, y-2, mw+4, mh+4);
     // CAS-454: gold border matching Tibia panels; dark fill
     ctx.fillStyle="rgba(12,14,19,0.88)"; ctx.fillRect(x-2,y-2,mw+4,mh+4);
     ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x-2,y-2,mw+4,mh+4);
     if(uiLayout.dragging()==="minimap"){ ctx.strokeStyle="#ffe39a"; ctx.lineWidth=2; ctx.strokeRect(x-4,y-4,mw+8,mh+8); }
-    const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
+    // CAS-466: silueta + ventana con zoom centrada en el héroe
+    if(!mmTerra || mmTerraW!==Math.ceil(MAP_W/2)) mmBuildTerra();
+    const mz=(uiLayout.mmZoom?uiLayout.mmZoom():1);
+    const vwPx=MAP_W*TS/mz, vhPx=MAP_H*TS/mz;
+    let vx=G.hero.x-vwPx/2, vy=G.hero.y-vhPx/2;
+    vx=Math.max(0,Math.min(MAP_W*TS-vwPx,vx)); vy=Math.max(0,Math.min(MAP_H*TS-vhPx,vy));
+    const pis=ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled=false;
+    if(mmTerra) ctx.drawImage(mmTerra, vx/(TS*2), vy/(TS*2), vwPx/(TS*2), vhPx/(TS*2), x, y, mw, mh);
+    ctx.imageSmoothingEnabled=pis;
+    ctx.save(); ctx.beginPath(); ctx.rect(x,y,mw,mh); ctx.clip();
+    const sx=mw/vwPx, sy=mh/vhPx, mmox=x-vx*sx, mmoy=y-vy*sy;
     // CAS-454: brightened minimap-only zone palette so the map reads in the cold-gloom world
     const MM={forest:"#4e7054",caves:"#484f5e",arena:"#7a7058",town:"#4a5c6a",ruins:"#5a6e52",abyss:"#5a3d70",frost:"#4e6878",trial:"#c8a24a",swamp:"#567a62"};
     const zr=[[world.forest,MM.forest],[world.caves,MM.caves],[world.arena,MM.arena],[world.town,MM.town],[world.ruins,MM.ruins],[world.abyss,MM.abyss],[world.frost,MM.frost],[world.trial,MM.trial],[world.swamp,MM.swamp]];
-    for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
+    ctx.globalAlpha=0.45;
+    for(const [r,c] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(mmox+r.x*TS*sx,mmoy+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy); }
+    ctx.globalAlpha=1;
     // CAS-454: viewport rectangle showing camera frustum
     const Z=zoom(); const vpW=VW/Z, vpH=VH/Z;
     ctx.strokeStyle="rgba(255,255,255,0.35)"; ctx.lineWidth=1;
-    ctx.strokeRect(x+G.cam.x*sx, y+G.cam.y*sy, vpW*sx, vpH*sy);
+    ctx.strokeRect(mmox+G.cam.x*sx, mmoy+G.cam.y*sy, vpW*sx, vpH*sy);
     // CAS-114 — portal blips on the minimap (violet)
-    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-1,y+p.y*sy-1,3,3); } }
-    ctx.fillStyle="#ff5a4a"; for(const e of G.enemies){ ctx.fillRect(x+e.x*sx-1,y+e.y*sy-1,2,2); }
+    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(mmox+p.x*sx-1,mmoy+p.y*sy-1,3,3); } }
+    ctx.fillStyle="#ff5a4a"; for(const e of G.enemies){ ctx.fillRect(mmox+e.x*sx-1,mmoy+e.y*sy-1,2,2); }
     // CAS-454: directional arrow for player position
-    const hx=x+G.hero.x*sx, hy=y+G.hero.y*sy, fa=G.hero.facing, ar=5;
+    const hx=mmox+G.hero.x*sx, hy=mmoy+G.hero.y*sy, fa=G.hero.facing, ar=5;
     ctx.save(); ctx.translate(hx,hy); ctx.rotate(fa);
     ctx.fillStyle=COL.textGold; ctx.beginPath(); ctx.moveTo(ar,0); ctx.lineTo(-ar*0.7,ar*0.6); ctx.lineTo(-ar*0.7,-ar*0.6); ctx.closePath(); ctx.fill();
-    ctx.restore();
+    ctx.restore();   // héroe
+    ctx.restore();   // CAS-466: clip del minimapa
+    // CAS-466: botones de zoom [+]/[-]
+    const bs=14, bx0=x+mw-bs-2;
+    const mmBtns=[["mmZoomIn",y+2,"+"],["mmZoomOut",y+2+bs+3,"-"]];
+    for(const [bid,by0,lbl] of mmBtns){
+      ctx.fillStyle="rgba(12,14,19,0.85)"; ctx.fillRect(bx0,by0,bs,bs);
+      ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(bx0,by0,bs,bs);
+      ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText(lbl,bx0+bs/2,by0+bs-3);
+      if(uiLayout.pubBtn) uiLayout.pubBtn(bid,bx0,by0,bs,bs);
+    }
+    if(mz>1){ ctx.fillStyle=COL.cream; ctx.font="10px 'Courier New'"; ctx.textAlign="left"; ctx.fillText("x"+mz,x+3,y+11); }
   }
   function renderBigMap(){ const mw=Math.min(VW*0.7,420), mh=mw; const x=(VW-mw)/2, y=(VH-mh)/2;
     panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
@@ -1475,15 +1709,9 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText("M / tap: cerrar",VW/2,y+mh+18);
   }
 
-  // CAS-455: ornate gold frame panel — matches HUD gold aesthetic on all modals.
   function panel(x,y,w,h){ ctx.fillStyle="rgba(8,10,14,0.92)"; ctx.fillRect(0,0,VW,VH); ctx.fillStyle=COL.panel; ctx.fillRect(x,y,w,h);
-    ctx.fillStyle="#1a1712"; ctx.fillRect(x,y,w,40);
-    ctx.strokeStyle=COL.gold; ctx.lineWidth=2; ctx.strokeRect(x+1,y+1,w-2,h-2);
-    ctx.strokeStyle="#2e3240"; ctx.lineWidth=1; ctx.strokeRect(x+5,y+5,w-10,h-10);
-    ctx.globalAlpha=0.6; ctx.fillStyle=COL.gold; ctx.fillRect(x+8,y+40,w-16,1); ctx.globalAlpha=1;
-    const oc=6; ctx.fillStyle=COL.gold;
-    ctx.fillRect(x+3,y+3,oc,oc); ctx.fillRect(x+w-3-oc,y+3,oc,oc);
-    ctx.fillRect(x+3,y+h-3-oc,oc,oc); ctx.fillRect(x+w-3-oc,y+h-3-oc,oc,oc); }
+    ctx.fillStyle=COL.panelB2; ctx.fillRect(x,y,w,6); ctx.fillRect(x,y+h-6,w,6); ctx.fillRect(x,y,6,h); ctx.fillRect(x+w-6,y,6,h);
+    ctx.fillStyle=COL.panelB; ctx.fillRect(x+3,y+3,w-6,3); ctx.fillRect(x+3,y+h-6,w-6,3); }
   function panelLocal(x,y,w,h){ ctx.fillStyle=COL.panel; ctx.fillRect(x,y,w,h); ctx.fillStyle=COL.panelB2; ctx.fillRect(x,y,w,5); ctx.fillRect(x,y+h-5,w,5); ctx.fillRect(x,y,5,h); ctx.fillRect(x+w-5,y,5,h); }
 
   function renderDialogue(){ const d=G.dialog; if(!d) return;
@@ -1501,12 +1729,6 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="right"; ctx.fillText("E / tap ▸ "+STR.dialogContinue, x+bw-14, y+bh-12);
   }
   function wrapText(txt,x,y,maxW,lh){ const words=txt.split(" "); let line="",yy=y; for(const w of words){ const t=line+w+" "; if(ctx.measureText(t).width>maxW){ ctx.fillText(line,x,yy); line=w+" "; yy+=lh;} else line=t; } ctx.fillText(line,x,yy); }
-  // CAS-453: footer shortcut hints overflowed narrow (390px) modals and got clipped.
-  // Auto-shrink the font until the hint fits maxW (min 7px), then draw. Caller sets
-  // fillStyle + textAlign; we only own font size + fillText. Fixes "atajos recortados".
-  function hintFit(txt,cx,y,maxW,maxPx){ let px=maxPx||11; ctx.font=px+"px 'Courier New'";
-    while(px>7 && ctx.measureText(txt).width>maxW){ px--; ctx.font=px+"px 'Courier New'"; }
-    ctx.fillText(txt,cx,y); }
 
   // Compare arrow vs the piece currently equipped in this item's slot. Now factors
   // affixes in: a same-base-stat piece with stronger affixes still reads as an
@@ -1527,20 +1749,13 @@ export function createRenderer(ctx){
       ctx.fillText(txt,cx+18,by); return cx+18+ctx.measureText(txt).width+14; }
     ctx.fillText(glyph+" "+txt,cx,by); return cx+ctx.measureText(glyph+" "+txt).width+14; }
   function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,470), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
-    const narrow=VW<=480; // CAS-453: mobile (390px) layout guards
-    panel(x,y,bw,bh); ctx.fillStyle=COL.textGold;
-    // CAS-453: on narrow panels the centered title ran into the top-right "Forjar (G)"
-    // button — left-align + shrink it so it clears the button band.
-    if(narrow){ ctx.textAlign="left"; ctx.font="bold 15px 'Courier New'"; ctx.fillText(STR.invTitle,x+16,y+27); }
-    else { ctx.textAlign="center"; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28); }
+    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28);
     // ---- left: Tibia-style equip slots flanking the LIVE animated portrait ----
     // CAS-226. Only weapon/body/shield are functional (data-driven GEAR); the
     // other 7 slots are empty placeholders (no content/art yet) drawn dim. The
     // portrait shows the player's REAL class via the same baked per-state strip
     // (clshero_<cls>) the world renderer uses — animated idle, not a placeholder.
-    // CAS-453: shrink slot size on narrow panels so the two edge columns + the hands
-    // row (2 slots) no longer overlap the centre portrait / each other at 390px.
-    const leftW=bw*0.50, SS=narrow?28:Math.min(40,Math.round(bh*0.085)), rgap=SS+19;
+    const leftW=bw*0.50, SS=Math.min(40,Math.round(bh*0.085)), rgap=SS+19;
     ui.invSlotRects=[];
     // CAS-417: slots draw the real CAS-415 icon (icon_slot_<kind>, 32x32) — dimmed when
     // empty, full-strength as the ITEM icon when occupied (gear type == slot kind). The
@@ -1598,54 +1813,47 @@ export function createRenderer(ctx){
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(fbx,fby,fbw,fbh); ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(fbx+0.5,fby+0.5,fbw-1,fbh-1);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.invForge, fbx+fbw/2, fby+15);
     ui.invForgeRect={x:fbx,y:fby,w:fbw,h:fbh};
-    // ---- right: backpack grid 6×6 (CAS-455) ----
+    // ---- right: backpack list with compare arrows ----
     const rx=x+bw*0.50, rw=bw*0.46;
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(STR.backpack, rx, y+54);
     ui.invRects=[];
     const bag=h.bag; if(G.invSel==null) G.invSel=0; G.invSel=Math.max(0,Math.min(G.invSel, Math.max(0,bag.length-1)));
-    const GCOLS=6, GROWS=6, GAP=2;
-    const cs=Math.max(22,Math.min(38,Math.floor((rw-GAP*(GCOLS-1))/GCOLS)));
-    const gridW=GCOLS*(cs+GAP)-GAP, gridY=y+62;
-    for(let gi=0;gi<GCOLS*GROWS;gi++){
-      const gcol=gi%GCOLS, grow=Math.floor(gi/GCOLS);
-      const gx=rx+gcol*(cs+GAP), gy=gridY+grow*(cs+GAP);
-      const ginst=gi<bag.length?bag[gi]:null;
-      const gsel=gi===G.invSel&&!!ginst;
-      ctx.fillStyle=ginst?(gsel?"#2e3647":"#20262f"):"#13161c"; ctx.fillRect(gx,gy,cs,cs);
-      ctx.strokeStyle=ginst?(gsel?COL.textGold:gearCol(ginst)):"#23262e"; ctx.lineWidth=gsel?1.5:1; ctx.strokeRect(gx+0.5,gy+0.5,cs-1,cs-1);
-      if(ginst){
-        const ic=IMG["icon_slot_"+ginst.slot];
-        if(ic&&ic.complete&&ic.naturalWidth){ const ds=Math.min(cs-4,24); ctx.save(); ctx.imageSmoothingEnabled=false;
-          ctx.drawImage(ic,Math.round(gx+(cs-ds)/2),Math.round(gy+(cs-ds)/2),ds,ds); ctx.restore(); }
-        else { ctx.fillStyle=gearCol(ginst); ctx.font="bold "+Math.round(cs*0.5)+"px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("▣",gx+cs/2,gy+cs*0.64); }
-        ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="right"; ctx.fillText(String(gearStat(ginst)),gx+cs-2,gy+cs-2);
-        ui.invRects.push({x:gx,y:gy,w:cs,h:cs,idx:gi});
-      }
+    const cmpH=92; const rowH=28, listY=y+62, maxRows=Math.max(1,Math.floor((bh-120-cmpH)/rowH));
+    if(!bag.length){ ctx.fillStyle=COL.textDim; ctx.fillText(STR.bagEmpty, rx, listY+18); }
+    for(let i=0;i<bag.length && i<maxRows;i++){ const inst=bag[i]; const ay=listY+i*rowH; const sel=i===G.invSel;
+      ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(rx,ay,rw,rowH-4);
+      if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=1.5; ctx.strokeRect(rx,ay,rw,rowH-4); }
+      ctx.textAlign="left"; ctx.fillStyle=gearCol(inst); ctx.font="12px 'Courier New'";
+      // CAS-265: prepend a per-rarity SHAPE mark (◦/◆/★) in colour-blind mode so rarity
+      // reads without depending on the name's hue (empty for common → unchanged otherwise).
+      ctx.fillText(rarityMark(inst)+gearName(inst)+" ("+gearStat(inst)+")", rx+8, ay+16);
+      const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="10px 'Courier New'"; ctx.fillText("◈".repeat(na), rx+8, ay+rowH-7); }
+      const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+16);
+      ui.invRects.push({x:rx,y:ay,w:rw,h:rowH-4, idx:i});
     }
-    const gridH=GROWS*(cs+GAP)-GAP;
-    // CAS-419: grid area is drop target (bag drag → move to end; equip drag → reject).
-    ui.invBagAreaRect={x:rx,y:gridY,w:gridW,h:gridH};
-    if(!bag.length){ ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.bagEmpty,rx+gridW/2,gridY+gridH/2); }
+    // CAS-419: the visible list area is itself a drop target (bag drag → move to end;
+    // equip drag → reject: functional slots are non-nullable in the save shape).
+    ui.invBagAreaRect={x:rx,y:listY,w:rw,h:maxRows*rowH};
     // ---- compare box: equipped vs selected (the equip DECISION). CAS-117 ----
-    const cmpH=92; const compY=gridY+gridH+8; const compSel=bag[G.invSel];
-    if(compSel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,compY,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,compY,rw,cmpH);
-      const eq=h.equip[compSel.slot];
-      ctx.textAlign="left"; ctx.font="10px 'Courier New'"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, compY+13);
-      ctx.fillStyle=gearCol(eq); ctx.fillText(rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")", rx+6, compY+25);
-      drawAffixLines(eq, rx+10, compY+36, 10);
+    const cy=listY+Math.min(bag.length,maxRows)*rowH+6; const sel=bag[G.invSel];
+    if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
+      const eq=h.equip[sel.slot];
+      ctx.textAlign="left"; ctx.font="10px 'Courier New'"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
+      ctx.fillStyle=gearCol(eq); ctx.fillText(rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")", rx+6, cy+25);
+      drawAffixLines(eq, rx+10, cy+36, 10);
       const midX=rx+rw*0.52;
-      ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpNew, midX, compY+13);
-      ctx.fillStyle=gearCol(compSel); ctx.fillText("("+gearStat(compSel)+")", midX, compY+25);
-      drawAffixLines(compSel, midX+4, compY+36, 10);
+      ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpNew, midX, cy+13);
+      ctx.fillStyle=gearCol(sel); ctx.fillText("("+gearStat(sel)+")", midX, cy+25);
+      drawAffixLines(sel, midX+4, cy+36, 10);
       // net combat deltas if equipped (the tradeoff at a glance)
-      const before={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const old=h.equip[compSel.slot]; h.equip[compSel.slot]=compSel;
-      const after={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const a2=affixTotals(h); h.equip[compSel.slot]=old; const a1=affixTotals(h);
+      const before={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const old=h.equip[sel.slot]; h.equip[sel.slot]=sel;
+      const after={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const a2=affixTotals(h); h.equip[sel.slot]=old; const a1=affixTotals(h);
       const parts=[["Dmg",after.dmg-before.dmg],["Def",after.def-before.def],["HP",after.hp-before.hp],["AtkV%",a2.atkspd-a1.atkspd],["MovV%",a2.movespd-a1.movespd]];
-      let dx=rx+6; ctx.font="bold 10px 'Courier New'"; const dyb=compY+cmpH-8;
+      let dx=rx+6; ctx.font="bold 10px 'Courier New'"; const dyb=cy+cmpH-8;
       for(const [lbl,dv] of parts){ const tk=deltaTok(dv); const seg=lbl+" "; ctx.fillStyle=COL.textDim; ctx.fillText(seg,dx,dyb); dx+=ctx.measureText(seg).width;
         ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; hintFit(STR.equipHint,VW/2,y+bh-7,bw-20,11);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
     // ---- CAS-419: DnD overlays — reject flash, target highlights, cursor ghost. ----
     // Pure presentation read from input state (ui.invDrag / ui.invReject) in the same
     // per-frame modal pass; zero RNG, zero state mutation (drops resolve in sim seams).
@@ -1724,7 +1932,7 @@ export function createRenderer(ctx){
     }
     // description box (hovered, else keyboard-focused node)
     const dn = hover || talentNode(h.cls, focusId);
-    const dy=y+bh-100, dbx=x+24, dbw=bw-48, dbh=50; // CAS-453: freed footer room for button+hint
+    const dy=y+bh-92, dbx=x+24, dbw=bw-48, dbh=52;
     panelLocal(dbx,dy,dbw,dbh);
     if(dn){ const st=nodeState(h,dn); ctx.textAlign="left";
       ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(dn.name+"  ["+STR.talentRank(nodeRank(h,dn.id),dn.max)+"]", dbx+10, dy+18);
@@ -1733,14 +1941,13 @@ export function createRenderer(ctx){
       if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
       if(hint){ ctx.fillStyle="#d0a0a0"; ctx.font="10px 'Courier New'"; ctx.fillText(hint, dbx+10, dy+48); }
     }
-    // respec button + hint — CAS-453: button lifted so the shortcut line no longer
-    // renders behind it; hint auto-fits the panel width.
-    const rbw=Math.min(210,bw-40), rbh=24, rbx=VW/2-rbw/2, rby=y+bh-44;
+    // respec button + hint
+    const rbw=210, rbh=26, rbx=VW/2-rbw/2, rby=y+bh-32;
     const canR=talentSpent(h)>0;
     ctx.fillStyle=canR?"#3a2c1e":"#23262c"; ctx.fillRect(rbx,rby,rbw,rbh);
-    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+16);
+    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+17);
     ui.talentRects.push({x:rbx,y:rby,w:rbw,h:rbh, act:()=>sim.respecTalents()});
-    ctx.fillStyle=COL.textDim; hintFit(STR.talentHint, VW/2, y+bh-6, bw-24, 10);
+    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.talentHint, VW/2, y+bh-6);
   }
 
   // CAS-150 — ELITE-MASTERY REWARD-TRACK panel. The cross-session hook made legible: a
@@ -1851,11 +2058,10 @@ export function createRenderer(ctx){
       // full-row select rect (keyboard/tap focus); pushed to the BACK so a button tap on the same row wins first
       ui.forgeRects.push({x:x+20,y:ry,w:bw-40,h:ih-10, sel:i});
     }
-    // CAS-453: close button lifted clear of the shortcut line (was drawn over it).
-    const cy=y+bh-42; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,22);
+    const cy=y+bh-28; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,22);
     ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText("Cerrar (G)",VW/2,cy+15);
     ui.forgeRects.push({x:x+bw/2-60,y:cy,w:120,h:22,act:()=>{G.scene="play";}});
-    ctx.fillStyle=COL.textDim; hintFit(STR.forgeHint,VW/2,y+bh-8,bw-24,11);
+    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.forgeHint,VW/2,y+bh-8);
   }
 
   // CAS-134: the Bounty Board — today's daily contracts (progress + claim) and the login
@@ -2279,34 +2485,22 @@ export function createRenderer(ctx){
     }
     // ---- pinned footer (Resume + replay guide + new game) ----
     let fy=y+bh-118;
-    // CAS-113/CAS-458: "Nueva partida" wipes the save. The base button reads destructive-red
-    // so the danger registers before the first tap, and tapping it ARMS an explicit
-    // confirmation dialog (not a bare button swap). While armed the dialog covers the
-    // replay + new-game band and those two buttons are NOT registered — pauseTap is
-    // first-match-wins, so a stray tap can never fall through the dialog and nuke a run.
+    ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
+    // CAS-267: "reset onboarding" — replay now AND re-arm the persisted first-load
+    // flag (clearTutSeen) so the coachmark also auto-shows again on the next fresh load.
+    ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ clearTutSeen(); G.scene="play"; sim.startTutorial(); }}); fy+=30;
+    // CAS-113: "Nueva partida" — two-tap arm/confirm so a misclick can't nuke a run.
     if(G.resetArm){
-      const dh=54;
-      ctx.textAlign="center";
-      ctx.fillStyle="rgba(48,16,16,0.97)"; ctx.fillRect(px,fy,pw,dh);
-      ctx.strokeStyle="#8a3030"; ctx.lineWidth=2; ctx.strokeRect(px+1,fy+1,pw-2,dh-2);
-      ctx.fillStyle="#f2b2b2"; ctx.font="bold 12px 'Courier New'"; ctx.fillText("¿Borrar la partida guardada?",VW/2,fy+16);
-      ctx.fillStyle="#d79494"; ctx.font="10px 'Courier New'"; ctx.fillText("Esta acción no se puede deshacer.",VW/2,fy+30);
-      const half=(pw-16)/2, byb=fy+35;
-      ctx.fillStyle="#a51f1f"; ctx.fillRect(px+4,byb,half,15); ctx.strokeStyle="#e07070"; ctx.lineWidth=1; ctx.strokeRect(px+4.5,byb+0.5,half-1,14);
-      ctx.fillStyle="#ffe0e0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText("SÍ, BORRAR",px+4+half/2,byb+11);
-      ui.pauseRects.push({x:px+4,y:byb,w:half,h:15,act:()=>{ G.resetArm=false; resetGame(); }});
-      ctx.fillStyle="#20262f"; ctx.fillRect(px+12+half,byb,half,15); ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.fillText("Cancelar",px+12+half+half/2,byb+11);
-      ui.pauseRects.push({x:px+12+half,y:byb,w:half,h:15,act:()=>{ G.resetArm=false; }});
+      const half=(pw-8)/2;
+      ctx.fillStyle="#3a2222"; ctx.fillRect(px,fy,half,24); ctx.fillStyle="#f0a0a0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText("SÍ, BORRAR",px+half/2,fy+16);
+      ui.pauseRects.push({x:px,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; resetGame(); }});
+      ctx.fillStyle="#20262f"; ctx.fillRect(px+half+8,fy,half,24); ctx.fillStyle=COL.cream; ctx.fillText("Cancelar",px+half+8+half/2,fy+16);
+      ui.pauseRects.push({x:px+half+8,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; }});
     } else {
-      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
-      // CAS-267: "reset onboarding" — replay now AND re-arm the persisted first-load coachmark flag.
-      ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ clearTutSeen(); G.scene="play"; sim.startTutorial(); }});
-      const ny=fy+30;
-      ctx.fillStyle="#3a1616"; ctx.fillRect(px,ny,pw,24); ctx.strokeStyle="#7a2a2a"; ctx.lineWidth=1; ctx.strokeRect(px+0.5,ny+0.5,pw-1,23);
-      ctx.fillStyle="#e79090"; ctx.font="12px 'Courier New'"; ctx.fillText("Nueva partida (borrar guardado)",VW/2,ny+16);
-      ui.pauseRects.push({x:px,y:ny,w:pw,h:24,act:()=>{ G.resetArm=true; }});
+      ctx.fillStyle="#2a1c14"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle="#caa07a"; ctx.font="12px 'Courier New'"; ctx.fillText("Nueva partida (borrar guardado)",VW/2,fy+16);
+      ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ G.resetArm=true; }});
     }
-    fy+=62;
+    fy+=32;
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(VW/2-90,fy,180,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,fy+20);
     ui.pauseRects.push({x:VW/2-90,y:fy,w:180,h:30,act:()=>{ G.resetArm=false; G.rebind=null; G.scene="play"; }});
   }
@@ -2550,7 +2744,7 @@ export function createRenderer(ctx){
     rrng.seed(11); for(let i=0;i<40;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
     ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.customizeTitle, VW/2, 34);
-    ctx.fillStyle=COL.cream; hintFit(STR.customizeHint, VW/2, 54, VW-24, 11);
+    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(STR.customizeHint, VW/2, 54);
 
     // ---- live preview (baked clshero strip, breathing idle loop) ----
     const pvW=Math.min(150,VW*0.34), pvX=VW*0.5-VW*0.30, pvY=72, pvH=Math.min(190,VH*0.34);
@@ -2599,7 +2793,7 @@ export function createRenderer(ctx){
     }
     // ---- buttons ----
     ctx.textAlign="center";
-    const by=VH-54, bw=Math.min(150,VW*0.4), bh=32, gap=14; // CAS-453: lifted clear of keys hint
+    const by=VH-46, bw=Math.min(150,VW*0.4), bh=32, gap=14;
     const dX=VW/2+gap/2, sX=VW/2-gap/2-bw;
     ctx.fillStyle="#1d3324"; ctx.fillRect(dX,by,bw,bh); ctx.strokeStyle=COL.heal; ctx.lineWidth=2; ctx.strokeRect(dX,by,bw,bh);
     ctx.fillStyle=COL.heal; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.customizeDone, dX+bw/2, by+21);
@@ -2607,7 +2801,7 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.fillText(STR.customizeReset, sX+bw/2, by+21);
     ui.customRects.push({kind:"done",x:dX,y:by,w:bw,h:bh});
     ui.customRects.push({kind:"reset",x:sX,y:by,w:bw,h:bh});
-    ctx.fillStyle=COL.textDim; hintFit(STR.customizeKeys, VW/2, VH-8, VW-24, 10);
+    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.customizeKeys, VW/2, VH-8);
     ctx.textAlign="left";
   }
   function drawMenuEmblem(x,y){ ctx.save(); ctx.translate(x,y);

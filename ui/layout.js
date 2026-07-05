@@ -40,6 +40,9 @@ export const uiLayout = (()=>{
   const rects={};                 // canvas widget rects {x,y,w,h,t} (mutated)
   let tick=0;                     // pub() freshness stamp (stale-rect guard)
   let cdrag=null;                 // canvas drag {id,sx,sy,ox,oy,active}
+  // CAS-466: zoom del minimapa (botones +/- dibujados por render, ruteados aquí)
+  let mmZoom=1; const MMZ=[1,2,4,8];
+  const btns={};                  // rects de botones de canvas {x,y,w,h,t}
 
   function load(){ try{ const raw=localStorage.getItem(KEY); if(raw){ const p=JSON.parse(raw);
       if(p && typeof p==="object"){ for(const k in p){ const v=p[k];
@@ -142,7 +145,17 @@ export const uiLayout = (()=>{
   function cy(id,def,h){ const p=store[id]; if(!p) return def;
     return Math.min(Math.max(MARGIN,p.y), Math.max(MARGIN, vh()-h-MARGIN)); }
 
+  function pubBtn(id,x,y,w,h){ let r=btns[id];   // CAS-466: botón de canvas (click, no drag)
+    if(!r){ r=btns[id]={x:0,y:0,w:0,h:0,t:0}; }
+    r.x=x; r.y=y; r.w=w; r.h=h; r.t=tick; }
   function canvasDown(x,y){ if(!isPlay()) return false;
+    for(const id in btns){ const r=btns[id];       // CAS-466: los botones ganan al drag
+      if(r.t!==tick && r.t!==tick-1) continue;
+      if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+        const i=MMZ.indexOf(mmZoom);
+        if(id==="mmZoomIn")  mmZoom=MMZ[Math.min(MMZ.length-1,i+1)];
+        if(id==="mmZoomOut") mmZoom=MMZ[Math.max(0,i-1)];
+        return true; } }
     for(const id in rects){ const r=rects[id];
       if(r.t!==tick && r.t!==tick-1) continue;      // widget not drawn (touch / suppressed)
       if(x>=r.x-2 && x<=r.x+r.w+2 && y>=r.y-2 && y<=r.y+r.h+2){
@@ -174,7 +187,7 @@ export const uiLayout = (()=>{
   }
 
   const api={ attachDom, clampAll, setPlayCheck:(fn)=>{ if(typeof fn==="function") isPlay=fn; },
-    frame, get, pub, cx, cy, canvasDown, canvasMove, canvasUp, reset,
+    frame, get, pub, pubBtn, mmZoom:()=>mmZoom, cx, cy, canvasDown, canvasMove, canvasUp, reset,
     dragging:()=>dragId, KEY,
     // QA hooks — read/seed the layout headlessly (presentation only)
     _store:()=>store, _set:(id,x,y)=>{ store[id]={x,y}; save(); const r=panels[id]; if(r){ applyDom(r); clampDom(r); } } };

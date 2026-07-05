@@ -362,7 +362,10 @@ export const ANIM={
   // family). Town NPC → drawNPC + NPC_ANIM idle loop only, never ENEMY_ANIM. The companion
   // healernpc_cast.png (6f heal-cast swing, same slicer) is on disk for the Game Engineer to
   // play on the heal trigger if desired.
-  healernpc:{fc:{idle:6}, fw:{idle:24}, fh:{idle:34}},
+  healernpc:{fc:{idle:6, cast:6}, fw:{idle:24, cast:40}, fh:{idle:34, cast:33}}, // CAS-466: cast al curar
+  // CAS-464: el HERRERO con el arte real del blacksmith pack — 6f martillando el yunque
+  // (fila idle-work del character sheet, recortada con base al fondo). Town NPC → drawNPC.
+  blacksmithnpc:{fc:{idle:6}, fw:{idle:29}, fh:{idle:50}},
 };
 // enemy strips driven by drawEnemy (combat AI states). Town NPCs are kept OUT of this
 // map so they never aggro/attack — they animate via NPC_ANIM + drawNPC instead.
@@ -544,7 +547,7 @@ export const ENEMY_STRIP={
   orc:   ENEMY_STRIPS.orc.walk,
 };
 // animated, non-hostile town NPCs. Keyed by npc.sprite → ANIM strip; idle loop only.
-export const NPC_ANIM={ merchant:"merchant", healernpc:"healernpc" };
+export const NPC_ANIM={ merchant:"merchant", healernpc:"healernpc", blacksmithnpc:"blacksmithnpc" };
 // player class sprites: directional (down/up/side, left=side mirrored), states idle/walk/attack
 export const CLS={
   warrior: {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
@@ -559,7 +562,7 @@ export const CLASS_DIRS=["down","up","side"];
 // (CAS-21, board-approved 2026-06-27). Not the class-select card preview, which
 // fits-to-card independently.
 export const HERO_SPRITE_SCALE=1.85;
-export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58 };
+export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58, prop_erw_fountain:0.5, prop_erw_altar:0.5 };
 // CAS-353: nature pack (board-supplied) for the wilderness forest that fills the empty
 // field (the "tiles negras" — the dark negative space outside every zone). Authored at
 // tile resolution (trees 48×80, pines 32×80, rocks 16–48px, foliage 16–32px), so they
@@ -597,6 +600,20 @@ export function loadAllAssets(){
   loadImg("ruins_grass2","./assets/tiles/ruins_grass2.png");
   loadImg("wall","./assets/tiles/wall.png");
   loadImg("wall2","./assets/tiles/wall2.png");
+  // ERW Ancient Ruins pack (real tileset art) → the central walled city. erw_wall_h is a
+  // mossy sandstone crown over stone brick (horizontal ramparts + corners); erw_wall_v is a
+  // stone-brick face for vertical runs; erw_flag/2 pave the plaza in flagstone. Town-only —
+  // routed in render.js by world.town bounds, so cave walls / colosseum floor are untouched.
+  loadImg("erw_wall_h","./assets/tiles/erw_wall_h.png");
+  loadImg("erw_wall_v","./assets/tiles/erw_wall_v.png");
+  loadImg("erw_flag","./assets/tiles/erw_flag.png");
+  loadImg("erw_flag2","./assets/tiles/erw_flag2.png");
+  loadImg("prop_erw_fountain","./assets/props/erw_fountain.png");
+  // ERW Atlas-Props (real art) → the central shrine plaza monument. The greek-key altar is a
+  // y-sorted deco prop (player walks behind it); the radiant sun glyph is blitted flat on the
+  // plaza. Alt centerpieces (sword monument, colossus foot, altar basin) ship for easy swap.
+  loadImg("prop_erw_altar","./assets/props/erw_altar.png");
+  loadImg("erw_sun","./assets/props/erw_sun.png");
   // CAS-441: Ciénaga de Bruma marsh floor (CAS-439 art) — T_SWAMP paints these four
   // 32px tiles (mud base / moss-flecked mud / puddle / water pool) via hash2 variants.
   loadImg("swamp_mud","./assets/tiles/swamp_mud.png");
