@@ -208,14 +208,49 @@ export function rollGearInst(srand,tmin,tmax,minR,luck){ const slots=["weapon","
 // CAS-119: talent flat +daño / +vida fold in here too, read off the cached bundle
 // h.tt (built in sim.recalcTalents) so combat + UI route through one place and a
 // talentless hero (h.tt zero/absent) is unchanged — no import cycle into talents.js.
-export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus + affixTotals(h).dmg + ((h.tt&&h.tt.dmg)||0); }
+export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus + affixTotals(h).dmg + socketTotals(h).dmg + ((h.tt&&h.tt.dmg)||0); } // CAS-1687: engarzada +daño runes fold in here (derived, never baked)
 export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip.shield) + h.defBonus + ((h.bb&&h.bb.defAdd)||0); } // CAS-383: Piel de Piedra flat def
 // Effective max HP = the stored base pool (class+level+shop+shards) plus any
 // +vida affixes currently equipped. Never baked into h.maxHp, so persistence
 // and leveling stay clean (mirrors how timed buffs stay out of permDmg/permDef).
 // CAS-150: Elite-Mastery reward-track +maxHp milestones fold in here too (h.mperk.hp,
 // built in sim.recalcMastery) — derived, never baked, so reload reproduces it from the count.
-export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0)) * ((h.bb&&h.bb.hpMul)||1) * uniqTotals(h).hpMul * setTotals(h).hpMul); } // CAS-383 boon hpMul + CAS-1632 corazon_titan (uniqTotals.hpMul) + CAS-1654 Vigía set (setTotals.hpMul) scale the effective pool (derived, never baked → reload/reset clean)
+export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + socketTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0)) * ((h.bb&&h.bb.hpMul)||1) * uniqTotals(h).hpMul * setTotals(h).hpMul); } // CAS-383 boon hpMul + CAS-1632 corazon_titan (uniqTotals.hpMul) + CAS-1654 Vigía set (setTotals.hpMul) + CAS-1687 socketTotals.hp (Zafiro runes) scale/add to the effective pool (derived, never baked → reload/reset clean)
+
+// ===========================================================================
+// CAS-1687 — RUNAS Y ENGARCES (sockets). A gear instance may carry `sockets`: an
+// array (0–2) of slots, each EMPTY `{}` or FILLED `{type:"<runeId>"}`. A rune in the
+// bag is a bag item `{rune:"<runeId>"}` (no slot/defId). Engarzar a rune consumes it
+// into an empty socket; desengarzar returns it to the bag. $0 art: a rune/socket
+// renders as a tinted glyph (◇ empty / ◆ filled) — NO sprite. The bonus rides
+// `socketTotals()` — the live mirror of affixTotals (CAS-117) — so a filled socket
+// moves REAL combat numbers, never a baked stat (Stage-2 authority-ready: recomputable
+// purely from the equipped instances). Content lives HERE with the other gear content;
+// the tunable knobs (enabled/dropRate/socketChance) live in config.js `SOCKETS`.
+export const RUNES = {
+  rubi:      { name:"Runa de Rubí",      glyph:"◆", tint:"#e8564e", stat:"dmg",    amt:6,  label:"+6 daño"       },
+  zafiro:    { name:"Runa de Zafiro",    glyph:"◆", tint:"#4e8fe8", stat:"hp",     amt:30, label:"+30 vida máx"  },
+  esmeralda: { name:"Runa de Esmeralda", glyph:"◆", tint:"#4ee88f", stat:"atkspd", amt:6,  label:"+6% vel. ataque" },
+};
+export const RUNE_ORDER = ["rubi","zafiro","esmeralda"];
+export function runeDef(type){ return (type&&RUNES[type])||null; }
+export function runeName(type){ const r=runeDef(type); return r?r.name:null; }
+// Validate/rebuild a persisted sockets array (safeInst path): keep ≤2 entries; each entry
+// is `{type}` for a KNOWN rune, else an EMPTY `{}` (unknown/garbage rune → emptied, never
+// dropped so the socket count survives). Absent/non-array → null (piece simply has no sockets).
+export function safeSockets(arr){ if(!Array.isArray(arr)) return null; const out=[];
+  for(const s of arr){ if(out.length>=2) break;
+    if(s && s.type && RUNES[s.type]) out.push({type:s.type}); else out.push({}); }
+  return out.length?out:null; }
+// Sum every FILLED socket on equipped gear into one live combat bundle — the mirror of
+// affixTotals (CAS-117) / uniqTotals (CAS-1632). The ONLY reader of socket bonuses (combat
+// + UI route through this) so engarzar moves REAL numbers, never a stored/baked stat, and
+// stays recomputable from the 3 equipped instances. 0 RNG.
+export function socketTotals(h){ const t={dmg:0,hp:0,atkspd:0};
+  if(!h||!h.equip) return t;
+  for(const slot of ["weapon","body","shield"]){ const inst=h.equip[slot]; if(!inst||!Array.isArray(inst.sockets)) continue;
+    for(const s of inst.sockets){ const r=s&&s.type&&RUNES[s.type]; if(r&&t[r.stat]!=null) t[r.stat]+=r.amt; } }
+  return t; }
 
 // ===========================================================================
 // CAS-1632 — ÍTEMS ÚNICOS/LEGENDARIOS (loot que define builds). A "unique" is a

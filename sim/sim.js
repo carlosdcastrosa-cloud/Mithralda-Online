@@ -14,11 +14,11 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost, UNIQUES, uniqDef, uniqById, uniqInst, uniqName, uniqTotals, uniqEmpower, SETS, SET_ORDER, SET_PIECES, setPieceDef, setPieceById, setInst, setCounts, setTotals } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost, UNIQUES, uniqDef, uniqById, uniqInst, uniqName, uniqTotals, uniqEmpower, SETS, SET_ORDER, SET_PIECES, setPieceDef, setPieceById, setInst, setCounts, setTotals, RUNES, RUNE_ORDER, runeDef, runeName, safeSockets, socketTotals } from "./gear.js";
 import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, lockReason, sanitizeTalents, talentEmpower, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
 // feedback floater palette (presentation hints carried by sim events)
@@ -72,6 +72,16 @@ const arenaRng = createRNG(0xa5e4a000);
 // [AC-RNG-STRONG]). Like the other dedicated streams, seed() does NOT reset it — the determinism
 // harness neutralises via ZONE_EVENTS.enabled=false / density=0 (which draw ZERO from any stream).
 const eventRng = createRNG(0xe7e40a1d);
+// CAS-1687 — DEDICATED Runas/Engarces stream (distinct seed from leg/set/ult/arena/event; NOT one
+// of the used seeds 0x1a2b3c4d/0x5e75c0de/0x117a1a7e/0xa5e4a000/0xe7e40a1d). EVERY socket/rune draw
+// (the 0–2 socket-count roll at gear drop, the rune drop gate + type pick) comes ONLY from here,
+// never the authoritative srand, and the whole system is HARD-GATED behind SOCKETS.enabled. So with
+// sockets off (or dropRate 0) no runeRng draw happens and the sim is byte-identical to a build
+// without the feature (AC1 [AC-RNG-STRONG]); at ANY rate the shared srand is provably untouched.
+// Like the other dedicated streams, seed() does NOT reset it — the determinism harness neutralises
+// via SOCKETS.enabled=false / setSocketRate(0) (which draw ZERO from any stream). Engarzar/desengarzar
+// and socketTotals are pure arithmetic — no RNG at all.
+const runeRng = createRNG(0x3c9a7b21);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -830,9 +840,16 @@ export const SAVE_VERSION = 1;
 function num(v,dflt){ return (typeof v==="number" && isFinite(v))?v:dflt; }
 // Validate a stored gear instance against the gear data; drop anything unknown so
 // a corrupted/old save can never render or compute against a missing def.
-function safeInst(inst){ if(!(inst && inst.slot && gearDef(inst.slot,inst.defId))) return null;
+function safeInst(inst){
+  // CAS-1687: a RUNE is a bag item {rune:"<id>"} (no slot/defId). Pass through only if it
+  // resolves to a KNOWN rune, stripped to the bare field — so an old/garbage entry is dropped.
+  if(inst && inst.rune) return RUNES[inst.rune] ? {rune:inst.rune} : null;
+  if(!(inst && inst.slot && gearDef(inst.slot,inst.defId))) return null;
   const o={slot:inst.slot,defId:inst.defId,rarity:RARITY_VALID(inst.rarity)};
   const af=safeAffixes(inst.affixes); if(af) o.affixes=af;
+  // CAS-1687: validate/rebuild the sockets array (0–2; each {} or {type} for a known rune) so a
+  // socketed piece survives save→load and its rune bonus stays live; absent/garbage → no sockets.
+  const sk=safeSockets(inst.sockets); if(sk) o.sockets=sk;
   const fl=forgeLevel(inst); if(fl>0) o.fl=fl;   // CAS-237: persist clamped forge level (0 omitted)
   // CAS-1632: preserve the UNIQUE id (only if it resolves to a real unique) so a legendary
   // survives save→load and its mod stays live; a bad/unknown uniq is dropped (falls back to base).
@@ -1459,6 +1476,38 @@ function maybeSetPiece(x, y, kindBias){
   dropGear(x, y, { slot:p.slot, defId:p.defId, rarity:"epic", set:p.id });
 }
 
+// CAS-1687 — RUNAS Y ENGARCES machinery. All three streams below (socket-count on drop, rune-drop
+// gate + type pick) draw ONLY from the dedicated runeRng — NEVER the authoritative srand — so gear
+// generation and kill loot stay byte-identical whether sockets are on or off (AC1 [AC-RNG-STRONG]).
+let runeRate=SOCKETS.dropRate, forcedRune=null; // live-tunable via __dev.setSocketRate; forcedRune = one-shot for the harness
+// Roll 0–2 EMPTY sockets onto a fresh gear instance at drop time. Gated by SOCKETS.enabled (kill
+// switch → zero runeRng draws → byte-identical). Only weapon/body/shield (the 3 functional slots)
+// can be socketed; a piece that already carries sockets (re-drop) is left as-is.
+function maybeAddSockets(inst){
+  if(!SOCKETS.enabled) return;
+  if(!inst || !inst.slot || inst.sockets) return;
+  if(inst.slot!=="weapon" && inst.slot!=="body" && inst.slot!=="shield") return;
+  const sc=SOCKETS.socketChance||[]; let n=0;
+  if(runeRng.srand() < (sc[0]||0)){ n=1; if(runeRng.srand() < (sc[1]||0)) n=2; } // 2nd draw always taken once ≥1, so srand-neutral shape is stable
+  if(n>0){ const a=[]; for(let i=0;i<n;i++) a.push({}); inst.sockets=a; }
+}
+// Drop a rune as a bag item — mirror of maybeLegendary/maybeSetPiece: append-only at the END of a
+// kill's loot resolution, gated off the DEDICATED runeRng so the shared srand is untouched at ANY
+// rate. __dev.setSocketRate forces 0 for the OFF-path determinism test; __dev.forceSocketRune drops
+// a specific rune on the next kill so the harness can build a known engarce.
+function maybeSocketRune(x, y, kindBias){
+  if(!SOCKETS.enabled) return;
+  if(forcedRune){ const t=forcedRune; forcedRune=null; dropRune(x,y,t); return; }
+  const rate=runeRate*(kindBias>0?kindBias:1);
+  if(!(rate>0)) return;                                    // OFF / rate 0 → early out, no RNG at all
+  if(runeRng.srand()>=(rate<1?rate:1)) return;             // dedicated-stream gate — shared srand untouched
+  const t=RUNE_ORDER[Math.floor(runeRng.srand()*RUNE_ORDER.length)]; // dedicated-stream uniform pick
+  dropRune(x,y,t);
+}
+function dropRune(x,y,type){ const r=runeDef(type); if(!r) return;
+  G.drops.push({x,y,kind:"rune",rune:type});
+  floater(x,y-18,r.name,r.tint); audio.sfx.loot(1); }
+
 // CAS-197 — the ONE place the three atkspd sources (affixes CAS-117 + talents CAS-119 +
 // the "furia" consumable CAS-192) are summed, clamped to the global cohesion ceiling
 // ATKSPD_TOTAL_CAP so the independently-capped systems can't compound past intent. Both
@@ -1466,7 +1515,8 @@ function maybeSetPiece(x, y, kindBias){
 export function heroAtkspd(h){ h=h||G.hero; if(!h) return 0;
   // CAS-1632: guante_berserker unique (+12% atkspd) joins the summed sources under the same cap.
   // CAS-1654: Cazador set (+10% atkspd at 2pz) sums in at the same seam, still under the shared cap.
-  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd+setTotals(h).atkspd;
+  // CAS-1687: Esmeralda runes (+atkspd from filled sockets) sum in at the same seam, still under the shared cap.
+  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd+setTotals(h).atkspd+socketTotals(h).atkspd;
   return s>ATKSPD_TOTAL_CAP?ATKSPD_TOTAL_CAP:s; }
 
 // ------------------------------ combat ---------------------------------
@@ -1614,7 +1664,7 @@ function hitEnemy(e,dmg,ang){
 function makeHostile(e){ e.hostile=true; e.tpl=Object.assign({},e.tpl,{aggro:300}); }
 // Push a gear ground-drop. The instance carries resolved stat/slot/rarity so the
 // renderer + pickup never re-roll; all randomness already happened on the sim RNG.
-function dropGear(x,y,inst){ if(!inst) return; G.drops.push({x,y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst),tier:(gearDef(inst.slot,inst.defId)||{}).tier||0});
+function dropGear(x,y,inst){ if(!inst) return; maybeAddSockets(inst); G.drops.push({x,y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst),tier:(gearDef(inst.slot,inst.defId)||{}).tier||0});
   // CAS-116 — drop-time feedback (AC3): a rarity-coloured floater + sfx the moment
   // notable loot (uncommon+) hits the ground, so the player READS the drop before
   // walking onto it. Common trash stays quiet (no spam) — the ground gem suffices.
@@ -1655,6 +1705,7 @@ function killEnemy(e){
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
     maybeLegendary(e.x, e.y+18, LEGENDARY.bossMul);       // CAS-1632: append-only unique roll (after the guaranteed boss piece)
     maybeSetPiece(e.x, e.y+30, LEGENDARY.bossMul);        // CAS-1654: append-only set-piece roll (own setRng stream → srand untouched)
+    maybeSocketRune(e.x, e.y+42, LEGENDARY.bossMul);      // CAS-1687: append-only rune roll (own runeRng stream → srand untouched)
     gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
     // CAS-1670 — GUARANTEED scaled bonus loot for an ARENA boss (never a normal adventure boss: gated e.arena).
     // Draws from the DEDICATED arenaRng, APPENDED after every existing srand/legRng/setRng draw above, so the
@@ -1663,7 +1714,7 @@ function killEnemy(e){
     if(e.arena){ const k=e.arenaBossK||1; const nExtra=arenaBonusDropCount(k); const floor=ARENA.bossDropRareFloor||"rare";
       for(let i=0;i<nExtra;i++) dropGear(e.x+(i%2?18:-18), e.y+24+i*6, rollGearInst(arenaRng.srand, 2, 3, floor));
       G.arena.lastBonusDrops=nExtra; } }
-  else if(e.champion){ onChampionKill(e); maybeLegendary(e.x, e.y-24, LEGENDARY.bossMul); maybeSetPiece(e.x, e.y-36, LEGENDARY.bossMul); } // hunt climax — clears the zone; CAS-1632 unique roll + CAS-1654 set roll after all clear-drops
+  else if(e.champion){ onChampionKill(e); maybeLegendary(e.x, e.y-24, LEGENDARY.bossMul); maybeSetPiece(e.x, e.y-36, LEGENDARY.bossMul); maybeSocketRune(e.x, e.y-48, LEGENDARY.bossMul); } // hunt climax — clears the zone; CAS-1632 unique roll + CAS-1654 set roll + CAS-1687 rune roll after all clear-drops
   // CAS-1681: a Cofre Custodiado GUARDIAN — its own branch (skips the trash gold/potion/gearChance
   // srand draws). The chest loot draws from eventRng ONLY, so a guardian kill never perturbs srand.
   else if(e.eventGuard){ gainXP(tpl.xp); shakeAdd(clamp(tpl.size*0.09,1.2,3)); openGuardedChest(e.eventPoiRef); }
@@ -1696,6 +1747,7 @@ function killEnemy(e){
     const legBias=e.champElite?LEGENDARY.champMul : (e.elite?LEGENDARY.eliteMul : 1);
     maybeLegendary(e.x, e.y+14, legBias);
     maybeSetPiece(e.x, e.y+26, legBias);                 // CAS-1654: append-only set-piece roll, same bias, own setRng stream
+    maybeSocketRune(e.x, e.y+38, legBias);               // CAS-1687: append-only rune roll, same bias, own runeRng stream
   }
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
@@ -2271,6 +2323,17 @@ function takeGear(inst){ const h=G.hero; const st=gearStat(inst);
   floater(h.x,h.y-30,gearName(inst),gearCol(inst),{pop:1.4,life:1.0});
   addFx("lootpop",h.x,h.y,{col:gearCol(inst),life:0.5});
 }
+// CAS-1687: a rune goes to the bag like gear (respecting BAG_CAP); full bag melts the weakest
+// held GEAR to gold to make room, else the rune is lost to a little gold (never blocks the loop).
+function takeRune(type){ const h=G.hero; const r=runeDef(type); if(!r) return;
+  if(h.bag.length>=BAG_CAP){
+    // prefer to evict the weakest GEAR (runes have no gearStat); if the bag is all runes, refuse cheaply.
+    let wi=-1,wv=Infinity; h.bag.forEach((b,i)=>{ if(b&&b.slot){ const v=gearStat(b); if(v<wv){ wv=v; wi=i; } } });
+    if(wi>=0){ h.gold+=Math.max(1,Math.round(wv/2)); h.bag.splice(wi,1); toast(STR.bagFull); }
+    else { h.gold+=2; toast(STR.bagFull); return; } }
+  h.bag.push({rune:type}); audio.sfx.loot(1); toast(STR.loot(r.name));
+  floater(h.x,h.y-30,r.name,r.tint,{pop:1.4,life:1.0}); addFx("lootpop",h.x,h.y,{col:r.tint,life:0.5});
+}
 export function tryPickup(){
   const h=G.hero;
   for(const d of G.drops){ if(d.taken) continue; if(dist2(h.x,h.y,d.x,d.y)<CFG.pickRange*CFG.pickRange){
@@ -2278,6 +2341,7 @@ export function tryPickup(){
     else if(d.kind==="potionhp"){ h.potHP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de vida")); }
     else if(d.kind==="potionmp"){ h.potMP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de maná")); }
     else if(d.kind==="gear"){ takeGear(d.inst); }
+    else if(d.kind==="rune"){ takeRune(d.rune); } // CAS-1687: a rune enters the bag as {rune:type}
     d.taken=true; tutMark("looted"); // CAS-128: first collected drop teaches the loot step
   }}
   G.drops=G.drops.filter(d=>!d.taken);
@@ -2474,12 +2538,38 @@ export function shopItems(){
 // row from one snapshot). Combat/UI totals recompute via equippedDmg/Def.
 export function equipBag(i){ const h=G.hero; const inst=h.bag[i];
   if(!inst) return {dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)};
+  if(inst.rune) return socketRune(i); // CAS-1687: a rune "equips" by engarzándose into an empty socket
   const slot=inst.slot; const old=h.equip[slot];
   h.equip[slot]=inst; h.bag[i]=old; audio.sfx.buy();
   // CAS-117: swapping out a +vida piece can lower the effective max below
   // current hp — clamp so the bar never reads over 100%.
   const mhp=heroMaxHp(h); if(h.hp>mhp) h.hp=mhp;
   return {slot, dmg:equippedDmg(h), def:equippedDef(h), hp:mhp};
+}
+// CAS-1687 — ENGARZAR: consume bag[i] (a rune) into the FIRST empty socket on equipped gear
+// (weapon→body→shield order). Pure inventory+equip management through the sim authority (0 RNG):
+// the rune's stat becomes live immediately via socketTotals(). No empty socket → deny, no change.
+export function socketRune(i){ const h=G.hero; const inst=h.bag[i];
+  const base={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)};
+  if(!inst || !inst.rune || !RUNES[inst.rune]) return Object.assign({socketed:false},base);
+  for(const slot of ["weapon","body","shield"]){ const g=h.equip[slot]; if(!g||!Array.isArray(g.sockets)) continue;
+    for(let k=0;k<g.sockets.length;k++){ if(!g.sockets[k] || !g.sockets[k].type){
+      g.sockets[k]={type:inst.rune}; h.bag.splice(i,1);
+      G.invSel=Math.min((G.invSel|0), Math.max(0,h.bag.length-1)); audio.sfx.buy();
+      const mhp=heroMaxHp(h); if(h.hp>mhp) h.hp=mhp;
+      return {socketed:true, slot, type:g.sockets[k].type, dmg:equippedDmg(h), def:equippedDef(h), hp:mhp}; } } }
+  audio.sfx.deny(); return Object.assign({socketed:false},base); // no empty socket anywhere
+}
+// CAS-1687 — DESENGARZAR: pop the LAST filled socket on `slot` back to the bag as a rune (if room).
+// Bag full → deny, no change. The freed socket goes empty; the bonus drops off socketTotals live.
+export function unsocketRune(slot){ const h=G.hero; const g=h.equip[slot];
+  if(!g || !Array.isArray(g.sockets)) return {removed:false};
+  if(h.bag.length>=BAG_CAP){ toast(STR.bagFull); audio.sfx.deny(); return {removed:false}; }
+  for(let k=g.sockets.length-1;k>=0;k--){ if(g.sockets[k] && g.sockets[k].type){
+    const type=g.sockets[k].type; g.sockets[k]={}; h.bag.push({rune:type}); audio.sfx.pickup();
+    const mhp=heroMaxHp(h); if(h.hp>mhp) h.hp=mhp;
+    return {removed:true, type, slot, dmg:equippedDmg(h), def:equippedDef(h), hp:mhp}; } }
+  return {removed:false}; // no filled socket on this piece
 }
 // CAS-419: reorder the backpack — move bag[from] to `to` (swap if occupied), or to the
 // END when to===-1. Pure inventory management through the sim authority (mirrors equipBag):
@@ -3941,9 +4031,15 @@ export const dev = {
   // Append-only proof: capture the FULL drop stream (kind/rarity) of a spawn-kill sequence at the
   // current legRate, so the harness can run it at legRate=0 twice with a fixed seed and diff byte-identity.
   dropStream(n, seedVal){ if(seedVal!=null) seed(seedVal); n=Math.max(1,n|0); const out=[];
+    // CAS-1687: this is an SRAND-loot fingerprint probe. Runes/sockets ride the SEPARATE runeRng
+    // stream (not srand), and runeRng is not reset by seed() — so leaving sockets ON would inject
+    // kind:"rune" drops at run-to-run-varying positions and break byte-identity. Neutralise sockets
+    // for the probe's duration (mirrors how callers zero setLegRate/setSetRate), then restore.
+    const savSock=SOCKETS.enabled; SOCKETS.enabled=false;
     for(let i=0;i<n;i++){ const before=G.drops.length; const e=spawnEnemy("skeleton",-8000-i,-8000); if(!e) continue;
       e.hp=0; killEnemy(e);
       for(const d of G.drops.slice(before)) out.push({kind:d.kind, rarity:d.rarity||null, tier:d.tier||0, uniq:(d.inst&&d.inst.uniq)||null, set:(d.inst&&d.inst.set)||null}); }
+    SOCKETS.enabled=savSock;
     return out; },
   // --- CAS-1654 CONJUNTOS DE OBJETOS harness hooks (tools/cas1653-sets.mjs); additive, curated bridge ---
   // Static config off the data (no sim step) — asserts the 3 sets (each with b2+b3), the 9 pieces,
@@ -4005,6 +4101,72 @@ export const dev = {
     const h2=G.hero;
     return { ok, before, after:{ counts:setCounts(h2), maxHp:heroMaxHp(h2),
       equip:{ weapon:(h2.equip.weapon&&h2.equip.weapon.set)||null, body:(h2.equip.body&&h2.equip.body.set)||null, shield:(h2.equip.shield&&h2.equip.shield.set)||null } } }; },
+  // --- CAS-1687 RUNAS Y ENGARCES (sockets) harness hooks (tools/cas1687-sockets.mjs); additive, drive the REAL paths ---
+  // Static config off the data (no sim step): the knobs + the rune content table + the live drop rate.
+  socketMeta(){ return { enabled:SOCKETS.enabled, dropRate:SOCKETS.dropRate, liveRate:runeRate,
+    socketChance:(SOCKETS.socketChance||[]).slice(),
+    runes:RUNE_ORDER.map(id=>({id, name:RUNES[id].name, glyph:RUNES[id].glyph, tint:RUNES[id].tint, stat:RUNES[id].stat, amt:RUNES[id].amt, label:RUNES[id].label})) }; },
+  // Master kill switch (AC1): false → zero runeRng draws (gear-socket roll + rune drops both off).
+  socketSetEnabled(b){ SOCKETS.enabled=!!b; return SOCKETS.enabled; },
+  // RNG-neutrality seam: force the live rune-drop rate (0 → rune drops OFF). Draws from the dedicated
+  // runeRng, so the shared srand is byte-identical at ANY rate (AC1 [AC-RNG-STRONG]). Mirror of setSetRate.
+  setSocketRate(r){ runeRate=(r==null)?SOCKETS.dropRate:Math.max(0,+r||0); return runeRate; },
+  // Live socket bundle read off the equipped instances (the ONLY socket-bonus reader; combat routes here).
+  socketTotals(){ return socketTotals(G.hero); },
+  // Give the equipped `slot` exactly `n` EMPTY sockets (through no RNG) so a test can engarzar into them.
+  grantSocketGear(slot, n){ const h=G.hero; if(!h) return null; slot=slot||"weapon"; n=Math.max(0,Math.min(2,n==null?1:n|0));
+    const g=h.equip[slot]; if(!g) return null; const a=[]; for(let i=0;i<n;i++) a.push({}); g.sockets=a; return this.socketSnap(); },
+  // Grant a rune straight to the bag as {rune:type} (bypasses drop RNG); returns bag index + length.
+  grantRune(type){ const h=G.hero; if(!h||!RUNES[type]) return null; h.bag.push({rune:type}); return { i:h.bag.length-1, bag:h.bag.length }; },
+  // Force the NEXT kill to drop `type` via the REAL killEnemy loot path; reports the dropped rune so a
+  // test proves the rune lands (append-only, own runeRng). Mirrors forceSetPiece/forceLegendary.
+  forceSocketRune(type, zone){ const h=G.hero; if(!h||!RUNES[type]) return null; const before=G.drops.length; forcedRune=type;
+    const e=spawnEnemy("skeleton", h.x+40, h.y); if(e){ e.scaleZone=zone||"caves"; e.hp=0; killEnemy(e); }
+    forcedRune=null;
+    const drops=G.drops.slice(before).filter(d=>d.kind==="rune").map(d=>({rune:d.rune,name:runeName(d.rune)}));
+    return { drops, rune:drops[0]||null }; },
+  // ENGARZAR bag[i] into the first empty socket (drives the REAL socketRune path). Returns the outcome.
+  socketRune(i){ return socketRune(i|0); },
+  // DESENGARZAR the last filled socket on `slot` back to the bag (drives the REAL unsocketRune path).
+  removeSocketRune(slot){ return unsocketRune(slot||"weapon"); },
+  // Live snapshot: per-slot sockets (empty vs filled) + the live combat read-outs so a test proves a
+  // filled socket moved a REAL number (dmg/maxHp/atkspd) and survives serialize→load (AC3).
+  socketSnap(){ const h=G.hero; if(!h) return null;
+    const sl=(g)=>Array.isArray(g&&g.sockets)?g.sockets.map(s=>(s&&s.type)||null):[];
+    return { equip:{ weapon:sl(h.equip.weapon), body:sl(h.equip.body), shield:sl(h.equip.shield) },
+      totals:socketTotals(h), dmg:equippedDmg(h), def:equippedDef(h), maxHp:heroMaxHp(h), atkspd:heroAtkspd(h),
+      bag:h.bag.map(b=>b&&b.rune?("rune:"+b.rune):(b&&b.slot?b.slot:"?")) }; },
+  // Persistence probe (AC3/AC5): socket a rune, serialize→load through the REAL save path, report survival.
+  // Clears ALL equip sockets first so the ONLY socket in play is the one on `slot` (deterministic assert).
+  socketPersist(slot, type){ const h=G.hero; if(!h) return null; slot=slot||"weapon";
+    for(const s of ["weapon","body","shield"]){ const g=h.equip[s]; if(g) delete g.sockets; }
+    this.grantSocketGear(slot,1); const g=this.grantRune(type); if(g) this.socketRune(g.i);
+    const before={ totals:socketTotals(h), maxHp:heroMaxHp(h), dmg:equippedDmg(h) };
+    const blob=JSON.parse(JSON.stringify(serializeSave())); const ok=loadSave(blob); const h2=G.hero;
+    const sl=(gg)=>Array.isArray(gg&&gg.sockets)?gg.sockets.map(s=>(s&&s.type)||null):[];
+    return { ok, before, after:{ totals:socketTotals(h2), maxHp:heroMaxHp(h2), dmg:equippedDmg(h2),
+      equip:{ weapon:sl(h2.equip.weapon), body:sl(h2.equip.body), shield:sl(h2.equip.shield) } } }; },
+  // Draw n floats from the DEDICATED runeRng (no srand touch) — proves the stream is live + isolated.
+  // Reseeds runeRng directly (the global seed() does NOT reset it — that's the whole isolation point).
+  socketRngProbe(n, seedVal){ n=Math.max(1,n|0); if(seedVal!=null) runeRng.seed(seedVal>>>0);
+    const out=[]; for(let i=0;i<n;i++) out.push(+runeRng.srand().toFixed(9)); return out; },
+  // AC1 [AC-RNG-STRONG]: run a gameplay-srand fingerprint around a dropGear socket-roll + a rune-drop
+  // gate, with sockets ON vs OFF. Because both draw ONLY from runeRng, the srand fingerprint is
+  // BYTE-IDENTICAL either way, while socketsOn>0 proves ON actually did work. Mirror of eventGenProbe.
+  socketGenProbe(enabled, rate, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savEn=SOCKETS.enabled, savR=runeRate; const usedR=(rate==null?SOCKETS.dropRate:Math.max(0,+rate||0));
+    SOCKETS.enabled=!!enabled; runeRate=usedR;
+    G.enemies.length=0; G.drops.length=0;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));         // pre-segment
+    const inst=rollGearInst(srand,2,3); if(inst) dropGear(-8000,-8000, inst);    // SOCKET INJECTION (runeRng only)
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                       // mid-segment
+    const h=G.hero; if(h) maybeSocketRune(-8100,-8100, 50);                       // RUNE INJECTION (runeRng only), high bias
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                       // post-segment
+    const socketsOn=(inst&&Array.isArray(inst.sockets))?inst.sockets.length:0;
+    const runesDropped=G.drops.filter(d=>d.kind==="rune").length;
+    SOCKETS.enabled=savEn; runeRate=savR;
+    return { enabled:!!enabled, rate:usedR, socketsOn, runesDropped, fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,
