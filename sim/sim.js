@@ -894,7 +894,7 @@ export function loadSave(d){
     if(d.consum && typeof d.consum==="object"){ for(const c of CONSUMABLES) h.consum[c.id]=Math.max(0,Math.floor(num(d.consum[c.id], h.consum[c.id]||0))); }
     h.consumSel=Math.min(CONSUMABLES.length-1, Math.max(0, Math.floor(num(d.consumSel,0))));
     if(d.equip){ for(const slot of ["weapon","body","shield"]){ const ok=safeInst(d.equip[slot]); if(ok) h.equip[slot]=ok; } }
-    if(Array.isArray(d.bag)) h.bag=d.bag.map(safeInst).filter(Boolean).slice(0,16);
+    if(Array.isArray(d.bag)) h.bag=d.bag.map(safeInst).filter(Boolean).slice(0,BAG_CAP); // CAS-1608: persist all 30 usable slots (was 16)
     // CAS-119: rebuild a LEGAL talent tree from the (untrusted) blob + recompute the
     // cached bundle, so persisted builds survive reload and corrupt data can't break it.
     h.talents=sanitizeTalents(d.talents, h.cls); h.talentPts=Math.max(0,Math.floor(num(d.talentPts,0))); recalcTalents(h);
@@ -1829,7 +1829,9 @@ function applyBuff(h,stat,amt,dur){
 }
 
 // ----------------------------- pickups ---------------------------------
-const BAG_CAP=16;
+// CAS-1608: usable cap raised 16->30 to match the 30-cell visual grid shipped in
+// CAS-1593/1594 (render TOTAL_SLOTS=30). Data-driven; grid already fills bag[0..29].
+const BAG_CAP=30;
 // No-filler gate: a COMMON gear is filler iff it can't beat what's already on
 // that slot — auto-melt it to a little gold instead of bagging it. Higher
 // rarities (and any common that IS an upgrade) always go to the bag.
