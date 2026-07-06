@@ -793,6 +793,39 @@ export const ARENA = {
   bossZones:["caves","swamp","arena","abyss"],
 };
 
+// CAS-1681 — EVENTOS DE ZONA (Zone Events / optional POIs). 0–2 telegraphed, opt-in points of
+// interest seeded PER combat zone, each a risk/reward trade-off that REUSES existing mobs, elite
+// stat blocks, loot tables and the Esencia economy — ZERO new art. Every knob is pure data read by
+// the event controller in sim.js; NOTHING here runs unless `enabled` is true (kill switch), and all
+// seeding draws come from the DEDICATED `eventRng` stream — never the authoritative srand — so a run
+// with events off (or density 0) is BYTE-IDENTICAL to a build without the feature (AC1 [AC-RNG-STRONG]).
+//   enabled       — master switch. false → zero eventRng draws, zero new gameplay branches taken.
+//   density       — scales the 0..perZoneMax seed count (0 = never seed). Each candidate slot fills
+//                   with P = min(1, slotChance*density) on its own eventRng draw.
+//   perZoneMax    — hard cap of POIs per zone (YAGNI: 0–2).
+//   ring          — [min,max] px band around the hero where a POI seeds (kept inside zone bounds).
+//   telegraphR    — hero distance (px) at which a POI's heads-up toast fires (opt-in signal).
+//   reachR        — generic proximity (px) that counts as "reached" (shrine activate / goblin catch).
+//   types         — the THREE hard-coded event kinds (no generic event engine).
+//   shrine{}      — Santuario Maldito: heal + temp damage buff, at the cost of a summoned horde.
+//   chest{}       — Cofre Custodiado: guaranteed loot behind ONE elite guardian (kill → open).
+//   goblin{}      — Duende del Tesoro: a fleeing mob that pays FLAT Esencia if caught before it escapes.
+export const ZONE_EVENTS = {
+  enabled:true, density:1, perZoneMax:2, slotChance:0.55,
+  ring:[150,300], telegraphR:170, reachR:46,
+  types:["shrine","chest","goblin"],
+  // Santuario Maldito — activar (interactuar en rango) cura + buff temporal de daño, e invoca UNA
+  // horda extra de mobs de la zona (tipos/posiciones desde eventRng → el srand de spawn natural NO se toca).
+  shrine:{ healFrac:0.35, dmgBuff:18, buffDur:12, hordeMin:3, hordeMax:5 },
+  // Cofre Custodiado — botín GARANTIZADO vigilado por 1 élite (multiplicadores directos, sin srand,
+  // patrón AMBUSH.elite). Matar al guardián abre el cofre → botín vía rollGearInst(eventRng.srand,...).
+  chest:{ guardHpMul:2.6, guardDmgMul:1.5, guardSizeMul:1.35, guardXpMul:2.2,
+          lootTier:[2,3], lootMinR:"rare", bonusDrops:1, goldBonus:60 },
+  // Duende del Tesoro — mob huidizo (tipo de la zona, huye del héroe, veloz). Suelta Esencia FIJA
+  // (aritmética pura, 0 RNG) si lo alcanzas antes de que el timer de escape expire.
+  goblin:{ spdMul:1.65, escapeSeconds:14, essence:45, hp:24 },
+};
+
 // CAS-123 — Stage-1 win-condition descriptor. The single legible GOAL the whole run
 // builds toward, surfaced in the HUD objective tracker (render.js) from minute one and
 // resolved when the FINAL capstone (HUNTS[STAGE1_GOAL.zone].boss.final) dies. Data-driven:

@@ -369,6 +369,14 @@ export function createGame(canvas, ctx, getView){
       arenaRecordsPersist:(bw,bb)=>simDev.arenaRecordsPersist(bw,bb), arenaLastRecordPayoff:()=>simDev.arenaLastRecordPayoff(),
       arenaRunBossWave:(k)=>simDev.arenaRunBossWave(k), arenaDeathPersistRecord:()=>simDev.arenaDeathPersistRecord(),
       arenaRecordSrandProbe:(s,p)=>simDev.arenaRecordSrandProbe(s,p),
+      // CAS-1681 Eventos de Zona (tools/cas1681-events.mjs) — MUST wire HERE (curated wrapper)
+      eventSetEnabled:(b)=>simDev.eventSetEnabled(b), eventSetDensity:(x)=>simDev.eventSetDensity(x),
+      eventState:()=>simDev.eventState(), eventListPOIs:()=>simDev.eventListPOIs(),
+      eventForceSpawn:(t,dx,dy)=>simDev.eventForceSpawn(t,dx,dy), eventSeedZone:(z,s)=>simDev.eventSeedZone(z,s),
+      eventActivateShrine:(id)=>simDev.eventActivateShrine(id), eventKillGuard:(id)=>simDev.eventKillGuard(id),
+      eventReachGoblin:(id)=>simDev.eventReachGoblin(id), eventEscapeGoblin:(id)=>simDev.eventEscapeGoblin(id),
+      eventLastPayoff:()=>simDev.eventLastPayoff(), eventRngProbe:(n,s)=>simDev.eventRngProbe(n,s),
+      eventGenProbe:(en,d,s,p)=>simDev.eventGenProbe(en,d,s,p),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -64,6 +64,14 @@ const ultRng = createRNG(0x117a1a7e);
 // byte-identical to a build without the mode at ANY arenaAffixRate (AC5 [AC-RNG-STRONG]). Like the
 // other dedicated streams, seed() does NOT reset it — the determinism harness neutralises via rate 0.
 const arenaRng = createRNG(0xa5e4a000);
+// CAS-1681 — DEDICATED Zone-Event stream (distinct seed from leg/set/ult/arena). EVERY attribute of a
+// seeded POI — whether to seed, how many, the type, the position/jitter, the guardian pick, the horde
+// composition, the chest loot — draws ONLY from here, never the authoritative srand, and the whole
+// seed+tick controller is HARD-GATED behind ZONE_EVENTS.enabled. So a run with events off never runs a
+// line of event code and stays byte-identical to a build without the feature at ANY density (AC1
+// [AC-RNG-STRONG]). Like the other dedicated streams, seed() does NOT reset it — the determinism
+// harness neutralises via ZONE_EVENTS.enabled=false / density=0 (which draw ZERO from any stream).
+const eventRng = createRNG(0xe7e40a1d);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -157,6 +165,12 @@ export const G = {
     // CAS-1675 persistent records — bestBossWave IS serialized (additive to arena.v1, no v bump);
     // the rest are runtime-only (highest boss wave cleared THIS run + the once-per-run milestone payoff):
     bestBossWave:0, runBestBossWave:0, bossRecordBaseline:0, bossRecordHit:false, lastRecordEssBonus:0 },
+  // CAS-1681: Eventos de Zona (optional POIs) — PURELY runtime bookkeeping (never serialized into the
+  // run save; only a durable per-run completion counter rides the hero additively). `seeded` = zones
+  // already rolled this run (seed-once-per-zone, mirroring curseSeen). `pois` = the live POI list read
+  // by render + the event tick. Reset on every new/loaded run beside G.ambush. Empty + untouched while
+  // ZONE_EVENTS.enabled is false → byte-identical to a build without the feature.
+  zoneEvents:{ seeded:[], pois:[], lastPayoff:null },
 };
 // CAS-128: armed at boot by the persistence controller when this is a FIRST run
 // (no save AND the tutorial-seen flag is unset). createHero() reads it once so the
@@ -292,6 +306,9 @@ function newHero(name,cls){
     // CAS-1590: monotonic lifetime ÉLITE-CAMPEÓN kills. Per-run delta × CHAMPION.essence is the
     // GUARANTEED Esencia payoff (folded into essenceForRun). Additive; old saves → 0 (no bump).
     champElites:0,
+    // CAS-1681: monotonic lifetime ZONE-EVENTS completed (santuario/cofre/duende). Durable, additive
+    // (old saves → 0, no SAVE_VERSION bump); read by QA/recap only — no gameplay/RNG dependency.
+    zoneEventsDone:0,
     // CAS-150: cached Elite-Mastery REWARD-TRACK perk bundle, derived from eliteKills (never
     // stored — recomputed by recalcMastery on load + every elite kill). Combat reads it hot.
     // Named `mperk` (NOT `mp` — that's mana) to avoid the mana field collision.
@@ -583,7 +600,7 @@ function worldTierMods(){ const h=G.hero; const t=(h&&h.conquest&&h.conquest.tie
 }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
-export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; G.scene="play"; G.started=true;
+export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents(); G.scene="play"; G.started=true;
   // CAS-1557: apply the account-wide meta upgrades at this run-start seam. reconcileMeta bakes
   // the +HP/+dmg/+gold/+moveSpeed delta (idempotent via metaApplied); applyMetaReroll adds the
   // per-run reroll charges on top of newHero's fresh budget; then fill HP to the boosted cap.
@@ -1145,6 +1162,7 @@ export function serializeSave(){
     eliteKills:h.eliteKills||0,
     affixKills:h.affixKills||0, // CAS-1586: durable lifetime affixed-trash kills (additive; old saves → 0, no SAVE_VERSION bump)
     champElites:h.champElites||0, // CAS-1590: durable lifetime Élite-Campeón kills (additive; old saves → 0, no SAVE_VERSION bump)
+    zoneEventsDone:h.zoneEventsDone||0, // CAS-1681: durable lifetime zone-events completed (additive; old saves → 0, no SAVE_VERSION bump)
     // CAS-169: durable character-customization look. Additive — old saves simply lack
     // these and rehydrate on the class default look, so NO SAVE_VERSION bump / progress
     // wipe (bumping would discard every live player's progress; an additive+guarded field
@@ -1188,6 +1206,7 @@ export function loadSave(d){
     h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
     h.affixKills=Math.max(0,Math.floor(num(d.affixKills,0))); // CAS-1586 (additive lifetime counter; absent in old saves → 0)
     h.champElites=Math.max(0,Math.floor(num(d.champElites,0))); // CAS-1590 (additive lifetime counter; absent in old saves → 0)
+    h.zoneEventsDone=Math.max(0,Math.floor(num(d.zoneEventsDone,0))); // CAS-1681 (additive lifetime counter; absent in old saves → 0)
     h.boons=sanitizeBoons(d.boons); recalcBoons(h); // CAS-383: rehydrate current-run boons (validated ids) + rebuild bundle BEFORE heroMaxHp reads it
     // CAS-1659: rehydrate the drafted Ultimate (validated against ULTIMATE_MAP; old saves lack
     // `d.ult` → null → RNG-neutral baseline). Charge clamped 0..1, forced 0 when no ultimate.
@@ -1223,7 +1242,7 @@ export function loadSave(d){
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
-    G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false};
+    G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents();
     G.arenaMode=false; G.pendingArena=false; // CAS-1664: a resumed run is the normal adventure, never arena (the arena best lives in its own store)
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
     G.scene="play"; G.started=true;
@@ -1645,6 +1664,12 @@ function killEnemy(e){
       for(let i=0;i<nExtra;i++) dropGear(e.x+(i%2?18:-18), e.y+24+i*6, rollGearInst(arenaRng.srand, 2, 3, floor));
       G.arena.lastBonusDrops=nExtra; } }
   else if(e.champion){ onChampionKill(e); maybeLegendary(e.x, e.y-24, LEGENDARY.bossMul); maybeSetPiece(e.x, e.y-36, LEGENDARY.bossMul); } // hunt climax — clears the zone; CAS-1632 unique roll + CAS-1654 set roll after all clear-drops
+  // CAS-1681: a Cofre Custodiado GUARDIAN — its own branch (skips the trash gold/potion/gearChance
+  // srand draws). The chest loot draws from eventRng ONLY, so a guardian kill never perturbs srand.
+  else if(e.eventGuard){ gainXP(tpl.xp); shakeAdd(clamp(tpl.size*0.09,1.2,3)); openGuardedChest(e.eventPoiRef); }
+  // CAS-1681: a Duende del Tesoro killed by damage still pays its flat Esencia (0 RNG) — its own branch
+  // so no srand loot roll fires. Removal rides killEnemy's tail splice (goblinPayoff never splices).
+  else if(e.eventGoblin){ goblinPayoff(e.eventPoiRef); if(e.eventPoiRef) e.eventPoiRef.goblin=null; }
   else { gainXP(tpl.xp);
     audio.sfx.mobDie&&audio.sfx.mobDie(); // CAS-447: regular kills get an audible finisher (boss/champion keep sfx.boss)
     // CAS-273: every kill now lands a subtle, size-scaled screen-shake (the requested
@@ -2362,6 +2387,9 @@ function usePortal(p){ const h=G.hero;
   audio.sfx.roll(); toast(p.to==="abyss"?STR.enteredAbyss:p.to==="frost"?STR.enteredFrost:p.to==="trial"?STR.enteredTrial:STR.leftAbyss,3.0); return true;
 }
 export function interact(){
+  // CAS-1681: a Santuario Maldito in range activates on the SAME interact key (opt-in). Checked first
+  // so a shrine POI resolves before generic portals/NPCs; no-op unless events are on and one is near.
+  if(ZONE_EVENTS.enabled){ const s=nearestShrine(); if(s){ activateShrine(s); return; } }
   const p=nearestPortal();
   if(p){ usePortal(p); return; }
   const fn=nearestFountainNPC();
@@ -2569,6 +2597,10 @@ export function update(dtMs){
   // is met. The old `z==="caves" && !G.bossSpawned … spawnBoss()` trigger is removed so the dragon
   // appears EXACTLY once, only as the earned end-of-zone climax (never a random high-HP ambush).
   if(!G.arenaMode) updateAmbush(dt, z, inDanger); // CAS-146: elite-ambush event clock (deterministic, in-zone only) — suppressed in arena (the wave loop owns spawns)
+  // CAS-1681: ZONE EVENTS — seed 0-2 optional POIs the FIRST time the hero enters a combat zone this
+  // run (mirrors curseSeen; eventRng-only → srand untouched), then tick telegraph + goblin timers.
+  // Suppressed in arena (the wave loop owns the field) and a no-op unless ZONE_EVENTS.enabled.
+  if(!G.arenaMode && ZONE_EVENTS.enabled){ if(inDanger) seedZoneEvents(z); tickZoneEvents(dt, z); }
 
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
@@ -2723,6 +2755,10 @@ function updateEnemies(dt){ const h=G.hero;
     const espd=e.tpl.spd*((e.slowT>0)?(e.slow||1):1); // frost slow scales chase speed
     const d=Math.hypot(h.x-e.x,h.y-e.y);
     const aggro=e.hostile?300:e.tpl.aggro;
+    // CAS-1681: a Duende del Tesoro flees the hero instead of running the normal AI (never chases/
+    // attacks). Only ever true for an event goblin, which exists solely when ZONE_EVENTS.enabled → a
+    // normal run never evaluates true here and stays byte-identical.
+    if(e.eventGoblin){ tickGoblinFlee(e, dt, h); continue; }
     if(e.tpl.neutral && !e.hostile){ // wander only
       e.wanderT-=dt; if(e.wanderT<=0){ e.wanderT=rr(1.5,3.5); e.wx=rr(-1,1); e.wy=rr(-1,1); const n=norm(e.wx,e.wy); e.wx=n[0]; e.wy=n[1]; }
       moveEnt(e, (e.wx||0)*40*dt, (e.wy||0)*40*dt, e.tpl.size*0.6); continue; }
@@ -2934,7 +2970,7 @@ function detonateVolatile(e){
 function updateAmbush(dt, zone, inDanger){
   const A=G.ambush; if(!A) return; const h=G.hero;
   // auto-recover the lock once the elite is gone (killed or abandoned to another zone)
-  if(A.active && !G.enemies.some(e=>e.elite && e.hp>0)){ A.active=false; A.t=AMBUSH.cooldown; }
+  if(A.active && !G.enemies.some(e=>e.elite && !e.eventGuard && e.hp>0)){ A.active=false; A.t=AMBUSH.cooldown; } // CAS-1681: a Cofre-Custodiado guardian (also e.elite) must NOT hold the ambush lock
   if(!inDanger || !h || h.dead) return;                 // only builds while in a hunt zone
   if(A.active) return;                                  // an ambush is already in play
   if(G.enemies.some(e=>e.hp>0 && (e.isBoss||e.champion))) return; // never gank during a climax
@@ -3037,6 +3073,164 @@ function fireFrostNova(e){ const N=(e.carapace&&e.carapace.nova)||{count:18,spd:
   toast(STR.bossNova(e.tpl.champName),2.0); audio.sfx.boss();
   e.shielded=false; e.shieldBroken=false; e.state="recover"; e.st=e.tpl.recover;
 }
+
+// ==================== CAS-1681: EVENTOS DE ZONA (optional POIs) ====================
+// 0–2 telegraphed, opt-in points of interest seeded PER combat zone that REUSE existing mobs, elite
+// stat blocks, loot tables and the Esencia economy — ZERO new art. Three hard-coded kinds (santuario /
+// cofre custodiado / duende del tesoro). EVERY seeding draw comes from the DEDICATED `eventRng` stream,
+// never the authoritative srand, and the whole controller is HARD-GATED behind ZONE_EVENTS.enabled →
+// with events off (or density 0) NO event code runs and the sim/RNG is byte-identical (AC1 [AC-RNG-STRONG]).
+// Ignoring a POI never penalises the player and never blocks zone progress (AC3): they are pure bonus.
+let eventPoiSeq = 0;
+function resetZoneEvents(){ const Z=G.zoneEvents; if(!Z) return; Z.seeded.length=0; Z.pois.length=0; Z.lastPayoff=null; eventPoiSeq=0; }
+// The zone's eligible mob pool — the SAME spawner roster the natural world + ambush use (art reuse).
+function eventZonePool(zone){ const sp=world.spawners&&world.spawners.find(s=>s.zone===zone); return (sp&&sp.types&&sp.types.length)?sp.types:["wolf"]; }
+// A clear open tile a readable ring-distance from the hero, inside the zone bounds — mirrors
+// ambushSpawnPos but draws its angle/distance from eventRng ONLY (never srand). Falls back to a
+// fixed offset if the zone is crowded so a POI always lands.
+function eventSpawnPos(zone, rMin, rMax){ const r=world[zone]; const h=G.hero;
+  for(let i=0;i<24;i++){ const a=eventRng.rr(0,6.28), dpx=eventRng.rr(rMin,rMax);
+    const x=h.x+Math.cos(a)*dpx, y=h.y+Math.sin(a)*dpx;
+    const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
+    if(r && (tx<r.x+1||tx>r.x+r.w-2||ty<r.y+1||ty>r.y+r.h-2)) continue;
+    if(!solidBlocked(x,y,16)) return {x,y}; }
+  return {x:h.x+rMin, y:h.y};
+}
+// Seed a zone ONCE per run (mirrors curseSeen). Draws the 0..perZoneMax count and each POI's type +
+// position from eventRng, APPENDED after every existing world/spawn draw. Records the zone as seeded
+// even at count 0 so it never re-rolls. No-op (and zero draws) unless events are enabled + density>0.
+function seedZoneEvents(zone){ const Z=G.zoneEvents;
+  if(!ZONE_EVENTS.enabled || !(ZONE_EVENTS.density>0)) return;
+  if(!zone || Z.seeded.indexOf(zone)>=0) return;
+  Z.seeded.push(zone);
+  const slotP=Math.min(1, ZONE_EVENTS.slotChance*ZONE_EVENTS.density);
+  for(let i=0;i<ZONE_EVENTS.perZoneMax;i++){
+    if(eventRng.srand()>=slotP) continue;                 // this candidate slot stays empty (still one eventRng draw)
+    const type=ZONE_EVENTS.types[eventRng.ri(0,ZONE_EVENTS.types.length-1)];
+    const p=eventSpawnPos(zone, ZONE_EVENTS.ring[0], ZONE_EVENTS.ring[1]);
+    spawnZonePOI(zone, type, p.x, p.y);
+  }
+}
+// Build one POI + (for chest/goblin) its bound enemy. All enemy stats come from DIRECT multipliers on a
+// zone-scaled clone (the AMBUSH.elite pattern) — NO srand, NO affix roll — so seeding never perturbs the
+// gameplay stream. Returns the POI (also used by the dev force-spawn hook for deterministic tests).
+function spawnZonePOI(zone, type, x, y){ const Z=G.zoneEvents;
+  const poi={ id:++eventPoiSeq, type, zone, x, y, state:"active", seen:false };
+  if(type==="chest"){
+    const C=ZONE_EVENTS.chest; const pool=eventZonePool(zone);
+    const base=pickEliteBase(pool.filter(t=>ETPL[t])); const gp=eventSpawnPos(zone, 24, 54);
+    const e=applyZoneScale(spawnEnemy(base, gp.x||x+28, gp.y||y), zone);
+    if(e){ const b=e.tpl;
+      e.tpl=Object.assign({},b,{ hp:Math.round(b.hp*C.guardHpMul), dmg:Math.round((b.dmg||0)*C.guardDmgMul),
+        size:Math.round(b.size*C.guardSizeMul), xp:Math.round((b.xp||0)*C.guardXpMul) });
+      e.hp=e.maxHp=e.tpl.hp; e.elite=true; e.eventGuard=true; e.eventPoiRef=poi; e.state="chase"; e.zone=zone;
+      poi.guard=e; addFx("poof",e.x,e.y);
+      for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-22,22),e.y+frr(-22,22)); }
+  } else if(type==="goblin"){
+    const G0=ZONE_EVENTS.goblin; const pool=eventZonePool(zone);
+    const base=pool[eventRng.ri(0,pool.length-1)];
+    const e=spawnEnemy(base, x, y);
+    if(e){ const b=e.tpl;
+      // fleeing, HARMLESS courier: dmg 0 (never attacks), fast, low HP. Movement is driven by the
+      // eventGoblin flee branch in updateEnemies, NOT the normal AI, so it always runs from the hero.
+      e.tpl=Object.assign({},b,{ dmg:0, spd:Math.round((b.spd||70)*G0.spdMul), hp:G0.hp, aggro:0 });
+      e.hp=e.maxHp=e.tpl.hp; e.eventGoblin=true; e.eventPoiRef=poi; e.state="flee"; e.zone=zone;
+      poi.goblin=e; poi.escapeT=G0.escapeSeconds; addFx("poof",e.x,e.y); }
+  }
+  Z.pois.push(poi); return poi;
+}
+// Flat, arithmetic Esencia payoff (0 RNG) → banked to the meta tree like the arena payoffs, plus a
+// durable per-run completion counter on the hero (additive save state). Records lastPayoff for QA.
+function grantEventEssence(type, n){ n=Math.max(0,n|0);
+  if(n>0){ ensureMeta().essence=(ensureMeta().essence|0)+n; G.metaDirty=true; }
+  const h=G.hero; if(h) h.zoneEventsDone=(h.zoneEventsDone|0)+1;
+  G.zoneEvents.lastPayoff={ type, essence:n, done:(h&&h.zoneEventsDone)|0 };
+}
+// Santuario Maldito — activarlo cura + otorga un buff temporal de daño (reusa el sink h.dmgBuff*),
+// a cambio de invocar UNA horda extra de mobs de la zona (tipos/posiciones desde eventRng → el srand
+// de spawn natural NO se toca). Pure arithmetic on the hero; the horde spawns draw ONLY eventRng.
+function activateShrine(poi){ if(!poi||poi.type!=="shrine"||poi.state!=="active") return false;
+  const S=ZONE_EVENTS.shrine, h=G.hero; if(!h||h.dead) return false;
+  poi.state="done";
+  const mhp=heroMaxHp(h); const heal=Math.round(mhp*S.healFrac); h.hp=Math.min(mhp, h.hp+heal);
+  if(heal>0) floater(h.x,h.y-30,"+"+heal,"#7dffa0",{small:true});
+  // temp damage buff on the existing dmgBuff sink (decays in update)
+  h.dmgBonus=(h.dmgBonus||0)+S.dmgBuff; h.dmgBuffAmt=(h.dmgBuffAmt||0)+S.dmgBuff; h.dmgBuffT=Math.max(h.dmgBuffT||0, S.buffDur);
+  // summon the horde: zone mobs at ring positions, ALL from eventRng (never srand)
+  const pool=eventZonePool(poi.zone); const n=S.hordeMin + eventRng.ri(0, Math.max(0,S.hordeMax-S.hordeMin));
+  for(let i=0;i<n;i++){ const t=pool[eventRng.ri(0,pool.length-1)]; const p=eventSpawnPos(poi.zone, 90, 170);
+    const add=applyZoneScale(spawnEnemy(t,p.x,p.y), poi.zone);
+    if(add){ add.state="chase"; add.fromEvent=true; addFx("poof",p.x,p.y); } }
+  grantEventEssence("shrine", 0);        // the shrine pays in survival value (heal+buff), not Esencia
+  addFx("buffaura",h.x,h.y,{col:"#c8a0ff",life:0.6}); addFx("healburst",h.x,h.y,{col:"#7dffa0",life:0.5});
+  audio.sfx.boss(); shakeAdd(8); toast("¡Santuario Maldito! Bendición a cambio de una horda", 3.0);
+  return true;
+}
+// Cofre Custodiado — the guardian died: drop GUARANTEED loot at the chest, drawn from eventRng.srand
+// (never the gameplay srand → chest loot never perturbs the shared stream). Called from killEnemy's
+// dedicated eventGuard branch (which also skips the trash gold/potion srand draws).
+function openGuardedChest(poi){ if(!poi||poi.type!=="chest"||poi.state!=="active") return;
+  const C=ZONE_EVENTS.chest; poi.state="done";
+  const win=C.lootTier, floor=C.lootMinR;
+  dropGear(poi.x, poi.y, rollGearInst(eventRng.srand, win[0], win[1], floor));       // guaranteed piece — eventRng ONLY
+  for(let i=0;i<(C.bonusDrops|0);i++) dropGear(poi.x+(i%2?18:-18), poi.y+18+i*6, rollGearInst(eventRng.srand, win[0], win[1], floor));
+  G.drops.push({x:poi.x+16,y:poi.y,kind:"gold",amt:C.goldBonus|0});
+  grantEventEssence("chest", 0);
+  addFx("holynova",poi.x,poi.y,{r:80,life:0.5}); audio.sfx.boss(); shakeAdd(9);
+  toast("¡Cofre Custodiado abierto! Botín garantizado", 3.0);
+}
+// Duende del Tesoro payoff — flat Esencia bounty (0 RNG). Does NOT remove the goblin (the caller owns
+// removal): catchGoblin (reach path) splices it; killEnemy (damage path) splices via its own tail.
+function goblinPayoff(poi){ if(!poi||poi.type!=="goblin"||poi.state!=="active") return 0;
+  poi.state="done"; const ess=ZONE_EVENTS.goblin.essence|0; grantEventEssence("goblin", ess);
+  const g=poi.goblin; if(g) floater(g.x,g.y-26,"+"+ess+" Esencia","#c8ff9a",{pop:1.4});
+  audio.sfx.buy&&audio.sfx.buy(); toast("¡Duende del Tesoro atrapado! +"+ess+" Esencia", 2.8); return ess;
+}
+// Reached (proximity) before it escaped: pay out AND remove the courier from the field.
+function catchGoblin(poi){ if(!poi||poi.state!=="active") return; const g=poi.goblin; goblinPayoff(poi);
+  if(g){ addFx("poof",g.x,g.y); const ix=G.enemies.indexOf(g); if(ix>=0) G.enemies.splice(ix,1); g.dead=true; }
+  poi.goblin=null;
+}
+// The goblin escaped (timer elapsed): remove it, mark the POI escaped. NO penalty (AC3).
+function goblinEscape(poi){ if(!poi||poi.state!=="active") return; poi.state="escaped"; const g=poi.goblin;
+  if(g){ addFx("poof",g.x,g.y); const ix=G.enemies.indexOf(g); if(ix>=0) G.enemies.splice(ix,1); g.dead=true; }
+  poi.goblin=null; toast("El Duende del Tesoro escapó", 2.2);
+}
+// Per-frame event tick: telegraph POIs entering range, run the goblin escape timer + catch check.
+// Runs ONLY in free play with events enabled and at least one live POI → zero cost otherwise.
+function tickZoneEvents(dt, zone){ const Z=G.zoneEvents; if(!ZONE_EVENTS.enabled || !Z.pois.length) return; const h=G.hero; if(!h||h.dead) return;
+  for(const poi of Z.pois){
+    if(poi.state!=="active") continue;
+    const d=Math.hypot(h.x-poi.x, h.y-poi.y);
+    if(!poi.seen && d<=ZONE_EVENTS.telegraphR){ poi.seen=true; toast(EVENT_TELEGRAPH[poi.type]||"Evento de zona cercano", 2.6); audio.sfx.click&&audio.sfx.click(); }
+    if(poi.type==="goblin"){
+      poi.escapeT-=dt;
+      const g=poi.goblin; if(g && !g.dead){ const dg=Math.hypot(h.x-g.x, h.y-g.y);
+        poi.x=g.x; poi.y=g.y;                                       // marker rides the fleeing goblin
+        if(dg<=ZONE_EVENTS.reachR){ catchGoblin(poi); continue; } }
+      if(poi.escapeT<=0){ goblinEscape(poi); }
+    }
+  }
+}
+// Drive the fleeing goblin: sprint DIRECTLY away from the hero (deterministic; a touch of eventRng
+// jitter keeps it from pinning on a wall). Called from updateEnemies in place of the normal AI, so the
+// courier never chases or attacks. Only ever reached for an eventGoblin (which exists only when enabled).
+function tickGoblinFlee(e, dt, h){ const spd=e.tpl.spd||120;
+  let ax=e.x-h.x, ay=e.y-h.y; const n=norm(ax,ay); ax=n[0]; ay=n[1];
+  ax+=eventRng.rr(-0.3,0.3); ay+=eventRng.rr(-0.3,0.3); const n2=norm(ax,ay); ax=n2[0]; ay=n2[1];
+  e.facing=Math.atan2(ay,ax); e.animState="walk"; e.animT=(e.animT||0)+dt;
+  const step=spd*dt; const px=e.x, py=e.y; moveEnt(e, ax*step, ay*step, e.tpl.size*0.6);
+  if(Math.abs(e.x-px)<0.1 && Math.abs(e.y-py)<0.1) moveEnt(e, -ay*step, ax*step, e.tpl.size*0.6); // blocked → slide perpendicular
+}
+const EVENT_TELEGRAPH={ shrine:"Un Santuario Maldito emana poder cerca", chest:"Un Cofre Custodiado aguarda cerca", goblin:"¡Un Duende del Tesoro apareció!" };
+// The nearest ACTIVE shrine POI within reach of the hero, or null — drives the interact-key activation.
+function nearestShrine(){ const Z=G.zoneEvents, h=G.hero; if(!ZONE_EVENTS.enabled||!Z.pois.length||!h) return null;
+  let best=null, bd=ZONE_EVENTS.reachR*ZONE_EVENTS.reachR;
+  for(const poi of Z.pois){ if(poi.type!=="shrine"||poi.state!=="active") continue;
+    const dx=h.x-poi.x, dy=h.y-poi.y, d2=dx*dx+dy*dy; if(d2<=bd){ bd=d2; best=poi; } }
+  return best;
+}
+
 // reward reading the telegraph: a hit negated mid-roll refunds MP + pops, not the post-hit mercy i-frame
 // CAS-210: a perfect dodge also ARMS the riposte window (CFG.riposteWindow) — the next hero
 // hit lands as a guaranteed crushing counter. A slightly longer focus-freeze sells the moment.
@@ -4251,4 +4445,77 @@ export const dev = {
   // Force the live tutorial step index (clamped) so the test can jump to a step without
   // re-performing every prior action; the REAL advance logic then runs from there.
   tutSetStep(i){ if(!G.tut) return null; G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,i|0)); return this.tutState(); },
+  // --- CAS-1681 Eventos de Zona harness hooks (tools/cas1681-events.mjs); additive, dev-only ---
+  eventSetEnabled(b){ ZONE_EVENTS.enabled=!!b; return { enabled:ZONE_EVENTS.enabled }; },
+  eventSetDensity(x){ ZONE_EVENTS.density=Math.max(0,+x||0); return { density:ZONE_EVENTS.density }; },
+  eventState(){ const Z=G.zoneEvents; return { enabled:ZONE_EVENTS.enabled, density:ZONE_EVENTS.density,
+    perZoneMax:ZONE_EVENTS.perZoneMax, seeded:Z.seeded.slice(), poiN:Z.pois.length, done:(G.hero&&G.hero.zoneEventsDone)|0 }; },
+  // Snapshot the live POI list (type/state/pos + bound-enemy liveness) for asserts.
+  eventListPOIs(){ return G.zoneEvents.pois.map(p=>({ id:p.id, type:p.type, zone:p.zone, state:p.state, seen:!!p.seen,
+    x:Math.round(p.x), y:Math.round(p.y), hasGuard:!!(p.guard&&!p.guard.dead&&p.guard.hp>0), hasGoblin:!!(p.goblin&&!p.goblin.dead),
+    escapeT:(p.escapeT!=null)?+p.escapeT.toFixed(2):null })); },
+  // Force-seed ONE POI of a given type at hero+(dx,dy) — deterministic per-type testing. Marks the
+  // current zone seeded so natural seeding won't add more this run. Returns the new POI snapshot.
+  eventForceSpawn(type, dx, dy){ const h=G.hero; if(!h) return null;
+    const zn=zoneOf(world,h.x,h.y); const z=HUNTS[zn]?zn:"forest";
+    if(G.zoneEvents.seeded.indexOf(z)<0) G.zoneEvents.seeded.push(z);
+    const poi=spawnZonePOI(z, type, h.x+(dx||0), h.y+(dy||0));
+    return this.eventListPOIs().find(p=>p.id===poi.id)||null; },
+  // Run the REAL per-run seeding for a zone — REPEATABLE: clears this zone's prior seed flag + POIs
+  // (and their bound enemies) and reseeds eventRng, so the same seedVal always reproduces the same
+  // roll (determinism proof). The natural in-game entry path calls seedZoneEvents directly (once/zone).
+  eventSeedZone(zone, seedVal){ const z=HUNTS[zone]?zone:"forest"; const Z=G.zoneEvents;
+    const i=Z.seeded.indexOf(z); if(i>=0) Z.seeded.splice(i,1);
+    for(let k=Z.pois.length-1;k>=0;k--){ if(Z.pois[k].zone===z){ const g=Z.pois[k].guard||Z.pois[k].goblin;
+      if(g){ const ix=G.enemies.indexOf(g); if(ix>=0) G.enemies.splice(ix,1); } Z.pois.splice(k,1); } }
+    if(seedVal!=null) eventRng.seed(seedVal>>>0);
+    seedZoneEvents(z); return this.eventListPOIs(); },
+  // Activate the nearest (or id-matched) ACTIVE shrine through the REAL activateShrine path.
+  eventActivateShrine(id){ const Z=G.zoneEvents, h=G.hero; if(!h) return null;
+    const poi=(id!=null)?Z.pois.find(p=>p.id===id):Z.pois.find(p=>p.type==="shrine"&&p.state==="active");
+    if(!poi) return null; const eB=G.enemies.length, hpB=h.hp, dmgB=h.dmgBonus||0;
+    const ok=activateShrine(poi);
+    return { activated:!!ok, state:poi.state, hordeAdded:G.enemies.length-eB, healed:+(h.hp-hpB).toFixed(1),
+      dmgBuff:+((h.dmgBonus||0)-dmgB).toFixed(1), buffT:+(h.dmgBuffT||0).toFixed(2) }; },
+  // Kill the guardian of the nearest (or id-matched) chest via the REAL killEnemy path → opens the chest.
+  eventKillGuard(id){ const Z=G.zoneEvents;
+    const poi=(id!=null)?Z.pois.find(p=>p.id===id):Z.pois.find(p=>p.type==="chest"&&p.state==="active");
+    if(!poi||!poi.guard) return null; const g=poi.guard; const dB=G.drops.length; const eB=ensureMeta().essence|0;
+    g.hp=0; killEnemy(g);
+    return { state:poi.state, drops:G.drops.slice(dB).map(d=>d.kind),
+      gearAdded:G.drops.slice(dB).filter(d=>d.kind==="gear").length, essDelta:(ensureMeta().essence|0)-eB }; },
+  // Reach the nearest (or id-matched) goblin: place the hero on it and run the REAL proximity tick.
+  eventReachGoblin(id){ const Z=G.zoneEvents, h=G.hero; if(!h) return null;
+    const poi=(id!=null)?Z.pois.find(p=>p.id===id):Z.pois.find(p=>p.type==="goblin"&&p.state==="active");
+    if(!poi||!poi.goblin) return null; const eB=ensureMeta().essence|0;
+    h.x=poi.goblin.x; h.y=poi.goblin.y; tickZoneEvents(0.016, poi.zone);
+    return { state:poi.state, essDelta:(ensureMeta().essence|0)-eB, done:(h.zoneEventsDone)|0 }; },
+  // Let the nearest (or id-matched) goblin ESCAPE by running its timer down through the REAL tick.
+  eventEscapeGoblin(id){ const Z=G.zoneEvents;
+    const poi=(id!=null)?Z.pois.find(p=>p.id===id):Z.pois.find(p=>p.type==="goblin"&&p.state==="active");
+    if(!poi) return null; poi.escapeT=0.001; const h=G.hero; if(h){ h.x=poi.x+9999; h.y=poi.y+9999; } // far away so it never counts as reached
+    tickZoneEvents(0.5, poi.zone); return { state:poi.state, escapeT:poi.escapeT }; },
+  eventLastPayoff(){ const p=G.zoneEvents.lastPayoff; return { payoff:p?Object.assign({},p):null, done:(G.hero&&G.hero.zoneEventsDone)|0 }; },
+  // [AC-RNG-STRONG]: fingerprint the DEDICATED eventRng stream (N draws after an optional reseed) so
+  // QA can prove seeding is deterministic AND isolated (a different eventRng state never shifts srand).
+  eventRngProbe(n, seedOverride){ n=Math.max(1,n|0); if(seedOverride!=null) eventRng.seed(seedOverride>>>0);
+    const out=[]; for(let i=0;i<n;i++) out.push(+eventRng.srand().toFixed(9)); return out; },
+  // [AC-RNG-STRONG] — the headline neutrality proof. Seed the gameplay srand, sample a pre-segment
+  // (terrain/spawn stand-in), inject the REAL zone-event seeding (eventRng-only), then sample a
+  // post-segment + a rollGearInst dropStream probe. With events OFF vs ON at high density the srand
+  // fingerprint is BYTE-IDENTICAL (event seeding never touches srand), while poiN>0 proves ON did work.
+  eventGenProbe(enabled, density, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savEn=ZONE_EVENTS.enabled, savD=ZONE_EVENTS.density; const usedD=(density==null?1:Math.max(0,+density||0));
+    ZONE_EVENTS.enabled=!!enabled; ZONE_EVENTS.density=usedD;
+    resetZoneEvents(); G.enemies.length=0; G.drops.length=0;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));       // pre-segment
+    const zn=(G.hero&&zoneOf(world,G.hero.x,G.hero.y)); const z=HUNTS[zn]?zn:"forest";
+    seedZoneEvents(z);                                                          // EVENT INJECTION (eventRng only)
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                     // post-segment
+    const inst=rollGearInst(srand,2,3); fp.push(inst?(inst.defId|0):-1);        // dropStream probe
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    const poiN=G.zoneEvents.pois.length; const enemN=G.enemies.length;
+    ZONE_EVENTS.enabled=savEn; ZONE_EVENTS.density=savD;
+    return { enabled:!!enabled, density:usedD, zone:z, poiN, enemN, fingerprint:fp }; },
 };
