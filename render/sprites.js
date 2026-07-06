@@ -642,7 +642,14 @@ export function loadAllAssets(){
     loadImg("icon_slot_"+s,"./assets/ui/icons/slot_"+s+".png");
   for(const k of ["potion_hp","potion_mp","coin"])
     loadImg("icon_hud_"+k,"./assets/ui/icons/hud_"+k+".png");
+  // CAS-1545: professional purchased combat-VFX sprite strips ("Beat 'em Up 2D Pixel Art
+  // VFX Pack"). Horizontal frame strips (frame = square, N frames). drawFx animates them by
+  // effect progress. FX_STRIP holds per-effect frame count + frame size (see assets/fx/_meta.json).
+  for(const fx of ["slash","fire","nova","holy","impact","crit"])
+    loadImg("fx_"+fx, "./assets/fx/"+fx+"_strip.png");
 }
+// CAS-1545: frame geometry for the purchased VFX strips (frames, frame width = frame height).
+export const FX_STRIP = { slash:{n:5,fw:96}, fire:{n:8,fw:64}, nova:{n:9,fw:128}, holy:{n:8,fw:96}, impact:{n:6,fw:96}, crit:{n:8,fw:96} };
 export function dir4FromAngle(a){ const p=Math.PI;
   if(a>p/4 && a<=3*p/4) return "down";
   if(a<=-p/4 && a>-3*p/4) return "up";

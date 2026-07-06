@@ -29,7 +29,7 @@ import { TDECO } from "../sim/tiled-deco-data.js"; // CAS-462: props visuales Ti
 import {
   blit, SP, IMG, loadImg, drawCoin, drawPotion, drawFragment,
   ANIM, ENEMY_ANIM, ENEMY_IMG, ENEMY_STRIP, ENEMY_STRIPS, resolveStrip, NPC_ANIM, CLS, PROP_SCALE, HERO_SPRITE_SCALE,
-  dir4FromAngle, drawClassFrame, drawAnim, frameIndex,
+  dir4FromAngle, drawClassFrame, drawAnim, frameIndex, FX_STRIP,
 } from "./sprites.js";
 import { ensureMasks, bakeHero } from "./customize.js"; // CAS-169 part-recolor bake
 
@@ -290,6 +290,7 @@ export function createRenderer(ctx){
     if(G.scene==="ascend") renderAscend(); // CAS-450 opt-in World-Tier climb offer
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
+    if(G.scene==="altar") renderAltar(); // CAS-1557 meta-progression altar (opened from death)
     if(G.scene==="victory") renderVictory();
     // CAS-128: onboarding coachmarks — drawn only in free play, never over a panel, so
     // they teach without blocking. Cleared once finished/skipped (G.tut.active=false).
@@ -1231,7 +1232,26 @@ export function createRenderer(ctx){
     for(let i=0;i<14;i++){ const ang=i/14*6.28 + G.t*0.4, r=f.r*(0.62+0.3*((i*5)%4)/3);
       ctx.fillRect(f.x+Math.cos(ang)*r-2, f.y+Math.sin(ang)*r-2, 4,4); }
     ctx.globalAlpha=1; }
+  // CAS-1545: purchased pixel-art VFX strips (assets/fx/*_strip.png). Draws the animation
+  // frame for this effect's life-progress, centred at (x,y), scaled to `size` px, optionally
+  // rotated to the attack angle. Returns false if the strip isn't loaded yet -> caller falls
+  // back to the procedural draw (graceful during asset load). Presentation-only, no RNG.
+  function drawFxSprite(name,x,y,prog,size,ang){ const im=IMG["fx_"+name], m=FX_STRIP&&FX_STRIP[name];
+    if(!m||!im||!im.complete||!im.naturalWidth) return false;
+    const fi=clamp(Math.floor(prog*m.n),0,m.n-1), fw=m.fw, s=size/fw;
+    ctx.save(); ctx.imageSmoothingEnabled=false; ctx.translate(x,y); if(ang!=null) ctx.rotate(ang); ctx.scale(s,s);
+    ctx.drawImage(im, fi*fw, 0, fw, fw, -fw/2, -fw/2, fw, fw); ctx.restore(); return true; }
+  // fx.kind -> { sprite, fixed size OR size = radius*sizeR, rotate-to-angle }. These purchased
+  // sprites REPLACE the procedural draw for the mapped kinds (procedural stays as fallback).
+  const FXSPRITEMAP={ swing:{s:"slash",size:78,rot:true}, slashArc:{s:"slash",size:70,rot:true},
+    flame:{s:"fire",size:86}, spellburst:{s:"nova",size:96}, novacast:{s:"nova",sizeR:1.8,rDef:90},
+    holynova:{s:"holy",sizeR:2.0,rDef:80}, hitburst:{s:"impact",size:54}, impact:{s:"impact",size:60},
+    shockring:{s:"crit",sizeR:2.4,rDef:44} };
   function drawFx(f){ const k=clamp(1-f.t/f.life,0,1), sw=1-k;
+    const SM=FXSPRITEMAP[f.kind];
+    if(SM && !G.settings.reduceMotion){ const size=SM.size || ((f.r||SM.rDef||80)*(SM.sizeR||1));
+      const ang=SM.rot? (f.ang||0) : null;
+      if(drawFxSprite(SM.s, f.x, f.y, clamp(f.t/f.life,0,1), size, ang)) return; }
     if(f.kind==="spark"){ const ease=sw*sw*(3-2*sw); // CAS-1545: white-hot star-burst — bloom + streaked shards
       fxGlow(f.x,f.y,sw*24,"#cfe6ff",k*0.7);
       ctx.save(); ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=k; ctx.fillStyle=COL.spark;
@@ -2625,7 +2645,13 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.panelB; ctx.fillRect(px,y,pw,3);
       ctx.font="14px 'Courier New'"; ctx.textAlign="left"; ctx.fillStyle=COL.cream;
       let ly=y+24; for(const ln of lines){ ctx.fillText(ln, px+16, ly); ly+=22; }
-      ctx.textAlign="center"; y+=ph+24;
+      ctx.textAlign="center"; y+=ph+16;
+    }
+    // CAS-1557: the meta payoff — Esencia earned this run (frozen on the recap) + total banked.
+    // Its own gold-accented line so the between-run currency reads at a glance.
+    if(r && typeof r.essence==="number"){
+      ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'";
+      ctx.fillText("✦ "+STR.recapEssence(r.essence|0)+"   ("+STR.altarBanked(r.essenceTotal|0)+")", cx, y); y+=22;
     }
     // PRIMARY — Otra ronda (bind-aware: surfaces the player's attack/confirm key)
     const binds=(G.settings&&G.settings.binds)||settings.defaultBinds();
@@ -2636,11 +2662,69 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.fillText(STR.recapRetry(retryKey),cx,y+28);
     ui.deadRects.push({x:bx,y:y,w:bw,h:44,act:"retry"});
     y+=56;
+    // CAS-1557: ALTAR — spend banked Esencia BETWEEN runs (before retrying). A gold-framed
+    // secondary so it reads as the "invest before you go again" beat. Routed via ui.deadRects.
+    const aw=Math.min(VW*0.55,240), ax=cx-aw/2;
+    ctx.fillStyle="rgba(38,30,16,0.92)"; ctx.fillRect(ax,y,aw,34);
+    ctx.fillStyle=COL.textGold; ctx.fillRect(ax,y,aw,2);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.fillText("✦ "+STR.altarOpen,cx,y+22);
+    ui.deadRects.push({x:ax,y:y,w:aw,h:34,act:"altar"});
+    y+=44;
     // SECONDARY — Pueblo / Menú (calm regroup at the fountain)
     const sw=Math.min(VW*0.55,240), sx=cx-sw/2;
     ctx.fillStyle="rgba(20,20,28,0.85)"; ctx.fillRect(sx,y,sw,34);
     ctx.fillStyle=COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.recapHub,cx,y+22);
     ui.deadRects.push({x:sx,y:y,w:sw,h:34,act:"hub"});
+    ctx.textAlign="left";
+  }
+
+  // CAS-1557: the ALTAR OF SOULS panel — the account-wide meta-progression shop, opened from
+  // the death screen. Canvas HUD styling (no new assets; glyph placeholders per the plan — the
+  // AD art issue drops polished icons later, non-blocking). Reads the sim's metaSnap() view
+  // model; each row's buy button writes ui.altarRects, consumed by input.js altarTap. Esc/tap
+  // "Volver" returns to the death recap so the retry/hub flow is preserved.
+  function renderAltar(){
+    ui.altarRects=[];
+    ctx.fillStyle="rgba(14,10,20,0.9)"; ctx.fillRect(0,0,VW,VH);
+    const snap=sim.metaSnap(); const cx=VW/2;
+    ctx.textAlign="center";
+    let y=VH*0.10;
+    ctx.fillStyle=COL.textGold; ctx.font="bold 26px 'Courier New'"; ctx.fillText(STR.altarTitle,cx,y); y+=22;
+    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.altarSub,cx,y); y+=22;
+    // banked essence header
+    ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText("✦ "+STR.altarBanked(snap.essence|0),cx,y); y+=20;
+    // node rows
+    const pw=Math.min(VW*0.82,460), px=cx-pw/2, rh=52, gap=8;
+    for(const n of snap.nodes){
+      const capped=(n.cost==null);
+      const affordable=!capped && (snap.essence|0)>=n.cost;
+      // row card
+      ctx.fillStyle="rgba(0,0,0,0.45)"; ctx.fillRect(px,y,pw,rh);
+      ctx.fillStyle=n.lvl>0?COL.textGold:COL.panelB; ctx.fillRect(px,y,3,rh);
+      // glyph placeholder box
+      ctx.fillStyle="rgba(40,34,20,0.9)"; ctx.fillRect(px+10,y+10,32,32);
+      ctx.fillStyle=COL.textGold; ctx.font="20px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.glyph,px+26,y+33);
+      // label + effect + level
+      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(n.label,px+52,y+20);
+      ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(n.eff+"   "+STR.altarLvl(n.lvl,n.cap),px+52,y+38);
+      // buy button (right)
+      const bw=104, bx=px+pw-bw-10, by=y+9, bh=rh-18;
+      if(capped){ ctx.fillStyle="rgba(30,30,36,0.9)"; ctx.fillRect(bx,by,bw,bh);
+        ctx.fillStyle=COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.altarMax,bx+bw/2,by+bh/2+5); }
+      else { ctx.fillStyle=affordable?"#3a2c1e":"rgba(30,26,20,0.85)"; ctx.fillRect(bx,by,bw,bh);
+        ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.fillRect(bx,by,bw,2);
+        ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
+        ctx.fillText(STR.altarBuy,bx+bw/2,by+bh/2-2); ctx.font="11px 'Courier New'"; ctx.fillText(STR.altarCost(n.cost),bx+bw/2,by+bh/2+13);
+        if(affordable) ui.altarRects.push({x:bx,y:by,w:bw,h:bh,key:n.key}); }
+      ctx.textAlign="left";
+      y+=rh+gap;
+    }
+    // back button
+    y+=6;
+    const kw=Math.min(VW*0.5,220), kx=cx-kw/2;
+    ctx.fillStyle="rgba(20,20,28,0.9)"; ctx.fillRect(kx,y,kw,32);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.altarBack,cx,y+21);
+    ui.altarRects.push({x:kx,y:y,w:kw,h:32,act:"back"});
     ctx.textAlign="left";
   }
 
