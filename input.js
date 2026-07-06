@@ -176,10 +176,12 @@ function edge(code){
     if(code==="KeyA"||code==="Enter"||code==="Space"){ sim.acceptAscend(); }
     else if(code==="Escape"||code==="KeyS"){ sim.declineAscend(); }
     return; }
-  if(G.scene==="inventory"){ const n=G.hero.bag.length;
+  if(G.scene==="inventory"){ const n=G.hero.bag.length; const cols=(ui.invGrid&&ui.invGrid.cols)||5;
     if(code==="KeyI"||code==="Escape") G.scene="play";
-    else if(code==="ArrowUp"&&n){ G.invSel=(((G.invSel||0)-1)+n)%n; }
-    else if(code==="ArrowDown"&&n){ G.invSel=(((G.invSel||0)+1))%n; }
+    else if(code==="ArrowUp"&&n){ G.invSel=Math.max(0,(G.invSel||0)-cols); }
+    else if(code==="ArrowDown"&&n){ G.invSel=Math.min(n-1,(G.invSel||0)+cols); }
+    else if(code==="ArrowLeft"&&n){ G.invSel=Math.max(0,(G.invSel||0)-1); }
+    else if(code==="ArrowRight"&&n){ G.invSel=Math.min(n-1,(G.invSel||0)+1); }
     else if((code==="Enter"||code==="Space")&&n){ sim.equipBag(G.invSel||0); }
     else if(code==="KeyP"){ sim.doPotionHP(); }
     else if(code==="KeyO"){ sim.doPotionMP(); }
@@ -448,7 +450,8 @@ function invReject(r){ ui.invReject={x:r.x,y:r.y,w:r.w,h:r.h,until:G.t+0.45}; au
 function invDown(x,y,pid){
   const fr=ui.invForgeRect; if(fr&&fr.w&&x>=fr.x&&x<=fr.x+fr.w&&y>=fr.y&&y<=fr.y+fr.h){ G.scene="forge"; G.forgeSel=G.forgeSel||0; return; }
   const row=rectHit(ui.invRects,x,y);
-  if(row){ ui.invDrag={kind:"bag", idx:row.idx, x, y, sx:x, sy:y, id:pid, active:false}; return; }
+  // CAS-1594: only arm drag if the slot is occupied; empty grid slots are consumed
+  if(row){ if(G.hero.bag[row.idx]) ui.invDrag={kind:"bag", idx:row.idx, x, y, sx:x, sy:y, id:pid, active:false}; return; }
   const sl=rectHit(ui.invSlotRects,x,y);
   if(sl){ if(sl.slot&&sl.inst) ui.invDrag={kind:"equip", slot:sl.slot, x, y, sx:x, sy:y, id:pid, active:false}; return; }
   G.scene="play"; }
@@ -464,9 +467,10 @@ function invUp(pid,cancelled){ const d=ui.invDrag; if(!d) return false; if(pid!=
   if(!d.active){ // below threshold → tap semantics. CAS-1579: single tap SELECTS (feeds the
     // CAS-117 compare box); DOUBLE-click/tap on the SAME row equips (board: "doble click para
     // equipar"). Drag-to-equip (below) is unchanged. Window uses G.t (game-seconds).
-    if(d.kind==="bag"){ const lt=ui.invLastTap;
-      if(lt&&lt.idx===d.idx&&(G.t-lt.t)<=0.35){ G.invSel=d.idx; sim.equipBag(d.idx); ui.invLastTap=null; }
-      else { G.invSel=d.idx; ui.invLastTap={idx:d.idx,t:G.t}; } }
+    if(d.kind==="bag"){ const lt=ui.invLastTap; const hasItem=!!G.hero.bag[d.idx];
+      if(hasItem&&lt&&lt.idx===d.idx&&(G.t-lt.t)<=0.35){ G.invSel=d.idx; sim.equipBag(d.idx); ui.invLastTap=null; }
+      else if(hasItem){ G.invSel=d.idx; ui.invLastTap={idx:d.idx,t:G.t}; }
+      else { G.invSel=d.idx; ui.invLastTap=null; } }
     return true; }
   const sl=rectHit(ui.invSlotRects,x,y), row=rectHit(ui.invRects,x,y);
   if(d.kind==="bag"){ const item=h.bag[d.idx]; if(!item) return true;
@@ -492,7 +496,7 @@ function invUp(pid,cancelled){ const d=ui.invDrag; if(!d) return false; if(pid!=
 function invTap(x,y){
   // CAS-237: the Forja button opens the forge panel.
   const fr=ui.invForgeRect; if(fr&&fr.w&&x>=fr.x&&x<=fr.x+fr.w&&y>=fr.y&&y<=fr.y+fr.h){ G.scene="forge"; G.forgeSel=G.forgeSel||0; return true; }
-  for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; sim.equipBag(r.idx); return true; } }
+  for(const r of (ui.invRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.invSel=r.idx; if(G.hero.bag[r.idx]) sim.equipBag(r.idx); return true; } }
   // CAS-226: taps on the Tibia equip slots are consumed (equipping is driven
   // from the backpack list) so a slot tap doesn't accidentally close the panel.
   for(const r of (ui.invSlotRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h) return true; }
@@ -582,4 +586,15 @@ export function initInput(cnv){
   canvas.addEventListener("pointerup",onPointerUp);
   canvas.addEventListener("pointercancel",onPointerUp);
   canvas.addEventListener("contextmenu",e=>e.preventDefault());
+  // CAS-1594: wheel scroll in inventory bag grid
+  canvas.addEventListener("wheel", e=>{
+    if(G.scene!=="inventory") return;
+    const g=ui.invGrid; if(!g) return;
+    const rect=canvas.getBoundingClientRect(), cx=e.clientX-rect.left, cy=e.clientY-rect.top;
+    const scale=canvas.width/rect.width;
+    if(cx*scale>=g.x&&cx*scale<=g.x+g.w&&cy*scale>=g.y&&cy*scale<=g.y+g.h){
+      const dir=e.deltaY>0?1:-1;
+      G.invScrollRow=Math.max(0,Math.min(g.maxScrollRow,(G.invScrollRow||0)+dir));
+      e.preventDefault(); }
+  },{passive:false});
 }
