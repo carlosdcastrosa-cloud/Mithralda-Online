@@ -1246,7 +1246,9 @@ export function createRenderer(ctx){
   const FXSPRITEMAP={ swing:{s:"slash",size:78,rot:true}, slashArc:{s:"slash",size:70,rot:true},
     flame:{s:"fire",size:86}, spellburst:{s:"nova",size:96}, novacast:{s:"nova",sizeR:1.8,rDef:90},
     holynova:{s:"holy",sizeR:2.0,rDef:80}, hitburst:{s:"impact",size:54}, impact:{s:"impact",size:60},
-    shockring:{s:"crit",sizeR:2.4,rDef:44} };
+    shockring:{s:"crit",sizeR:2.4,rDef:44},
+    healburst:{s:"heal",size:64}, orbburst:{s:"arcane",size:72}, blink:{s:"arcane",size:80},
+    thornfield:{s:"thorn",sizeR:1.4,rDef:72}, spark:{s:"spark",size:60} };
   function drawFx(f){ const k=clamp(1-f.t/f.life,0,1), sw=1-k;
     const SM=FXSPRITEMAP[f.kind];
     if(SM && !G.settings.reduceMotion){ const size=SM.size || ((f.r||SM.rDef||80)*(SM.sizeR||1));
