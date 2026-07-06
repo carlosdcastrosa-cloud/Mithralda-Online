@@ -28,7 +28,9 @@ sim.resetMeta();
 let snap = sim.metaSnap();
 if (snap.essence === 0 && snap.nodes.length === 5) pass("fresh meta: essence 0, 5 nodes"); else fail("fresh meta wrong: " + JSON.stringify(snap));
 const blob = sim.serializeMeta();
-if (blob && blob.v === 1 && blob.nodes && "hpMax" in blob.nodes && "reroll" in blob.nodes) pass("serializeMeta shape {v,essence,nodes}"); else fail("serializeMeta shape wrong: " + JSON.stringify(blob));
+// CAS-1565: the store internal version was bumped 1 -> 2 (Tier-2 + ascension added to the SAME
+// mithralda.meta.v1 localStorage key); v1 fields (essence + 5 nodes) remain a compatible prefix.
+if (blob && blob.v === 2 && blob.nodes && "hpMax" in blob.nodes && "reroll" in blob.nodes) pass("serializeMeta shape {v:2,essence,nodes}"); else fail("serializeMeta shape wrong: " + JSON.stringify(blob));
 // load a hand-authored blob and read it back
 sim.loadMeta({ v: 1, essence: 999, nodes: { hpMax: 2, dmg: 1, moveSpd: 4, reroll: 2, startGold: 3 } });
 snap = sim.metaSnap();

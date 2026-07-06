@@ -327,7 +327,8 @@ export function conquestSnap(){ const h=G.hero; const cq=(h&&h.conquest)||{tier:
 function drawBoonChoices(h,n,cursed,apex){
   const wt=((h.conquest&&h.conquest.tier)||1)-1;
   const depth=((h.boons&&h.boons.length)||0)+(cursed?CURSE_DEPTH_BONUS:0)
-    +(apex?WORLD_TIER.apexDepth:0)+(wt>0?wt*WORLD_TIER.depthPer:0);
+    +(apex?WORLD_TIER.apexDepth:0)+(wt>0?wt*WORLD_TIER.depthPer:0)
+    +metaLvl("t2_boonRare")*T2_MAP.t2_boonRare.per; // CAS-1565: Presagio Mayor lifts rare/legendary odds via the same depth lever (read-live)
   const banned=(h.banished&&h.banished.length)?new Set(h.banished):null;
   const pool=banned?BOONS.filter(b=>!banned.has(b.id)):BOONS.slice();
   const picks=[]; n=Math.min(n||BOON_DRAFT_N,pool.length);
@@ -529,7 +530,7 @@ export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunt
   // CAS-1557: apply the account-wide meta upgrades at this run-start seam. reconcileMeta bakes
   // the +HP/+dmg/+gold/+moveSpeed delta (idempotent via metaApplied); applyMetaReroll adds the
   // per-run reroll charges on top of newHero's fresh budget; then fill HP to the boosted cap.
-  reconcileMeta(G.hero); applyMetaReroll(G.hero); G.hero.hp=heroMaxHp(G.hero);
+  reconcileMeta(G.hero); applyMetaReroll(G.hero); applyMetaStartBoons(G.hero); G.hero.hp=heroMaxHp(G.hero); // CAS-1565: Vanguardia start-boons before HP fill
   beginRun();                                                   // CAS-277: first run baseline for the recap
   if(tutArmed){ startTutorial(); tutArmed=false; } }            // CAS-128: first-run guided flow
 
@@ -607,8 +608,47 @@ export const META_NODES = [
   { key:"reroll",    cap:2, cost:_=>40,       per:1,    label:"Presagio",  eff:"+1 reroll boon", glyph:"↻" },
   { key:"startGold", cap:5, cost:l=>12*(l+1), per:25,   label:"Fortuna",   eff:"+25 oro inicial",glyph:"$" },
 ];
-const META_MAP = (()=>{ const m={}; for(const n of META_NODES) m[n.key]=n; return m; })();
-function metaDefault(){ return { v:1, essence:0, nodes:{hpMax:0,dmg:0,moveSpd:0,reroll:0,startGold:0} }; }
+// ===================== CAS-1565: META-PROGRESSION v2 (Tier-2 + Ascensión) ===
+// Tier-2 altar row — IDENTITY upgrades gated behind a fully-maxed v1 row (a PROGRESS wall,
+// not a time-wall). Same isolated store (mithralda.meta.v1; internal `v` bumped 1→2). Each
+// node reuses an EXISTING deterministic sim lever so nothing is baked in a way the Stage-2
+// authority layer would have to unwind — all are read-live or per-run (like v1's reroll):
+//   t2_boonRare  → drawBoonChoices effective depth (same lever as cursed/apex/world-tier)
+//   t2_startBoon → applyMetaStartBoons at run-start (per-run, wiped on death like reroll)
+//   t2_dashIframe→ roll() i-frame window (read live at the dash seam)
+//   t2_xpGain    → gainXP multiplier (read live at the single XP chokepoint)
+//   t2_reroll    → applyMetaReroll, stacked on the v1 Presagio charge (per-run)
+// SWAP NOTE (CAS-1565): the plan's 5th node was `t2_zoneChest` (guaranteed chest per zone).
+// The world is a BOOT-TIME singleton (sim.js:48) whose chests never reset between runs and
+// whose layout must derive purely from the seed (Stage-2 determinism, sim.js:14) — so a
+// per-run guaranteed-chest system has NO clean hook and would be exactly the fragile wiring
+// the plan told me to avoid. Swapped to `t2_xpGain` ("Erudición", +XP), which rides the lone
+// gainXP() chokepoint: pure, read-live, instantly reversible on ascend. Flagged to the CTO
+// for veto before deploy — the node is fully data-driven (rename/replace = one row + one
+// hook line) and NO live save carries any t2_* key yet, so the swap has zero migration cost.
+export const META_T2 = [
+  // key            cap  cost(currentLvl)     per-level effect                      label / blurb / glyph
+  { key:"t2_boonRare",   cap:3, cost:l=>60*(l+1),  per:1.5,  label:"Presagio Mayor", eff:"+prob. boon raro",    glyph:"✦" },
+  { key:"t2_startBoon",  cap:2, cost:l=>120*(l+1), per:1,    label:"Vanguardia",     eff:"+1 boon inicial",     glyph:"❖" },
+  { key:"t2_dashIframe", cap:2, cost:l=>90*(l+1),  per:0.07, label:"Evasión",        eff:"+70ms i-frames dash", glyph:"⟿" },
+  { key:"t2_xpGain",     cap:3, cost:l=>130*(l+1), per:0.08, label:"Erudición",      eff:"+8% experiencia",     glyph:"✜" },
+  { key:"t2_reroll",     cap:2, cost:l=>100*(l+1), per:1,    label:"Vidente",        eff:"+1 reroll boon",      glyph:"↺" },
+];
+const META_MAP = (()=>{ const m={}; for(const n of META_NODES) m[n.key]=n; for(const n of META_T2) m[n.key]=n; return m; })();
+const T2_MAP = (()=>{ const m={}; for(const n of META_T2) m[n.key]=n; return m; })();
+// Canonical Ascensión essence multiplier for a level (+25% per level). NEVER trust a persisted
+// mult — always recompute from the level so a tampered blob can't inflate the economy.
+function ascMult(level){ return 1 + 0.25*Math.max(0, level|0); }
+function metaDefault(){ return { v:2, essence:0,
+  nodes:{ hpMax:0,dmg:0,moveSpd:0,reroll:0,startGold:0,
+          t2_boonRare:0,t2_startBoon:0,t2_dashIframe:0,t2_xpGain:0,t2_reroll:0 },
+  ascension:{ level:0, mult:1 } }; }
+// Ascensión level currently banked (defensive: an old in-memory blob may predate ascension).
+function ascLevel(){ const a=ensureMeta().ascension; return (a&&a.level|0)||0; }
+// Tier-2 is visible/buyable ONLY once every v1 node is at its cap (the progress gate).
+function t2Unlocked(){ for(const n of META_NODES){ if(metaLvl(n.key)<n.cap) return false; } return true; }
+// Ascender is offered ONLY when the WHOLE altar (v1 + Tier-2) is maxed.
+function altarFullMax(){ if(!t2Unlocked()) return false; for(const n of META_T2){ if(metaLvl(n.key)<n.cap) return false; } return true; }
 // Lazily materialise the in-memory meta (before persist.bootMeta rehydrates it, or in a
 // headless smoke run) so no sim path ever dereferences null. Idempotent.
 function ensureMeta(){ if(!G.meta) G.meta=metaDefault(); return G.meta; }
@@ -626,7 +666,9 @@ function essenceForRun(h, r){ if(!h) return 0;
   const zonas=((h.conquest&&h.conquest.bossesDown&&h.conquest.bossesDown.length)|0);
   const tier=(h.conquest&&h.conquest.tier)||1;
   const raw = lvl*2 + elites*5 + zonas*10 + (tier-1)*15;
-  return raw>0 ? Math.max(1, Math.floor(raw)) : 0; }
+  if(raw<=0) return 0;
+  // CAS-1565: Ascensión/Prestigio multiplier — the permanent payoff for sacrificing the altar.
+  return Math.max(1, Math.floor(raw * ascMult(ascLevel()))); }
 // Reconcile the DURABLE meta stats (HP / dmg / gold / moveSpeed) onto a hero at a run-start
 // seam. Idempotent via h.metaApplied (the amount already baked in, persisted in the save):
 // only the DELTA to the current node totals is applied, so calling it at createHero AND
@@ -649,30 +691,69 @@ function reconcileMeta(h){ if(!h) return; ensureMeta();
 // Re-apply the per-run REROLL charges from meta ON TOP of the freshly-reset budget. Called
 // ONLY at true run-start seams (createHero / respawn) AFTER rerollLeft is reset to its base,
 // because respawn wipes rerollLeft to 1 — the CRÍTICO seam the epic plan calls out.
-function applyMetaReroll(h){ if(!h) return; const rr=metaLvl("reroll")*META_MAP.reroll.per;
+function applyMetaReroll(h){ if(!h) return;
+  const rr=metaLvl("reroll")*META_MAP.reroll.per + metaLvl("t2_reroll")*T2_MAP.t2_reroll.per; // CAS-1565: Vidente stacks on v1 Presagio
   if(rr) h.rerollLeft=(h.rerollLeft|0)+rr; }
+// CAS-1565: grant the Tier-2 "Vanguardia" starting boon(s) at a run-start seam. Boons are a
+// PER-RUN pool (respawn wipes h.boons), so this is a clean one-shot each run — exactly like
+// the reroll charge — with NO durable baking / reversibility debt. Deterministic off the sim
+// RNG (drawBoonChoices → srand), distinct picks, using the same weighted model the draft uses.
+function applyMetaStartBoons(h){ if(!h) return; const n=metaLvl("t2_startBoon")*T2_MAP.t2_startBoon.per; if(n<=0) return;
+  const ids=drawBoonChoices(h, n, false, false);
+  for(const id of ids){ if(BOON_MAP[id] && (h.boons||(h.boons=[])).indexOf(id)<0) h.boons.push(id); }
+  recalcBoons(h); }
+// CAS-1565: read-live Tier-2 dash i-frame bonus (never baked → reverts instantly on ascend).
+function metaDashIframe(){ return metaLvl("t2_dashIframe")*T2_MAP.t2_dashIframe.per; }
 // --- persistence hooks (I/O-free; persist.js owns localStorage) ---
 export function serializeMeta(){ const m=ensureMeta(); const nodes={};
   for(const n of META_NODES) nodes[n.key]=metaLvl(n.key);
-  return { v:1, essence:Math.max(0,m.essence|0), nodes }; }
+  for(const n of META_T2)    nodes[n.key]=metaLvl(n.key); // CAS-1565: Tier-2 levels
+  const lvl=ascLevel();
+  return { v:2, essence:Math.max(0,m.essence|0), nodes, ascension:{ level:lvl, mult:ascMult(lvl) } }; }
+// CAS-1565: retro-compatible migration (one-way door — critical). A v1 blob (v:1, no t2_*/
+// ascension) loads clean: v1 nodes + essence are preserved, the missing t2_* keys stay at the
+// metaDefault() 0, and ascension defaults to level 0. A v2 blob round-trips fully. Every level is
+// clamped to its cap and the Ascensión mult is ALWAYS recomputed from the level (never trusted).
 export function loadMeta(d){ const def=metaDefault();
   if(d && typeof d==="object"){ def.essence=Math.max(0, (d.essence|0));
     const n=(d.nodes&&typeof d.nodes==="object")?d.nodes:{};
-    for(const node of META_NODES) def.nodes[node.key]=Math.max(0, Math.min(node.cap, (n[node.key]|0))); }
+    for(const node of META_NODES) def.nodes[node.key]=Math.max(0, Math.min(node.cap, (n[node.key]|0)));
+    for(const node of META_T2)    def.nodes[node.key]=Math.max(0, Math.min(node.cap, (n[node.key]|0)));
+    const lvl=Math.max(0, (d.ascension&&d.ascension.level|0)||0);
+    def.ascension={ level:lvl, mult:ascMult(lvl) }; }
   G.meta=def; return true; }
 // --- gameplay API (input.js / render.js / QA hooks call these) ---
 // Read-only altar view model: essence + each node's level, cap, next cost (null=capped), effect.
 export function metaSnap(){ const m=ensureMeta();
-  return { essence:m.essence|0, nodes:META_NODES.map(n=>({ key:n.key, label:n.label, eff:n.eff, glyph:n.glyph,
-    lvl:metaLvl(n.key), cap:n.cap, cost:metaNodeCost(n.key) })) }; }
+  const view=n=>({ key:n.key, label:n.label, eff:n.eff, glyph:n.glyph, lvl:metaLvl(n.key), cap:n.cap, cost:metaNodeCost(n.key) });
+  const lvl=ascLevel();
+  return { essence:m.essence|0,
+    nodes:META_NODES.map(view),          // Tier-1 (back-compat: input.js Digit1-5 reads sim.META_NODES)
+    t2:META_T2.map(view),                 // CAS-1565: Tier-2 rows
+    t2Unlocked:t2Unlocked(),              // gate: every v1 node maxed
+    canAscend:altarFullMax(),             // Ascender enabled: whole altar maxed
+    ascension:{ level:lvl, mult:ascMult(lvl) } }; }
 // Buy the next level of a node: guarded on cap + sufficient essence (never over-spends or
 // over-caps). Returns true on a real purchase (marks the store dirty for an immediate flush).
 export function buyMetaNode(key){ const n=META_MAP[key]; if(!n) return false;
+  if(T2_MAP[key] && !t2Unlocked()) return false; // CAS-1565: Tier-2 stays locked until the v1 row is fully maxed
   const m=ensureMeta(); const lvl=metaLvl(key); if(lvl>=n.cap) return false;
   const cost=Math.floor(n.cost(lvl)); if((m.essence|0)<cost) return false;
   m.essence=(m.essence|0)-cost; m.nodes[key]=lvl+1; G.metaDirty=true;
   // A bought node takes effect from the NEXT run-start reconcile; if the same hero is about
   // to respawn (buying at the death altar), that respawn's reconcileMeta applies the delta.
+  return true; }
+// CAS-1565: ASCENSIÓN / PRESTIGIO (opt-in). Requires the WHOLE altar maxed (altarFullMax). The
+// sacrifice: ALL node levels → 0 and banked essence → 0; the reward: ascension.level += 1 and a
+// permanent +25%/level essence multiplier (ascMult), applied by essenceForRun from the very next
+// run. Reversibility: hero.metaApplied is DELIBERATELY LEFT INTACT — the next run-start
+// reconcileMeta reads want=0 (nodes reset) vs had=(old baked amounts) and applies the negative
+// delta, cleanly stripping the sacrificed v1 stats off the live hero (delta engine, no double-apply).
+export function ascendMeta(){ if(!altarFullMax()) return false;
+  const m=ensureMeta(); const lvl=ascLevel()+1;
+  for(const n of META_NODES) m.nodes[n.key]=0;
+  for(const n of META_T2)    m.nodes[n.key]=0;
+  m.essence=0; m.ascension={ level:lvl, mult:ascMult(lvl) }; G.metaDirty=true;
   return true; }
 // QA / dev hook (window.__metaReset): wipe the account meta back to zero (mirrors the run
 // resets). Also clears the hero's baked-in baseline so a live hero re-reconciles cleanly.
@@ -1322,7 +1403,9 @@ function buildVictorySummary(h, firstWin){
 // Dismiss the victory screen → resume free play with the same hero (no reset).
 export function dismissVictory(){ if(G.scene!=="victory") return; G.victory=null; const h=G.hero;
   if(h){ h.dead=false; h.vx=h.vy=0; h.iframe=0.6; } G.scene="play"; beginRun(); }
-function gainXP(n){ const h=G.hero; if(n<=0) return; h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
+function gainXP(n){ const h=G.hero; if(n<=0) return;
+  n=Math.round(n*(1+metaLvl("t2_xpGain")*T2_MAP.t2_xpGain.per)); // CAS-1565: Erudición meta XP boost (read-live at the single XP chokepoint)
+  h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; // CAS-100: per-class growth → archetypes diverge as you climb
     h.maxHp+=(h.hpGain||18); h.maxMp+=(h.mpGain||8); h.baseDmg+=(h.dmgGain||3); h.hp=heroMaxHp(h); h.mp=h.maxMp;
     // CAS-119: every level grants a talent point (build agency). Floater makes the
@@ -1692,7 +1775,7 @@ export function respawn(){
   // unless a node was bought at the altar (then it bakes the delta into maxHp/dmg/gold/moveSpeed);
   // applyMetaReroll re-adds the reroll charges ON TOP of the rerollLeft:1 just reset above — the
   // CRÍTICO seam, since respawn wiped the meta reroll along with the per-run budget. HP fills below.
-  reconcileMeta(h); applyMetaReroll(h);
+  reconcileMeta(h); applyMetaReroll(h); applyMetaStartBoons(h); // CAS-1565: Vanguardia start-boons re-granted after the death boon-wipe (per-run)
   h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
@@ -1899,7 +1982,7 @@ function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n
 export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
   else { const mv=io.moveVec(); if(mv[0]===0&&mv[1]===0){ ax=Math.cos(h.facing); ay=Math.sin(h.facing);} else {[ax,ay]=mv;} }
-  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=CFG.rollIFrame+((h.bb&&h.bb.iframeAdd)||0); h.rollCD=CFG.rollCD; h.rollX=ax; h.rollY=ay;
+  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=CFG.rollIFrame+((h.bb&&h.bb.iframeAdd)||0)+metaDashIframe(); h.rollCD=CFG.rollCD; h.rollX=ax; h.rollY=ay; // CAS-1565: +Evasión meta i-frames (read-live)
   if(h.bb&&h.bb.trail>0) h._trailSet=new Set(); // CAS-388: fresh per-roll set so Estela Ardiente burns each enemy once per dash
   audio.sfx.roll(); } // CAS-383: Viento Veloz widens the dodge window
 
@@ -2620,6 +2703,9 @@ export const dev = {
   // analytics funnel's "primera muerte" step can be QA-verified headlessly. Dev-only,
   // additive — no balance/gameplay change (the live game never calls this).
   killHero(){ heroDie(); return { deaths:G.hero.deaths, scene:G.scene }; },
+  // CAS-1565: dev-only Esencia grant so the live QA harness can bankroll the altar (Tier-2 +
+  // Ascensión need ~thousands of Esencia to max) without grinding deaths. Additive, dev-only.
+  metaGrant(n){ ensureMeta().essence=Math.max(0,(ensureMeta().essence|0)+(n|0)); G.metaDirty=true; return metaSnap(); },
   // CAS-277: end-of-run recap contract consumed by tools/cas277-recap.mjs — read-only.
   // recapState = the frozen recap delta (null until a death); runBase = the live baseline.
   recapState(){ return G.recap?Object.assign({},G.recap):null; },

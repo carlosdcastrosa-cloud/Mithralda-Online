@@ -13,7 +13,7 @@
 // A Stage-2 networking layer wraps sim/ by feeding intents per tick and ignoring
 // render/audio/view — no rewrite of the gameplay logic required.
 // ===========================================================================
-import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode } from "./sim/sim.js";
+import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode, ascendMeta } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
@@ -166,7 +166,9 @@ export function createGame(canvas, ctx, getView){
     // CAS-1557: meta-progression QA/dev hooks — read the account meta (essence + node levels)
     // and wipe it back to zero, mirroring the run-reset globals. buy() is exposed for harness
     // scripting of the altar; the human path is the on-screen Altar panel.
-    window.__meta=()=>metaSnap(); window.__metaReset=()=>resetMeta(); window.__metaBuy=(k)=>buyMetaNode(k); }
+    // CAS-1565: __metaBuy accepts t2_* keys (buyMetaNode gates them on t2Unlock); __metaReset now
+    // also clears Tier-2 + ascension; __metaAscend performs the opt-in prestige (full-max guarded).
+    window.__meta=()=>metaSnap(); window.__metaReset=()=>resetMeta(); window.__metaBuy=(k)=>buyMetaNode(k); window.__metaAscend=()=>ascendMeta(); }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
     window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)
@@ -301,10 +303,16 @@ export function createGame(canvas, ctx, getView){
       armHunt:(zone)=>simDev.armHunt(zone),
       // CAS-132 analytics funnel QA: drive the real hero-death path (additive, dev-only)
       killHero:()=>simDev.killHero(),
+      // CAS-1565 meta-v2 QA: grant Esencia to bankroll Tier-2 + Ascensión (additive, dev-only)
+      metaGrant:(n)=>simDev.metaGrant(n),
       // CAS-277 end-of-run recap contract consumed by tools/cas277-recap.mjs — additive
       recapState:()=>simDev.recapState(), runBase:()=>simDev.runBase(),
       retryRun:()=>simDev.retryRun(), returnToHub:()=>simDev.returnToHub(),
       recapRects:()=>(ui.deadRects||[]).map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,act:r.act})),
+      // CAS-1565 meta-v2 QA: read-only altar hit-rects (buy keys + back/ascend acts) so the
+      // live harness can drive Tier-2 buys + the Ascensión flow by tapping (mirrors recapRects).
+      altarRects:()=>(ui.altarRects||[]).map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,act:r.act||null,key:r.key||null})),
+      altarConfirmOpen:()=>!!ui.altarAscendConfirm,
       // CAS-127 game-feel/juice contract consumed by tools/cas127-juice.mjs — additive
       juiceState:()=>simDev.juiceState(), floaterDump:()=>simDev.floaterDump(), setReduceMotion:(v)=>simDev.setReduceMotion(v),
       clearFx:()=>simDev.clearFx(), juiceArena:(n)=>simDev.juiceArena(n), juiceSwing:()=>simDev.juiceSwing(),
