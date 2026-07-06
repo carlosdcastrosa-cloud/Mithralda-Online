@@ -193,7 +193,7 @@ export function createRenderer(ctx){
   // a rarity glyph per tier, a "!" on crit damage, and a high-contrast windup ring.
   const cb = ()=> !!(G.settings && G.settings.colorblind);
   // Per-rarity shape mark (ascending tiers). Empty for common so plain drops stay clean.
-  const RARITY_MARK = { common:"", uncommon:"◦ ", rare:"◆ ", epic:"★ " };
+  const RARITY_MARK = { common:"", uncommon:"◦ ", rare:"◆ ", epic:"★ ", legendary:"✦ " }; // CAS-1632 legendary glyph
   const rarityMark = (inst)=> (cb() && inst) ? (RARITY_MARK[inst.rarity] || "") : "";
   // Human-readable label for a KeyboardEvent.code (settings → Controls tab).
   const keyLabel = (code)=>{ if(!code) return "—";

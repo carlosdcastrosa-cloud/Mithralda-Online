@@ -435,6 +435,13 @@ export const CHAMPION = {
   uniqueChance:0.5, // P(a SECOND superior/"unique" drop) on top of the guaranteed epic (epic = top rarity in this loot ladder)
 };
 
+// CAS-1632 — LEGENDARY/UNIQUE drop. A low base chance heavily biased toward elites/champions/bosses,
+// rolled APPEND-ONLY (maybeLegendary, sim.js) AFTER every pre-existing dropGear in a kill resolution.
+// RNG-NEUTRALITY: at rate=0 (or a non-eligible kill) maybeLegendary draws ZERO srand → the drop
+// stream is byte-identical (the CAS-1590 maybeChampion pattern). rate>0 ships it ON; the bias muls
+// scale the base rate per kill kind (a champion is champMul× as likely to cough up a unique as trash).
+export const LEGENDARY = { rate:0.02, eliteMul:4, champMul:8, bossMul:12 };
+
 // CAS-149 — ELITE MASTERY: the persistent, cross-session progression HOOK that gives a
 // returning player a reason to come back. EVERY elite-class kill (ambush elites CAS-146 +
 // hunt champions + the final boss) ticks a monotonic lifetime counter (h.eliteKills, saved

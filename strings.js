@@ -124,7 +124,7 @@ export const STR = {
   bagFull: "Mochila llena: convertida en oro",
   bagEmpty: "(vacía)",
   equipHint: "▲▼ elegir · doble-click equipar · arrastrar mueve/equipa · I cerrar",
-  rarity: { common: "Común", uncommon: "Infrecuente", rare: "Raro", epic: "Épico" },
+  rarity: { common: "Común", uncommon: "Infrecuente", rare: "Raro", epic: "Épico", legendary: "Legendario" }, // CAS-1632 top rarity
   // CAS-117 equip-decision compare box (equipado vs nuevo) + affix tooltip chrome
   cmpEquipped: "Equipado",
   cmpNew: "Nuevo",
@@ -232,7 +232,7 @@ export const STR = {
   victoryFooter: "Tu héroe persiste. Sigue cazando, perfecciona tu build o repite al Guardián.",
   // class display names for the summary (lowercase ids → Spanish labels)
   classLabel: { warrior:"Guerrero", paladin:"Paladín", mage:"Mago", druid:"Druida", priest:"Sacerdote" },
-  rarityLabel: { common:"común", uncommon:"infrecuente", rare:"raro", epic:"épico" },
+  rarityLabel: { common:"común", uncommon:"infrecuente", rare:"raro", epic:"épico", legendary:"legendario" }, // CAS-1632
 
   pauseTitle: "PAUSA",
   resume: "VOLVER AL JUEGO",

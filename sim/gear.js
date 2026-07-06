@@ -17,8 +17,13 @@ export const RARITY = {
   uncommon: { col:"#5fd66a", mult:1.18, weight:27, rank:1 },
   rare:     { col:"#4aa3ff", mult:1.40, weight:11, rank:2 },
   epic:     { col:"#c77dff", mult:1.70, weight:2,  rank:3 },
+  // CAS-1632 — LEGENDARY: the build-defining top rarity (gold-orange). weight:0 is CRÍTICO —
+  // rollRarity() walks RARITY_ORDER by weight, so a 0-weight tier can NEVER be produced by the
+  // ordinary drop roll (zero distribution change on normal drops). Legendaries come ONLY from the
+  // dedicated append-only roll (maybeLegendary, sim.js) that constructs a named UNIQUE instance.
+  legendary:{ col:"#ff9a3c", mult:1.90, weight:0,  rank:4 },
 };
-export const RARITY_ORDER = ["common","uncommon","rare","epic"];
+export const RARITY_ORDER = ["common","uncommon","rare","epic","legendary"];
 
 // ===========================================================================
 // CAS-117 — AFFIXES: the "drops have weight + a decision" layer. Every piece
@@ -61,8 +66,12 @@ export function affixLabel(af){ const a=AFFIXES[af&&af.id]; if(!a) return "";
   return "+"+af.amt+(a.pct?"% ":" ")+a.label; }
 // CAS-118: on-hit status procs carried by the equipped WEAPON's affixes — read at hero
 // hit time (hitEnemy) so the affix decision (CAS-117) changes observable combat feel.
-export function weaponProcs(h){ const inst=h&&h.equip&&h.equip.weapon; if(!inst||!Array.isArray(inst.affixes)) return null;
-  let out=null; for(const af of inst.affixes){ const a=AFFIXES[af&&af.id]; if(a&&a.proc&&typeof af.amt==="number"){ (out||(out=[])).push({proc:a.proc, amt:af.amt}); } }
+export function weaponProcs(h){ const inst=h&&h.equip&&h.equip.weapon; if(!inst) return null;
+  let out=null;
+  if(Array.isArray(inst.affixes)) for(const af of inst.affixes){ const a=AFFIXES[af&&af.id]; if(a&&a.proc&&typeof af.amt==="number"){ (out||(out=[])).push({proc:a.proc, amt:af.amt}); } }
+  // CAS-1632: an equipped UNIQUE weapon with a proc mod (colmillo_pavido → burn) emits its on-hit
+  // status too — reuses the SAME applyStatus path in hitEnemy, no new combat code. Read live.
+  const u=uniqDef(inst); if(u&&u.mod&&u.mod.proc){ (out||(out=[])).push({proc:u.mod.proc, amt:u.mod.amt||4}); }
   return out; }
 export function affixList(inst){ return (inst&&Array.isArray(inst.affixes))?inst.affixes:[]; }
 
@@ -133,7 +142,7 @@ export const ZONE_LOOT = {
 // ---- pure gear helpers (no game state, no RNG; safe in sim or render) ----
 export function gearDef(slot,defId){ const arr=GEAR[slot]; if(!arr) return null; for(let i=0;i<arr.length;i++) if(arr[i].id===defId) return arr[i]; return null; }
 export function gearStat(inst){ if(!inst) return 0; const d=gearDef(inst.slot,inst.defId); if(!d) return 0; const base=(d.dmg!=null?d.dmg:d.def)||0; const r=RARITY[inst.rarity]||RARITY.common; return Math.round(base*r.mult*forgeMult(inst.fl)); } // CAS-237: forge level folds in here (the one stat resolver)
-export function gearName(inst){ if(!inst) return "—"; const d=gearDef(inst.slot,inst.defId); return d?d.name:"?"; }
+export function gearName(inst){ if(!inst) return "—"; const u=inst.uniq&&uniqDef(inst); if(u) return u.name; /* CAS-1632: a UNIQUE reads by its named title everywhere (floaters/tooltips route through here) */ const d=gearDef(inst.slot,inst.defId); return d?d.name:"?"; }
 export function gearCol(inst){ const r=inst&&RARITY[inst.rarity]; return r?r.col:RARITY.common.col; }
 export function rarityRank(k){ const r=RARITY[k]; return r?r.rank:0; }
 
@@ -206,4 +215,63 @@ export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip
 // and leveling stay clean (mirrors how timed buffs stay out of permDmg/permDef).
 // CAS-150: Elite-Mastery reward-track +maxHp milestones fold in here too (h.mperk.hp,
 // built in sim.recalcMastery) — derived, never baked, so reload reproduces it from the count.
-export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0)) * ((h.bb&&h.bb.hpMul)||1)); } // CAS-383: Cristal Frágil / Piel de Piedra scale the effective pool (derived, never baked → reload/reset clean)
+export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0)) * ((h.bb&&h.bb.hpMul)||1) * uniqTotals(h).hpMul); } // CAS-383 boon hpMul + CAS-1632 corazon_titan (uniqTotals.hpMul) scale the effective pool (derived, never baked → reload/reset clean)
+
+// ===========================================================================
+// CAS-1632 — ÍTEMS ÚNICOS/LEGENDARIOS (loot que define builds). A "unique" is a
+// NAMED instance {slot, defId, rarity:"legendary", uniq:"<id>"} — `defId` points
+// at an existing base def so gearStat() resolves stats normally by tier/mult (a
+// legendary just carries the 1.90 rarity mult + gold tint, ZERO new sprites). The
+// build-defining twist rides on `mod`, which hooks exactly ONE already-live system:
+//   1. reloj_vacio      (weapon) mod.abilCdr:15  → −15% ability/spell cooldown  → castAbility/castSpell cd factor (capped 60% with h.tt.cdr)
+//   2. corona_ecos      (body)   mod.essencePct:25→ +25% Esencia               → essenceForRun() before the Ascensión mult
+//   3. colmillo_pavido  (weapon) mod.proc:"burn"  → basic attack ignites         → weaponProcs() → hitEnemy applyStatus (reuses CAS-118)
+//   4. prisma_fracturado(shield) mod.abilityMod   → Cadena +2 saltos / Nova radio ×2 → uniqEmpower() copy-on-write at the cast seam (by sp.type)
+//   5. corazon_titan    (body)   mod.hpMul:1.20   → +20% vida máx               → heroMaxHp() derived multiplier
+//   6. guante_berserker (weapon) mod.atkspd:12    → +12% vel. ataque            → heroAtkspd() under ATKSPD_TOTAL_CAP
+// 3 weapon / 2 body / 1 shield — only one weapon equips at a time, so the 3 weapon
+// uniques are mutually-exclusive build choices (intended). All effects are read
+// LIVE via uniqTotals()/uniqEmpower()/weaponProcs() — never baked, so reload/reset
+// reproduce them from {defId,rarity,uniq}. Zero RNG in this content block.
+export const UNIQUES = [
+  {id:"reloj_vacio",      name:"Reloj Vacío",           slot:"weapon", defId:"w_rune",  mod:{abilCdr:15}},
+  {id:"corona_ecos",      name:"Corona de Ecos",        slot:"body",   defId:"a_wyrm",  mod:{essencePct:25}},
+  {id:"colmillo_pavido",  name:"Colmillo Pávido",       slot:"weapon", defId:"w_steel", mod:{proc:"burn", amt:4}},
+  {id:"prisma_fracturado",name:"Prisma Fracturado",     slot:"shield", defId:"s_tower", mod:{abilityMod:{chain:{jumps:2}, nova:{rangeMul:2}}}},
+  {id:"corazon_titan",    name:"Corazón del Titán",     slot:"body",   defId:"a_plate", mod:{hpMul:1.20}},
+  {id:"guante_berserker", name:"Guante del Berserker",  slot:"weapon", defId:"w_iron",  mod:{atkspd:12}},
+];
+// Resolve a unique def from a gear instance (or null for an ordinary/absent piece).
+export function uniqDef(inst){ if(!inst||!inst.uniq) return null; for(let i=0;i<UNIQUES.length;i++) if(UNIQUES[i].id===inst.uniq) return UNIQUES[i]; return null; }
+export function uniqById(id){ for(let i=0;i<UNIQUES.length;i++) if(UNIQUES[i].id===id) return UNIQUES[i]; return null; }
+export function uniqName(inst){ const u=uniqDef(inst); return u?u.name:null; }
+// Build a fresh legendary instance for a unique id (used by the drop roll + dev bridge).
+export function uniqInst(id){ const u=uniqById(id); return u?{slot:u.slot, defId:u.defId, rarity:"legendary", uniq:u.id}:null; }
+// Sum every EQUIPPED unique's scalar mods into one live combat bundle — the mirror of
+// affixTotals (CAS-117). The ONLY reader of unique scalar mods (combat + UI route through
+// this) so equipping a legendary moves REAL numbers, never a stored/baked stat, and stays
+// recomputable from the 3 equipped instances (Stage-2 server-authority-ready). Non-scalar
+// mods (proc / abilityMod) are read at their own sites (weaponProcs / uniqEmpower).
+export function uniqTotals(h){ const t={abilCdr:0, essencePct:0, hpMul:1, atkspd:0};
+  if(!h||!h.equip) return t;
+  for(const slot of ["weapon","body","shield"]){ const inst=h.equip[slot]; const u=inst&&uniqDef(inst); if(!u||!u.mod) continue;
+    const m=u.mod;
+    if(m.abilCdr) t.abilCdr+=m.abilCdr;
+    if(m.essencePct) t.essencePct+=m.essencePct;
+    if(m.hpMul) t.hpMul*=m.hpMul;
+    if(m.atkspd) t.atkspd+=m.atkspd; }
+  return t; }
+// CAS-1632 — ABILITY-EMPOWER overlay (mirror of talentEmpower, CAS-1602). If an EQUIPPED unique
+// carries an abilityMod for this spell's `type` (prisma_fracturado: chain→+jumps, nova→×range),
+// return a COPY of the spell with the param scaled. Otherwise return `sp` UNCHANGED (SAME object →
+// 0 behaviour/RNG delta when the unique isn't equipped). Never mutates SPELLS/ABILITY_MAP. Called
+// at the cast seam BEFORE the mana/cd gates (matches talentEmpower ordering).
+export function uniqEmpower(h, sp){ if(!h||!sp||!h.equip) return sp;
+  for(const slot of ["weapon","body","shield"]){ const inst=h.equip[slot]; const u=inst&&uniqDef(inst);
+    if(!u||!u.mod||!u.mod.abilityMod) continue;
+    const m=u.mod.abilityMod[sp.type]; if(!m) continue;
+    const cp=Object.assign({}, sp);
+    if(m.jumps!=null) cp.jumps=(sp.jumps||3)+m.jumps;
+    if(m.rangeMul!=null) cp.range=(sp.range||0)*m.rangeMul;
+    return cp; }
+  return sp; }
