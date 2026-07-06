@@ -125,7 +125,7 @@ export const hud = (()=>{
       return "position:absolute;left:"+w.l+"%;top:"+w.t+"%;right:"+w.r+"%;bottom:"+w.b+"%;"; };
     styleEl.textContent = [
       // root scale var drives crisp integer-ish scaling (§3)
-      "#hud{ --s:1; font-family:'Courier New',monospace; }",
+      "#hud{ --s:1; font-family:'MithraldaPixel',monospace; }",
       // full-art panels (CAS-316) — the ornate PixelLab PNG IS the panel
       "#hud .p-stat{ "+pbg("stat")+" width:calc(268px*var(--s)); }",
       "#hud .p-doll{ "+pbg("doll")+" width:calc(150px*var(--s)); }",

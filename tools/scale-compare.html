@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset="utf-8"><style>
-  html,body{margin:0;background:#10131a;font:13px/1.4 'Courier New',monospace;color:#cdd4dc}
+  html,body{margin:0;background:#10131a;font:13px/1.4 'MithraldaPixel',monospace;color:#cdd4dc}
   canvas{display:block;margin:0 auto;image-rendering:pixelated}
 </style></head><body>
 <canvas id="c" width="760" height="460"></canvas>
@@ -37,9 +37,9 @@ function panel(ctx,ox,scale,label){
   ctx.beginPath(); ctx.ellipse(cx,feet-4,HERO_R,HERO_R*0.55,0,0,6.283); ctx.stroke();
   // measured sprite height
   const px=Math.round(CLS[cls].fh*scale);
-  ctx.fillStyle="#ecd0a6"; ctx.font="bold 14px 'Courier New',monospace"; ctx.textAlign="center";
+  ctx.fillStyle="#ecd0a6"; ctx.font="bold 14px 'MithraldaPixel',monospace"; ctx.textAlign="center";
   ctx.fillText(label, cx, 26);
-  ctx.fillStyle="#cdd4dc"; ctx.font="12px 'Courier New',monospace";
+  ctx.fillStyle="#cdd4dc"; ctx.font="12px 'MithraldaPixel',monospace";
   ctx.fillText(`scale ${scale}  →  ${px}px  (${(px/TS).toFixed(1)} tiles)`, cx, 44);
   ctx.fillStyle="rgba(201,138,58,0.9)"; ctx.fillText("◀ 2-tile / ~64px target", cx, feet-2*TS-6);
   if(!ok){ ctx.fillStyle="#ff6b6b"; ctx.fillText("asset not loaded", cx, feet); }

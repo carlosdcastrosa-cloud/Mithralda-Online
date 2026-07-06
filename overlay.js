@@ -35,7 +35,7 @@ export const overlay = (()=>{
     el.style.cssText=[
       "position:fixed","right:6px","top:6px","z-index:60","display:none",
       "max-width:46vw","max-height:94vh","overflow:auto","pointer-events:none",
-      "font:11px/1.45 'Courier New',monospace","color:#cfe8d0",
+      "font:11px/1.45 'MithraldaPixel',monospace","color:#cfe8d0",
       "background:rgba(8,11,16,0.88)","border:1px solid #2c5a3a","border-radius:6px",
       "padding:8px 10px","white-space:pre","letter-spacing:0.2px",
       "text-shadow:0 1px 0 #000"

@@ -19,6 +19,7 @@ import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
+import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
 import { rarityRank } from "./sim/gear.js";
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
@@ -60,7 +61,7 @@ export function createGame(canvas, ctx, getView){
     chatEl=document.createElement("input");
     chatEl.id="chatInput"; chatEl.maxLength=120; chatEl.autocomplete="off"; chatEl.spellcheck=false;
     chatEl.setAttribute("aria-label","Chat"); chatEl.placeholder="Escribe y pulsa Enter…";
-    chatEl.style.cssText="position:fixed;display:none;z-index:30;box-sizing:border-box;font:13px 'Courier New',monospace;"
+    chatEl.style.cssText="position:fixed;display:none;z-index:30;box-sizing:border-box;font:13px 'MithraldaPixel',monospace;"
       +"color:#d8d3c4;background:#0c0e13;border:1px solid #3a3f49;border-radius:3px;outline:none;padding:5px 9px;";
     // typing must never leak to the game (WASD/hotkeys); only send on Enter, cancel on Escape.
     chatEl.addEventListener("keydown",(e)=>{ e.stopPropagation();
@@ -87,6 +88,11 @@ export function createGame(canvas, ctx, getView){
 
   // boot
   loadAllAssets();
+  // CAS-1610: register the pixel UI webfont so canvas (ctx.font) + DOM chrome render it.
+  // Non-blocking: the family stack falls back to system `monospace` on the first frames
+  // (and for glyphs the font lacks) — never the old typewriter face. Once ready, text
+  // repaints in the pixel font on the next frame (canvas redraws every frame).
+  loadUIFont();
   // CAS-265: load persisted accessibility / QoL settings (reduce-motion, colour-blind
   // cues, screen-shake, key rebindings) BEFORE input + the first frame so a returning
   // player's preferences are live from frame 0. Separate localStorage key from the save,
@@ -305,6 +311,10 @@ export function createGame(canvas, ctx, getView){
       talentState:()=>simDev.talentState(), talentTree:(cls)=>simDev.talentTree(cls),
       grantTalentPts:(n)=>simDev.grantTalentPts(n), allocTalent:(id)=>simDev.allocTalent(id),
       respecTalents:()=>simDev.respecTalents(), canAlloc:(id)=>simDev.canAlloc(id),
+      // CAS-1601 level-gate hooks consumed by QA (lockReason "level:N" + set hero level)
+      lockReason:(id)=>simDev.lockReason(id), setLevel:(n)=>simDev.setLevel(n), setLvl:(n)=>simDev.setLevel(n),
+      // CAS-1602 spell-empower probe (ENTREGABLE 1↔2 bridge; copy-on-write per class)
+      empowerProbe:(cls)=>simDev.empowerProbe(cls),
       // CAS-120 active-skill-bar contract consumed by tools/cas120-skills.mjs — additive
       skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot),
       // CAS-1570 active-abilities QA contract (tools/cas1570-*.mjs) — additive
