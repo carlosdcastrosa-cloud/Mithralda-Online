@@ -82,8 +82,12 @@ const BASELINE = {
     {id:"blink",    type:"blink", cost:14, cd:5.5, range:158, iframe:0.42, col:"#9be7ff", fx:"blink", sfx:"roll"},
   ],
   druid: [
+    // CAS-1601 reconciliation: druid slot-2 `regen`→`floracion` is a SEPARATE, legitimate
+    // audit change (sibling task, parent CAS-1598). Baseline updated so this test still proves
+    // the priest reassignment didn't LEAK into druid; warrior/paladin/mage stay frozen as the
+    // no-leak proof. slot-1 (vines) + slot-3 (thornstorm) remain byte-identical.
     {id:"vines",      type:"nova", cost:12, cd:4.0, dmg:14, range:92,  status:{type:"stun",dur:1.4}, col:"#8fd47a", fx:"novacast", style:"spike", sfx:"rune"},
-    {id:"regen",      type:"hot",  cost:12, cd:8.0, heal:11, dur:5.0, col:"#7bd44a", fx:"buffaura", sfx:"heal"},
+    {id:"floracion", type:"nova", cost:12, cd:5.0, dmg:14, range:88, heal:10, status:{type:"slow",amt:0.4,dur:2.2}, col:"#7bd44a", fx:"novacast", style:"spike", sfx:"heal"},
     {id:"thornstorm", type:"field", cost:20, cd:6.0, dmg:11, tick:0.5, dur:3.0, range:74, offset:46, status:{type:"slow",amt:0.6,dur:1.1}, col:"#5fae4a", fx:"thornfield", style:"spike", sfx:"rune"},
   ],
 };

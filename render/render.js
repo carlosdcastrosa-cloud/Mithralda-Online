@@ -2168,6 +2168,10 @@ export function createRenderer(ctx){
       ctx.fillText(n.name, p.cx, by+22);
       ctx.fillStyle=(st==="max")?COL.heal:(st==="avail"?COL.textGold:COL.textDim); ctx.font="11px 'Courier New'";
       ctx.fillText(STR.talentRank(rank,n.max), p.cx, by+40);
+      // CAS-1598: level-gate label on nodes locked purely by hero level ("Nv 3").
+      if(st==="lock"){ const lr=lockReason(h,n.id);
+        if(lr&&lr.indexOf("level:")===0){ ctx.fillStyle="#d0a0a0"; ctx.font="bold 9px 'Courier New'";
+          ctx.fillText("Nv "+lr.slice(6), p.cx, by+51); } }
       ui.talentRects.push({x:bx,y:by,w:nw,h:nh, id:n.id, focus:i});
       if(ui.mouseX>=bx&&ui.mouseX<=bx+nw&&ui.mouseY>=by&&ui.mouseY<=by+nh) hover=n;
     }
