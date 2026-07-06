@@ -176,6 +176,22 @@ try {
   if (rrOn.legs > 0) pass(`[AC-RNG0] rate>0 drops uniques: ${rrOn.legs}/${rrOn.n} (rate ${rrOn.rate}); spread ${JSON.stringify(rrOn.tally)}`);
   else fail(`[AC-RNG0] feature never drops when ON: ${JSON.stringify(rrOn)}`);
 
+  // (5b) AC-RNG-STRONG (CAS-1638 dedicated-stream fix) — the DEFINITIVE append-only proof.
+  // Same seed, drop stream at rate=0 vs rate>0. The legendary roll draws from the dedicated legRng
+  // stream, NEVER the shared srand — so the NON-legendary drops (kind/rarity/tier) must be
+  // byte-identical between the two rates; the ON run only *appends* extra `uniq` entries. Under the
+  // old shared-srand roll this would DIVERGE (the gate draw shifts every downstream loot roll).
+  const base0 = await page.evaluate(() => { window.__dev.setLegRate(0); return window.__dev.dropStream(600, 424242); });
+  const onRaw = await page.evaluate(() => { window.__dev.setLegRate(0.5); return window.__dev.dropStream(600, 424242); });
+  await page.evaluate(() => window.__dev.setLegRate(null)); // restore shipped rate
+  const stripLeg = (s) => s.filter((d) => !d.uniq);         // remove the appended legendary entries
+  const baseStr = JSON.stringify(stripLeg(base0));
+  const onStr = JSON.stringify(stripLeg(onRaw));
+  const onLegs = onRaw.filter((d) => d.uniq).length;
+  if (baseStr === onStr && onLegs > 0)
+    pass(`[AC-RNG-STRONG] shared srand UNTOUCHED at rate>0: non-legendary stream byte-identical to rate=0 baseline (${stripLeg(base0).length} drops) while ${onLegs} uniques appended — dedicated legRng proven`);
+  else fail(`[AC-RNG-STRONG] shared stream shifted at rate>0: identical=${baseStr === onStr} onLegs=${onLegs}`);
+
   // (6) PERF — report the clean-state sample taken in (0).
   if (fps >= 55) pass(`[PERF] ${fps} fps sustained`);
   else fail(`[PERF] fps below target: ${fps}`);

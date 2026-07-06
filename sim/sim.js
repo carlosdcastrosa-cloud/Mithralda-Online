@@ -41,6 +41,13 @@ const { srand, seed, rr, ri } = rng;
 const fxRng = createRNG();
 const frr = (a,b)=>fxRng.rr(a,b);
 
+// CAS-1638 — legendary/unique drop RNG: a THIRD isolated stream (distinct seed so it never
+// correlates with the fx stream). The legendary gate + unique pick draw from THIS stream only,
+// never the authoritative srand — so the existing loot/spawn sequence is byte-identical for a
+// seed at ANY legendary rate, not merely rate=0. This is the AC3 fix flagged by the CTO on
+// CAS-1631: the append-only legendary roll must not consume or shift the shared srand stream.
+const legRng = createRNG(0x1a2b3c4d);
+
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
 // determinism self-test drives buildWorld() directly, so it stays unaffected either way.
@@ -1126,21 +1133,21 @@ function applyAffix(e, id){
   return e;
 }
 
-// CAS-1632 — LEGENDARY/UNIQUE drop. Live rate (ships at LEGENDARY.rate). A ?dev seam
-// (__dev.setLegRate) forces it to 0 to PROVE the append-only RNG-neutrality — at 0 no
-// srand is drawn and the drop stream is byte-identical. __dev.forceLegendary sets a
+// CAS-1632/1638 — LEGENDARY/UNIQUE drop. Live rate (ships at LEGENDARY.rate). A ?dev seam
+// (__dev.setLegRate) forces it to 0 for the OFF-path test. __dev.forceLegendary sets a
 // one-shot id so the harness can guarantee a specific unique drops on the next kill.
 let legRate=LEGENDARY.rate, forcedLeg=null;
 // Called APPEND-ONLY at the very end of a kill's loot resolution — AFTER every pre-existing
 // dropGear/rollGearInst — so those rolls are already fixed (byte-identical). `kindBias` scales
-// the base rate for elite/champion/boss kills. Mirrors maybeChampion: consumes srand() ONLY
-// when the gate is open (rate>0 AND the roll passes). At rate=0 → zero srand → stream untouched.
+// the base rate for elite/champion/boss kills. CAS-1638 AC3 fix: the gate + unique pick draw
+// from the DEDICATED legRng stream, NEVER the authoritative srand — so the existing loot/spawn
+// sequence is byte-identical for a seed at ANY rate (the shared stream is provably untouched).
 function maybeLegendary(x, y, kindBias){
   if(forcedLeg){ const id=forcedLeg; forcedLeg=null; const inst=uniqInst(id); if(inst) dropGear(x, y, inst); return; }
   const rate=legRate*(kindBias>0?kindBias:1);
-  if(!(rate>0)) return;                                 // OFF / rate 0 → zero RNG, byte-identical
-  if(srand()>=(rate<1?rate:1)) return;                  // one srand ONLY on the live drop gate
-  const u=UNIQUES[Math.floor(srand()*UNIQUES.length)];  // uniform pick among the unique table
+  if(!(rate>0)) return;                                    // OFF / rate 0 → early out, no RNG at all
+  if(legRng.srand()>=(rate<1?rate:1)) return;              // dedicated-stream gate — shared srand untouched
+  const u=UNIQUES[Math.floor(legRng.srand()*UNIQUES.length)]; // dedicated-stream uniform pick
   dropGear(x, y, { slot:u.slot, defId:u.defId, rarity:"legendary", uniq:u.id });
 }
 
@@ -3322,8 +3329,9 @@ export const dev = {
   // weight:0, the 6 uniques and their mod-hooks, and the live drop rate.
   legendaryMeta(){ return { rate:LEGENDARY.rate, liveRate:legRate, def:Object.assign({},LEGENDARY),
     uniques:UNIQUES.map(u=>({id:u.id,name:u.name,slot:u.slot,defId:u.defId,mod:JSON.parse(JSON.stringify(u.mod))})) }; },
-  // RNG-neutrality seam: force the live legendary rate (0 → feature OFF, no srand drawn in maybeLegendary).
-  // Pass null to restore the shipped LEGENDARY.rate. Lets QA prove rate=0 ⇒ byte-identical drop stream.
+  // RNG-neutrality seam: force the live legendary rate (0 → feature OFF). CAS-1638: the roll draws
+  // from the dedicated legRng stream, so the shared srand is byte-identical at ANY rate; QA can prove
+  // it by diffing the drop stream at rate=0 vs the shipped rate (both identical for the same seed).
   setLegRate(r){ legRate=(r==null)?LEGENDARY.rate:Math.max(0,+r||0); return legRate; },
   // Live unique bundle read off the equipped instances (the ONLY scalar-mod reader; combat routes here).
   uniqTotals(){ return uniqTotals(G.hero); },
