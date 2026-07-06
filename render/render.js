@@ -2924,7 +2924,10 @@ export function createRenderer(ctx){
     // CAS-1664: in Arena de Oleadas the run's SCORE is the wave reached — surface it (and the best)
     // as a gold banner above the recap so the endgame result reads at a glance.
     if(G.arenaMode){ ctx.fillStyle=COL.textGold; ctx.font="bold 16px "+FF;
-      ctx.fillText("Oleada alcanzada: "+(G.arena.wave|0)+"  ·  Mejor: "+(G.arena.best|0), cx, y); y+=28; }
+      ctx.fillText("Oleada alcanzada: "+(G.arena.wave|0)+"  ·  Mejor: "+(G.arena.best|0), cx, y); y+=22;
+      // CAS-1675 — surface the persistent boss-wave record alongside the wave record.
+      ctx.fillStyle=COL.cream; ctx.font="13px "+FF;
+      ctx.fillText("Mejor Jefe: Oleada "+(G.arena.bestBossWave|0), cx, y); y+=24; }
     // recap summary panel — reads the frozen delta snapshot built at death (G.recap)
     const r=G.recap;
     if(r){
@@ -3269,8 +3272,11 @@ export function createRenderer(ctx){
     const aw=200,ah=42,ax=VW/2-aw/2,ay=by+bh+16; ui.menuArenaRect={x:ax,y:ay,w:aw,h:ah};
     ctx.fillStyle="#241d2e"; ctx.fillRect(ax,ay,aw,ah); ctx.fillStyle=COL.panelB; ctx.fillRect(ax,ay,aw,4); ctx.fillRect(ax,ay+ah-4,aw,4);
     ctx.fillStyle=COL.cream; ctx.font="bold 18px "+FF; ctx.fillText("Arena de Oleadas",VW/2,ay+27);
-    { const best=(G.arena&&G.arena.best|0)||0; // loaded at boot by persist.bootArena
-      if(best>0){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("Mejor oleada: "+best,VW/2,ay+ah+14); } }
+    { const best=(G.arena&&G.arena.best|0)||0, bestBoss=(G.arena&&G.arena.bestBossWave|0)||0; // loaded at boot by persist.bootArena
+      if(best>0){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
+        // CAS-1675 — show both persistent records under the Arena entry ($0 art, existing font).
+        const rec=bestBoss>0 ? ("Mejor oleada: "+best+"  ·  Mejor Jefe: Oleada "+bestBoss) : ("Mejor oleada: "+best);
+        ctx.fillText(rec,VW/2,ay+ah+14); } }
     ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.fillText(STR.controlsHintPC((a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a])),VW/2,VH-40);
     ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.version,VW/2,VH-18);
   }

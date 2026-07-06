@@ -364,6 +364,11 @@ export function createGame(canvas, ctx, getView){
       arenaSetWave:(n)=>simDev.arenaSetWave(n), arenaForceBossWave:()=>simDev.arenaForceBossWave(),
       arenaSetBossBonus:(x)=>simDev.arenaSetBossBonus(x), arenaLastPayoff:()=>simDev.arenaLastPayoff(),
       arenaKillBossWave:(k)=>simDev.arenaKillBossWave(k), arenaBossSrandProbe:(k,s,p)=>simDev.arenaBossSrandProbe(k,s,p),
+      // CAS-1675 persistent Arena records (tools/cas1675-arena-records.mjs) — MUST wire HERE (curated wrapper)
+      arenaGetRecords:()=>simDev.arenaGetRecords(), arenaSetRecords:(bw,bb)=>simDev.arenaSetRecords(bw,bb),
+      arenaRecordsPersist:(bw,bb)=>simDev.arenaRecordsPersist(bw,bb), arenaLastRecordPayoff:()=>simDev.arenaLastRecordPayoff(),
+      arenaRunBossWave:(k)=>simDev.arenaRunBossWave(k), arenaDeathPersistRecord:()=>simDev.arenaDeathPersistRecord(),
+      arenaRecordSrandProbe:(s,p)=>simDev.arenaRecordSrandProbe(s,p),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

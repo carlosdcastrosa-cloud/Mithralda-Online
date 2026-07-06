@@ -784,6 +784,9 @@ export const ARENA = {
   bossBonusDrops:1,      // BASE count of guaranteed EXTRA loot pieces on a boss kill (arenaBonusDropCount adds floor(k/2))
   bossBonusCap:4,        // cap on the extra-loot count as k climbs
   bossDropRareFloor:"rare", // min rarity of the extra loot (reuses rollGearInst tier 2-3 pool; no new tables)
+  // CAS-1675 — persistent Arena records. When a run's boss waves BEAT the stored bestBossWave, a
+  // ONE-TIME milestone payoff = ceil(bossRecordEssBase * wave) Esencia (pure arithmetic, 0 RNG).
+  bossRecordEssBase:10,
   // HUNTS zones whose `boss` block the arena reuses as its wave-boss stats. EXCLUDES `frost`
   // (its boss carries final:true → Stage-1 win) and `trial` (the optional post-finale world-boss),
   // so an arena boss never fires the victory screen and never gates on world-boss depth.

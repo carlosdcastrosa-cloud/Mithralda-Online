@@ -152,8 +152,11 @@ try {
     window.localStorage.setItem("mithralda.arena.v1", JSON.stringify(legacy));
     return { blob: r.blob, after: r.after, legacyKeys: Object.keys(legacy) };
   });
-  const shapeOk = persist.blob && persist.blob.v === 1 && Object.keys(persist.blob).sort().join(",") === "bestWave,v" && persist.after === 9;
-  if (shapeOk) pass(`AC6: save shape unchanged {v:1,bestWave} — round-trip best=${persist.after}; legacy save loads with no migration`);
+  // CAS-1675 additively extended the shape with bestBossWave (still v:1, bestWave intact) — accept a
+  // SUPERSET of {v,bestWave} so this regression stays green through additive record fields.
+  const shapeOk = persist.blob && persist.blob.v === 1 && persist.blob.bestWave === 9 &&
+    ["v","bestWave"].every((k) => k in persist.blob) && persist.after === 9;
+  if (shapeOk) pass(`AC6: save shape v:1 + bestWave intact (keys: ${Object.keys(persist.blob).sort().join(",")}) — round-trip best=${persist.after}; legacy save loads with no migration`);
   else fail(`AC6: save shape changed: ${JSON.stringify(persist.blob)} after=${persist.after}`);
 
   // ---------- PERF/AC6: 60fps in a live boss wave + zero page errors ----------

@@ -153,7 +153,10 @@ export const G = {
   arenaMode:false, pendingArena:false, arenaDirty:false,
   arena:{ wave:0, spawnedThisWave:0, aliveTarget:0, resting:false, restT:0, best:0,
     // CAS-1670 boss-wave telemetry (runtime-only, NOT serialized — additive, no save bump):
-    bossIncoming:false, lastTelegraphWave:0, lastBossK:0, lastBossEssBonus:0, lastBonusDrops:0 },
+    bossIncoming:false, lastTelegraphWave:0, lastBossK:0, lastBossEssBonus:0, lastBonusDrops:0,
+    // CAS-1675 persistent records — bestBossWave IS serialized (additive to arena.v1, no v bump);
+    // the rest are runtime-only (highest boss wave cleared THIS run + the once-per-run milestone payoff):
+    bestBossWave:0, runBestBossWave:0, bossRecordBaseline:0, bossRecordHit:false, lastRecordEssBonus:0 },
 };
 // CAS-128: armed at boot by the persistence controller when this is a FIRST run
 // (no save AND the tutorial-seen flag is unset). createHero() reads it once so the
@@ -698,6 +701,10 @@ function arenaEssence(n){ return Math.ceil((n|0)*ARENA.essStep); }
 function startArena(){ const A=G.arena;
   arenaClearEnemies(); G.projectiles.length=0; G.fields.length=0; G.drops.length=0; G.draft=null;
   A.spawnedThisWave=0; A.aliveTarget=0; A.resting=false; A.restT=0;
+  // CAS-1675 — snapshot the record baseline at run start so the milestone payoff fires at most once
+  // per run, only when this run's boss waves BEAT the stored record. runBestBossWave accumulates the
+  // highest boss wave CLEARED this run (banked to bestBossWave on death if it beats the record).
+  A.runBestBossWave=0; A.bossRecordBaseline=A.bestBossWave|0; A.bossRecordHit=false; A.lastRecordEssBonus=0;
   G.scene="play"; A.wave=1; spawnWave(1); // arena always begins IN play (createHero's later openAbilityDraft re-gates the loadout scene)
 }
 // The between-wave payoff: bank the wave's Esencia (immediate, survives death), heal the hero, and
@@ -712,7 +719,16 @@ function onWaveCleared(){ const A=G.arena, h=G.hero; if(!h) return;
   if(wasBoss){ const k=Math.max(1,(A.wave/ARENA.bossEvery)|0); const bonus=Math.ceil(ARENA.bossEssBase*k);
     if(bonus>0){ ensureMeta().essence=(ensureMeta().essence|0)+bonus; G.metaDirty=true; }
     A.lastBossK=k; A.lastBossEssBonus=bonus;
-    toast("¡Recompensa de Jefe! +"+bonus+" Esencia", 3.0); }
+    toast("¡Recompensa de Jefe! +"+bonus+" Esencia", 3.0);
+    // CAS-1675 — track the highest boss wave BEATEN this run (waves only climb → this is monotonic).
+    if(A.wave>(A.runBestBossWave|0)) A.runBestBossWave=A.wave|0;
+    // CAS-1675 — ONE-TIME milestone payoff when this run's boss waves surpass the stored record.
+    // Pure arithmetic (0 RNG → never touches srand; AC4 confound-free), on top of the boss bonus above.
+    if(!A.bossRecordHit && A.wave>(A.bossRecordBaseline|0)){
+      const rbonus=Math.ceil(ARENA.bossRecordEssBase*A.wave);
+      if(rbonus>0){ ensureMeta().essence=(ensureMeta().essence|0)+rbonus; G.metaDirty=true; }
+      A.bossRecordHit=true; A.lastRecordEssBonus=rbonus;
+      toast("¡Nuevo récord de Jefe! +"+rbonus+" Esencia", 3.0); } }
   const mhp=heroMaxHp(h); if(h.hp<mhp && h.hp>0) h.hp=Math.min(mhp, h.hp+Math.round(mhp*ARENA.healFrac)); // AC3: rest heal
   A.spawnedThisWave=0; A.resting=true; A.restT=ARENA.restSeconds;
   // CAS-1670 — heads-up telegraph DURING the respiro when the NEXT wave will be a boss wave.
@@ -736,11 +752,17 @@ function tickArena(dt){ const A=G.arena, h=G.hero; if(!h) return;
 // Hero death ends the arena run: the highest wave REACHED is the score; persist it as the new best
 // (own store, additive) if it beats the record. Called from heroDie (arena branch only).
 function arenaOnDeath(){ const A=G.arena;
-  if(A.wave>A.best){ A.best=A.wave; G.arenaDirty=true; } }
+  if(A.wave>A.best){ A.best=A.wave; G.arenaDirty=true; }
+  // CAS-1675 — bank the run's highest boss wave as the new record if it beats the stored best.
+  if((A.runBestBossWave|0)>(A.bestBossWave|0)){ A.bestBossWave=A.runBestBossWave|0; G.arenaDirty=true; } }
 // Additive Arena persistence (mirror of serializeMeta/loadMeta): the sim owns the shape, persist.js
-// owns the localStorage medium + the arenaDirty flush. `bestWave` is the only durable arena state.
-export function serializeArena(){ return { v:1, bestWave:G.arena.best|0 }; }
-export function loadArena(d){ G.arena.best = (d && Number.isFinite(+d.bestWave)) ? Math.max(0, Math.floor(+d.bestWave)) : 0; return G.arena.best; }
+// owns the localStorage medium + the arenaDirty flush. bestWave + bestBossWave (CAS-1675) are the
+// durable arena state. NOTE: the shape stays v:1 — bestBossWave is additive (absent ⇒ 0 on load).
+export function serializeArena(){ return { v:1, bestWave:G.arena.best|0, bestBossWave:G.arena.bestBossWave|0 }; }
+export function loadArena(d){
+  G.arena.best = (d && Number.isFinite(+d.bestWave)) ? Math.max(0, Math.floor(+d.bestWave)) : 0;
+  G.arena.bestBossWave = (d && Number.isFinite(+d.bestBossWave)) ? Math.max(0, Math.floor(+d.bestBossWave)) : 0; // additive: legacy arena.v1 (no field) ⇒ 0
+  return G.arena.best; }
 // ================== end CAS-1664 Arena de Oleadas ==================
 
 // --------------------- CAS-128: onboarding tutorial ---------------------
@@ -3931,6 +3953,44 @@ export const dev = {
     const probe=[]; for(let i=0;i<probeN;i++) probe.push(+srand().toFixed(9));
     return { k, bossBonus:ARENA.bossBonusDrops|0, bonusDrops:G.arena.lastBonusDrops|0,
       gearDropsAdded:G.drops.slice(dBefore).filter(d=>d.kind==="gear").length, srandProbe:probe }; },
+  // --- CAS-1675 Persistent Arena records harness hooks (tools/cas1675-arena-records.mjs); additive ---
+  // Read both durable records (loaded at boot by persist.bootArena → G.arena). AC1/AC2.
+  arenaGetRecords(){ return { bestWave:G.arena.best|0, bestBossWave:G.arena.bestBossWave|0 }; },
+  // Set both record fields directly (for the RNG-neutral A/B baseline + display probes). AC1b/AC4.
+  arenaSetRecords(bestWave, bestBossWave){ G.arena.best=Math.max(0,bestWave|0); G.arena.bestBossWave=Math.max(0,bestBossWave|0); return this.arenaGetRecords(); },
+  // AC1: serialize→load BOTH records through the REAL persistence pair (mirror of arenaPersist). Proves
+  // the additive load (bestBossWave round-trips; a legacy blob without it loads as 0).
+  arenaRecordsPersist(bestWave, bestBossWave){ G.arena.best=Math.max(0,bestWave|0); G.arena.bestBossWave=Math.max(0,bestBossWave|0);
+    const blob=JSON.parse(JSON.stringify(serializeArena()));
+    G.arena.best=0; G.arena.bestBossWave=0; loadArena(blob);
+    return { wrote:{ bestWave:bestWave|0, bestBossWave:bestBossWave|0 }, blob, after:{ bestWave:G.arena.best|0, bestBossWave:G.arena.bestBossWave|0 } }; },
+  // AC1b/AC3: read the last milestone payoff + the run/record state (hit fires at most once per run).
+  arenaLastRecordPayoff(){ const A=G.arena; return { hit:!!A.bossRecordHit, essBonus:A.lastRecordEssBonus|0,
+    bestBossWave:A.bestBossWave|0, runBestBossWave:A.runBestBossWave|0, baseline:A.bossRecordBaseline|0 }; },
+  // AC3: run a REAL boss-wave clear through onWaveCleared and report whether the milestone paid out.
+  // Snapshots the baseline from the CURRENT bestBossWave (set the record via arenaSetRecords first),
+  // then clears boss wave `k*bossEvery`. Milestone fires iff that wave beats the record AND not yet hit.
+  arenaRunBossWave(k){ k=Math.max(1,k|0); const A=G.arena; G.arenaMode=true;
+    if(A.runBestBossWave===0){ A.bossRecordBaseline=A.bestBossWave|0; A.bossRecordHit=false; A.lastRecordEssBonus=0; }
+    const n=k*ARENA.bossEvery; A.wave=n; A.spawnedThisWave=1; arenaClearEnemies();
+    const before=ensureMeta().essence|0; onWaveCleared();
+    return { k, wave:n, baseline:A.bossRecordBaseline|0, recordHit:!!A.bossRecordHit, recordBonus:A.lastRecordEssBonus|0,
+      runBestBossWave:A.runBestBossWave|0, essGain:(ensureMeta().essence|0)-before }; },
+  // AC1b: drive the run's record through the REAL arenaOnDeath persist gate. Reports the pre/post
+  // bestBossWave so QA proves it banks ONLY when runBestBossWave beats the stored record.
+  arenaDeathPersistRecord(){ const A=G.arena; const before=A.bestBossWave|0; arenaOnDeath();
+    return { runBestBossWave:A.runBestBossWave|0, bestBossWaveBefore:before, bestBossWaveAfter:A.bestBossWave|0 }; },
+  // [AC-RNG-STRONG]: seed srand, cross a boss-wave MILESTONE (record present vs absent — set via
+  // arenaSetRecords beforehand) through the REAL onWaveCleared, then sample `probeN` raw srand()
+  // outputs. The milestone bonus is arithmetic Esencia (never srand) → the probe is byte-identical
+  // whether or not the milestone paid out. Mirror of arenaBossSrandProbe.
+  arenaRecordSrandProbe(seedVal, probeN){ probeN=Math.max(4,probeN|0); const A=G.arena; G.arenaMode=true;
+    if(seedVal!=null) seed(seedVal>>>0);
+    A.runBestBossWave=0; A.bossRecordBaseline=A.bestBossWave|0; A.bossRecordHit=false; A.lastRecordEssBonus=0;
+    const n=ARENA.bossEvery; A.wave=n; A.spawnedThisWave=1; arenaClearEnemies();
+    onWaveCleared();                                          // crosses milestone iff n > baseline (0 RNG)
+    const probe=[]; for(let i=0;i<probeN;i++) probe.push(+srand().toFixed(9));
+    return { baseline:A.bossRecordBaseline|0, recordHit:!!A.bossRecordHit, essBonus:A.lastRecordEssBonus|0, srandProbe:probe }; },
   // --- CAS-1586 AURA GÉLIDA + Esencia tie-in harness hooks (tools/cas1586-frost-live.mjs) ---
   // Clean arena, force ONE frost mob, place the FROZEN mob `dist` px from the hero, tick the REAL
   // update() a few frames, then report the hero's slow channel + resulting effective movespeed.
