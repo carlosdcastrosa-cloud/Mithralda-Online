@@ -213,26 +213,42 @@ async function runOnce(label, viewport, headHashes) {
   // setCounts is the exact live read-out the tooltip/inventory draws from (render.js ◈ name (n/3) + 2pz/3pz ✓)
   const ui = await page.evaluate(() => {
     window.__dev.equipSet(["vigia_arma","vigia_cuerpo","vigia_escudo"]);
-    const c3 = window.__dev.setCounts(); const m = window.__dev.setMeta();
+    const c3 = window.__dev.setCounts(); const m = window.__dev.setMeta();   // m.sets = [{id,name,b2,b3}, ...] (SET_ORDER)
     window.__dev.equipSet(["cazador_arma","cazador_cuerpo"]); const c2 = window.__dev.setCounts();
-    window.__dev.equipSet([]); return { c3, c2, name: m && m.sets && m.sets.vigia && m.sets.vigia.name };
+    window.__dev.equipSet([]);
+    const vigiaName = (m.sets.find(s => s.id === "vigia") || {}).name;
+    const allNamed = m.sets.length === 3 && m.sets.every(s => !!s.name);
+    return { c3, c2, name: vigiaName, allNamed };
   });
-  gate("AC3.uiCounts", ui.c3.vigia === 3 && ui.c2.cazador === 2 && !!ui.name,
-    `setCounts drives UI: full=${JSON.stringify(ui.c3)} partial=${JSON.stringify(ui.c2)} name="${ui.name}"`);
+  // The tooltip/inventory (render.js ◈ SETS[id].name (n/3) + 2pz/3pz ✓) reads setCounts (n/3) + SETS[id].name.
+  gate("AC3.uiCounts", ui.c3.vigia === 3 && ui.c2.cazador === 2 && !!ui.name && ui.allNamed,
+    `setCounts drives UI: full=${JSON.stringify(ui.c3)} partial=${JSON.stringify(ui.c2)} name="${ui.name}" all3Named=${ui.allNamed}`);
 
   // ======================= AC4: [AC-RNG-STRONG] byte-identical =============
-  // dropStream with set pool OFF (rate 0) vs full-rate must be byte-identical: the roll draws the
-  // dedicated setRng stream, never the shared srand. Reseed identically before each.
+  // dropStream() output INCLUDES the set pieces it drops (set!=null), so a raw rate-0 vs rate-1
+  // compare naturally differs BY those extra set drops — that is expected. The real invariant is:
+  // the SHARED-srand loot (the non-set drops: kind/rarity/tier/uniq) is byte-identical at ANY rate,
+  // because the set roll draws a DEDICATED setRng stream and never the shared srand. So filter out
+  // set entries and compare the non-set stream; also confirm rate 1 actually produced set drops
+  // (feature genuinely on) and rate 0 produced none (feature genuinely off). dropStream(seed) reseeds
+  // the shared srand identically for both; seed() intentionally does NOT reset setRng (append-only).
+  // CONFOUND (CAS-1650): legendaries drop from their OWN dedicated legRng stream that seed() does NOT
+  // reset either, so between two dropStream calls the legRng advances and legendary (non-set) drops
+  // drift — a FALSE non-set DRIFT that has nothing to do with the set stream. Silence it with
+  // setLegRate(0) before BOTH streams (exactly as the headless tools/cas1653-sets.mjs does) so the
+  // ONLY thing that can differ is the appended set pieces. Then strip set entries and compare.
   const rng = await page.evaluate(() => {
-    const stream = (rate) => { window.__dev.seed(0xA11CE); window.__dev.setSetRate(rate); return window.__dev.dropStream(400, 0xA11CE); };
-    const off = stream(0);        // feature effectively off
-    const on = stream(1);         // full set-drop rate
-    window.__dev.setSetRate(null); // restore default
-    const s = (x) => (typeof x === "string" ? x : JSON.stringify(x));
-    return { off: s(off), on: s(on), same: s(off) === s(on) };
+    const stream = (rate) => { window.__dev.setLegRate(0); window.__dev.setSetRate(rate); return window.__dev.dropStream(700, 424242); };
+    const off = stream(0);          // set pool OFF
+    const on = stream(0.6);         // set pool ON (matches headless proven config)
+    window.__dev.setLegRate(null); window.__dev.setSetRate(null); // restore defaults
+    const nonSet = (arr) => JSON.stringify(arr.filter((d) => d.set == null));
+    return { sameNonSet: nonSet(off) === nonSet(on),
+      offSetDrops: off.filter((d) => d.set != null).length,
+      onSetDrops: on.filter((d) => d.set != null).length, n: on.length };
   });
-  gate("AC4.rngNeutral", rng.same === true,
-    `dropStream byte-identical setRate 0 vs full: ${rng.same ? "IDENTICAL" : "DRIFT"} (dedicated setRng, shared srand untouched)`);
+  gate("AC4.rngNeutral", rng.sameNonSet === true && rng.offSetDrops === 0 && rng.onSetDrops > 0,
+    `shared-srand loot byte-identical rate0 vs rate1 (non-set drops): ${rng.sameNonSet ? "IDENTICAL" : "DRIFT"}; setDrops rate0=${rng.offSetDrops} rate1=${rng.onSetDrops} of ${rng.n} (dedicated setRng only, srand untouched)`);
 
   // ======================= AC5: additive saves ============================
   // a legacy save with NO set fields loads clean; a set-bearing save persists membership after reload
