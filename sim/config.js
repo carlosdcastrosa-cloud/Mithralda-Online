@@ -526,6 +526,15 @@ export const CONSUMABLES = [
   { id:"greater",  name:"Poción mayor",    short:"Mayor",  icon:"♥", col:"#5fd66a",
     price:50, cd:12, healFrac:0.6, sfx:"heal",
     desc:"cura 60% de vida máx." },
+  // CAS-1628 — PARITY with `greater` on the MANA axis: the mana potion the CEO board bug
+  // flagged as missing from the potion bar. `manaFrac` restores this fraction of MAX mana,
+  // read by doConsumable exactly like healFrac restores HP. Same price/cd as `greater` so
+  // the two flasks are balance-symmetric (60% of the pool, 12s cd). $0 art: the shared flask
+  // PNG is tinted by `col` (mana-blue) via the same consumIcon recipe as every other slot.
+  // Appended at the TAIL so fury/antidote/greater keep their indices (consumSel stays valid).
+  { id:"mana",     name:"Poción de maná",  short:"Maná",   icon:"◆", col:"#5a8aff",
+    price:50, cd:12, manaFrac:0.6, sfx:"cast",
+    desc:"restaura 60% de maná máx." },
 ];
 
 // Per-zone difficulty TIER (CAS-73): the natural-spawn trash of each hunt zone is

@@ -224,7 +224,7 @@ function newHero(name,cls){
     // persisted additively; consumSel = the slot bound to the use key; consumCD = the
     // PER-CONSUMABLE cooldown map (id→seconds), so using furia never locks out antídoto.
     // A small starter stash makes the slot legible from minute one. consumCD is transient.
-    consum:{fury:0, antidote:1, greater:1}, consumSel:0, consumCD:{},
+    consum:{fury:0, antidote:1, greater:1, mana:1}, consumSel:0, consumCD:{}, // CAS-1628: mana potion in starter stash (parity w/ greater)
     // CAS-112: persistent merchant-shop upgrade tiers (gold sink). Each bought tier
     // permanently bumps baseDmg / maxHp / defBonus — see shopItems()/buyItem().
     upg:{dmg:0, hp:0, def:0},
@@ -2085,6 +2085,8 @@ export function doConsumable(){ const h=G.hero; if(!h||G.scene!=="play") return 
   if(c.purge){ h.dots=null; h.slowT=0; h.slow=1; floater(h.x,h.y-30,STR.consumPurged,c.col); }
   // heal — poción mayor restores a fraction of MAX hp (scaled heal over the base 50)
   if(c.healFrac){ const mhp=heroMaxHp(h); const amt=Math.round(mhp*c.healFrac); h.hp=Math.min(mhp,h.hp+amt); floater(h.x,h.y-30,"+"+amt,c.col); }
+  // CAS-1628 — mana potion PARITY: restore a fraction of MAX mana (exact mirror of healFrac)
+  if(c.manaFrac){ const mmp=h.maxMp; const amt=Math.round(mmp*c.manaFrac); h.mp=Math.min(mmp,h.mp+amt); floater(h.x,h.y-30,"+"+amt,c.col); }
   // buff — furia grants the short timed atkspd bonus the swing formula reads; dmg reuses applyBuff
   if(c.buff){ if(c.buff.stat==="atkspd"){ h.atkspdBuffT=c.buff.dur; h.atkspdBuffAmt=c.buff.amt; }
     else if(c.buff.stat==="dmg"){ applyBuff(h,"dmg",c.buff.amt,c.buff.dur); }
