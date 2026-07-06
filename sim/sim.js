@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -52,6 +52,11 @@ const legRng = createRNG(0x1a2b3c4d);
 // the authoritative srand, so with the set pool off (setRate=0) the sim is
 // byte-identical to a build without sets — RNG-neutral by construction (AC4).
 const setRng = createRNG(0x5e75c0de);
+// CAS-1659 — DEDICATED Ultimate-draft stream (distinct seed from leg/set). The run-start 1-of-3
+// offer draws ONLY from this stream, never the authoritative srand, so a run's main sequence is
+// byte-identical whether or not an Ultimate is offered/drafted (AC4 [AC-RNG-STRONG]). Append-only.
+// Charge accrual (hitEnemy/killEnemy) is pure arithmetic — no RNG at all.
+const ultRng = createRNG(0x117a1a7e);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -175,6 +180,10 @@ function newHero(name,cls){
     // never collide with the class-spell slots; `loadout` holds the 2 chosen ability ids
     // (defaulted here, overwritten by the run-start draft). Transient — never serialized.
     abilCD:[0,0], abilCDmax:[0,0], loadout:DEFAULT_LOADOUT.slice(),
+    // CAS-1659: HABILIDAD DEFINITIVA. `ultId` = the drafted Ultimate for this run (null = none →
+    // RNG-neutral baseline, no charge cost); `ultCharge` = normalized meter 0..1, filled by combat
+    // (arithmetic only). ultId persists per-run (serializeSave); a fresh hero starts with none.
+    ultId:null, ultCharge:0,
     dmgBuffT:0, dmgBuffAmt:0, defBuffT:0, defBuffAmt:0, hotT:0, hotRate:0,
     // CAS-192: short timed attack-speed bonus from the "furia" consumable. Read by the
     // attack-cooldown formula (alongside CAS-117 affix / CAS-119 talent atkspd); ticks
@@ -918,6 +927,9 @@ export function serializeSave(){
     // Additive — old saves lack it → empty list → zero bundle. A death/new run wipes them
     // (respawn/createHero), so a fresh run never inherits a prior run's boons.
     boons:(h.boons||[]).slice(),
+    // CAS-1659: persist the run's drafted Ultimate + its charge so a same-run reload keeps them.
+    // Additive — old saves lack `ult` → default null → RNG-neutral baseline. NO SAVE_VERSION bump.
+    ult:h.ultId||null, ultCharge:h.ultCharge||0,
     // CAS-392: persist the run's draft-agency charges + banished pool so a same-run reload (e.g. a
     // refresh mid-draft) keeps them. Additive — old saves lack them → default to a fresh 1/1 budget
     // + empty banished. Reset on death/new run (respawn) like boons, so nothing leaks across runs.
@@ -982,6 +994,9 @@ export function loadSave(d){
     h.affixKills=Math.max(0,Math.floor(num(d.affixKills,0))); // CAS-1586 (additive lifetime counter; absent in old saves → 0)
     h.champElites=Math.max(0,Math.floor(num(d.champElites,0))); // CAS-1590 (additive lifetime counter; absent in old saves → 0)
     h.boons=sanitizeBoons(d.boons); recalcBoons(h); // CAS-383: rehydrate current-run boons (validated ids) + rebuild bundle BEFORE heroMaxHp reads it
+    // CAS-1659: rehydrate the drafted Ultimate (validated against ULTIMATE_MAP; old saves lack
+    // `d.ult` → null → RNG-neutral baseline). Charge clamped 0..1, forced 0 when no ultimate.
+    h.ultId=(d.ult && ULTIMATE_MAP[d.ult])?d.ult:null; h.ultCharge=h.ultId?Math.max(0,Math.min(1,num(d.ultCharge,0))):0;
     // CAS-392: rehydrate the draft-agency budget + banished pool (clamped; absent in old saves →
     // fresh 1/1). banished re-validated against BOON_MAP (sanitizeBoons) so a corrupt blob can't
     // poison the pool with unknown ids.
@@ -1374,6 +1389,9 @@ function hitEnemy(e,dmg,ang){
   // veneno every hit; a stun-chance build aturde on a srand roll. Both reuse CAS-118.
   if(tt){ const tp=talentPoison(tt); if(tp) applyStatus(e,"poison",tp);
     if(tt.stunChance>0 && srand()*100<tt.stunChance) applyStatus(e,"stun"); }
+  // CAS-1659: charge the Ultimate meter from damage dealt (∝ final post-crit dmg). PURE arithmetic,
+  // gated behind a drafted ultimate so a no-Ultimate run touches NOTHING — RNG-neutral + zero cost.
+  if(G.hero && G.hero.ultId) G.hero.ultCharge=Math.min(1, (G.hero.ultCharge||0) + dmg*ULT_CHARGE_PER_DMG);
   if(e.tpl.neutral && !e.hostile){ makeHostile(e); registerSkull(); }
   if(e.hp<=0) killEnemy(e);
   else if(e.tpl.neutral) { /* stays hostile */ }
@@ -1390,6 +1408,9 @@ function killEnemy(e){
   if(e.dead) return; e.dead=true;
   freeze(e.isBoss?9:(e.champion?8:5)); // kill confirm — boss/champion deaths land heaviest
   const tpl=e.tpl; const zone=zoneOf(world,e.x,e.y);
+  // CAS-1659: flat Ultimate-charge bump on a real kill (arithmetic, no RNG; gated on a drafted
+  // ultimate so a no-Ultimate run is byte-identical). Neutral (non-hostile) deaths don't count.
+  if(G.hero && G.hero.ultId && !tpl.neutral) G.hero.ultCharge=Math.min(1, (G.hero.ultCharge||0) + ULT_CHARGE_PER_KILL);
   // CAS-134: bump the monotonic daily-contract tallies (pure counters; observer-read only).
   if(G.hero && !tpl.neutral){ G.hero.kills=(G.hero.kills|0)+1; if(e.isBoss||e.champion) G.hero.champKills=(G.hero.champKills|0)+1;
     // CAS-375: per-type tally for directed bounties. e.type is the base mob key (a champion/
@@ -1813,6 +1834,44 @@ export function castAbility(slot){
   resolveSpell(h,sp);
   tutMark("skill");
 }
+// CAS-1659 — unleash the drafted HABILIDAD DEFINITIVA. Modeled on castAbility, but gated on a FULL
+// charge meter (not mana, not a timed CD): casting consumes the whole meter to 0 — refilling it IS
+// the cooldown. Reuses resolveSpell (nova/field/buff+heal/chain) so there is ZERO new combat code.
+// No-op (with deny feedback) when no ultimate is drafted or the meter isn't full. Returns whether it fired.
+export function castUltimate(){
+  const h=G.hero; if(!h||h.rolling||h.stun>0) return false;
+  if(!h.ultId) return false;                                     // no drafted ultimate → nothing to cast
+  const sp=ULTIMATE_MAP[h.ultId]; if(!sp) return false;
+  if((h.ultCharge||0)<1){ toast("Definitiva cargando… "+Math.round((h.ultCharge||0)*100)+"%"); if(audio.sfx.deny) audio.sfx.deny(); return false; }
+  h.ultCharge=0;                                                 // consume the full meter (CD-by-charge)
+  h.specialAnim=SPECIAL_ANIM_DUR; h.hurtAnim=0;
+  if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
+  resolveSpell(h,sp);
+  floater(h.x,h.y-52,"★ "+sp.name,sp.col||"#ffd24d",{pop:1.9,life:1.3}); shakeAdd(6);
+  tutMark("skill");
+  return true;
+}
+// CAS-1659 — the Ultimate pool + run-start 1-of-3 offer. The offer draws ONLY from the dedicated
+// `ultRng` stream (append-only, never the shared srand) so the main sim sequence is byte-identical
+// whether or not an ultimate is offered/drafted. `ultRate` (dev setUltRate) neutralizes/scales the
+// offer for the determinism harness — mirror of setLegRate/setSetRate.
+let ultRate=1;
+export function ultimatePool(){ return ULTIMATES; }
+function rollUltimateOffer(){
+  if(ultRate<=0) return [];                                      // neutralized (determinism harness)
+  const pool=ULTIMATES.slice(), n=Math.min(ULT_OFFER_N, pool.length), out=[];
+  for(let k=0;k<n;k++){ const i=Math.floor(ultRng.srand()*pool.length); out.push(pool.splice(i,1)[0].id); } // dedicated-stream uniform pick, no repeats
+  return out;
+}
+// Draw the run-start offer into G (consumed by the ability-select scene). Falls back to the first
+// ULT_OFFER_N ultimates if the offer is empty (e.g. rate neutralized) so the UI always shows a pick.
+export function openUltimateOffer(){
+  let off=rollUltimateOffer(); if(!off.length) off=ULTIMATES.slice(0,ULT_OFFER_N).map(u=>u.id);
+  G.ultOffer=off; G.ultSel=0; return off.slice();
+}
+// Bank the chosen ultimate for the run (validated; unknown id → none). Resets the meter.
+export function chooseUltimate(id){ const h=G.hero; if(!h) return null;
+  h.ultId=(id && ULTIMATE_MAP[id])?id:null; h.ultCharge=0; return h.ultId; }
 // CAS-120: a class skill's hit deals its base + the hero's BUILD damage — the talent
 // flat +daño (CAS-119, cached in h.tt) plus the affix +daño on equipped gear (CAS-117).
 // So a +daño build visibly empowers SKILLS, not just the basic attack; both inputs are
@@ -1853,6 +1912,9 @@ function resolveSpell(h,sp){
       addFx(sp.fx||"buffaura",h.x,h.y,{col:sp.col,life:0.5}); break;
     case "buff":
       applyBuff(h,sp.stat,sp.amt,sp.dur); floater(h.x,h.y-30, sp.stat==="dmg"?STR.spellAtkUp:STR.spellDefUp, sp.col||"#ffd24d");
+      // CAS-1659: a buff may ALSO carry an instant heal (Bastión ultimate = def buff + big heal).
+      // Additive/optional — un-healed buffs (Égida/Furia have no sp.heal) are unchanged. No RNG.
+      if(sp.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-46,"+"+sp.heal,"#5fd66a"); }
       addFx(sp.fx||"buffaura",h.x,h.y,{col:sp.col,life:0.5}); break;
     case "dash": {
       const sd=spellDmg(h,sp);
@@ -3536,6 +3598,74 @@ export const dev = {
     const h2=G.hero;
     return { ok, before, after:{ counts:setCounts(h2), maxHp:heroMaxHp(h2),
       equip:{ weapon:(h2.equip.weapon&&h2.equip.weapon.set)||null, body:(h2.equip.body&&h2.equip.body.set)||null, shield:(h2.equip.shield&&h2.equip.shield.set)||null } } }; },
+  // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
+  // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
+  ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,
+    ults:ULTIMATES.map(u=>({id:u.id,name:u.name,glyph:u.glyph,type:u.type,heal:u.heal||0,jumps:u.jumps||0,range:u.range||0})) }; },
+  // Live meter read: drafted id, normalized charge, and whether it's ready to unleash.
+  ultimateState(){ const h=G.hero; if(!h) return null;
+    return { id:h.ultId||null, charge:+((h.ultCharge||0).toFixed(4)), ready:!!(h.ultId && (h.ultCharge||0)>=1) }; },
+  // Force a drafted ultimate for the run (QA: verify each effect). Resets the meter.
+  setUltId(id){ return chooseUltimate(id); },
+  // Fill the meter to full (QA: verify unleash + consume). No-op without a drafted ultimate.
+  fillUltimate(){ const h=G.hero; if(!h) return null; if(h.ultId) h.ultCharge=1; return this.ultimateState(); },
+  // RNG-neutrality seam: scale/neutralize the run-start offer roll (0 → no offer). The offer draws
+  // from the dedicated ultRng stream, so the shared srand is byte-identical at ANY rate. Mirror of setLegRate/setSetRate.
+  setUltRate(x){ ultRate=(x==null)?1:Math.max(0,+x||0); return ultRate; },
+  // Draw a run-start offer through the REAL ultRng path (consumes ONLY ultRng, never srand).
+  ultOffer(){ return openUltimateOffer(); },
+  // Unleash through the REAL castUltimate path; report whether it fired + the resulting meter.
+  castUltimate(){ const fired=castUltimate(); return { fired, state:this.ultimateState() }; },
+  // AC2: fill → cast → assert an effect landed. Enemy: nova/field/chain damage; buff: hero heal/def.
+  // Spawns a fresh dummy in range, fills, casts, and reports enemy HP delta + hero heal/def + meter.
+  ultCastProbe(id){ const h=G.hero; if(!h) return null;
+    chooseUltimate(id); if(!h.ultId) return { id:null };
+    // clear any live buff sink so the def-buff delta reads clean (applyBuff SWAPS same-stat buffs).
+    if(h.defBuffT>0){ h.defBonus-=h.defBuffAmt; h.defBuffT=0; h.defBuffAmt=0; }
+    if(h.dmgBuffT>0){ h.dmgBonus-=h.dmgBuffAmt; h.dmgBuffT=0; h.dmgBuffAmt=0; }
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0;
+    const e=spawnEnemy("skeleton", h.x+40, h.y); if(e){ e.hp=1e9; e.maxHp=1e9; }
+    const sp=ULTIMATE_MAP[h.ultId]||{};
+    h.maxHp=Math.max(h.maxHp,1000); h.hp=Math.max(1,h.hp-300); const hp0=h.hp, def0=h.defBonus||0, ehp0=e?e.hp:0;
+    h.ultCharge=1; const fired=castUltimate();
+    // fields deal an immediate plant tick; give one more update for the DoT to register too.
+    if(sp.type==="field") update(16);
+    const eDelta=e?Math.round(ehp0-e.hp):0, heal=Math.round(h.hp-hp0), defUp=(h.defBonus||0)-def0;
+    return { id:h.ultId, type:sp.type, fired, chargeAfter:+((h.ultCharge||0).toFixed(4)),
+      enemyDamage:eDelta, heroHeal:heal, defBuff:defUp, fields:G.fields.length }; },
+  // Persistence probe: draft an ultimate + set a partial charge, serialize→load through the REAL save
+  // path, report survival (AC5: drafted ultimate persists; a pre-ultimate save loads clean → null).
+  ultPersist(id, charge){ const h=G.hero; if(!h) return null;
+    chooseUltimate(id); h.ultCharge=Math.max(0,Math.min(1,+charge||0));
+    const before={ id:h.ultId||null, charge:+((h.ultCharge||0).toFixed(4)) };
+    const blob=JSON.parse(JSON.stringify(serializeSave())); const ok=loadSave(blob); const h2=G.hero;
+    return { ok, before, after:{ id:h2.ultId||null, charge:+((h2.ultCharge||0).toFixed(4)) } }; },
+  // AC5b: a pre-ultimate save (blob with no `ult` key) loads clean → ultId null (RNG-neutral baseline).
+  ultLoadLegacy(){ const blob=JSON.parse(JSON.stringify(serializeSave())); delete blob.ult; delete blob.ultCharge;
+    const ok=loadSave(blob); return { ok, id:G.hero.ultId||null, charge:G.hero.ultCharge||0 }; },
+  // AC4 [AC-RNG-STRONG]: run the SAME forced spawn-hit-kill loot sequence with vs without a drafted
+  // ultimate. Charge accrues (hitEnemy/killEnemy) ONLY when ultId is set, but that's pure arithmetic —
+  // so the srand-driven loot stream MUST be byte-identical. Proves the gated charge math + dedicated
+  // ultRng never perturb the shared authoritative stream. Returns the drop stream + the charge reached.
+  ultChargeStream(n, seedVal, ultId){ if(seedVal!=null) seed(seedVal); n=Math.max(1,n|0);
+    const h=G.hero, savedU=h.ultId, savedC=h.ultCharge;
+    h.ultId=(ultId && ULTIMATE_MAP[ultId])?ultId:null; h.ultCharge=0;
+    const out=[];
+    for(let i=0;i<n;i++){ const before=G.drops.length; const e=spawnEnemy("skeleton",-8600-i,-8600); if(!e) continue;
+      e.hp=40; e.maxHp=40; hitEnemy(e, 40, Math.PI);              // REAL damage path → charge accrues if ultId (arithmetic)
+      if(!e.dead){ e.hp=0; killEnemy(e); }                        // ensure the kill (loot rolls on srand) fires exactly once
+      for(const d of G.drops.slice(before)) out.push({kind:d.kind, rarity:d.rarity||null, tier:d.tier||0, uniq:(d.inst&&d.inst.uniq)||null, set:(d.inst&&d.inst.set)||null}); }
+    const charge=+((h.ultCharge||0).toFixed(4)); h.ultId=savedU; h.ultCharge=savedC;
+    return { stream:out, charge }; },
+  // Draw K offers from ultRng, then a loot stream on srand — proves drawing offers doesn't shift srand
+  // (feature-ON draft vs OFF baseline). Mirror of the set/leg append-only proof.
+  ultDraftNeutral(draws, n, seedVal){ if(seedVal!=null) seed(seedVal); draws=Math.max(0,draws|0); n=Math.max(1,n|0);
+    for(let k=0;k<draws;k++) rollUltimateOffer();               // consume ultRng ONLY (never srand)
+    const out=[];
+    for(let i=0;i<n;i++){ const before=G.drops.length; const e=spawnEnemy("skeleton",-8800-i,-8800); if(!e) continue;
+      e.hp=0; killEnemy(e);
+      for(const d of G.drops.slice(before)) out.push({kind:d.kind, rarity:d.rarity||null, tier:d.tier||0, uniq:(d.inst&&d.inst.uniq)||null, set:(d.inst&&d.inst.set)||null}); }
+    return out; },
   // --- CAS-1586 AURA GÉLIDA + Esencia tie-in harness hooks (tools/cas1586-frost-live.mjs) ---
   // Clean arena, force ONE frost mob, place the FROZEN mob `dist` px from the hero, tick the REAL
   // update() a few frames, then report the hero's slow channel + resulting effective movespeed.

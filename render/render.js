@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts } from "../sim/gear.js";
@@ -1638,6 +1638,7 @@ export function createRenderer(ctx){
     // spell bar
     renderSpellBar();
     renderAbilityBar(); // CAS-1570: the 2 drafted active-ability slots (radial cooldown)
+    renderUltimateMeter(h); // CAS-1659: HABILIDAD DEFINITIVA charge meter + "listo" indicator
     renderVitalsShoulders(h, mhp); // CAS-1611: HP/MP "hombreras" flanking the action bar
     // minimap
     if(!isTouch || true) renderMiniMap();
@@ -1825,6 +1826,27 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.out; ctx.font="bold 12px "+FF; ctx.textAlign="left"; ctx.fillText(keys[i],x+3,y+13);
       ctx.fillStyle=COL.cream; ctx.font="8px "+FF; ctx.textAlign="center"; ctx.fillText(a.name||"",x+s/2,y+s-4);
       if((a.cost||0)>0){ ctx.fillStyle=afford?"#8ab8ff":"#ff6b6b"; ctx.font="8px "+FF; ctx.fillText((a.cost)+"mp",x+s/2,y+s+9); } }
+    ctx.textAlign="left";
+  }
+  // CAS-1659 — HABILIDAD DEFINITIVA meter (desktop): a slim charge bar centred ABOVE the action bar,
+  // with the ultimate glyph, a live % while charging, and a pulsing "¡LISTO! [C]" once full. Its own
+  // HUD element (not an 8th action-bar slot). Only drawn when the run has a drafted ultimate. $0 art.
+  function renderUltimateMeter(h){ if(!h||!h.ultId||isTouch) return;
+    const u=ULTIMATE_MAP[h.ultId]||{}; const g=actionBarGeom();
+    const w=Math.round(g.total*0.62), bh=13, x=Math.round(g.x0+g.total/2-w/2), y=g.y-30;
+    const f=clamp(h.ultCharge||0,0,1), ready=f>=1, col=u.col||"#ffd24d";
+    ctx.fillStyle=COL.out; ctx.fillRect(x-3,y-3,w+6,bh+6);                 // frame
+    ctx.fillStyle="#12161f"; ctx.fillRect(x,y,w,bh);                       // track
+    ctx.fillStyle=ready?col:"#6a5cc0"; ctx.fillRect(x,y,Math.round(w*f),bh); // fill
+    if(ready){ const p=0.5+0.5*Math.sin((G.t||0)*6); ctx.globalAlpha=0.4*p; ctx.fillStyle=col; ctx.fillRect(x,y,w,bh); ctx.globalAlpha=1;
+      ctx.strokeStyle=col; ctx.lineWidth=2; ctx.strokeRect(x-3.5,y-3.5,w+7,bh+7); }
+    // glyph badge on the left
+    ctx.save(); ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle=col; ctx.font="bold 18px "+FF;
+    ctx.fillText(u.glyph||"★", x-16, y+bh/2+1); ctx.restore(); ctx.textBaseline="alphabetic";
+    // label
+    ctx.textAlign="center"; ctx.font="bold 9px "+FF;
+    ctx.fillStyle=COL.out; ctx.fillText(ready?("¡DEFINITIVA LISTA!  [C]"):(u.name+"  "+Math.round(f*100)+"%"), x+w/2+1, y+bh-2);
+    ctx.fillStyle=ready?"#0a0c10":COL.cream; ctx.fillText(ready?("¡DEFINITIVA LISTA!  [C]"):(u.name+"  "+Math.round(f*100)+"%"), x+w/2, y+bh-3);
     ctx.textAlign="left";
   }
   function renderSpellBar(){ const h=G.hero; const n=4;
@@ -3186,6 +3208,13 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.out; ctx.fillText(b.label,b.x+1,ly+1); ctx.fillStyle=kc; ctx.fillText(b.label,b.x,ly); }
     btn(tb.attack,COL.textGold,true); btn(tb.roll,COL.cream); btn(tb.s2,COL.flame); btn(tb.s3,COL.heal); btn(tb.s4,COL.rune); btn(tb.act,COL.cream); btn(tb.pick,COL.cream);
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
+    // CAS-1659: Ultimate touch button + charge ring — only when the run has a drafted ultimate.
+    if(G.hero&&G.hero.ultId&&tb.ult&&tb.ult.r){ const b=tb.ult, u=ULTIMATE_MAP[G.hero.ultId]||{}, f=clamp(G.hero.ultCharge||0,0,1), ready=f>=1, col=u.col||COL.textGold;
+      btn(b, ready?col:COL.rune, true);
+      ctx.strokeStyle=ready?col:"#6a5cc0"; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(b.x,b.y,b.r+3,-Math.PI/2,-Math.PI/2+f*6.2832,false); ctx.stroke();
+      ctx.textAlign="center"; ctx.font="bold 9px "+FF;
+      ctx.fillStyle=COL.out; ctx.fillText(ready?"LISTO":(Math.round(f*100)+"%"), b.x+1, b.y+b.r+15);
+      ctx.fillStyle=ready?col:COL.cream; ctx.fillText(ready?"LISTO":(Math.round(f*100)+"%"), b.x, b.y+b.r+14); }
     // mp cost hints on spell buttons (data-driven per class) — CAS-1614: near-black shadow so the
     // small light-blue digits stay readable over bright terrain.
     const sp=SPELLS[G.hero.cls]||SPELLS.warrior;
@@ -3233,6 +3262,27 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.font="bold 24px "+FF; ctx.fillText("Habilidades Activas",VW/2,VH*0.13);
     ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText("Elige 2 habilidades para tu partida  ·  toca / 1-"+pool.length+" · ←→ + Espacio · Enter para empezar",VW/2,VH*0.13+22);
     ctx.fillStyle=chosen.length>=2?"#7bd44a":COL.textDim; ctx.font="bold 12px "+FF; ctx.fillText("Seleccionadas: "+chosen.length+"/2",VW/2,VH*0.13+40);
+    // CAS-1659 — run-start HABILIDAD DEFINITIVA offer (pick 1 of 3, its OWN slot). A slim strip in the
+    // header band above the ability cards; tap a card (or press U) to choose. Persists for the run.
+    if(!ui.ultRects) ui.ultRects=[]; ui.ultRects.length=0;
+    const ults=((G.ultOffer||[]).map(id=>ULTIMATE_MAP[id]).filter(Boolean)), usel=(G.ultSel|0);
+    if(ults.length){
+      ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF;
+      ctx.fillText("Definitiva — elige 1  ·  toca / tecla U  ·  se carga en combate", VW/2, VH*0.205);
+      const un=ults.length, ug=10, ucw=Math.min(190,(VW-40)/un-ug), uch=42;
+      const ut=un*ucw+(un-1)*ug, ux0=(VW-ut)/2, uy=VH*0.215;
+      for(let i=0;i<un;i++){ const u=ults[i], rx=ux0+i*(ucw+ug), on=(usel===i);
+        ctx.fillStyle=on?"#2b313d":COL.panel; ctx.fillRect(rx,uy,ucw,uch);
+        ctx.strokeStyle=on?(u.col||COL.textGold):COL.panelB; ctx.lineWidth=on?3:2; ctx.strokeRect(rx+0.5,uy+0.5,ucw,uch);
+        ctx.save(); ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle=u.col||"#cfd6de"; ctx.font="22px "+FF;
+        ctx.fillText(u.glyph, rx+20, uy+uch/2); ctx.restore(); ctx.textBaseline="alphabetic";
+        ctx.textAlign="left"; ctx.fillStyle=on?COL.textGold:COL.cream; ctx.font="bold 12px "+FF; ctx.fillText(u.name, rx+38, uy+18);
+        ctx.fillStyle="#9aa0aa"; ctx.font="8px "+FF; ctx.fillText(u.type.toUpperCase()+"  ·  sin maná  ·  carga→listo", rx+38, uy+32);
+        if(on){ ctx.fillStyle=u.col||COL.textGold; ctx.fillRect(rx+ucw-16,uy+6,10,10); }
+        ui.ultRects.push({x:rx,y:uy,w:ucw,h:uch,idx:i});
+      }
+      ctx.textAlign="center";
+    }
     ui.abilRects.length=0;
     const n=pool.length, gap=12, cw=Math.min(168,(VW-40)/n-gap), ch=Math.min(228,VH*0.5);
     const totalW=n*cw+(n-1)*gap, x0=(VW-totalW)/2, cy=VH*0.52;

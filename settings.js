@@ -35,6 +35,7 @@ export const REBINDS = [
   { a:"skill4",          def:"Digit4" },
   { a:"ability1",        def:"KeyZ" },   // CAS-1570: drafted active-ability slots (Q/E are taken by potion/interact; rebindable here)
   { a:"ability2",        def:"KeyX" },
+  { a:"ultimate",        def:"KeyC" },   // CAS-1659: HABILIDAD DEFINITIVA (charge-gated; C freed by moving customize→B)
   { a:"pickup",          def:"KeyF" },
   { a:"interact",        def:"KeyE" },
   { a:"useConsumable",   def:"KeyQ" },
@@ -45,7 +46,7 @@ export const REBINDS = [
   { a:"forge",           def:"KeyG" },
   { a:"talents",         def:"KeyT" },
   { a:"mastery",         def:"KeyV" },
-  { a:"customize",       def:"KeyC" },
+  { a:"customize",       def:"KeyB" },   // CAS-1659: moved off C (now Ultimate); wardrobe also opens via its HUD button
   { a:"map",             def:"KeyM" },
   { a:"pause",           def:"Escape" },
 ];
