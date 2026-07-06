@@ -1528,6 +1528,11 @@ export function createRenderer(ctx){
     // that belong over the world (zone/objective/banners) recentre on the visible game area.
     const sidebar=view.sbw>0, GCX=view.gcx();
     const hudUI=sidebar||hudActive(); // CAS-299 cutover: HUD overlay owns vitals → suppress canvas dupes
+    // CAS-1613 (PR4): in the new sidebar-less default the HP/MP "hombreras" flanking the action
+    // bar (renderVitalsShoulders) OWN the vitals — so suppress the legacy top-left HP/MP bars to
+    // avoid a double read-out. Touch keeps the top-left bars (no hombreras on touch); the classic
+    // sidebar and the DOM overlay each carry their own vitals (hudUI covers those).
+    const shoulders = !sidebar && !hudActive() && !isTouch;
     auditRects = auditOn() ? {} : null; // CAS-416: collect drawn rects only under the QA flag
     uiLayout.frame(); // CAS-418: stamp this HUD pass — pub()'d widget rects go stale when not drawn (touch)
     // CAS-118: while the hero suffers a status, frame the screen with a pulsing edge
@@ -1553,7 +1558,7 @@ export function createRenderer(ctx){
     // CAS: draw the fixed sidebar column (opaque bg + vitals + buttons) UNDER the minimap /
     // spell bar / consumable that render later so they overlay it. Recentred game overlays follow.
     if(sidebar){ drawSidebarPanel(h, mhp); drawBottomBar(h); }
-    if(!hudUI){ // CAS-299: legacy vitals (HP/MP · gold/potions · name/skull) — HUD owns these
+    if(!hudUI && !shoulders){ // CAS-299: legacy vitals (HP/MP) — HUD owns these; CAS-1613: hombreras own these
       // CAS-1612: XP no longer lives here — it is the full-width strip pegged to the
       // bottom edge (renderXpBar), so drop the buried 10px bar and keep HP/MP only.
       bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
@@ -1561,7 +1566,7 @@ export function createRenderer(ctx){
     }
     // CAS-119: unspent talent-point badge — prompts the player to open the tree (T). CAS-299:
     // when the HUD owns the top-left, the badge moves to the left column UNDER the HUD panel.
-    const badgeX = hudUI ? pad : pad+bw+8;
+    const badgeX = (hudUI||shoulders) ? pad : pad+bw+8; // CAS-1613: hombreras remove the top-left HP/MP block → badges anchor left
     if(!sidebar && (h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
       ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF; ctx.textAlign="left";
       const tby=hudUI?258:pad+47; if(auditRects) AR("talentBadge", badgeX, tby-13, ctx.measureText("★"+h.talentPts+" (T)").width, 15);
@@ -1630,7 +1635,28 @@ export function createRenderer(ctx){
     if(!isTouch || true) renderMiniMap();
     renderBoonChips(h);            // CAS-1612: active run-boons as a top-left chip row
     renderXpBar(h);               // CAS-1612: XP as a full-width strip on the bottom edge
+    renderConsole();              // CAS-1613: collapsible chat/console with auto-fade (~6s)
     if(auditRects){ try{ window.__uiRects=auditRects; }catch(e){} }
+  }
+  // CAS-1613 (PR4): the chat/console is no longer a fixed 94px bar (that lived only in the
+  // classic sidebar's bottom bar). In the sidebar-less default the last couple of lines fade in
+  // at the bottom-left, just above the XP strip, and AUTO-FADE ~6s after the newest message — so
+  // it costs ZERO permanent screen space. Pure presentation (reads G.chatLog / G.chatT); the
+  // classic sidebar keeps its own always-on console via drawBottomBar.
+  function renderConsole(){ if(view.sbw>0) return;
+    const chat=G.chatLog||[]; if(!chat.length) return;
+    const since=(G.t||0)-(G.chatT||0);
+    const FADE=6, TAIL=1.2; if(since>FADE+TAIL) return;         // fully faded → skip entirely
+    const a = since<=FADE ? 1 : Math.max(0, 1-(since-FADE)/TAIL);
+    const n=Math.min(chat.length,2), xpH=9;
+    const baseY=VH-xpH-8-(n-1)*15;                             // stack the lines upward from above the XP strip
+    ctx.save(); ctx.globalAlpha=a; ctx.textAlign="left"; ctx.font="12px "+FF;
+    for(let i=0;i<n;i++){ const c=chat[chat.length-n+i]; const ly=baseY+i*15; const who=(c.who||"")+": ";
+      ctx.fillStyle=COL.out; ctx.fillText(who,13,ly+1);                        // 1px near-black shadow
+      ctx.fillStyle=COL.textGold; ctx.fillText(who,12,ly); const ww=ctx.measureText(who).width;
+      ctx.fillStyle=COL.out; ctx.fillText(c.text,12+ww+1,ly+1);
+      ctx.fillStyle=COL.cream; ctx.fillText(c.text,12+ww,ly); }
+    ctx.restore(); ctx.textAlign="left";
   }
   // CAS-1612 (AD P0 #4): XP as a full-width strip pegged to the bottom edge (PoE / Vampire
   // Survivors convention), replacing the 9px bar buried in the top-left stat block. Pure
@@ -1848,7 +1874,9 @@ export function createRenderer(ctx){
   // anchor, restored by Reset). In the canvas-HUD overlay path the DOM statframe still owns
   // vitals until CAS-1613 retires it, so skip there to avoid a duplicate readout.
   function renderVitalsShoulders(h, mhp){ if(isTouch) return;
-    const sidebar=view.sbw>0; if(!sidebar && hudActive()) return;
+    // CAS-1613: the hombreras are the SOLE vitals in the new default. Skip when the classic
+    // sidebar (opt-in) or the DOM overlay is up — each carries its own vitals (no double read).
+    const sidebar=view.sbw>0; if(sidebar || hudActive()) return;
     const g=actionBarGeom();
     const hHP=26, hMP=22, wHP=138, wMP=120, gapB=16;        // HP taller+wider = dominates; both ≥22px
     const yHP=g.y+Math.round((g.s-hHP)/2), yMP=g.y+Math.round((g.s-hMP)/2);
@@ -2792,6 +2820,8 @@ export function createRenderer(ctx){
       toggle(STR.settingColorblind, G.settings.colorblind, ()=>{ G.settings.colorblind=!G.settings.colorblind; save(); }, oy); oy+=32;
       toggle(STR.settingShake, G.settings.shake>0, ()=>{ G.settings.shake=G.settings.shake>0?0:1; save(); }, oy); oy+=32;
       toggle(STR.settingCRT, G.settings.crt, ()=>{ G.settings.crt=!G.settings.crt; save(); }, oy); oy+=32;
+      // CAS-1613 (PR4): opt back into the classic Tibia sidebar (OFF by default → full game width).
+      toggle(STR.settingSidebar, uiLayout.sidebarOn(), ()=>{ uiLayout.setSidebar(!uiLayout.sidebarOn()); }, oy); oy+=32;
       // roll-direction is a two-value preference, not on/off — show its current value.
       ctx.textAlign="left"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,26);
       ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText(STR.settingRollDir,px+10,oy+17);

@@ -240,6 +240,7 @@ export const STR = {
   settingShake: "Sacudida de pantalla",
   settingReduceMotion: "Movimiento reducido",
   settingCRT: "Filtro CRT",
+  settingSidebar: "Barra lateral (clásico)",
   settingRollDir: "Dirección de rodada",
   settingResetHud: "Restablecer paneles (HUD)", // CAS-418: reset the draggable layout
   rollTowardMove: "Hacia el movimiento",

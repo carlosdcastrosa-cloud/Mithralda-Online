@@ -74,8 +74,11 @@ try {
     cons ? `cons.x=${cons.x} within [${ab?.x}..${ab?.x + ab?.w}], dy=${cons ? cons.y - ab.y : "?"}` : "MISSING");
   gate("AC1c 7-slot width (>=360px)", !!ab && ab.w >= 360, ab ? `w=${ab.w}` : "MISSING");
 
-  // AC2 — centred over the game area, bottom-anchored
-  const gcx = (VW - 216) / 2; // sidebar mode: game centre = (VW - SIDEBAR_W)/2
+  // AC2 — centred over the game area, bottom-anchored. CAS-1613 (PR4) retired the fixed
+  // sidebar as default, so the game centre is now the FULL viewport (VW/2); read the live
+  // sidebar state so this passes in both the new default and the classic opt-in sidebar mode.
+  const sbw = await page.evaluate(() => (window.__sidebar ? window.__sidebar().sbw : 216));
+  const gcx = (VW - sbw) / 2;
   const abcx = ab ? ab.x + ab.w / 2 : -1;
   gate("AC2a centred over game area", !!ab && Math.abs(abcx - gcx) <= 40, ab ? `barCx=${Math.round(abcx)} gcx=${Math.round(gcx)}` : "MISSING");
   gate("AC2b bottom-anchored", !!ab && (ab.y + ab.h) >= VH - 110 && (ab.y + ab.h) <= VH, ab ? `y+h=${ab.y + ab.h} (VH=${VH})` : "MISSING");
