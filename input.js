@@ -494,6 +494,9 @@ function invUp(pid,cancelled){ const d=ui.invDrag; if(!d) return false; if(pid!=
       if(hasItem&&lt&&lt.idx===d.idx&&(G.t-lt.t)<=0.35){ G.invSel=d.idx; sim.equipBag(d.idx); ui.invLastTap=null; }
       else if(hasItem){ G.invSel=d.idx; ui.invLastTap={idx:d.idx,t:G.t}; }
       else { G.invSel=d.idx; ui.invLastTap=null; } }
+    // CAS-1687: a tap on an EQUIPPED functional slot DESENGARZA its last filled socket back to the
+    // bag (no-op if the piece has none / bag full). The equip-slot tap had no other action.
+    else if(d.kind==="equip"){ sim.unsocketRune(d.slot); }
     return true; }
   const sl=rectHit(ui.invSlotRects,x,y), row=rectHit(ui.invRects,x,y);
   if(d.kind==="bag"){ const item=h.bag[d.idx]; if(!item) return true;

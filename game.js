@@ -377,6 +377,12 @@ export function createGame(canvas, ctx, getView){
       eventReachGoblin:(id)=>simDev.eventReachGoblin(id), eventEscapeGoblin:(id)=>simDev.eventEscapeGoblin(id),
       eventLastPayoff:()=>simDev.eventLastPayoff(), eventRngProbe:(n,s)=>simDev.eventRngProbe(n,s),
       eventGenProbe:(en,d,s,p)=>simDev.eventGenProbe(en,d,s,p),
+      // CAS-1687 Runas y Engarces (sockets) (tools/cas1687-sockets.mjs) — MUST wire HERE (curated wrapper)
+      socketMeta:()=>simDev.socketMeta(), socketSetEnabled:(b)=>simDev.socketSetEnabled(b), setSocketRate:(r)=>simDev.setSocketRate(r),
+      socketTotals:()=>simDev.socketTotals(), grantSocketGear:(sl,n)=>simDev.grantSocketGear(sl,n), grantRune:(t)=>simDev.grantRune(t),
+      forceSocketRune:(t,z)=>simDev.forceSocketRune(t,z), socketRune:(i)=>simDev.socketRune(i), removeSocketRune:(sl)=>simDev.removeSocketRune(sl),
+      socketSnap:()=>simDev.socketSnap(), socketPersist:(sl,t)=>simDev.socketPersist(sl,t),
+      socketRngProbe:(n,s)=>simDev.socketRngProbe(n,s), socketGenProbe:(en,r,s,p)=>simDev.socketGenProbe(en,r,s,p),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

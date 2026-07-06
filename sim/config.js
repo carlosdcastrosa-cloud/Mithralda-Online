@@ -829,6 +829,21 @@ export const ZONE_EVENTS = {
 // CAS-123 — Stage-1 win-condition descriptor. The single legible GOAL the whole run
 // builds toward, surfaced in the HUD objective tracker (render.js) from minute one and
 // resolved when the FINAL capstone (HUNTS[STAGE1_GOAL.zone].boss.final) dies. Data-driven:
+// CAS-1687 — RUNAS Y ENGARCES (sockets). Tunable KNOBS only; the rune CONTENT (types + bonos)
+// lives in sim/gear.js as `RUNES` (same split as LEGENDARY-knob ↔ UNIQUES-content, CAS-1632): item
+// content belongs with the other gear content, config carries the balance dials. Every socket/rune
+// draw comes from the DEDICATED `runeRng` stream in sim.js — never the authoritative srand — and the
+// whole system is HARD-GATED behind `enabled`. So with `enabled:false` (or `dropRate:0`) a run is
+// BYTE-IDENTICAL to a build without the feature (AC1 [AC-RNG-STRONG]); at ANY rate the srand stream
+// stays untouched (the stronger guarantee the dedicated stream buys us, like the other streams).
+//   enabled       — master kill switch. false → zero runeRng draws, zero new gameplay branches.
+//   dropRate      — base P(a rune drops) appended per kill (own runeRng gate; scaled by kill bias).
+//   socketChance  — [P(gear rolls ≥1 socket), P(2nd socket | ≥1)] on the gear's dedicated runeRng
+//                   roll at drop time. Both draws are runeRng-only → gear generation never perturbs srand.
+export const SOCKETS = {
+  enabled:true, dropRate:0.06, socketChance:[0.55,0.28],
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

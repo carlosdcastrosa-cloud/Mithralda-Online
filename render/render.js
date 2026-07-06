@@ -13,7 +13,7 @@ import { zoneOf } from "../sim/world.js";
 import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
-import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts } from "../sim/gear.js";
+import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
 import { TALENTS, talentNodes, talentNode, nodeRank, canAllocTalent, lockReason, talentSpent } from "../sim/talents.js";
 import { STR } from "../strings.js";
 import { audio } from "../audio.js";
@@ -2102,6 +2102,22 @@ export function createRenderer(ctx){
     for(let k=0;k<list.length;k++){ ctx.fillStyle="#9be7ff"; ctx.fillText("• "+affixLabel(list[k]), ax, ay+k*lh); } return list.length; }
   // A signed coloured delta token ("+12", "-3", "—"). CAS-117 equip-decision diff.
   function deltaTok(d){ if(!d) return {t:"—",c:COL.textDim}; return d>0?{t:"+"+d,c:COL.heal}:{t:""+d,c:"#d05555"}; }
+  // CAS-1687: draw an instance's sockets as small pips — ◇ empty (dim) / ◆ filled (rune tint).
+  // $0 art. Returns the count drawn. `sz` sets the glyph px; anchored left at (ax,ay) baseline.
+  function drawSocketPips(inst, ax, ay, sz){ const sk=inst&&inst.sockets; if(!Array.isArray(sk)||!sk.length) return 0;
+    ctx.textAlign="left"; ctx.font="bold "+(sz||9)+"px "+FF; let dx=ax;
+    for(const s of sk){ const r=s&&s.type&&RUNES[s.type];
+      if(r){ ctx.fillStyle=r.tint; ctx.fillText("◆", dx, ay); } else { ctx.fillStyle="#5a6472"; ctx.fillText("◇", dx, ay); }
+      dx+=(sz||9)+1; }
+    return sk.length; }
+  // CAS-1687: one-line socket summary for the compare box (e.g. "Engarces: ◆Rubí ◇").
+  function drawSocketLine(inst, ax, ay){ const sk=inst&&inst.sockets; if(!Array.isArray(sk)||!sk.length) return 0;
+    ctx.textAlign="left"; ctx.font="10px "+FF; ctx.fillStyle=COL.textDim; ctx.fillText("Engarces:", ax, ay);
+    let dx=ax+ctx.measureText("Engarces:").width+6;
+    for(const s of sk){ const r=s&&s.type&&RUNES[s.type];
+      if(r){ ctx.fillStyle=r.tint; ctx.fillText("◆", dx, ay); dx+=ctx.measureText("◆").width+1; }
+      else { ctx.fillStyle="#5a6472"; ctx.fillText("◇", dx, ay); dx+=ctx.measureText("◇").width+2; } }
+    return sk.length; }
   // CAS-417: one icon+count segment for the inventory footer (16px icon, glyph fallback
   // while the PNG loads); returns the x where the next segment starts.
   function invCount(key,glyph,txt,cx,by){ const im=IMG[key];
@@ -2132,7 +2148,8 @@ export function createRenderer(ctx){
         ctx.drawImage(ic, Math.round(sx+(ss-ds)/2), Math.round(sy+(ss-ds)/2), ds,ds); ctx.restore(); }
       else if(inst){ ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(ss*0.5)+"px "+FF; ctx.fillText(glyph, sx+ss/2, sy+ss*0.64); }
       else { ctx.fillStyle="#3f4856"; ctx.font="bold "+Math.round(ss*0.44)+"px "+FF; ctx.fillText(glyph, sx+ss/2, sy+ss*0.62); }
-      if(inst){ ctx.fillStyle=COL.cream; ctx.font="9px "+FF; ctx.textAlign="right"; ctx.fillText(String(gearStat(inst)), sx+ss-3, sy+ss-3); }
+      if(inst){ ctx.fillStyle=COL.cream; ctx.font="9px "+FF; ctx.textAlign="right"; ctx.fillText(String(gearStat(inst)), sx+ss-3, sy+ss-3);
+        drawSocketPips(inst, sx+2, sy+9, 7); } // CAS-1687: sockets on the equipped piece (tap the slot to desengarzar)
       ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="8px "+FF; ctx.fillText(label, sx+ss/2, sy-3);
       ui.invSlotRects.push({x:sx,y:sy,w:ss,h:ss,slot:slotKey,inst:!!inst});
     }
@@ -2210,7 +2227,11 @@ export function createRenderer(ctx){
       ctx.fillRect(sx,sy,slotSz,slotSz);
       ctx.strokeStyle=sel?COL.textGold:(inst?"#3a4456":"#222b38");
       ctx.lineWidth=sel?1.5:1; ctx.strokeRect(sx+0.5,sy+0.5,slotSz-1,slotSz-1);
-      if(inst){
+      if(inst && inst.rune){
+        // CAS-1687: a RUNE bag item — tinted ◆ glyph (no gearStat/affix pips); dblclick engarza.
+        const r=RUNES[inst.rune]; ctx.textAlign="center"; ctx.fillStyle=(r&&r.tint)||"#c9a24a";
+        ctx.font="bold "+Math.round(slotSz*0.6)+"px "+FF; ctx.fillText("◆", sx+slotSz/2, sy+slotSz*0.66);
+      } else if(inst){
         const isz=Math.min(32,slotSz-4), ix=sx+(slotSz-isz)/2, iy=sy+(slotSz-isz)/2;
         const gi=IMG["icon_slot_"+inst.slot];
         if(gi&&gi.complete&&gi.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(gi,Math.round(ix),Math.round(iy),isz,isz); ctx.restore(); }
@@ -2220,6 +2241,8 @@ export function createRenderer(ctx){
         ctx.fillStyle=gearCol(inst); ctx.font="7px "+FF; ctx.textAlign="right";
         ctx.fillText(String(gearStat(inst)), sx+slotSz-2, sy+slotSz-2);
         const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="7px "+FF; ctx.textAlign="left"; ctx.fillText("◈".repeat(na), sx+2, sy+slotSz-2); }
+        // CAS-1687: socket pips top-left (◇ empty / ◆ rune-tinted filled)
+        drawSocketPips(inst, sx+2, sy+9, 7);
       }
       // hit rect uses bag index (si); empty slots still register so DnD can target them later
       ui.invRects.push({x:sx,y:sy,w:slotSz,h:slotSz, idx:si});
@@ -2239,7 +2262,15 @@ export function createRenderer(ctx){
     ui.invGrid={x:gx,y:listY,w:gridW,h:gridH,cols:GCOLS,slotStep,visRows,maxScrollRow};
     // ---- compare box: equipped vs selected (the equip DECISION). CAS-117 ----
     const cy=listY+gridH+6; const sel=bag[G.invSel];
-    if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
+    if(sel && sel.rune){
+      // CAS-1687: a RUNE is selected — show a rune info card (name + bonus + engarza hint) instead
+      // of the gear compare. No h.equip pollution (a rune has no slot). Dblclick engarza into a socket.
+      ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
+      const r=RUNES[sel.rune]; ctx.textAlign="left"; ctx.font="bold 11px "+FF; ctx.fillStyle=(r&&r.tint)||COL.textGold;
+      ctx.fillText("◆ "+(r?r.name:"Runa"), rx+6, cy+16);
+      ctx.font="10px "+FF; ctx.fillStyle="#9be7ff"; ctx.fillText(r?r.label:"", rx+10, cy+32);
+      ctx.fillStyle=COL.textDim; ctx.font="9px "+FF; ctx.fillText("Doble clic: engarzar en un hueco libre", rx+6, cy+cmpH-8);
+    } else if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
       const eq=h.equip[sel.slot];
       ctx.textAlign="left"; ctx.font="10px "+FF; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
       ctx.fillStyle=gearCol(eq); ctx.fillText(rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")", rx+6, cy+25);
@@ -2248,6 +2279,7 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpNew, midX, cy+13);
       ctx.fillStyle=gearCol(sel); ctx.fillText("("+gearStat(sel)+")", midX, cy+25);
       drawAffixLines(sel, midX+4, cy+36, 10);
+      drawSocketLine(eq, rx+6, cy+58); // CAS-1687: sockets on the EQUIPPED piece (engarce target)
       // net combat deltas if equipped (the tradeoff at a glance)
       const before={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const old=h.equip[sel.slot]; h.equip[sel.slot]=sel;
       const after={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const a2=affixTotals(h); h.equip[sel.slot]=old; const a1=affixTotals(h);
