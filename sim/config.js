@@ -130,6 +130,19 @@ export const ACTIVE_ABILITIES = [
     desc:"Ward temporal: sube defensa unos segundos. CD medio."},
   {id:"rayo",       name:"Cadena de Rayo",   glyph:"⚡", type:"chain", cost:12, cd:6.0, dmg:26, range:150, jumps:3, jumpRange:130, falloff:0.78, status:{type:"stun",dur:0.3}, col:"#bfe6ff", fx:"spellburst", sfx:"fire",
     desc:"Descarga que salta entre enemigos cercanos. CD medio."},
+  // CAS-1580 — LOCKED abilities (Esencia-unlockable at the altar). `locked:true` keeps them OUT of the
+  // run-start draft pool until the matching ABILITY_UNLOCKS row is bought. Each REUSES an existing
+  // resolveSpell resolver (dash/nova/buff/field) → ZERO new combat code. Glyphs = $0 art. Distinct
+  // roles/colours from the 4 originals so the draft stays legible. Appended AFTER the originals so
+  // DEFAULT_LOADOUT (index 0/1) and the un-upgraded draft are byte-identical to before (RNG-neutral).
+  {id:"parpadeo",   name:"Parpadeo",          glyph:"≫", type:"dash", cost:8,  cd:8.0, dmg:12, range:132, col:"#c9b3ff", fx:"charge", sfx:"roll", locked:true,
+    desc:"Impulso arcano de largo alcance: reposiciona y roza al enemigo. Utilidad de movilidad."},
+  {id:"llamarada",  name:"Llamarada",         glyph:"✸", type:"nova", cost:16, cd:8.0, dmg:30, range:112, status:{type:"burn"}, col:"#ff7a3a", fx:"novacast", sfx:"fire", locked:true,
+    desc:"Estallido de fuego en área: daña y prende (quemadura). Distinta de la escarcha helada."},
+  {id:"furia",      name:"Furia",             glyph:"⚔", type:"buff", cost:12, cd:10.0, stat:"dmg", amt:10, dur:5.0, col:"#ff6a4d", fx:"buffaura", sfx:"heal", locked:true,
+    desc:"Frenesí temporal: aumenta tu daño unos segundos. Buff ofensivo, distinto de la Égida."},
+  {id:"brasas",     name:"Brasas",            glyph:"✷", type:"field", cost:14, cd:9.0, dmg:8, range:70, tick:0.5, dur:4.0, offset:44, col:"#ff8a3a", style:"spike", fx:"novacast", sfx:"fire", locked:true,
+    desc:"Zona de brasas persistente: daña con el tiempo a quien la pise. Denegación de área."},
 ];
 export const ABILITY_MAP = Object.fromEntries(ACTIVE_ABILITIES.map(a=>[a.id,a]));
 // Default loadout for a fresh hero (first two of the pool) so abilities always exist
@@ -167,6 +180,20 @@ export const ABILITY_RANKS = [
     apply:(sp,l)=>({ ...sp, cd:Math.max(1,(sp.cd||0)-0.6*l) }) },
 ];
 export const ABILITY_RANK_MAP = Object.fromEntries(ABILITY_RANKS.map(r=>[r.abil,r]));
+
+// CAS-1580 — ABILITY UNLOCKS: one PERMANENT, Esencia-bought row per LOCKED ability (cap:1). A row at
+// lvl 0 = locked (hidden from the draft); buying it (lvl 1) unlocks the ability forever. These rows
+// JOIN the SAME meta store as ABILITY_RANKS (buy/persist/migrate for free via buyMetaNode/META_MAP);
+// they are NEVER added to T2_MAP so they are ungated by t2Unlocked(). Cost is data-driven per rarity
+// (60/90/120/150) — the single source of truth, retune here with no code change. `eff` is the short
+// altar blurb; `glyph` reuses the ability's own glyph → $0 art. Blobs without unlock_* load to 0 = locked.
+export const ABILITY_UNLOCKS = [
+  { key:"unlock_furia",     abil:"furia",     cap:1, cost:()=>60,  glyph:"⚔", label:"Furia",     eff:"Buff ofensivo de daño" },
+  { key:"unlock_parpadeo",  abil:"parpadeo",  cap:1, cost:()=>90,  glyph:"≫", label:"Parpadeo",  eff:"Movilidad de largo alcance" },
+  { key:"unlock_llamarada", abil:"llamarada", cap:1, cost:()=>120, glyph:"✸", label:"Llamarada", eff:"Nova de fuego (quemadura)" },
+  { key:"unlock_brasas",    abil:"brasas",    cap:1, cost:()=>150, glyph:"✷", label:"Brasas",    eff:"Zona de daño persistente" },
+];
+export const ABILITY_UNLOCK_MAP = Object.fromEntries(ABILITY_UNLOCKS.map(r=>[r.abil,r]));
 
 // gearChance = per-kill probability this enemy drops a gear instance (rolled on
 // the sim RNG in killEnemy). The drop's tier window is the kill ZONE (ZONE_LOOT

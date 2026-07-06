@@ -93,8 +93,8 @@ function onKeyDown(e){
     else if(c==="KeyC") customizeNewHero(CLASS_LIST[G.classSel]); // CAS-169: personalize before play
     else if(c==="Enter"||c==="Space") chooseClass(CLASS_LIST[G.classSel]);
     e.preventDefault(); return; }
-  if(G.scene==="abilitysel"){ const c=e.code; const n=ACTIVE_ABILITIES.length;   // CAS-1570 run-start draft
-    const toggle=(i)=>{ if(i<0||i>=n) return; G.abilCursor=i; const id=ACTIVE_ABILITIES[i].id; const at=G.abilChosen.indexOf(id);
+  if(G.scene==="abilitysel"){ const c=e.code; const pool=(G.abilPool&&G.abilPool.length)?G.abilPool:ACTIVE_ABILITIES; const n=pool.length;   // CAS-1570 draft / CAS-1580 filtered pool
+    const toggle=(i)=>{ if(i<0||i>=n) return; G.abilCursor=i; const id=pool[i].id; const at=G.abilChosen.indexOf(id);
       if(at>=0) G.abilChosen.splice(at,1); else if(G.abilChosen.length<2) G.abilChosen.push(id); };
     if(c==="ArrowLeft"||c==="KeyA") G.abilCursor=(G.abilCursor+n-1)%n;
     else if(c==="ArrowRight"||c==="KeyD") G.abilCursor=(G.abilCursor+1)%n;
@@ -233,7 +233,8 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
   if(G.scene==="abilitysel"){ // CAS-1570: tap an ability card to toggle it, tap Listo to confirm
     const cf=ui.abilConfirmRect; if(cf&&cf.w&&x>=cf.x&&x<=cf.x+cf.w&&y>=cf.y&&y<=cf.y+cf.h){ confirmLoadout(); return; }
     for(const r of (ui.abilRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
-      G.abilCursor=r.idx; const id=ACTIVE_ABILITIES[r.idx].id; const at=G.abilChosen.indexOf(id);
+      const pool=(G.abilPool&&G.abilPool.length)?G.abilPool:ACTIVE_ABILITIES; // CAS-1580 filtered pool
+      G.abilCursor=r.idx; const id=pool[r.idx].id; const at=G.abilChosen.indexOf(id);
       if(at>=0) G.abilChosen.splice(at,1); else if(G.abilChosen.length<2) G.abilChosen.push(id); return; } } return; }
   if(G.scene==="inventory"){ invDown(x,y,e.pointerId); return; } // CAS-419: arm DnD / tap-defer
   if(handleUITap(x,y)) return;
@@ -516,7 +517,11 @@ function chooseClass(cls){ sim.createHero(G.pendingName||"Héroe",cls);
 // CAS-1570 — open the run-start ability-draft scene (pick 2 of the pool). Seeds the
 // selection with the hero's current/default loadout so confirming immediately is valid.
 function openAbilityDraft(){ G.needAbilityDraft=false; G.abilCursor=0;
-  const lo=(sim.dev.loadout&&sim.dev.loadout())||[]; G.abilChosen=lo.filter(id=>ABILITY_MAP[id]).slice(0,2);
+  // CAS-1580: snapshot the FILTERED pool (unlocked abilities only) so render + keyboard + touch all
+  // index the SAME list. Seed the selection from the current loadout, keeping only ids still in pool.
+  G.abilPool=(sim.draftPool&&sim.draftPool())||ACTIVE_ABILITIES.filter(a=>!a.locked);
+  const poolIds=new Set(G.abilPool.map(a=>a.id));
+  const lo=(sim.dev.loadout&&sim.dev.loadout())||[]; G.abilChosen=lo.filter(id=>poolIds.has(id)).slice(0,2);
   G.scene="abilitysel"; }
 function confirmLoadout(){ if(!G.abilChosen||G.abilChosen.length<2) return;
   sim.dev.setLoadout(G.abilChosen.slice()); G.scene="play"; }
