@@ -1989,11 +1989,18 @@ export function createRenderer(ctx){
     for(let i=0;i<bag.length && i<maxRows;i++){ const inst=bag[i]; const ay=listY+i*rowH; const sel=i===G.invSel;
       ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(rx,ay,rw,rowH-4);
       if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=1.5; ctx.strokeRect(rx,ay,rw,rowH-4); }
+      // CAS-1579: every backpack row LEADS with the item's icon (slot PNG, same asset the
+      // equip slots + drag-ghost use), so no valid item is text-only. Glyph is load fallback.
+      const isz=20, ix=rx+3, iy=ay+((rowH-4)-isz)/2; const gi=inst?IMG["icon_slot_"+inst.slot]:null;
+      if(gi&&gi.complete&&gi.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(gi, ix, iy, isz, isz); ctx.restore(); }
+      else { ctx.textAlign="center"; ctx.fillStyle=gearCol(inst); ctx.font="bold 15px 'Courier New'";
+        ctx.fillText(({weapon:"⚔",body:"▣",shield:"◈",head:"^",legs:"Π",feet:"▾",neck:"◆",back:"≈",ring:"○",bag:"▦"}[inst&&inst.slot]||"▪"), ix+isz/2, iy+isz*0.74); }
+      const tx=ix+isz+6;
       ctx.textAlign="left"; ctx.fillStyle=gearCol(inst); ctx.font="12px 'Courier New'";
       // CAS-265: prepend a per-rarity SHAPE mark (◦/◆/★) in colour-blind mode so rarity
       // reads without depending on the name's hue (empty for common → unchanged otherwise).
-      ctx.fillText(rarityMark(inst)+gearName(inst)+" ("+gearStat(inst)+")", rx+8, ay+16);
-      const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="10px 'Courier New'"; ctx.fillText("◈".repeat(na), rx+8, ay+rowH-7); }
+      ctx.fillText(rarityMark(inst)+gearName(inst)+" ("+gearStat(inst)+")", tx, ay+16);
+      const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="10px 'Courier New'"; ctx.fillText("◈".repeat(na), tx, ay+rowH-7); }
       const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+16);
       ui.invRects.push({x:rx,y:ay,w:rw,h:rowH-4, idx:i});
     }
@@ -2747,15 +2754,17 @@ export function createRenderer(ctx){
     if(im&&im.complete&&im.naturalWidth){ ctx.drawImage(im,px+9,iy,isz,isz); }
     else { ctx.fillStyle="rgba(40,34,20,0.9)"; ctx.fillRect(px+9,iy,isz,isz);
       ctx.fillStyle=COL.textGold; ctx.font=(isz-8)+"px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.glyph,px+9+isz/2,iy+isz-6); }
-    ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 13px 'Courier New'"; ctx.fillText(n.label,px+isz+18,y+rh*0.42);
+    // CAS-1580: an unlock row (cap:1) shows a 🔒/✓ state chip on the label and swaps the button copy.
+    const lbl=(n.unlock?(n.unlocked?"✓ ":"🔒 "):"")+n.label;
+    ctx.textAlign="left"; ctx.fillStyle=(n.unlock&&n.unlocked)?COL.textGold:COL.cream; ctx.font="bold 13px 'Courier New'"; ctx.fillText(lbl,px+isz+18,y+rh*0.42);
     ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(n.eff+"   "+STR.altarLvl(n.lvl,n.cap),px+isz+18,y+rh*0.80);
     const bw=100, bx=px+pw-bw-8, by=y+6, bh=rh-12;
-    if(capped){ ctx.fillStyle="rgba(30,30,36,0.9)"; ctx.fillRect(bx,by,bw,bh);
-      ctx.fillStyle=COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.altarMax,bx+bw/2,by+bh/2+4); }
+    if(capped){ ctx.fillStyle=(n.unlock)?"rgba(30,44,30,0.9)":"rgba(30,30,36,0.9)"; ctx.fillRect(bx,by,bw,bh);
+      ctx.fillStyle=(n.unlock)?"#7bd44a":COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.unlock?STR.altarUnlocked:STR.altarMax,bx+bw/2,by+bh/2+4); }
     else { ctx.fillStyle=affordable?"#3a2c1e":"rgba(30,26,20,0.85)"; ctx.fillRect(bx,by,bw,bh);
       ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.fillRect(bx,by,bw,2);
       ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
-      ctx.fillText(STR.altarBuy,bx+bw/2,by+bh/2-3); ctx.font="10px 'Courier New'"; ctx.fillText(STR.altarCost(n.cost),bx+bw/2,by+bh/2+11);
+      ctx.fillText(n.unlock?STR.altarUnlock:STR.altarBuy,bx+bw/2,by+bh/2-3); ctx.font="10px 'Courier New'"; ctx.fillText(STR.altarCost(n.cost),bx+bw/2,by+bh/2+11);
       if(affordable) ui.altarRects.push({x:bx,y:by,w:bw,h:bh,key:n.key}); }
     ctx.textAlign="left";
   }
@@ -2773,11 +2782,11 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.font="bold 17px 'Courier New'"; ctx.fillText("✦ "+STR.altarBanked(essence),cx,y); y+=16;
     // Adaptive row height: reserve chrome (Tier-2 divider + Ascender + Back) and fit the rows in the rest.
     const pw=Math.min(VW*0.86,470), px=cx-pw/2, gap=6;
-    // CAS-1574: ability-rank rows are ALWAYS shown (never gated) → count them + their divider.
-    const abils=snap.abilities||[];
-    const rowCount=snap.nodes.length+abils.length+(showT2?snap.t2.length:0);
-    const abilDivH=abils.length?20:0;
-    const dividerH=showT2?22:0, ascendH=(showT2?40:0), backH=30, chrome=abilDivH+dividerH+ascendH+backH+18;
+    // CAS-1574/1580: ability-rank + ability-unlock rows are ALWAYS shown (never gated) → count them + their dividers.
+    const abils=snap.abilities||[], unlocks=snap.unlocks||[];
+    const rowCount=snap.nodes.length+abils.length+unlocks.length+(showT2?snap.t2.length:0);
+    const abilDivH=abils.length?20:0, unlockDivH=unlocks.length?20:0;
+    const dividerH=showT2?22:0, ascendH=(showT2?40:0), backH=30, chrome=abilDivH+unlockDivH+dividerH+ascendH+backH+18;
     const avail=VH-y-chrome;
     const rh=Math.max(28, Math.min(50, Math.floor(avail/Math.max(1,rowCount))-gap));
     // Tier-1 rows
@@ -2788,6 +2797,13 @@ export function createRenderer(ctx){
     if(abils.length){
       ctx.textAlign="center"; ctx.fillStyle="#8fd0ff"; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.altarAbilities,cx,y+13); y+=abilDivH;
       for(const n of abils){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
+    }
+    // CAS-1580: DESBLOQUEOS — permanent Esencia unlocks for the locked abilities (always shown, ungated).
+    // Reuses altarRow (cap:1 → "Desbloquear"/"✓ DESBLOQUEADA"); the buy button pushes {key:"unlock_<id>"}
+    // → the same generic altarTap buy path (buyMetaNode) handles it with zero new input wiring.
+    if(unlocks.length){
+      ctx.textAlign="center"; ctx.fillStyle="#ffb27a"; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.altarUnlocks,cx,y+13); y+=unlockDivH;
+      for(const n of unlocks){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
     }
     // CAS-1565: Tier-2 — locked note until every v1 node is maxed, then the second row + Ascender.
     if(!showT2){
@@ -2955,7 +2971,9 @@ export function createRenderer(ctx){
   // scene (like class-select). Cards toggle on tap / 1-N keys; Listo confirms when 2 are
   // chosen. Selected cards get an amber frame + order badge. $0 art (glyph icons).
   function renderAbilitySelect(){
-    const pool=ACTIVE_ABILITIES, chosen=G.abilChosen||[], cur=G.abilCursor||0;
+    // CAS-1580: draft the FILTERED pool (unlocked abilities only) captured at openAbilityDraft.
+    // Fallback to ACTIVE_ABILITIES keeps a defensive non-empty list if the snapshot is missing.
+    const pool=(G.abilPool&&G.abilPool.length)?G.abilPool:ACTIVE_ABILITIES, chosen=G.abilChosen||[], cur=G.abilCursor||0;
     ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
     rrng.seed(11); for(let i=0;i<50;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
