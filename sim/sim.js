@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -247,6 +247,9 @@ function newHero(name,cls){
     // CAS-1586: monotonic lifetime AFFIXED-trash kills (any mob carrying a MOB_AFFIX). Feeds the
     // Esencia tie-in (per-run delta × MOB_AFFIX_ESSENCE). Saved additively (no SAVE_VERSION bump).
     affixKills:0,
+    // CAS-1590: monotonic lifetime ÉLITE-CAMPEÓN kills. Per-run delta × CHAMPION.essence is the
+    // GUARANTEED Esencia payoff (folded into essenceForRun). Additive; old saves → 0 (no bump).
+    champElites:0,
     // CAS-150: cached Elite-Mastery REWARD-TRACK perk bundle, derived from eliteKills (never
     // stored — recomputed by recalcMastery on load + every elite kill). Combat reads it hot.
     // Named `mperk` (NOT `mp` — that's mana) to avoid the mana field collision.
@@ -682,7 +685,10 @@ function essenceForRun(h, r){ if(!h) return 0;
   // essence (before the Ascensión multiplier). No RNG → at rate=0 there are 0 affixed kills →
   // r.affixKills=0 → the term vanishes → the essence payout stays byte-identical to build 87346b8599db.
   const afk=(r&&r.affixKills)|0;
-  const raw = lvl*2 + elites*5 + zonas*10 + (tier-1)*15 + afk*MOB_AFFIX_ESSENCE;
+  // CAS-1590: each Élite Campeón slain this run banks a GUARANTEED, data-driven Esencia bounty on
+  // top of the affix drip. No RNG → 0 champions (incl. CHAMPION_RATE=0) → term vanishes → byte-identity.
+  const champs=(r&&r.champElites)|0;
+  const raw = lvl*2 + elites*5 + zonas*10 + (tier-1)*15 + afk*MOB_AFFIX_ESSENCE + champs*CHAMPION.essence;
   if(raw<=0) return 0;
   // CAS-1565: Ascensión/Prestigio multiplier — the permanent payoff for sacrificing the altar.
   return Math.max(1, Math.floor(raw * ascMult(ascLevel()))); }
@@ -856,6 +862,7 @@ export function serializeSave(){
     // so the bonus is restored with maxHp and is NEVER re-applied on load (no double-count).
     eliteKills:h.eliteKills||0,
     affixKills:h.affixKills||0, // CAS-1586: durable lifetime affixed-trash kills (additive; old saves → 0, no SAVE_VERSION bump)
+    champElites:h.champElites||0, // CAS-1590: durable lifetime Élite-Campeón kills (additive; old saves → 0, no SAVE_VERSION bump)
     // CAS-169: durable character-customization look. Additive — old saves simply lack
     // these and rehydrate on the class default look, so NO SAVE_VERSION bump / progress
     // wipe (bumping would discard every live player's progress; an additive+guarded field
@@ -898,6 +905,7 @@ export function loadSave(d){
     h.killsByType={}; if(d.killsByType && typeof d.killsByType==="object"){ for(const k in d.killsByType){ const v=Math.max(0,Math.floor(num(d.killsByType[k],0))); if(v>0) h.killsByType[k]=v; } }
     h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
     h.affixKills=Math.max(0,Math.floor(num(d.affixKills,0))); // CAS-1586 (additive lifetime counter; absent in old saves → 0)
+    h.champElites=Math.max(0,Math.floor(num(d.champElites,0))); // CAS-1590 (additive lifetime counter; absent in old saves → 0)
     h.boons=sanitizeBoons(d.boons); recalcBoons(h); // CAS-383: rehydrate current-run boons (validated ids) + rebuild bundle BEFORE heroMaxHp reads it
     // CAS-392: rehydrate the draft-agency budget + banished pool (clamped; absent in old saves →
     // fresh 1/1). banished re-validated against BOON_MAP (sanitizeBoons) so a corrupt blob can't
@@ -1052,7 +1060,49 @@ function maybeAffix(e){
   if(srand()>=rate) return e;                                      // one srand per eligible spawn (only on the live world path, never in buildWorld → determinism fingerprint untouched)
   let pool=MOB_AFFIX_IDS;
   if(e.tpl.ranged) pool=MOB_AFFIX_IDS.filter(id=>!MOB_AFFIX[id].melee); // Vampiric needs contact → ranged kiters can't carry it
-  return applyAffix(e, pool[ri(0,pool.length-1)]);
+  const firstId=pool[ri(0,pool.length-1)];
+  applyAffix(e, firstId);
+  maybeChampion(e, pool, firstId); // CAS-1590: a fraction of affixed mobs promote to an Élite Campeón (no-op / 0 srand at rate<=0)
+  return e;
+}
+// CAS-1590: every mob a champion carries its affixes in `e.affixes`; a normal affixed mob has ONE
+// (e.affix). Every affix COMBAT/RENDER hook reads through this list so BOTH of a champion's affixes
+// stay live (aura + lifesteal + blast + armor all fire). For a non-champion it returns [e.affix], so
+// the single-affix hooks behave EXACTLY as before → no regression, byte-identical RNG. Empty for trash.
+function mobAffixes(e){ if(!e) return []; if(e.affixes) return e.affixes; return e.affix?[e.affix]:[]; }
+// CAS-1590: PROMOTE an already-affixed mob to an Élite Campeón — a mini-boss with a SECOND distinct
+// affix + the CHAMPION stat block. HARD-GATED on CHAMPION_RATE>0: at rate<=0 it returns before any
+// srand(), so no champion ever spawns and the sim/loot streams stay byte-identical to the affix build.
+// The srand()/World-Tier scaling only runs when the feature is on (rate>0), so turning it on is the
+// only thing that perturbs the stream (that is the feature being live, not a regression).
+// Live champion promotion rate (ships at CHAMPION_RATE). A ?dev harness seam (__dev.setChampRate)
+// can force it to 0 to PROVE the RNG-neutral gate at runtime — at 0, maybeChampion draws no srand.
+let champRate=CHAMPION_RATE;
+function maybeChampion(e, pool, firstId){
+  let rate=champRate; if(!(rate>0)) return e;                        // OFF → zero RNG, byte-identical
+  const wtm=worldTierMods(); if(wtm) rate=Math.min(1,rate*wtm.affixMul); // World Tier nudges champion rarity the SAME way it nudges affixes (trivial reuse)
+  if(srand()>=rate) return e;                                       // one srand ONLY on the live champion path
+  const others=pool.filter(id=>id!==firstId); if(!others.length) return e; // need a DISTINCT 2nd affix
+  return applyChampion(e, firstId, others[ri(0,others.length-1)]);
+}
+// Layer a SECOND affix + the CHAMPION multipliers onto an already-affixed mob. Reuses applyAffix for
+// the 2nd affix so its combat hooks are wired, then compounds the champion stat block onto the (already
+// cloned) tpl. Records the full 2-affix list + reward flags read by killEnemy/render. No RNG.
+function applyChampion(e, firstId, secondId){
+  const primaryGait=e.affixGait;      // keep the FIRST affix's walk cadence as the silhouette gait
+  applyAffix(e, secondId);            // stacks the 2nd affix's hp/size/reward muls onto the cloned tpl
+  const C=CHAMPION, t=e.tpl;
+  t.hp=Math.round(t.hp*C.hpMul); t.dmg=Math.round((t.dmg||0)*C.dmgMul);
+  t.size=Math.max(1,Math.round(t.size*C.sizeMul));
+  t.xp=Math.round(t.xp*C.xpMul);
+  t.gold=[Math.round(t.gold[0]*C.goldMul), Math.round(t.gold[1]*C.goldMul)];
+  t.gearChance=Math.min(1,(t.gearChance||0)+C.gearBonus);
+  e.hp=e.maxHp=t.hp;
+  e.affixes=[firstId, secondId];      // canonical list (mobAffixes reads this → both hooks live)
+  e.affix=firstId; e.affix2=secondId; // e.affix stays the PRIMARY for single-affix back-compat reads
+  e.affixGait=primaryGait||1;         // don't let the 2nd affix override the walk cadence
+  e.champElite=true;
+  return e;
 }
 // Bake a SPECIFIC affix's modifiers onto a mob (clones the template — never the shared row).
 // Split out of maybeAffix so the harness can force each affix deterministically (no RNG here).
@@ -1164,7 +1214,7 @@ function hitEnemy(e,dmg,ang){
   else if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
   // CAS-247 ARMORED affix: a metallic-tinted elite absorbs a fixed fraction of EVERY incoming
   // hero hit (post-crit, so even a crit is blunted) — a damage-soak that makes it a tankier kill.
-  { const af=e.affix&&MOB_AFFIX[e.affix]; if(af&&af.dmgReduce) dmg=Math.max(1,dmg*(1-af.dmgReduce)); }
+  { for(const id of mobAffixes(e)){ const af=MOB_AFFIX[id]; if(af&&af.dmgReduce){ dmg=Math.max(1,dmg*(1-af.dmgReduce)); break; } } } // CAS-1590: a champion's Acorazado affix soaks the same fraction (one reduce, no double-stack)
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -1263,6 +1313,7 @@ function killEnemy(e){
     // CAS-146: an ELITE (ambush leader) guarantees an elevated drop + bonus gold; a normal
     // mob rolls its gearChance as before (non-elites take the unchanged RNG path → baselines hold).
     if(e.elite){ onEliteKill(e, zone); }
+    else if(e.champElite){ onChampElite(e, zone); } // CAS-1590: guaranteed superior loot + unique roll + banked Esencia (champion path only → RNG untouched at rate=0)
     else if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
       dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1])); }
     // CAS-1586: an AFFIXED trash kill also ticks the lifetime affix-kill counter (feeds the Esencia
@@ -1282,11 +1333,11 @@ function killEnemy(e){
   // CAS-247 VOLATILE affix: the corpse ERUPTS a small radial AoE on death — kill it at range or
   // clear the blast. Damages the hero only if inside the radius (no telegraph: the orange aura
   // it carried IS the warning). Deterministic except the cosmetic flame scatter (off frr).
-  { const af=e.affix&&MOB_AFFIX[e.affix]; if(af&&af.blast && G.hero && !G.hero.dead){ const R=af.blast;
+  { for(const id of mobAffixes(e)){ const af=MOB_AFFIX[id]; if(af&&af.blast && G.hero && !G.hero.dead){ const R=af.blast; // CAS-1590: a champion carrying Volátil erupts on death like any volatile mob
     const dd=Math.hypot(G.hero.x-e.x,G.hero.y-e.y);
     if(dd<=R){ const a=Math.atan2(G.hero.y-e.y,G.hero.x-e.x); damageHero(Math.max(1,Math.round(e.tpl.dmg*(af.blastDmgMul||0.85))),a,null); }
     addFx("novacast",e.x,e.y,{r:R,col:af.col,life:0.5}); addFx("shockring",e.x,e.y,{r:R*0.7,life:0.4});
-    for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-R*0.5,R*0.5),e.y+frr(-R*0.5,R*0.5)); shakeAdd(7); audio.sfx.fire(); } }
+    for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-R*0.5,R*0.5),e.y+frr(-R*0.5,R*0.5)); shakeAdd(7); audio.sfx.fire(); } } }
   // CAS-317: a rich-anim boss leaves a corpse that plays the DEATH strip one-shot (holds the
   // collapsed final frame) then fades. Presentation-only — rewards/drops already resolved above.
   if(e.tpl.richAnim){ G.corpses.push({ sprite:e.tpl.sprite, x:e.x, y:e.y, size:e.tpl.size, isBoss:!!e.isBoss, champion:!!e.champion,
@@ -1822,6 +1873,7 @@ export function tryPickup(){
 export function beginRun(){ const h=G.hero; if(!h) return;
   G.run={ pT0:h.playT||0, kills0:h.kills|0, gold0:h.gold|0, elite0:h.eliteKills|0,
           affix0:h.affixKills|0, // CAS-1586: baseline the lifetime affix-kill counter for this run's Esencia delta
+          champElite0:h.champElites|0, // CAS-1590: baseline lifetime champion kills for this run's guaranteed-Esencia delta
           champ0:h.champKills|0, lvl0:h.lvl|0 };
   G.recap=null; }
 // Build the FROZEN recap delta from current counters minus the run baseline. Time uses
@@ -1831,6 +1883,7 @@ function buildRecap(){ const h=G.hero, r=G.run; if(!h) return null; const b=r||{
   return { time:Math.max(0,(h.playT||0)-(b.pT0||0)), kills:Math.max(0,(h.kills|0)-(b.kills0||0)),
     gold:Math.max(0,(h.gold|0)-(b.gold0||0)), elites:Math.max(0,(h.eliteKills|0)-(b.elite0||0)),
     affixKills:Math.max(0,(h.affixKills|0)-(b.affix0||0)), // CAS-1586: this run's affixed kills → extra Esencia
+    champElites:Math.max(0,(h.champElites|0)-(b.champElite0||0)), // CAS-1590: this run's champion kills → GUARANTEED Esencia
     lvl:h.lvl|0, lvlUp:Math.max(0,(h.lvl|0)-(b.lvl0||0)) }; }
 
 // ------------------------------ death ----------------------------------
@@ -2210,7 +2263,7 @@ function updateEnemies(dt){ const h=G.hero;
     // h.slow/h.slowT channel (HUD tint + movespd drag already wired at :2130), so stepping out of
     // range lets the short (0.2s) timer expire on its own. Gated hard on e.affix==="frost" and the
     // mob being alive → 0 frost mobs = 0 work = byte-identical sim. Radius/slow read from the data.
-    if(e.affix==="frost" && e.hp>0 && !e.dead && h && !h.dead){ const af=MOB_AFFIX.frost;
+    if(e.hp>0 && !e.dead && h && !h.dead && mobAffixes(e).includes("frost")){ const af=MOB_AFFIX.frost; // CAS-1590: a champion carrying Aura Gélida radiates the same slow field
       if(Math.hypot(h.x-e.x,h.y-e.y)<=af.auraR){ h.slow=Math.min(h.slow||1, af.auraSlow); h.slowT=Math.max(h.slowT||0, 0.2); } }
     // CAS-118: DoTs tick first so a burning/poisoned enemy keeps losing HP even while
     // stunned. A lethal tick runs the REAL killEnemy path (drops/xp/clear), then we skip
@@ -2525,6 +2578,21 @@ function onEliteKill(e, zone){
   audio.sfx.boss(); shakeAdd(8); toast(STR.eliteDown,2.6);
   for(let i=0,n=rmCount(10);i<n;i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
 }
+// CAS-1590 — Élite Campeón kill payoff: a GUARANTEED superior drop (forced epic+ from the zone's top
+// tier window) + a uniqueChance roll for a legendary, the banked champion-Esencia counter, and the
+// elite-class Mastery tick. Reuses the existing loot path (no new stat rolls). Only ever called from
+// killEnemy on a champion (CHAMPION_RATE>0 path), so at rate=0 it never runs → RNG/loot byte-identical.
+function onChampElite(e, zone){
+  noteEliteKill();          // CAS-149: a champion is an elite-class kill → feeds Elite Mastery
+  grantMats(2);             // CAS-237: forge material toward the next upgrade
+  if(G.hero) G.hero.champElites=(G.hero.champElites|0)+1; // → GUARANTEED Esencia at the run recap (essenceForRun)
+  const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
+  dropGear(e.x+frr(-10,10),e.y, rollGearInst(srand,win[1],win[1],"epic"));            // guaranteed SUPERIOR: epic (the top rarity) from the zone's TOP tier window
+  if(srand()<CHAMPION.uniqueChance) dropGear(e.x+frr(-10,10),e.y, rollGearInst(srand,win[1],win[1],"epic")); // + a probabilistic SECOND superior piece (the "botín único" bonus)
+  G.drops.push({x:e.x+16,y:e.y,kind:"gold",amt:ri(e.tpl.gold[0],e.tpl.gold[1])});
+  audio.sfx.boss(); shakeAdd(9); toast(STR.champDown||"¡Campeón derrotado!",2.8);
+  for(let i=0,n=rmCount(12);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
+}
 // CAS-121 — raise the frost carapace: immune + channel the Freeze Nova + summon adds.
 function startCarapace(e){ const C=e.carapace; if(!C) return;
   e.shielded=true; e.shieldBroken=false; e.state="shield"; e.st=C.channel||2.4; e.hitDone=false;
@@ -2589,10 +2657,10 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // CAS-247 VAMPIRIC affix: when an affixed elite LANDS a hit, it leeches a fixed fraction of
   // its OWN maxHp — heals only on a connect (a dodged/i-framed hit returned above, so reading
   // the tell denies the lifesteal too). A red tick reads "it fed". Deterministic (no RNG).
-  if(src && src.hp>0 && !src.dead){ const af=src.affix&&MOB_AFFIX[src.affix];
+  if(src && src.hp>0 && !src.dead){ for(const id of mobAffixes(src)){ const af=MOB_AFFIX[id]; // CAS-1590: a champion's Vampírico affix leeches like any vampiric mob
     if(af&&af.lifesteal){ const heal=Math.max(1,Math.round(src.maxHp*af.lifesteal));
       if(src.hp<src.maxHp){ src.hp=Math.min(src.maxHp, src.hp+heal); src.hurtFlash=0.08;
-        floater(src.x,src.y-src.tpl.size,"+"+heal,af.col); addFx("spark",src.x,src.y); } } }
+        floater(src.x,src.y-src.tpl.size,"+"+heal,af.col); addFx("spark",src.x,src.y); } break; } } }
   return true;
 }
 function updateProjectiles(dt){ const h=G.hero;
@@ -3168,6 +3236,43 @@ export const dev = {
     const e=spawnEnemy(type||"skeleton", h.x, h.y); applyAffix(e, id); e.scaleZone=zone||"field";
     e.hp=0; killEnemy(e);
     return { baseXp, xp:e.tpl.xp, gearChance:+(e.tpl.gearChance||0).toFixed(3),
+      drops:G.drops.slice(before).map(d=>({ kind:d.kind, rarity:d.rarity, tier:d.tier, amt:d.amt||0 })) }; },
+  // --- CAS-1590 ÉLITE CAMPEÓN harness hooks (tools/cas1590-champion-live.mjs) ---
+  // Static champion table + promotion rate straight off the data (no sim step): asserts the config
+  // shape (2+-affix mini-boss, guaranteed Esencia, tankier multipliers) without touching RNG.
+  championMeta(){ return { rate:CHAMPION_RATE, liveRate:champRate, affixRate:MOB_AFFIX_RATE, def:Object.assign({},CHAMPION) }; },
+  // RNG-neutrality seam: force the live champion rate (0 → feature OFF, no srand drawn in maybeChampion).
+  // Pass null to restore the shipped CHAMPION_RATE. Used by QA to prove rate=0 ⇒ byte-identical affix stream.
+  setChampRate(r){ champRate=(r==null)?CHAMPION_RATE:Math.max(0,+r||0); return champRate; },
+  // Promotion-rate probe: spawn N eligible mobs through the REAL maybeAffix path (which now also runs
+  // maybeChampion) and tally how many became champions. Proves champions are RARE (≈ affixRate×rate)
+  // AND that every champion carries 2 DISTINCT affixes. Cleans up after itself. Reseed for a repeat.
+  championRollRate(n, type){ n=Math.max(1,n|0); const before=G.enemies.length; let champs=0, twoAffix=0; const tally={};
+    for(let i=0;i<n;i++){ const e=maybeAffix(spawnEnemy(type||"skeleton", -9000-i, -9000));
+      if(e.champElite){ champs++; if((e.affixes||[]).length>=2 && e.affixes[0]!==e.affixes[1]) twoAffix++; tally[e.affixes.join("+")]=(tally[e.affixes.join("+")]||0)+1; } }
+    G.enemies.length=before; return { n, champs, rate:+(champs/n).toFixed(4), twoAffix, tally }; },
+  // Clean single-champion arena with FORCED affixes: clear entities, tanky hero, spawn ONE mob and
+  // bake firstId+secondId through the REAL applyAffix→applyChampion path, set it chasing. Returns
+  // base-vs-champion stats so the test can assert BOTH affixes are present + the tank/danger boosts.
+  championArena(firstId, secondId, type, dx){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.stun=0; h.maxHp=100000; h.hp=100000; h.cls="warrior";
+    firstId=firstId||"armored"; secondId=secondId||"frost";
+    const base=ETPL[type||"skeleton"]; const e=spawnEnemy(type||"skeleton", h.x+(dx||120), h.y);
+    if(!e) return null; applyAffix(e, firstId); applyChampion(e, firstId, secondId); e.state="chase";
+    return { champElite:!!e.champElite, affixes:(e.affixes||[]).slice(), affix:e.affix, affix2:e.affix2,
+      base:{hp:base.hp, dmg:base.dmg||0, size:base.size, xp:base.xp, gold:base.gold.slice()},
+      mod:{hp:e.tpl.hp, dmg:e.tpl.dmg||0, size:e.tpl.size, xp:e.tpl.xp, gold:e.tpl.gold.slice(), gearChance:+(e.tpl.gearChance||0).toFixed(3)} }; },
+  // Spawn-kill a FORCED champion via the real killEnemy path in `zone` and report the guaranteed
+  // payoff: the champElites/affixKills counter deltas, the drops (superior gear + unique roll), and
+  // the projected Esencia this run's champion kills bank (isolated recap through the REAL essenceForRun).
+  championKill(zone, firstId, secondId){ const h=G.hero; const before=G.drops.length;
+    const champ0=h.champElites|0, affix0=h.affixKills|0;
+    firstId=firstId||"armored"; secondId=secondId||"vampiric";
+    const e=spawnEnemy("skeleton", h.x, h.y); applyAffix(e, firstId); applyChampion(e, firstId, secondId);
+    e.scaleZone=zone||"caves"; e.hp=0; killEnemy(e);
+    const dChamp=(h.champElites|0)-champ0, dAffix=(h.affixKills|0)-affix0;
+    const essence=essenceForRun(h, { champElites:dChamp, affixKills:dAffix, elites:0 }); // isolated: only this run's champ+affix kills (+ the flat lvl*2 floor)
+    return { champElites:dChamp, affixKills:dAffix, champTerm:dChamp*CHAMPION.essence, essence, affixes:(e.affixes||[]).slice(),
       drops:G.drops.slice(before).map(d=>({ kind:d.kind, rarity:d.rarity, tier:d.tier, amt:d.amt||0 })) }; },
   // --- CAS-1586 AURA GÉLIDA + Esencia tie-in harness hooks (tools/cas1586-frost-live.mjs) ---
   // Clean arena, force ONE frost mob, place the FROZEN mob `dist` px from the hero, tick the REAL

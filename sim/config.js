@@ -404,6 +404,28 @@ export const MOB_AFFIX = {
 // Pure additive on essenceForRun; RNG-untouched (0 affixed kills at rate=0 → term=0 → byte-identity).
 export const MOB_AFFIX_ESSENCE = 2;
 
+// CAS-1590 — ÉLITE CAMPEÓN: a rare, TELEGRAPHED promotion of an already-affixed trash mob into a
+// mini-boss that carries 2+ COMBINED affixes (reuses the CAS-247/1585 affix engine wholesale) and
+// wears heavier stat multipliers. Purely additive: a champion is a mob that (a) won its normal affix
+// roll AND (b) then won this second promotion roll, at which point it gains a SECOND distinct affix +
+// the CHAMPION stat block. On death it drops GUARANTEED Esencia (data-driven) plus a guaranteed
+// superior gear drop and a roll for a unique/legendary. $0 art — the telegraph reuses the affix
+// tint/halo layers + a gold champion ring/nameplate.
+//
+// RNG-NEUTRALITY: the promotion roll is entirely skipped when CHAMPION_RATE<=0 (maybeChampion returns
+// before any srand()). So at rate=0 no champion ever spawns, no extra srand is drawn, and the sim +
+// loot streams stay BYTE-IDENTICAL to the affix-only build eb60f87e4ca1. Ship rate>0 to turn it on.
+export const CHAMPION_RATE = 0.18;   // P(promote | mob already rolled an affix). Effective world rate ≈ MOB_AFFIX_RATE × this.
+export const CHAMPION = {
+  name:"Campeón", col:"#ffd24d",
+  hpMul:2.6,        // MUCH tankier — layered ON TOP of the two affixes' own hpMuls (mini-boss health)
+  dmgMul:1.6,       // hits harder (scales the cloned tpl.dmg once)
+  sizeMul:1.18,     // a bigger silhouette — legible at distance (the third, art-free "this is special" cue)
+  xpMul:2.0, goldMul:2.0, gearBonus:0.15,
+  essence:25,       // GUARANTEED Esencia banked per champion kill (data-driven; on TOP of the affix drip)
+  uniqueChance:0.5, // P(a SECOND superior/"unique" drop) on top of the guaranteed epic (epic = top rarity in this loot ladder)
+};
+
 // CAS-149 — ELITE MASTERY: the persistent, cross-session progression HOOK that gives a
 // returning player a reason to come back. EVERY elite-class kill (ambush elites CAS-146 +
 // hunt champions + the final boss) ticks a monotonic lifetime counter (h.eliteKills, saved
