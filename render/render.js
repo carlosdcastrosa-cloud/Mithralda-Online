@@ -710,7 +710,7 @@ export function createRenderer(ctx){
     // CAS-333 (CAS-301a): `rows`/`row` carry the 8-direction strip layout (8 stacked rows,
     // pick row by facing bucket); legacy single-facing strips keep rows=1,row=0. `flipOff`
     // suppresses the horizontal flip for 8-dir strips (every facing is real art).
-    let key,fc,fi,rows=1,row=0,flipOff=false,rotAng=null;
+    let key,fc,fi,rows=1,row=0,flipOff=false;
     if(state==="dead" && has("clsdeath_"+art)){
       key="clsdeath_"+art; fc=CLASS_DEATH_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_DEATH_DUR)));
     } else if(state==="special" && has("clsspecial_"+art)){
@@ -726,12 +726,16 @@ export function createRenderer(ctx){
       // the roll; row = dash heading bucket (the call site passes ang=atan2(rollY,rollX) during
       // a roll). Real per-facing art → flip suppressed. Gated FIRST so it wins over the single-
       // dir clsdash_ strip; non-warrior / missing file falls through to clsdash_ then idle-roll.
-      // CAS-1618: warrior_dash8.png has all 8 rows baked identically (E-W only). Row selection
-      // was a no-op — always showed horizontal regardless of direction. Fix: always use row 0
-      // (the canonical E-W bake) and rotate the canvas to match the actual dash angle so the
-      // streak trails correctly in any of the 8 directions.
-      key="clsdash8_"+art; fc=CLASS_DASH8_FC; rows=8; row=0; flipOff=true; rotAng=ang||0;
-      fi=Math.min(fc-1, Math.floor((animT||0)*(fc/Math.max(0.12, CFG.rollTime||0.2))));
+      // CAS-1619: the 8 rows ARE distinct per-facing character art (E/W are mirror bakes —
+      // verified: distinct row hashes), so the CHARACTER already rotates. The "solo E-O" bug
+      // is that frames 0-3 of EVERY row bake a HORIZONTAL whoosh streak. Fix: keep the per-row
+      // character (row=dir8FromAngle) and SKIP the baked streak frames 0-3 (play only the
+      // character frames 4-7); the directional streak is drawn procedurally in drawHero along
+      // the real dash vector. Rotating the whole cell (an earlier attempt) would tilt the
+      // upright character 90° when dashing N/S — rejected.
+      key="clsdash8_"+art; fc=CLASS_DASH8_FC; rows=8; row=dir8FromAngle(ang||0); flipOff=true;
+      { const prog=Math.min(1,(animT||0)/Math.max(0.12, CFG.rollTime||0.2));
+        fi=Math.min(fc-1, 4+Math.floor(prog*(fc-4))); }
     } else if(state==="roll" && has("clsdash_"+art)){
       // CAS-329: dodge-roll dash — play the 8f dash strip once across the roll duration.
       // Gated on the strip so non-warrior classes keep today's idle-loop roll (regression-safe).
@@ -780,13 +784,7 @@ export function createRenderer(ctx){
       _heroBx.globalAlpha=1; _heroBx.globalCompositeOperation="source-over";
       src=_heroBuf; ssx=0; ssy=0; }
     ctx.save(); ctx.imageSmoothingEnabled=false;
-    if(rotAng !== null){
-      // CAS-1618: rotate canvas around the hero body pivot so the E-W dash art trails
-      // in the actual dash direction.
-      const pivX=cx, pivY=feet-(bobUp||0);
-      ctx.translate(pivX, pivY); ctx.rotate(rotAng);
-      ctx.drawImage(src,ssx,ssy,fw,fh,-ax*S*sqX,-foot*S*sqY,dw,dh);
-    } else if(useFlip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,fw,fh,0,0,dw,dh); }
+    if(useFlip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,fw,fh,0,0,dw,dh); }
     else ctx.drawImage(src,ssx,ssy,fw,fh,dx,dy,dw,dh);
     ctx.restore(); return true;
   }
