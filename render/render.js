@@ -2773,12 +2773,22 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.font="bold 17px 'Courier New'"; ctx.fillText("✦ "+STR.altarBanked(essence),cx,y); y+=16;
     // Adaptive row height: reserve chrome (Tier-2 divider + Ascender + Back) and fit the rows in the rest.
     const pw=Math.min(VW*0.86,470), px=cx-pw/2, gap=6;
-    const rowCount=snap.nodes.length+(showT2?snap.t2.length:0);
-    const dividerH=showT2?22:0, ascendH=(showT2?40:0), backH=30, chrome=dividerH+ascendH+backH+18;
+    // CAS-1574: ability-rank rows are ALWAYS shown (never gated) → count them + their divider.
+    const abils=snap.abilities||[];
+    const rowCount=snap.nodes.length+abils.length+(showT2?snap.t2.length:0);
+    const abilDivH=abils.length?20:0;
+    const dividerH=showT2?22:0, ascendH=(showT2?40:0), backH=30, chrome=abilDivH+dividerH+ascendH+backH+18;
     const avail=VH-y-chrome;
-    const rh=Math.max(30, Math.min(50, Math.floor(avail/Math.max(1,rowCount))-gap));
+    const rh=Math.max(28, Math.min(50, Math.floor(avail/Math.max(1,rowCount))-gap));
     // Tier-1 rows
     for(const n of snap.nodes){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
+    // CAS-1574: HABILIDADES — permanent ability-rank upgrades (always available, ungated). Reuses
+    // altarRow (glyph icon fallback = $0 art), so the buy button pushes {key:"rank_<id>"} → the
+    // generic altarTap buy path already handles it.
+    if(abils.length){
+      ctx.textAlign="center"; ctx.fillStyle="#8fd0ff"; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.altarAbilities,cx,y+13); y+=abilDivH;
+      for(const n of abils){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
+    }
     // CAS-1565: Tier-2 — locked note until every v1 node is maxed, then the second row + Ascender.
     if(!showT2){
       ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.altarTier2Locked,cx,y+12); y+=22;
