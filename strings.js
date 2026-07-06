@@ -180,6 +180,17 @@ export const STR = {
   recapLevelUp: (lvl, up) => "Nivel: " + lvl + " (+" + up + ")",
   recapRetry: (k) => "OTRA RONDA  [" + k + "]",
   recapHub: "Pueblo / Menú  [Esc]",
+  // CAS-1557 — meta-progression (Esencia + Altar de las Almas). The permanent between-run layer.
+  recapEssence: (n) => "Esencia ganada:  +" + n,
+  altarBanked: (n) => "Esencia: " + n,
+  altarOpen: "Altar de las Almas",
+  altarTitle: "ALTAR DE LAS ALMAS",
+  altarSub: "Gasta Esencia en mejoras permanentes de cuenta",
+  altarBuy: "Mejorar",
+  altarMax: "MÁX",
+  altarCost: (n) => n + " ✦",
+  altarLvl: (l, cap) => "Nv " + l + "/" + cap,
+  altarBack: "Volver  [Esc]",
 
   // CAS-123 — Stage-1 objective tracker (HUD) + victory / run-completion screen.
   // The single legible GOAL, shown from minute one so a new player knows where the run

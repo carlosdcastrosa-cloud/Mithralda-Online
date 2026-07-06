@@ -69,7 +69,7 @@ export function configure(deps){ io = deps.io; audio = deps.audio; view = deps.v
 export { world, rng };
 
 export const G = {
-  scene:"menu", // menu, play, dialogue, shop, bounty, bestiary, inventory, talents, pause, dead, victory
+  scene:"menu", // menu, play, dialogue, shop, bounty, bestiary, inventory, talents, pause, dead, altar, victory
   // CAS-123: frozen run-summary snapshot built when the Stage-1 final boss dies; read by
   // renderVictory(). null until the win fires. Cleared scene-side only (the win persists
   // on the hero), so re-opening it is harmless.
@@ -112,6 +112,13 @@ export const G = {
   // step machine (no DOM, no RNG) that observes hero state + a few event flags and
   // renders coachmarks. Persisted in the save so a mid-tutorial refresh resumes it.
   tut:null,
+  // CAS-1557: account-wide META-PROGRESSION (the permanent layer BETWEEN runs). null until
+  // persist.bootMeta() rehydrates it from its OWN store (mithralda.meta.v1 — never the run
+  // save). Deterministic pure data ({v,essence,nodes}); the sim owns the shape + gameplay,
+  // persist.js owns the localStorage medium (same split as the run save). `metaDirty` is a
+  // one-shot flush flag the persistence controller consumes to write the store the instant
+  // essence is banked or a node bought (durable without waiting for the throttled autosave).
+  meta:null, metaDirty:false,
 };
 // CAS-128: armed at boot by the persistence controller when this is a FIRST run
 // (no save AND the tutorial-seen flag is unset). createHero() reads it once so the
@@ -519,6 +526,10 @@ function worldTierMods(){ const h=G.hero; const t=(h&&h.conquest&&h.conquest.tie
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
 export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; G.scene="play"; G.started=true;
+  // CAS-1557: apply the account-wide meta upgrades at this run-start seam. reconcileMeta bakes
+  // the +HP/+dmg/+gold/+moveSpeed delta (idempotent via metaApplied); applyMetaReroll adds the
+  // per-run reroll charges on top of newHero's fresh budget; then fill HP to the boosted cap.
+  reconcileMeta(G.hero); applyMetaReroll(G.hero); G.hero.hp=heroMaxHp(G.hero);
   beginRun();                                                   // CAS-277: first run baseline for the recap
   if(tutArmed){ startTutorial(); tutArmed=false; } }            // CAS-128: first-run guided flow
 
@@ -581,6 +592,93 @@ function RARITY_VALID(r){ return (r==="common"||r==="uncommon"||r==="rare"||r===
 function safeAffixes(arr){ if(!Array.isArray(arr)) return null; const out=[];
   for(const a of arr){ if(a&&AFFIXES[a.id]&&typeof a.amt==="number"&&isFinite(a.amt)){ out.push({id:a.id,amt:Math.max(0,Math.round(a.amt))}); if(out.length>=2) break; } }
   return out.length?out:null; }
+// ===================== CAS-1557: META-PROGRESSION v1 =========================
+// The permanent, ACCOUNT-WIDE layer between runs: an "Esencia" currency banked on death
+// + an altar of 5 additive upgrade nodes bought with it. Lives in its OWN isolated store
+// (mithralda.meta.v1) so it NEVER touches the run save — wiping a character ("Nueva
+// partida") keeps the meta, and vice-versa. Pure, deterministic data (Stage-2 safe: an
+// account service can back this later without changing the shape); persist.js owns the
+// localStorage medium. Values below are TUNABLE (balance-only; no mechanic depends on them).
+export const META_NODES = [
+  // key       cap  cost(currentLvl)     per-level effect (applied in reconcileMeta / re-roll)  UI label / blurb / glyph
+  { key:"hpMax",     cap:5, cost:l=>10*(l+1), per:12,   label:"Vitalidad", eff:"+12 HP máx",     glyph:"♥" },
+  { key:"dmg",       cap:5, cost:l=>15*(l+1), per:2,    label:"Filo",      eff:"+2 daño base",   glyph:"⚔" },
+  { key:"moveSpd",   cap:4, cost:l=>20*(l+1), per:0.03, label:"Celeridad", eff:"+3% vel. mov.",  glyph:"»" },
+  { key:"reroll",    cap:2, cost:_=>40,       per:1,    label:"Presagio",  eff:"+1 reroll boon", glyph:"↻" },
+  { key:"startGold", cap:5, cost:l=>12*(l+1), per:25,   label:"Fortuna",   eff:"+25 oro inicial",glyph:"$" },
+];
+const META_MAP = (()=>{ const m={}; for(const n of META_NODES) m[n.key]=n; return m; })();
+function metaDefault(){ return { v:1, essence:0, nodes:{hpMax:0,dmg:0,moveSpd:0,reroll:0,startGold:0} }; }
+// Lazily materialise the in-memory meta (before persist.bootMeta rehydrates it, or in a
+// headless smoke run) so no sim path ever dereferences null. Idempotent.
+function ensureMeta(){ if(!G.meta) G.meta=metaDefault(); return G.meta; }
+// Validated node level (0..cap) — the untrusted-blob guardrail (mirrors sanitizeBoons).
+function metaLvl(key){ const n=META_MAP[key]; if(!n) return 0;
+  return Math.max(0, Math.min(n.cap, (ensureMeta().nodes[key]|0))); }
+// Cost of the NEXT level of a node, or null when capped. Pure (UI + buy both read it).
+export function metaNodeCost(key){ const n=META_MAP[key]; if(!n) return null;
+  const lvl=metaLvl(key); return lvl>=n.cap ? null : Math.floor(n.cost(lvl)); }
+// The essence earned by a finished run (v1 TUNABLE formula). Reads existing counters only
+// (level + this-run elites + conquest zones cleared this cycle + world tier) — invents no
+// new economy. Floored, min 1 so any run that got anywhere still drips currency.
+function essenceForRun(h, r){ if(!h) return 0;
+  const lvl=h.lvl|0, elites=(r&&r.elites)|0;
+  const zonas=((h.conquest&&h.conquest.bossesDown&&h.conquest.bossesDown.length)|0);
+  const tier=(h.conquest&&h.conquest.tier)||1;
+  const raw = lvl*2 + elites*5 + zonas*10 + (tier-1)*15;
+  return raw>0 ? Math.max(1, Math.floor(raw)) : 0; }
+// Reconcile the DURABLE meta stats (HP / dmg / gold / moveSpeed) onto a hero at a run-start
+// seam. Idempotent via h.metaApplied (the amount already baked in, persisted in the save):
+// only the DELTA to the current node totals is applied, so calling it at createHero AND
+// respawn AND loadSave never double-counts, yet a node bought at the altar takes effect the
+// very next run. Reroll is handled separately (it is a per-run charge reset by respawn).
+function reconcileMeta(h){ if(!h) return; ensureMeta();
+  const wantHp=metaLvl("hpMax")*META_MAP.hpMax.per, wantDmg=metaLvl("dmg")*META_MAP.dmg.per,
+        wantGold=metaLvl("startGold")*META_MAP.startGold.per, wantSpdLv=metaLvl("moveSpd");
+  const had=h.metaApplied||(h.metaApplied={hp:0,dmg:0,gold:0,spdLv:0});
+  if(wantHp!==had.hp) h.maxHp += (wantHp-had.hp);
+  if(wantDmg!==had.dmg) h.baseDmg += (wantDmg-had.dmg);
+  if(wantGold!==had.gold) h.gold = Math.max(0, (h.gold|0) + (wantGold-had.gold));
+  if(wantSpdLv!==had.spdLv && h.moveSpeed){
+    // moveSpeed is recomputed from the class base each newHero and carried across respawn,
+    // so apply the level change as a multiplicative delta (reversible, never compounding).
+    h.moveSpeed = h.moveSpeed * (1+META_MAP.moveSpd.per*wantSpdLv) / (1+META_MAP.moveSpd.per*had.spdLv);
+  }
+  h.metaApplied={hp:wantHp, dmg:wantDmg, gold:wantGold, spdLv:wantSpdLv};
+}
+// Re-apply the per-run REROLL charges from meta ON TOP of the freshly-reset budget. Called
+// ONLY at true run-start seams (createHero / respawn) AFTER rerollLeft is reset to its base,
+// because respawn wipes rerollLeft to 1 — the CRÍTICO seam the epic plan calls out.
+function applyMetaReroll(h){ if(!h) return; const rr=metaLvl("reroll")*META_MAP.reroll.per;
+  if(rr) h.rerollLeft=(h.rerollLeft|0)+rr; }
+// --- persistence hooks (I/O-free; persist.js owns localStorage) ---
+export function serializeMeta(){ const m=ensureMeta(); const nodes={};
+  for(const n of META_NODES) nodes[n.key]=metaLvl(n.key);
+  return { v:1, essence:Math.max(0,m.essence|0), nodes }; }
+export function loadMeta(d){ const def=metaDefault();
+  if(d && typeof d==="object"){ def.essence=Math.max(0, (d.essence|0));
+    const n=(d.nodes&&typeof d.nodes==="object")?d.nodes:{};
+    for(const node of META_NODES) def.nodes[node.key]=Math.max(0, Math.min(node.cap, (n[node.key]|0))); }
+  G.meta=def; return true; }
+// --- gameplay API (input.js / render.js / QA hooks call these) ---
+// Read-only altar view model: essence + each node's level, cap, next cost (null=capped), effect.
+export function metaSnap(){ const m=ensureMeta();
+  return { essence:m.essence|0, nodes:META_NODES.map(n=>({ key:n.key, label:n.label, eff:n.eff, glyph:n.glyph,
+    lvl:metaLvl(n.key), cap:n.cap, cost:metaNodeCost(n.key) })) }; }
+// Buy the next level of a node: guarded on cap + sufficient essence (never over-spends or
+// over-caps). Returns true on a real purchase (marks the store dirty for an immediate flush).
+export function buyMetaNode(key){ const n=META_MAP[key]; if(!n) return false;
+  const m=ensureMeta(); const lvl=metaLvl(key); if(lvl>=n.cap) return false;
+  const cost=Math.floor(n.cost(lvl)); if((m.essence|0)<cost) return false;
+  m.essence=(m.essence|0)-cost; m.nodes[key]=lvl+1; G.metaDirty=true;
+  // A bought node takes effect from the NEXT run-start reconcile; if the same hero is about
+  // to respawn (buying at the death altar), that respawn's reconcileMeta applies the delta.
+  return true; }
+// QA / dev hook (window.__metaReset): wipe the account meta back to zero (mirrors the run
+// resets). Also clears the hero's baked-in baseline so a live hero re-reconciles cleanly.
+export function resetMeta(){ G.meta=metaDefault(); G.metaDirty=true;
+  if(G.hero) G.hero.metaApplied={hp:0,dmg:0,gold:0,spdLv:0}; return true; }
+
 // Snapshot the DURABLE hero progression as a plain JSON-safe blob. Transient
 // combat/anim/buff state is intentionally excluded (rehydrated clean), and any
 // active timed buff is stripped from the bonus sinks so only PERMANENT power is
@@ -612,6 +710,11 @@ export function serializeSave(){
     kills:h.kills||0, champKills:h.champKills||0,
     // CAS-375: persist the per-type tally so directed bounties survive reloads (additive).
     killsByType:h.killsByType||{},
+    // CAS-1557: persist how much ACCOUNT-META bonus is baked into the durable stats above
+    // (maxHp/baseDmg/gold/moveSpeed level). This is the idempotency baseline reconcileMeta
+    // subtracts on load so meta never double-applies across a reload. Additive — old saves
+    // lack it → baseline 0 (they carry no meta). The meta itself lives in its OWN store.
+    metaApplied: Object.assign({hp:0,dmg:0,gold:0,spdLv:0}, h.metaApplied||{}),
     // CAS-383: persist the CURRENT-run drafted boons so a same-run reload keeps the build.
     // Additive — old saves lack it → empty list → zero bundle. A death/new run wipes them
     // (respawn/createHero), so a fresh run never inherits a prior run's boons.
@@ -696,6 +799,13 @@ export function loadSave(d){
     }
     h.palette=sanitizePalette(d.palette, h.cls); h.variation=sanitizeVariation(d.variation); // CAS-169 cosmetics (validated, class-default fallback)
     recalcMastery(h);  // CAS-150: rebuild the reward-track perk bundle from the loaded count BEFORE heroMaxHp reads it
+    // CAS-1557: restore how much account-meta is ALREADY baked into the loaded maxHp/dmg/gold/
+    // moveSpeed (persisted alongside them), then reconcile against the current meta store. On a
+    // pre-meta save these fields are absent → baseline 0 → reconcile applies the current meta once
+    // (the save never carried it). On a current save the delta is 0 unless a node was bought since.
+    if(d.metaApplied && typeof d.metaApplied==="object"){ const ma=d.metaApplied;
+      h.metaApplied={ hp:Math.max(0,num(ma.hp,0)), dmg:Math.max(0,num(ma.dmg,0)), gold:Math.max(0,num(ma.gold,0)), spdLv:Math.max(0,Math.floor(num(ma.spdLv,0))) }; }
+    reconcileMeta(h);
     h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
@@ -1560,6 +1670,11 @@ function buildRecap(){ const h=G.hero, r=G.run; if(!h) return null; const b=r||{
 // ------------------------------ death ----------------------------------
 function heroDie(){
   const h=G.hero; if(h.dead) return; G.recap=buildRecap(); h.dead=true; h.animState="dead"; h.animT=0; G.scene="dead"; audio.sfx.death();
+  // CAS-1557: bank this run's Esencia into the account-wide meta store (marks it dirty for an
+  // immediate flush) and stamp the amount + new bank total onto the frozen recap so the death
+  // screen can show the "+X Esencia" payoff. Pure read of existing counters — no new economy.
+  { const gain=essenceForRun(h, G.recap); if(gain>0){ ensureMeta().essence=(ensureMeta().essence|0)+gain; G.metaDirty=true; }
+    if(G.recap){ G.recap.essence=gain; G.recap.essenceTotal=ensureMeta().essence|0; } }
   h.deaths=(h.deaths||0)+1; // CAS-123: a run attempt for the victory summary
   const red=G.skull.level>=3;
   let frac = h.blessings>0 && !red ? 0.10 : 0.30;
@@ -1573,6 +1688,11 @@ export function respawn(){
   h.rerollLeft=1; h.banishLeft=1; if(h.banished) h.banished.length=0; else h.banished=[]; // CAS-392: death resets the draft-agency budget + banished pool (per-run, same as boons)
   h.curses={}; if(h.curseSeen) h.curseSeen.length=0; else h.curseSeen=[]; G.curse=null; // CAS-394: death ends the run → clear accepted zone modifiers + re-arm the entry offers
   G.ascend=null; // CAS-450 hygiene: no pending ascend offer can survive a death (conquest itself is durable — tier + cycle trophies persist)
+  // CAS-1557: re-apply the account-wide meta at this run-start seam. reconcileMeta is a no-op
+  // unless a node was bought at the altar (then it bakes the delta into maxHp/dmg/gold/moveSpeed);
+  // applyMetaReroll re-adds the reroll charges ON TOP of the rerollLeft:1 just reset above — the
+  // CRÍTICO seam, since respawn wiped the meta reroll along with the per-run budget. HP fills below.
+  reconcileMeta(h); applyMetaReroll(h);
   h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap

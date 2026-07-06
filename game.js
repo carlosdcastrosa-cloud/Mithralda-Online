@@ -13,7 +13,7 @@
 // A Stage-2 networking layer wraps sim/ by feeding intents per tick and ignoring
 // render/audio/view — no rewrite of the gameplay logic required.
 // ===========================================================================
-import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap } from "./sim/sim.js";
+import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
@@ -94,6 +94,10 @@ export function createGame(canvas, ctx, getView){
   settings.boot();
   // CAS-113: rehydrate a saved run BEFORE the menu DOM syncs — a valid save jumps
   // straight into play (skipping name/class); no/invalid save leaves the menu flow.
+  // CAS-1557: rehydrate the account-wide meta-progression (Esencia + altar nodes) from its OWN
+  // store BEFORE persist.boot() rehydrates a run save — so a loaded hero's loadSave reconcile
+  // reads the live meta, and a fresh createHero applies it. Independent of any character.
+  persist.bootMeta();
   persist.boot();
   persist.initFlush();
   // CAS-132: privacy-light retention/funnel analytics. boot() opens the anonymous
@@ -158,7 +162,11 @@ export function createGame(canvas, ctx, getView){
   };
   hud.boot(hudSnapshot, hudActions);
   // Read API for the analytics.html dashboard + QA harness (own anonymous device data).
-  if(typeof window!=="undefined"){ window.__analytics=analytics.dev; window.__daily=daily.dev; window.__bestiary=bestiary.dev; }
+  if(typeof window!=="undefined"){ window.__analytics=analytics.dev; window.__daily=daily.dev; window.__bestiary=bestiary.dev;
+    // CAS-1557: meta-progression QA/dev hooks — read the account meta (essence + node levels)
+    // and wipe it back to zero, mirroring the run-reset globals. buy() is exposed for harness
+    // scripting of the altar; the human path is the on-screen Altar panel.
+    window.__meta=()=>metaSnap(); window.__metaReset=()=>resetMeta(); window.__metaBuy=(k)=>buyMetaNode(k); }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
     window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)

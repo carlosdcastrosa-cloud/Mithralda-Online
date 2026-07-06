@@ -10,9 +10,14 @@
 // so the latest gold / XP / upgrades survive a refresh. All storage calls are
 // wrapped — private-mode / quota failures degrade silently, the game still runs.
 // ===========================================================================
-import { G, serializeSave, loadSave, setTutArm } from "./sim/sim.js";
+import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta } from "./sim/sim.js";
 
 const KEY = "mithralda.save.v1";
+// CAS-1557: the ACCOUNT-WIDE meta-progression store — deliberately SEPARATE from the run save
+// so wiping a character ("Nueva partida") never touches banked Esencia or altar upgrades, and
+// vice-versa. Same storage-medium ownership split as the run save: the sim owns the shape
+// (serializeMeta / loadMeta), this controller owns localStorage + the write cadence.
+const KEY_META = "mithralda.meta.v1";
 // CAS-128: a tiny, SEPARATE first-run marker. Set the first time the onboarding
 // tutorial finishes or is skipped, so a returning player never gets the tutorial
 // auto-started again (even after "Nueva partida" wipes the save). Independent of the
@@ -43,6 +48,16 @@ export function save(){
 export function clear(){ try{ localStorage.removeItem(KEY); }catch(e){} }
 export function hasSave(){ return !!read(); }
 
+// CAS-1557: meta store I/O (isolated from the run save above). All wrapped — a private-mode /
+// quota failure degrades silently, the game still runs with the in-memory default meta.
+function readMeta(){ try{ const raw=localStorage.getItem(KEY_META); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+export function saveMeta(){ if(suppressed) return false;
+  try{ const blob=serializeMeta(); if(!blob) return false; localStorage.setItem(KEY_META, JSON.stringify(blob)); return true; }
+  catch(e){ return false; } }
+// Rehydrate the account meta at boot (independent of any run save — a brand-new player with no
+// character still has a valid, zeroed meta). A corrupt/absent blob → loadMeta installs defaults.
+export function bootMeta(){ loadMeta(readMeta()); G.metaDirty=false; }
+
 // Boot: if a VALID save exists, rehydrate straight into play (skipping the name /
 // class flow); otherwise leave the normal menu flow untouched. A corrupt, old or
 // invalid save is discarded (cleared) and the player starts clean — never crashes.
@@ -62,6 +77,10 @@ export function boot(){
 // Throttled autosave — call once per sim step with the step in SECONDS. Only saves
 // while there is a live run to persist, and at most once per SAVE_THROTTLE.
 export function tick(dtSec){
+  // CAS-1557: flush the account meta the instant it is dirtied (essence banked on death, node
+  // bought at the altar) — BEFORE the run-save scene gate, so a buy on the death screen persists
+  // even though no run is "live". One-shot: the flag clears on write. Cheap (small blob, rare).
+  if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; }
   if(!G.started || G.scene==="menu" || G.scene==="classsel") return;
   // CAS-128: the moment the tutorial is finished/skipped, write the one-time seen marker
   // so it never auto-starts for this player again. flushed gates it to a single write.
@@ -78,7 +97,7 @@ export function resetGame(){ suppress(); clear(); try{ if(typeof location!=="und
 // few seconds of progress between throttled autosaves.
 export function initFlush(){
   if(typeof window==="undefined") return;
-  const flush = ()=>{ if(G.started) save(); };
+  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } }; // CAS-1557: meta rides the same unload flush
   window.addEventListener("beforeunload", flush);
   window.addEventListener("pagehide", flush);
   if(typeof document!=="undefined")

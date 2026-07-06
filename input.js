@@ -25,7 +25,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], altarRects:[], invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
   // CAS-419 inventory DnD: live drag state (render draws the ghost/highlights from it),
   // last rejected drop rect (render shakes it red until `until`, sim time), and the
   // backpack list area rect render publishes so an equip-slot drag can target empty rows.
@@ -102,8 +102,15 @@ function edge(code){
   // CAS-277: end-of-run recap — PRIMARY "otra ronda" (Space/Enter or the bound attack key)
   // → fresh run; SECONDARY "pueblo/menú" (Escape) → respawn into the calm pause hub.
   if(G.scene==="dead"){ const b=G.settings.binds;
-    if(code==="Space"||code==="Enter"||(b&&code===b.attack)) deadRetry();
+    if(code==="KeyA") G.scene="altar";                       // CAS-1557: open the meta altar
+    else if(code==="Space"||code==="Enter"||(b&&code===b.attack)) deadRetry();
     else if(code==="Escape") deadHub();
+    return; }
+  // CAS-1557: altar scene — Esc/A closes back to the death recap. Number keys 1-5 buy the
+  // matching node (sim guards cap + essence), a lightweight keyboard path alongside the taps.
+  if(G.scene==="altar"){
+    if(code==="Escape"||code==="KeyA") G.scene="dead";
+    else if(code.startsWith("Digit")){ const i=(+code.slice(5))-1; const n=sim.META_NODES&&sim.META_NODES[i]; if(n) sim.buyMetaNode(n.key); }
     return; }
   if(G.scene==="victory"){ if(code==="Space"||code==="Enter"||code==="Escape") sim.dismissVictory(); return; } // CAS-123
   if(G.scene==="dialogue"){ if(code==="KeyE"||code==="Space"||code==="Enter") sim.advanceDialogue(); else if(code==="Escape"){G.dialog=null;G.scene="play";} return; }
@@ -313,6 +320,12 @@ function sidebarTap(x,y){ if(G.scene!=="play") return false;
 // game state, no balance touch.
 function deadRetry(){ analytics.event("recap_retry"); sim.respawn(); }
 function deadHub(){ analytics.event("recap_hub"); sim.returnToHub(); }
+// CAS-1557: the ALTAR panel taps — a node buy button (key set) buys the next level (sim guards
+// cap + essence); the back button (or a miss) returns to the death recap so retry/hub stay live.
+function altarTap(x,y){ for(const r of (ui.altarRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+      if(r.act==="back"){ G.scene="dead"; return true; }
+      if(r.key){ sim.buyMetaNode(r.key); return true; } } }
+  return true; }
 
 function handleUITap(x,y){
   // CAS-128: tutorial Skip button (pointer + touch). Checked before the play-scene
@@ -322,8 +335,9 @@ function handleUITap(x,y){
   // that misses both buttons falls through to retry — preserving the "tap anywhere to go
   // again" feel of the old death screen.
   if(G.scene==="dead"){ for(const r of (ui.deadRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
-        if(r.act==="hub") deadHub(); else deadRetry(); return true; } }
+        if(r.act==="hub") deadHub(); else if(r.act==="altar") G.scene="altar"; else deadRetry(); return true; } } // CAS-1557: "Altar" opens the meta shop
     deadRetry(); return true; }
+  if(G.scene==="altar"){ return altarTap(x,y); } // CAS-1557 meta-progression altar
   if(G.scene==="victory"){ sim.dismissVictory(); return true; } // CAS-123: tap to free play
   if(G.scene==="dialogue"){ sim.advanceDialogue(); return true; }
   if(G.scene==="pause"){ return pauseTap(x,y); }
