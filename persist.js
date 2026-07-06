@@ -10,7 +10,7 @@
 // so the latest gold / XP / upgrades survive a refresh. All storage calls are
 // wrapped — private-mode / quota failures degrade silently, the game still runs.
 // ===========================================================================
-import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta } from "./sim/sim.js";
+import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena } from "./sim/sim.js";
 
 const KEY = "mithralda.save.v1";
 // CAS-1557: the ACCOUNT-WIDE meta-progression store — deliberately SEPARATE from the run save
@@ -23,6 +23,10 @@ const KEY_META = "mithralda.meta.v1";
 // auto-started again (even after "Nueva partida" wipes the save). Independent of the
 // save blob so it survives a save reset; gameplay never reads it.
 const KEY_TUT = "mithralda.tut.v1";
+// CAS-1664: the Arena de Oleadas best-wave store — its OWN key, SEPARATE from the run save + meta
+// (additive persistence; the run save schema is untouched). Same medium-ownership split: the sim
+// owns the shape (serializeArena / loadArena), this controller owns localStorage + the flush.
+const KEY_ARENA = "mithralda.arena.v1";
 const SAVE_THROTTLE = 2.0;      // seconds between throttled autosaves while in a run
 let acc = 0;
 let suppressed = false;         // once true, ALL writes are no-ops until the page reloads
@@ -58,6 +62,16 @@ export function saveMeta(){ if(suppressed) return false;
 // character still has a valid, zeroed meta). A corrupt/absent blob → loadMeta installs defaults.
 export function bootMeta(){ loadMeta(readMeta()); G.metaDirty=false; }
 
+// CAS-1664: Arena best-wave I/O (isolated from run save + meta above). Wrapped — a private-mode /
+// quota failure degrades silently; the mode still runs with an in-memory best of 0.
+function readArena(){ try{ const raw=localStorage.getItem(KEY_ARENA); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+export function saveArena(){ if(suppressed) return false;
+  try{ const blob=serializeArena(); if(!blob) return false; localStorage.setItem(KEY_ARENA, JSON.stringify(blob)); return true; }
+  catch(e){ return false; } }
+// Rehydrate the best wave at boot (independent of any run save — a brand-new player has best 0). A
+// corrupt/absent blob → loadArena installs 0.
+export function bootArena(){ loadArena(readArena()); G.arenaDirty=false; }
+
 // Boot: if a VALID save exists, rehydrate straight into play (skipping the name /
 // class flow); otherwise leave the normal menu flow untouched. A corrupt, old or
 // invalid save is discarded (cleared) and the player starts clean — never crashes.
@@ -81,6 +95,9 @@ export function tick(dtSec){
   // bought at the altar) — BEFORE the run-save scene gate, so a buy on the death screen persists
   // even though no run is "live". One-shot: the flag clears on write. Cheap (small blob, rare).
   if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; }
+  // CAS-1664: flush the Arena best the instant it is beaten (set on arena death) — like the meta,
+  // BEFORE the run-save scene gate, so a new record persists even on the death screen. One-shot.
+  if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; }
   if(!G.started || G.scene==="menu" || G.scene==="classsel") return;
   // CAS-128: the moment the tutorial is finished/skipped, write the one-time seen marker
   // so it never auto-starts for this player again. flushed gates it to a single write.
@@ -97,7 +114,7 @@ export function resetGame(){ suppress(); clear(); try{ if(typeof location!=="und
 // few seconds of progress between throttled autosaves.
 export function initFlush(){
   if(typeof window==="undefined") return;
-  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } }; // CAS-1557: meta rides the same unload flush
+  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best ride the same unload flush
   window.addEventListener("beforeunload", flush);
   window.addEventListener("pagehide", flush);
   if(typeof document!=="undefined")

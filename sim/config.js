@@ -756,6 +756,33 @@ export const HUNTS = {
            tier:[4,4], minR:"epic", xp:1000, gold:600 } },                         // richest payoff in the game
 };
 
+// CAS-1664 — ARENA DE OLEADAS (Wave Survival) tuning. A separate endgame MODE (opt-in from
+// the menu) that REUSES the whole existing content library — the ETPL trash pool, the HUNTS
+// capstone stat blocks, the elite affixes, the boon draft, the loot streams and the Esencia
+// economy — with ZERO new art. Every knob is pure data read by the arena controller in sim.js;
+// nothing here runs unless G.arenaMode is on, so a normal run is byte-identical to a build
+// without the mode (RNG-neutral by construction — arena has its OWN dedicated arenaRng stream).
+//   baseMobs/mobStep/mobCap — trash count per wave = baseMobs + floor(n*mobStep), capped at mobCap
+//   hpStep/dmgStep          — per-wave stat multipliers (arena-only; never touch ZONE_TIER)
+//   affixBase/affixStep/affixCap — elite-affix probability climbs with the wave (own arenaRng gate)
+//   bossEvery               — every Nth wave spawns 1 boss from the HUNTS boss pool (wave-scaled)
+//   boonEvery               — every Nth cleared wave offers a boon draft during the rest
+//   restSeconds             — the breather between waves (heal + optional draft)
+//   healFrac                — fraction of maxHp healed at the start of each rest
+//   essStep                 — Esencia banked per cleared wave = ceil(n*essStep) → feeds the meta tree
+export const ARENA = {
+  baseMobs:4, mobStep:0.5, mobCap:24,
+  hpStep:0.12, dmgStep:0.08,
+  affixBase:0.10, affixStep:0.03, affixCap:0.60,
+  champChance:0.15,                 // P(promote an affixed arena mob to an Élite Campeón) — own arenaRng gate
+  bossEvery:5, boonEvery:3, restSeconds:3,
+  healFrac:0.40, essStep:3,
+  // HUNTS zones whose `boss` block the arena reuses as its wave-boss stats. EXCLUDES `frost`
+  // (its boss carries final:true → Stage-1 win) and `trial` (the optional post-finale world-boss),
+  // so an arena boss never fires the victory screen and never gates on world-boss depth.
+  bossZones:["caves","swamp","arena","abyss"],
+};
+
 // CAS-123 — Stage-1 win-condition descriptor. The single legible GOAL the whole run
 // builds toward, surfaced in the HUD objective tracker (render.js) from minute one and
 // resolved when the FINAL capstone (HUNTS[STAGE1_GOAL.zone].boss.final) dies. Data-driven:
