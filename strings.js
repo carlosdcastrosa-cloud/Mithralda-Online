@@ -192,6 +192,10 @@ export const STR = {
   altarLvl: (l, cap) => "Nv " + l + "/" + cap,
   altarBack: "Volver  [Esc]",
   altarAbilities: "— HABILIDADES —", // CAS-1574: ability-rank section divider
+  // CAS-1580 — ability-unlock section (locked abilities bought with Esencia)
+  altarUnlocks: "— DESBLOQUEOS —", // section divider
+  altarUnlock: "Desbloquear",       // buy button (lvl 0)
+  altarUnlocked: "✓ DESBLOQUEADA",  // capped state (lvl 1) — replaces MÁX for unlock rows
   // CAS-1565 — Tier-2 row + Ascensión / Prestigio
   altarTier2: "— TIER II —",
   altarTier2Locked: "Maximiza las 5 mejoras para desbloquear el Tier II",

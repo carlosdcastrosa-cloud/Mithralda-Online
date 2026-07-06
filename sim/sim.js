@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -641,7 +641,9 @@ export const META_T2 = [
 // CAS-1574: ability-rank rows join the SAME lookup that buyMetaNode/metaLvl/metaNodeCost read
 // (each carries its own {cap, cost(lvl)}), so they buy/persist through the one meta store with no
 // parallel system. They are NOT added to T2_MAP → never gated by t2Unlocked().
-const META_MAP = (()=>{ const m={}; for(const n of META_NODES) m[n.key]=n; for(const n of META_T2) m[n.key]=n; for(const r of ABILITY_RANKS) m[r.key]=r; return m; })();
+// CAS-1580: ability-UNLOCK rows join the SAME lookup (cap:1, own cost) → buy/persist/migrate for free.
+// Like ABILITY_RANKS they are NOT added to T2_MAP → never gated by t2Unlocked().
+const META_MAP = (()=>{ const m={}; for(const n of META_NODES) m[n.key]=n; for(const n of META_T2) m[n.key]=n; for(const r of ABILITY_RANKS) m[r.key]=r; for(const r of ABILITY_UNLOCKS) m[r.key]=r; return m; })();
 const T2_MAP = (()=>{ const m={}; for(const n of META_T2) m[n.key]=n; return m; })();
 // Canonical Ascensión essence multiplier for a level (+25% per level). NEVER trust a persisted
 // mult — always recompute from the level so a tampered blob can't inflate the economy.
@@ -649,6 +651,7 @@ function ascMult(level){ return 1 + 0.25*Math.max(0, level|0); }
 function metaDefault(){ const nodes={ hpMax:0,dmg:0,moveSpd:0,reroll:0,startGold:0,
           t2_boonRare:0,t2_startBoon:0,t2_dashIframe:0,t2_xpGain:0,t2_reroll:0 };
   for(const r of ABILITY_RANKS) nodes[r.key]=0; // CAS-1574: ability-rank rows default to 0
+  for(const r of ABILITY_UNLOCKS) nodes[r.key]=0; // CAS-1580: ability-unlock rows default to 0 (=locked)
   return { v:2, essence:0, nodes, ascension:{ level:0, mult:1 } }; }
 // Ascensión level currently banked (defensive: an old in-memory blob may predate ascension).
 function ascLevel(){ const a=ensureMeta().ascension; return (a&&a.level|0)||0; }
@@ -716,6 +719,7 @@ export function serializeMeta(){ const m=ensureMeta(); const nodes={};
   for(const n of META_NODES) nodes[n.key]=metaLvl(n.key);
   for(const n of META_T2)    nodes[n.key]=metaLvl(n.key); // CAS-1565: Tier-2 levels
   for(const r of ABILITY_RANKS) nodes[r.key]=metaLvl(r.key); // CAS-1574: ability-rank levels
+  for(const r of ABILITY_UNLOCKS) nodes[r.key]=metaLvl(r.key); // CAS-1580: ability-unlock levels
   const lvl=ascLevel();
   return { v:2, essence:Math.max(0,m.essence|0), nodes, ascension:{ level:lvl, mult:ascMult(lvl) } }; }
 // CAS-1565: retro-compatible migration (one-way door — critical). A v1 blob (v:1, no t2_*/
@@ -728,6 +732,7 @@ export function loadMeta(d){ const def=metaDefault();
     for(const node of META_NODES) def.nodes[node.key]=Math.max(0, Math.min(node.cap, (n[node.key]|0)));
     for(const node of META_T2)    def.nodes[node.key]=Math.max(0, Math.min(node.cap, (n[node.key]|0)));
     for(const r of ABILITY_RANKS) def.nodes[r.key]=Math.max(0, Math.min(r.cap, (n[r.key]|0))); // CAS-1574: additive — blobs w/o rank_* load to 0
+    for(const r of ABILITY_UNLOCKS) def.nodes[r.key]=Math.max(0, Math.min(r.cap, (n[r.key]|0))); // CAS-1580: additive — blobs w/o unlock_* load to 0 (=locked)
     const lvl=Math.max(0, (d.ascension&&d.ascension.level|0)||0);
     def.ascension={ level:lvl, mult:ascMult(lvl) }; }
   G.meta=def; return true; }
@@ -740,10 +745,15 @@ export function metaSnap(){ const m=ensureMeta();
   // + key) so render reuses the same row renderer; eff is the CURRENT rank's effect text.
   const abilView=r=>{ const lvl=metaLvl(r.key), cost=metaNodeCost(r.key);
     return { key:r.key, label:r.label, glyph:r.glyph, eff:r.eff(lvl), lvl, cap:r.cap, cost, affordable: cost!=null && (m.essence|0)>=cost }; };
+  // CAS-1580: ability-UNLOCK rows (cap:1). `unlock:true` + `unlocked` let altarRow render the
+  // "Desbloquear"/"✓ DESBLOQUEADA" states instead of the generic Mejorar/MÁX. eff = static blurb.
+  const unlockView=r=>{ const lvl=metaLvl(r.key), cost=metaNodeCost(r.key);
+    return { key:r.key, label:r.label, glyph:r.glyph, eff:r.eff, lvl, cap:r.cap, cost, unlock:true, unlocked:lvl>0, affordable: cost!=null && (m.essence|0)>=cost }; };
   return { essence:m.essence|0,
     nodes:META_NODES.map(view),          // Tier-1 (back-compat: input.js Digit1-5 reads sim.META_NODES)
     t2:META_T2.map(view),                 // CAS-1565: Tier-2 rows
     abilities:ABILITY_RANKS.map(abilView), // CAS-1574: ability-rank rows (never gated)
+    unlocks:ABILITY_UNLOCKS.map(unlockView), // CAS-1580: ability-unlock rows (never gated)
     t2Unlocked:t2Unlocked(),              // gate: every v1 node maxed
     canAscend:altarFullMax(),             // Ascender enabled: whole altar maxed
     ascension:{ level:lvl, mult:ascMult(lvl) } }; }
@@ -773,6 +783,12 @@ export function ascendMeta(){ if(!altarFullMax()) return false;
 // resets). Also clears the hero's baked-in baseline so a live hero re-reconciles cleanly.
 export function resetMeta(){ G.meta=metaDefault(); G.metaDirty=true;
   if(G.hero) G.hero.metaApplied={hp:0,dmg:0,gold:0,spdLv:0}; return true; }
+// CAS-1580 — the run-start DRAFT pool: every UNLOCKED ability. An ability is unlocked when it has no
+// `locked` flag (the 4 originals) OR its unlock_* meta row is bought (lvl>0). This is the SINGLE
+// filter point read by the draft (render + keyboard + touch snapshot G.abilPool from it) and by the
+// setLoadout fallback, so a locked ability can never enter a loadout. With no purchases it returns the
+// 4 originals in their original order → the draft is byte-identical to pre-CAS-1580 (RNG-neutral).
+export function draftPool(){ return ACTIVE_ABILITIES.filter(a=> !a.locked || metaLvl("unlock_"+a.id)>0); }
 
 // Snapshot the DURABLE hero progression as a plain JSON-safe blob. Transient
 // combat/anim/buff state is intentionally excluded (rehydrated clean), and any
@@ -2764,6 +2780,11 @@ export const dev = {
   // re-deriving the formula. Pair with __dev.metaGrant + buyMetaNode("rank_<id>") to fund/buy.
   abilityRank(id){ const rk=ABILITY_RANK_MAP[id]; if(!rk) return null; const lvl=metaLvl(rk.key);
     return { id, lvl, cap:rk.cap, cost:metaNodeCost(rk.key), ranked:rk.apply(ABILITY_MAP[id], lvl) }; },
+  // CAS-1580: QA hooks — the filtered draft pool (ids) + the unlock-row state. Pair with __dev.metaGrant
+  // + buyMetaNode("unlock_<id>") to fund/unlock, then re-read draftPool() to confirm the ability appears.
+  draftPool(){ return draftPool().map(a=>a.id); },
+  abilityUnlocks(){ const m=ensureMeta(); return ABILITY_UNLOCKS.map(r=>{ const lvl=metaLvl(r.key), cost=metaNodeCost(r.key);
+    return { id:r.abil, key:r.key, locked:lvl<=0, lvl, cap:r.cap, cost, affordable: cost!=null && (m.essence|0)>=cost }; }); },
   // CAS-277: end-of-run recap contract consumed by tools/cas277-recap.mjs — read-only.
   // recapState = the frozen recap delta (null until a death); runBase = the live baseline.
   recapState(){ return G.recap?Object.assign({},G.recap):null; },
@@ -3258,8 +3279,11 @@ export const dev = {
   // Read/set the 2 drafted ability ids on the live hero (draft "Listo" calls this).
   loadout(){ return (G.hero&&G.hero.loadout)?G.hero.loadout.slice():DEFAULT_LOADOUT.slice(); },
   setLoadout(ids){ const h=G.hero; if(!h||!Array.isArray(ids)) return h?h.loadout:null;
-    const valid=ids.filter(id=>ABILITY_MAP[id]).slice(0,2);
-    while(valid.length<2){ for(const a of ACTIVE_ABILITIES){ if(!valid.includes(a.id)){ valid.push(a.id); break; } } }
+    // CAS-1580: only UNLOCKED abilities may be equipped — filter the request AND the fill fallback
+    // through draftPool() so a locked (or stale-saved) ability can never land in a live loadout.
+    const pool=draftPool(), poolIds=new Set(pool.map(a=>a.id));
+    const valid=ids.filter(id=>poolIds.has(id)).slice(0,2);
+    while(valid.length<2){ for(const a of pool){ if(!valid.includes(a.id)){ valid.push(a.id); break; } } if(valid.length<2) break; }
     h.loadout=valid; h.abilCD=[0,0]; h.abilCDmax=[0,0]; return h.loadout.slice(); },
   // Live HUD data for the 2 ability slots: current/max cooldown + mana affordability.
   abilityBar(){ const h=G.hero; if(!h||!h.loadout) return null;
