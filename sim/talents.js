@@ -44,59 +44,69 @@ export const CRIT_BASE = 1.6;
 //   req   — prerequisite node id (needs >=1 rank) — gates deeper nodes
 //   excl  — exclusive group: within a group you may invest in only ONE node,
 //           so a build choice is permanent until you respec (AC #4).
+//   levelReq — CAS-1601: node needs hero level >= N (data-driven level gate).
+//   empower  — CAS-1602: SPELL-EMPOWER node (the bridge to ENTREGABLE 1). Instead of a
+//              stat bundle it upgrades ONE class spell: { spell:"<id>", apply:(sp,rank)=>copy }.
+//              Mirrors ABILITY_RANKS.apply — the cast seam swaps in the copy ONLY when the node
+//              is bought (rank>0), so an un-bought run is byte-identical (same object, same RNG).
 // eff keys are TT_KEYS; the aggregator sums eff*rank across allocated nodes.
 function N(id,br,tier,name,desc,max,eff,opt){ return Object.assign({id,br,tier,name,desc,max,eff}, opt||{}); }
 
 export const TALENTS = {
   warrior: { branches:["Armas","Coraza","Ímpetu"], nodes:[
     N("wA1",0,0,"Filo afilado","+3 de daño por rango.",3,{dmg:3}),
-    N("wA2",0,1,"Frenesí","+7% vel. de ataque por rango.",2,{atkspd:7},{req:"wA1"}),
-    N("wA3",0,2,"Golpe brutal","+9% prob. de crítico (×1.6 daño).",2,{crit:9},{req:"wA2",excl:"w_cap"}),
-    N("wA4",0,2,"Machaque","+10% prob. de aturdir al golpear.",2,{stunChance:10},{req:"wA2",excl:"w_cap"}),
+    N("wA2",0,1,"Frenesí","+7% vel. de ataque por rango.",2,{atkspd:7},{req:"wA1",levelReq:3}),
+    N("wA3",0,2,"Golpe brutal","+9% prob. de crítico (×1.6 daño).",2,{crit:9},{req:"wA2",excl:"w_cap",levelReq:6}),
+    N("wA4",0,2,"Machaque","+10% prob. de aturdir al golpear.",2,{stunChance:10},{req:"wA2",excl:"w_cap",levelReq:6}),
     N("wB1",1,0,"Piel curtida","+25 de vida máx. por rango.",3,{hp:25}),
-    N("wB2",1,1,"Segundo aliento","+1.2 vida/seg.",2,{regen:1.2},{req:"wB1"}),
+    N("wB2",1,1,"Segundo aliento","+1.2 vida/seg.",2,{regen:1.2},{req:"wB1",levelReq:3}),
     N("wC1",2,0,"Paso firme","+7% vel. de movimiento.",2,{movespd:7}),
-    N("wC2",2,1,"Reflejos","+7% de esquivar por completo un golpe.",2,{dodge:7},{req:"wC1"}),
+    N("wC2",2,1,"Reflejos","+7% de esquivar por completo un golpe.",2,{dodge:7},{req:"wC1",levelReq:3}),
+    N("wC3",2,2,"Golpe aturdidor","HECHIZO: Golpe de escudo aturde +0.6s.",1,{},{req:"wC2",levelReq:8,empower:{spell:"shieldbash",apply:(sp,r)=>({...sp,status:Object.assign({},sp.status,{dur:((sp.status&&sp.status.dur)||0)+0.6*r})})}}),
   ]},
   paladin: { branches:["Cruzada","Fe","Devoción"], nodes:[
     N("pA1",0,0,"Mano firme","+3 de daño por rango.",3,{dmg:3}),
-    N("pA2",0,1,"Martillo sagrado","+9% prob. de aturdir al golpear.",2,{stunChance:9},{req:"pA1"}),
-    N("pA3",0,2,"Juicio","+8% prob. de crítico (×1.6 daño).",2,{crit:8},{req:"pA2",excl:"p_cap"}),
-    N("pA4",0,2,"Castigo continuo","+4 de daño fijo en cada golpe.",2,{onhit:4},{req:"pA2",excl:"p_cap"}),
+    N("pA2",0,1,"Martillo sagrado","+9% prob. de aturdir al golpear.",2,{stunChance:9},{req:"pA1",levelReq:3}),
+    N("pA3",0,2,"Juicio","+8% prob. de crítico (×1.6 daño).",2,{crit:8},{req:"pA2",excl:"p_cap",levelReq:6}),
+    N("pA4",0,2,"Castigo continuo","+4 de daño fijo en cada golpe.",2,{onhit:4},{req:"pA2",excl:"p_cap",levelReq:6}),
     N("pB1",1,0,"Bendición vital","+30 de vida máx. por rango.",3,{hp:30}),
-    N("pB2",1,1,"Regeneración divina","+1.5 vida/seg.",2,{regen:1.5},{req:"pB1"}),
+    N("pB2",1,1,"Regeneración divina","+1.5 vida/seg.",2,{regen:1.5},{req:"pB1",levelReq:3}),
     N("pC1",2,0,"Fervor","-12% de enfriamiento de habilidades.",2,{cdr:12}),
-    N("pC2",2,1,"Gracia evasiva","+6% de esquivar por completo un golpe.",2,{dodge:6},{req:"pC1"}),
+    N("pC2",2,1,"Gracia evasiva","+6% de esquivar por completo un golpe.",2,{dodge:6},{req:"pC1",levelReq:3}),
+    N("pC3",2,2,"Tierra consagrada","HECHIZO: Consagración +28 de radio.",1,{},{req:"pC2",levelReq:8,empower:{spell:"consecration",apply:(sp,r)=>({...sp,range:(sp.range||0)+28*r})}}),
   ]},
   mage: { branches:["Piromancia","Arcano","Barrera"], nodes:[
     N("mA1",0,0,"Poder arcano","+3 de daño por rango.",3,{dmg:3}),
-    N("mA2",0,1,"Foco letal","+9% prob. de crítico (×1.6 daño).",2,{crit:9},{req:"mA1"}),
-    N("mA3",0,2,"Aniquilación","+25% de daño crítico extra.",2,{critMult:25},{req:"mA2",excl:"m_cap"}),
-    N("mA4",0,2,"Toque tóxico","Tus golpes envenenan (+2 daño/tic por rango).",2,{poisonOnHit:1,poisonDmg:2},{req:"mA2",excl:"m_cap"}),
+    N("mA2",0,1,"Foco letal","+9% prob. de crítico (×1.6 daño).",2,{crit:9},{req:"mA1",levelReq:3}),
+    N("mA3",0,2,"Aniquilación","+25% de daño crítico extra.",2,{critMult:25},{req:"mA2",excl:"m_cap",levelReq:6}),
+    N("mA4",0,2,"Toque tóxico","Tus golpes envenenan (+2 daño/tic por rango).",2,{poisonOnHit:1,poisonDmg:2},{req:"mA2",excl:"m_cap",levelReq:6}),
     N("mB1",1,0,"Mente veloz","-14% de enfriamiento de habilidades.",2,{cdr:14}),
-    N("mB2",1,1,"Conjuro rápido","+7% vel. de ataque por rango.",2,{atkspd:7},{req:"mB1"}),
+    N("mB2",1,1,"Conjuro rápido","+7% vel. de ataque por rango.",2,{atkspd:7},{req:"mB1",levelReq:3}),
     N("mC1",2,0,"Escudo de maná","+16 de vida máx. por rango.",3,{hp:16}),
-    N("mC2",2,1,"Parpadeo defensivo","+7% de esquivar por completo un golpe.",2,{dodge:7},{req:"mC1"}),
+    N("mC2",2,1,"Parpadeo defensivo","+7% de esquivar por completo un golpe.",2,{dodge:7},{req:"mC1",levelReq:3}),
+    N("mC3",2,2,"Detonación arcana","HECHIZO: Bola de fuego +24 de radio de explosión.",1,{},{req:"mC2",levelReq:8,empower:{spell:"fireball",apply:(sp,r)=>({...sp,aoe:(sp.aoe||0)+24*r})}}),
   ]},
   druid: { branches:["Ponzoña","Bosque","Agilidad"], nodes:[
     N("dA1",0,0,"Savia tóxica","Tus golpes envenenan al enemigo.",1,{poisonOnHit:1}),
-    N("dA2",0,1,"Veneno virulento","+2 de daño/tic de veneno por rango.",3,{poisonDmg:2},{req:"dA1"}),
-    N("dA3",0,2,"Ponzoña persistente","+1.2s de duración del veneno por rango.",2,{poisonDur:1.2},{req:"dA2",excl:"d_cap"}),
-    N("dA4",0,2,"Esporas aturdidoras","+9% prob. de aturdir al golpear.",2,{stunChance:9},{req:"dA2",excl:"d_cap"}),
+    N("dA2",0,1,"Veneno virulento","+2 de daño/tic de veneno por rango.",3,{poisonDmg:2},{req:"dA1",levelReq:3}),
+    N("dA3",0,2,"Ponzoña persistente","+1.2s de duración del veneno por rango.",2,{poisonDur:1.2},{req:"dA2",excl:"d_cap",levelReq:6}),
+    N("dA4",0,2,"Esporas aturdidoras","+9% prob. de aturdir al golpear.",2,{stunChance:9},{req:"dA2",excl:"d_cap",levelReq:6}),
     N("dB1",1,0,"Corteza","+22 de vida máx. por rango.",3,{hp:22}),
-    N("dB2",1,1,"Fotosíntesis","+1.4 vida/seg.",2,{regen:1.4},{req:"dB1"}),
+    N("dB2",1,1,"Fotosíntesis","+1.4 vida/seg.",2,{regen:1.4},{req:"dB1",levelReq:3}),
     N("dC1",2,0,"Pies ligeros","+8% vel. de movimiento.",2,{movespd:8}),
-    N("dC2",2,1,"Danza esquiva","+8% de esquivar por completo un golpe.",2,{dodge:8},{req:"dC1"}),
+    N("dC2",2,1,"Danza esquiva","+8% de esquivar por completo un golpe.",2,{dodge:8},{req:"dC1",levelReq:3}),
+    N("dC3",2,2,"Zarzal persistente","HECHIZO: Tormenta de espinas dura +1.5s.",1,{},{req:"dC2",levelReq:8,empower:{spell:"thornstorm",apply:(sp,r)=>({...sp,dur:(sp.dur||0)+1.5*r})}}),
   ]},
   priest: { branches:["Castigo","Gracia","Plegaria"], nodes:[
     N("prA1",0,0,"Fe ardiente","+3 de daño por rango.",3,{dmg:3}),
-    N("prA2",0,1,"Luz penetrante","+8% prob. de crítico (×1.6 daño).",2,{crit:8},{req:"prA1"}),
-    N("prA3",0,2,"Verbo veloz","+7% vel. de ataque por rango.",2,{atkspd:7},{req:"prA2",excl:"pr_cap"}),
-    N("prA4",0,2,"Palabra de dolor","+9% prob. de aturdir al golpear.",2,{stunChance:9},{req:"prA2",excl:"pr_cap"}),
+    N("prA2",0,1,"Luz penetrante","+8% prob. de crítico (×1.6 daño).",2,{crit:8},{req:"prA1",levelReq:3}),
+    N("prA3",0,2,"Verbo veloz","+7% vel. de ataque por rango.",2,{atkspd:7},{req:"prA2",excl:"pr_cap",levelReq:6}),
+    N("prA4",0,2,"Palabra de dolor","+9% prob. de aturdir al golpear.",2,{stunChance:9},{req:"prA2",excl:"pr_cap",levelReq:6}),
     N("prB1",1,0,"Aura sagrada","+20 de vida máx. por rango.",3,{hp:20}),
-    N("prB2",1,1,"Renovación","+1.6 vida/seg.",3,{regen:1.6},{req:"prB1"}),
+    N("prB2",1,1,"Renovación","+1.6 vida/seg.",3,{regen:1.6},{req:"prB1",levelReq:3}),
     N("prC1",2,0,"Meditación","-14% de enfriamiento de habilidades.",2,{cdr:14}),
-    N("prC2",2,1,"Intervención","+8% de esquivar por completo un golpe.",2,{dodge:8},{req:"prC1"}),
+    N("prC2",2,1,"Intervención","+8% de esquivar por completo un golpe.",2,{dodge:8},{req:"prC1",levelReq:3}),
+    N("prC3",2,2,"Nova expansiva","HECHIZO: Nova sagrada +28 de radio.",1,{},{req:"prC2",levelReq:8,empower:{spell:"holynova",apply:(sp,r)=>({...sp,range:(sp.range||0)+28*r})}}),
   ]},
 };
 
@@ -124,6 +134,7 @@ export function canAllocTalent(h,id){ const ns=talentNodes(h&&h.cls); if(!ns) re
   if((h.talentPts|0)<=0) return false;
   if(nodeRank(h,id)>=node.max) return false;
   if(node.req && nodeRank(h,node.req)<=0) return false;
+  if(node.levelReq && (h.lvl||1) < node.levelReq) return false;
   if(node.excl){ for(const n of ns){ if(n.id!==id && n.excl===node.excl && nodeRank(h,n.id)>0) return false; } }
   return true; }
 
@@ -131,6 +142,7 @@ export function canAllocTalent(h,id){ const ns=talentNodes(h&&h.cls); if(!ns) re
 export function lockReason(h,id){ const node=talentNode(h&&h.cls,id); if(!node) return "?";
   if(nodeRank(h,id)>=node.max) return "max";
   if(node.req && nodeRank(h,node.req)<=0) return "req";
+  if(node.levelReq && (h.lvl||1) < node.levelReq) return "level:"+node.levelReq;
   if(node.excl){ for(const n of talentNodes(h.cls)){ if(n.id!==id && n.excl===node.excl && nodeRank(h,n.id)>0) return "excl"; } }
   if((h.talentPts|0)<=0) return "pts";
   return null; }
@@ -139,13 +151,29 @@ export function lockReason(h,id){ const node=talentNode(h&&h.cls,id); if(!node) 
 // whose prereq isn't (also-validated) present, and enforce exclusivity — so a
 // loaded tree is always a legally-reachable build. Applied in tree order so a
 // req can reference an already-accepted node. CAS-113.
-export function sanitizeTalents(d, cls){ const ns=talentNodes(cls); const out={}; if(!ns||!d||typeof d!=="object") return out;
+export function sanitizeTalents(d, cls, lvl){ const ns=talentNodes(cls); const out={}; if(!ns||!d||typeof d!=="object") return out;
+  // CAS-1602: when the loaded hero level is known, DROP any node bought above that level
+  // (levelReq>lvl) so a tampered/legacy blob can never yield an over-leveled, illegal build.
+  // lvl omitted (old callers/tests) → Infinity → level check is a no-op (retro-compat).
+  const lv=(typeof lvl==="number"&&isFinite(lvl))?lvl:Infinity;
   for(const node of ns){ let r=d[node.id]; if(typeof r!=="number"||!isFinite(r)||r<1) continue;
+    if(node.levelReq && lv<node.levelReq) continue;
     r=Math.min(node.max, Math.floor(r));
     if(node.req && !(out[node.req]>0)) continue;
     if(node.excl){ let conflict=false; for(const n of ns){ if(n.id!==node.id && n.excl===node.excl && out[n.id]>0){ conflict=true; break; } } if(conflict) continue; }
     out[node.id]=r; }
   return out; }
+
+// CAS-1602 — SPELL-EMPOWER overlay (ENTREGABLE 1↔2 bridge). Given a base class spell,
+// if the hero has BOUGHT a talent node whose `empower.spell` matches this spell's id, return a
+// COPY of the spell with the node's `apply(sp,rank)` scaling — mirror of ABILITY_RANKS.apply.
+// Otherwise return `sp` UNCHANGED (SAME object → 0 behaviour/RNG delta on un-bought runs). Never
+// mutates the shared SPELLS entry (copy-on-write) and never touches RNG. Called at the cast seam.
+export function talentEmpower(h, sp){ if(!h||!sp||!h.talents) return sp;
+  const ns=talentNodes(h.cls); if(!ns) return sp;
+  for(const node of ns){ if(!node.empower || node.empower.spell!==sp.id) continue;
+    const r=h.talents[node.id]|0; if(r>0) return node.empower.apply(sp, r); }
+  return sp; }
 
 // The poison a 'poison-on-hit' build applies (reuses CAS-118 STATUS.poison as
 // the floor, then the tree's poisonDmg/Dur boost it). Kept here so sim + tests

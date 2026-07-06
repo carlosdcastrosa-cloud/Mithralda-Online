@@ -70,8 +70,8 @@ export const STR = {
     warrior: ["GOLPE ESCUDO", "GRITO", "EMBESTIDA"],
     paladin: ["CONSAGRAR", "ESC. DIVINO", "JUICIO"],
     mage:    ["BOLA FUEGO", "ESCARCHA", "PARPADEO"],
-    druid:   ["ENREDADERAS", "REGENERAR", "T. ESPINAS"],
-    priest:  ["SANACIÓN", "PAL. PODER", "CASTIGO"],
+    druid:   ["ENREDADERAS", "FLORACIÓN", "T. ESPINAS"],
+    priest:  ["SANACIÓN", "NOVA SAGR.", "CASTIGO"],
   },
   spellAtkUp: "¡DAÑO+!",
   spellDefUp: "¡DEFENSA+!",
@@ -155,6 +155,11 @@ export const STR = {
   talentExcl: "Elección exclusiva (ya elegiste la otra rama)",
   talentNoPts: "Sin puntos — sube de nivel",
   talentRank: (r, m) => r + "/" + m,
+  // CAS-1602: this tree is per-RUN, keyed to LEVEL (distinct from the Esencia altar, which is
+  // meta/cross-run). Subtitle makes the axis explicit; level-lock hint shows the required level.
+  talentAxis: "Por partida · 1 punto por NIVEL · (distinto de Esencia — meta del altar)",
+  talentLevelReq: (n) => "Requiere Nivel " + n,
+  talentEmpowerTag: "HECHIZO",
   talentDodge: "¡ESQUIVA!",
 
   shopTitle: "TIENDA DE SOLANA",

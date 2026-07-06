@@ -19,7 +19,7 @@ import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
 import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost } from "./gear.js";
-import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, sanitizeTalents, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
+import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, lockReason, sanitizeTalents, talentEmpower, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
 // feedback floater palette (presentation hints carried by sim events)
 const C_CREAM = "#e8e0d0", C_GOLD = "#f2c14e";
@@ -894,10 +894,10 @@ export function loadSave(d){
     if(d.consum && typeof d.consum==="object"){ for(const c of CONSUMABLES) h.consum[c.id]=Math.max(0,Math.floor(num(d.consum[c.id], h.consum[c.id]||0))); }
     h.consumSel=Math.min(CONSUMABLES.length-1, Math.max(0, Math.floor(num(d.consumSel,0))));
     if(d.equip){ for(const slot of ["weapon","body","shield"]){ const ok=safeInst(d.equip[slot]); if(ok) h.equip[slot]=ok; } }
-    if(Array.isArray(d.bag)) h.bag=d.bag.map(safeInst).filter(Boolean).slice(0,BAG_CAP); // CAS-1608: persist all 30 usable slots (was 16)
+    if(Array.isArray(d.bag)) h.bag=d.bag.map(safeInst).filter(Boolean).slice(0,16);
     // CAS-119: rebuild a LEGAL talent tree from the (untrusted) blob + recompute the
     // cached bundle, so persisted builds survive reload and corrupt data can't break it.
-    h.talents=sanitizeTalents(d.talents, h.cls); h.talentPts=Math.max(0,Math.floor(num(d.talentPts,0))); recalcTalents(h);
+    h.talents=sanitizeTalents(d.talents, h.cls, h.lvl); h.talentPts=Math.max(0,Math.floor(num(d.talentPts,0))); recalcTalents(h);
     // CAS-123: rehydrate the Stage-1 arc (clamped; absent in old saves → fresh run).
     h.stage1=!!d.stage1; h.playT=Math.max(0,num(d.playT,0)); h.deaths=Math.max(0,Math.floor(num(d.deaths,0)));
     h.kills=Math.max(0,Math.floor(num(d.kills,0))); h.champKills=Math.max(0,Math.floor(num(d.champKills,0))); // CAS-134
@@ -1644,8 +1644,13 @@ function onNeutralKill(){ const s=G.skull; s.kills++; s.killT=90;
 export function castSpell(i){
   const h=G.hero; if(h.rolling||h.stun>0) return; // CAS-118: stun gates casting
   if(i===0){ heroAttack(); return; }
-  const list=SPELLS[h.cls||"warrior"]; const sp=list && list[i-1];
+  const list=SPELLS[h.cls||"warrior"]; let sp=list && list[i-1];
   if(!sp) return;
+  // CAS-1602: overlay a bought talent SPELL-EMPOWER node (ENTREGABLE 1↔2 bridge). RNG-neutral —
+  // when no empower node is bought `sp` stays the SAME base object (0 delta); when bought, `apply`
+  // returns a COPY with one param scaled (never mutates SPELLS, never touches RNG). Before the gates
+  // so an empower that changed cd/cost would drive them (none do today; matches castAbility ordering).
+  sp=talentEmpower(h, sp);
   if(h.spellCD[i]>0) return;                                   // per-slot cooldown gate
   if(h.mp<sp.cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
   // CAS-119: a cooldown-reduction build (cdr) shortens the class-spell cooldown; the
@@ -1829,9 +1834,7 @@ function applyBuff(h,stat,amt,dur){
 }
 
 // ----------------------------- pickups ---------------------------------
-// CAS-1608: usable cap raised 16->30 to match the 30-cell visual grid shipped in
-// CAS-1593/1594 (render TOTAL_SLOTS=30). Data-driven; grid already fills bag[0..29].
-const BAG_CAP=30;
+const BAG_CAP=16;
 // No-filler gate: a COMMON gear is filler iff it can't beat what's already on
 // that slot — auto-melt it to a little gold instead of bagging it. Higher
 // rarities (and any common that IS an upgrade) always go to the bag.
@@ -3391,7 +3394,21 @@ export const dev = {
   // The tree definition for a class (branches + node metadata incl. req/excl), so the
   // panel + headless test can assert distinct trees with a real exclusive fork (AC #2/#4).
   talentTree(cls){ const t=TALENTS[cls||G.hero.cls]; if(!t) return null;
-    return { branches:t.branches.slice(), nodes:t.nodes.map(n=>({id:n.id,br:n.br,tier:n.tier,name:n.name,max:n.max,eff:Object.assign({},n.eff),req:n.req||null,excl:n.excl||null})) }; },
+    return { branches:t.branches.slice(), nodes:t.nodes.map(n=>({id:n.id,br:n.br,tier:n.tier,name:n.name,max:n.max,eff:Object.assign({},n.eff),req:n.req||null,excl:n.excl||null,levelReq:n.levelReq||null,empower:n.empower?n.empower.spell:null})) }; },
+  // CAS-1602: SPELL-EMPOWER probe (ENTREGABLE 1↔2 bridge). For each empower node in the class
+  // tree, report the base signature spell, the empowered COPY (apply@rank1), whether it's bought,
+  // and whether the LIVE overlay returns the SAME object reference as the base when unbought
+  // (proves copy-on-write / 0-delta). Lets QA verify the node observably scales radio/daño/duración
+  // (AC2/AC3) with no cast and no RNG. `liveSameRef` must equal `!bought`.
+  empowerProbe(cls){ const c=cls||(G.hero&&G.hero.cls); const ns=talentNodes(c); if(!ns) return null;
+    const list=SPELLS[c]||[]; const byId={}; for(const sp of list) byId[sp.id]=sp; const h=G.hero;
+    return ns.filter(n=>n.empower).map(n=>{ const base=byId[n.empower.spell]||null;
+      const emp=base?n.empower.apply(base,1):null;
+      const bought=!!(h && h.cls===c && h.talents && (h.talents[n.id]|0)>0);
+      const live=(h && h.cls===c && base)?talentEmpower(h,base):base;
+      return { node:n.id, name:n.name, levelReq:n.levelReq||null, spell:n.empower.spell,
+        base:base?Object.assign({},base):null, empowered:emp?Object.assign({},emp):null,
+        bought, liveSameRef: base?(live===base):null }; }); },
   // Grant points (level-up shortcut) so a test can fund a build without grinding XP.
   grantTalentPts(n){ const h=G.hero; if(!h) return 0; h.talentPts=(h.talentPts|0)+Math.max(0,Math.floor(n||1)); return h.talentPts; },
   // Spend a point through the REAL allocator (enforces points/req/excl) — returns the
@@ -3401,6 +3418,10 @@ export const dev = {
   respecTalents(){ const refunded=respecTalents(); return { refunded, state:this.talentState() }; },
   // Can this node be taken right now? (mirrors the UI light-up + save validation.)
   canAlloc(id){ return canAllocTalent(G.hero, id); },
+  // CAS-1601: why a node is locked ("level:3"/"req"/"excl"/"pts"/"max"/null) + a
+  // level setter so QA can drive the level-gate (tier-1→Nv3, tier-2→Nv6) directly.
+  lockReason(id){ return lockReason(G.hero, id); },
+  setLevel(n){ const h=G.hero; if(!h) return null; h.lvl=Math.max(1,Math.floor(n||1)); return h.lvl; },
   // --- CAS-120 active-skill-bar harness hooks (tools/cas120-skills.mjs); additive ---
   // Static skill-bar metadata straight off SPELLS[cls] (no sim step) so the test can
   // assert each class has >=2 active skills with their cost/cd and which carry a CAS-118

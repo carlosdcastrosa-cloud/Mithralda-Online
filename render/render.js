@@ -24,6 +24,7 @@ import * as settings from "../settings.js";   // CAS-265: rebind table + setting
 import { daily } from "../daily.js";          // CAS-134: daily return loop (bounty board view model)
 import { bestiary } from "../bestiary.js";    // CAS-386: bestiary / codex collection view model
 import { uiLayout } from "../ui/layout.js";
+import { FF } from "./font.js";   // CAS-1610: central pixel-font family (was inline typewriter monospace)
 import { GROUND } from "./tiled-ground-data.js";   // CAS-462: suelo visual Tiled
 import { TDECO } from "../sim/tiled-deco-data.js"; // CAS-462: props visuales Tiled   // CAS-418: movable-widget positions (minimap / spell bar) + pause reset
 import {
@@ -578,7 +579,7 @@ export function createRenderer(ctx){
       // CAS-265: in colour-blind mode crits carry a "!" shape cue (the size-pop already
       // reads big), so a crit is distinguishable from a normal hit without relying on hue.
       const txt=(cb()&&f.crit)?("!"+f.txt):f.txt;
-      ctx.font="bold "+sz+"px 'Courier New',monospace"; ctx.textAlign="center";
+      ctx.font="bold "+sz+"px "+FF; ctx.textAlign="center";
       // CAS-273: apply the spawn-time anti-overlap lane offset (f.dx) so stacked numbers fan out.
       const fx=f.x+(f.dx||0);
       ctx.fillStyle=COL.out; ctx.fillText(txt,fx+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(txt,fx,f.y); ctx.globalAlpha=1; }
@@ -1104,17 +1105,17 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.hpb; ctx.fillRect(e.x-w/2,yy,w,hh);
     const champCol=e.capstone?(e.enraged?"#ff4636":"#ff9a3a"):"#ffcf4d";
     ctx.fillStyle=e.champion?champCol:(e.champElite?CHAMPION.col:(e.hostile?"#ff5a4a":COL.hpf)); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
-    if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(e.tpl.bossLabel||"GÓLEM ANCESTRAL",e.x,yy-4); } // CAS-317: data-driven boss name (dragon = "DRAGÓN ANCESTRAL")
-    else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
+    if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px "+FF; ctx.textAlign="center"; ctx.fillText(e.tpl.bossLabel||"GÓLEM ANCESTRAL",e.x,yy-4); } // CAS-317: data-driven boss name (dragon = "DRAGÓN ANCESTRAL")
+    else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px "+FF; ctx.textAlign="center";
       ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
     // CAS-1590: the champion nameplate names BOTH affixes in gold so its two modifiers read at a glance.
     else if(e.champElite){ const ids=e.affixes||(e.affix?[e.affix]:[]);
       const names=ids.map(id=>MOB_AFFIX[id]&&MOB_AFFIX[id].name).filter(Boolean).join(" + ");
-      ctx.fillStyle=CHAMPION.col; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillStyle=CHAMPION.col; ctx.font="bold 10px "+FF; ctx.textAlign="center";
       ctx.fillText("👑 "+CHAMPION.name+(names?" · "+names:""),e.x,yy-4); }
-    else if(e.elite){ ctx.fillStyle="#ff7a4d"; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("⚔ ÉLITE",e.x,yy-3); }
+    else if(e.elite){ ctx.fillStyle="#ff7a4d"; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("⚔ ÉLITE",e.x,yy-3); }
     // CAS-247: name the affix above the HP bar in its colour, so the modifier is unmistakable.
-    else if(e.affix && MOB_AFFIX[e.affix]){ ctx.fillStyle=MOB_AFFIX[e.affix].col; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("✦ "+MOB_AFFIX[e.affix].name,e.x,yy-3); }
+    else if(e.affix && MOB_AFFIX[e.affix]){ ctx.fillStyle=MOB_AFFIX[e.affix].col; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("✦ "+MOB_AFFIX[e.affix].name,e.x,yy-3); }
     // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
     drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
   }
@@ -1166,7 +1167,7 @@ export function createRenderer(ctx){
     const near=dist2(G.hero.x,G.hero.y,n.x,n.y)<CFG.talkRange*CFG.talkRange;
     let mk = n.role==="quest" && !G.quest.rewarded ? "!" : (near?"E":"");
     if(n.role==="quest" && G.quest.done && !G.quest.rewarded) mk="!";
-    if(mk){ ctx.fillStyle=mk==="!"?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(mk,n.x,topY-6+Math.sin(G.t*4)*2); }
+    if(mk){ ctx.fillStyle=mk==="!"?COL.textGold:COL.cream; ctx.font="bold 14px "+FF; ctx.textAlign="center"; ctx.fillText(mk,n.x,topY-6+Math.sin(G.t*4)*2); }
   }
   // CAS-1545: pro combat-VFX kit. A soft ADDITIVE bloom drawn UNDER the crisp pixel shapes
   // is the single biggest lever that makes attacks/spells read as *powerful* rather than flat
@@ -1475,7 +1476,7 @@ export function createRenderer(ctx){
 
   // ------------------------------- HUD -----------------------------------
   function bar(x,y,w,hh,frac,fg,bg,label){ ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,w+4,hh+4); ctx.fillStyle=bg; ctx.fillRect(x,y,w,hh);
-    ctx.fillStyle=fg; ctx.fillRect(x,y,w*clamp(frac,0,1),hh); if(label){ ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(label,x+4,y+hh-2);} }
+    ctx.fillStyle=fg; ctx.fillRect(x,y,w*clamp(frac,0,1),hh); if(label){ ctx.fillStyle=COL.cream; ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.fillText(label,x+4,y+hh-2);} }
   // CAS-299: is the redesigned Tibia HUD (hud.js DOM overlay) currently the active UI?
   // When ON it OWNS the vitals/status/gold/name presentation, so the legacy on-canvas
   // duplicates below are suppressed to avoid a double-UI; the still-functional readouts
@@ -1515,7 +1516,7 @@ export function createRenderer(ctx){
         ctx.save(); ctx.globalAlpha=0.22+0.20*pulse; ctx.strokeStyle=chips[0].col; ctx.lineWidth=6;
         ctx.strokeRect(3,3,VW-6,VH-6); ctx.restore();
         if(!hudUI){ let cy=pad+ (G.skull.level>0?120:116);
-          ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
+          ctx.font="bold 12px "+FF; ctx.textAlign="left";
           for(const c of chips){ ctx.fillStyle=COL.out; ctx.fillRect(pad-1,cy-1,9,9); ctx.fillStyle=c.col; ctx.fillRect(pad,cy,7,7);
             ctx.fillStyle=c.col; ctx.fillText(c.label+" "+c.t.toFixed(1)+"s", pad+13, cy+8); cy+=15; } }
       }
@@ -1533,14 +1534,14 @@ export function createRenderer(ctx){
     // when the HUD owns the top-left, the badge moves to the left column UNDER the HUD panel.
     const badgeX = hudUI ? pad : pad+bw+8;
     if(!sidebar && (h.talentPts|0)>0){ const pl=0.55+0.45*Math.abs(Math.sin(G.t*4));
-      ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="left";
+      ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF; ctx.textAlign="left";
       const tby=hudUI?258:pad+47; if(auditRects) AR("talentBadge", badgeX, tby-13, ctx.measureText("★"+h.talentPts+" (T)").width, 15);
       ctx.fillText("★"+h.talentPts+" (T)", badgeX, tby); ctx.restore(); ctx.textAlign="left"; }
     // CAS-149: Elite-Mastery badge — the persistent, cross-session progression read-out,
     // kept always-visible (even rank 0, with kills-to-next) so the long-term hook that grows
     // across sessions is legible from minute one. CAS-299: reflows under the HUD panel.
     if(!sidebar){ const mr=sim.masteryRank(h.eliteKills|0); const nx=sim.masteryNextAt(mr);
-      ctx.save(); ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left";
+      ctx.save(); ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.textAlign="left";
       const prog = nx!=null ? (" "+(h.eliteKills|0)+"/"+nx) : " MÁX";
       // CAS-150: "(V)" hint opens the reward-track panel — only while a milestone is still
       // pending (an unmet goal to chase), so a fully-unlocked track stays clean.
@@ -1549,17 +1550,17 @@ export function createRenderer(ctx){
       if(auditRects) AR("masteryBadge", badgeX, mby-12, ctx.measureText(mtx).width, 14);
       ctx.fillText(mtx, badgeX, mby); ctx.restore(); ctx.textAlign="left"; }
     if(!hudUI){ // gold + potions (HUD shows oro + carries equip/bag mirror)
-      ctx.font="bold 13px 'Courier New'"; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
+      ctx.font="bold 13px "+FF; ctx.fillStyle=COL.gold; ctx.fillText(STR.gold(h.gold),pad,pad+66);
       ctx.fillStyle=COL.cream; ctx.fillText("♥"+h.potHP+"  ◆"+h.potMP+"  ✦"+h.blessings, pad,pad+84);
     }
     renderConsumableSlot(h, hudUI); // CAS-192: selected combat consumable + cooldown + active-buff timer
     // skull indicator / name — HUD shows the name in its vitals panel, so suppress when active.
     if(!hudUI){
-      if(G.skull.level>0){ const sc=[null,COL.skullW,COL.skullY,COL.skullR][G.skull.level]; ctx.fillStyle=sc; ctx.font="bold 16px 'Courier New'"; ctx.fillText("☠ "+h.name, pad, pad+104); }
-      else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(h.name, pad, pad+102); }
+      if(G.skull.level>0){ const sc=[null,COL.skullW,COL.skullY,COL.skullR][G.skull.level]; ctx.fillStyle=sc; ctx.font="bold 16px "+FF; ctx.fillText("☠ "+h.name, pad, pad+104); }
+      else { ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.fillText(h.name, pad, pad+102); }
     }
     // zone name
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF;
     const zn={town:STR.zoneTown,forest:STR.zoneForest,caves:STR.zoneCaves,arena:STR.zoneArena,ruins:STR.zoneRuins,abyss:STR.zoneAbyss,frost:STR.zoneFrost,trial:STR.zoneTrial,field:STR.zoneField}[zoneOf(world,h.x,h.y)];
     AR("zone", GCX-ctx.measureText(zn).width/2, 10, ctx.measureText(zn).width, 12);
     ctx.fillText(zn, GCX, 20);
@@ -1571,7 +1572,7 @@ export function createRenderer(ctx){
     const ob=drawObjective(h);
     // quest tracker (top-right under buttons). CAS-299: shift LEFT of the HUD right rail
     // (minimapa/equipo/mochila) so the trackers never sit under the rail frames.
-    ctx.textAlign="right"; ctx.font="bold 12px 'Courier New'";
+    ctx.textAlign="right"; ctx.font="bold 12px "+FF;
     const qx=sidebar?(view.sbx()-12):(VW-(hudUI?176:12)); let qy=isTouch?64:18;
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
     const qw=ctx.measureText(qt).width+12;
@@ -1603,7 +1604,7 @@ export function createRenderer(ctx){
       if(pw>=req){ txt=STR.objReady; col="#7fd6ff"; }                 // gate open → go fight the boss
       else { txt=STR.objLocked(pw, req); col=COL.textGold; } }        // still building power
     const label=STR.objLabel+": "+txt;
-    ctx.textAlign="center"; ctx.font="bold 11px 'Courier New'";
+    ctx.textAlign="center"; ctx.font="bold 11px "+FF;
     const w=ctx.measureText(label).width+16; let x=view.gcx(); const y=30;
     // CAS-416: at narrow widths the centred banner reaches the HUD stat frame
     // (top-left DOM panel, 268px × HUD scale) — nudge it right just enough to clear.
@@ -1658,7 +1659,7 @@ export function createRenderer(ctx){
     if(h.atkspdBuffT>0){ const f=clamp(h.atkspdBuffT/6,0,1);
       ctx.fillStyle=COL.out; ctx.fillRect(x-1,y-12,s+2,8);
       ctx.fillStyle="#ff7a3a"; ctx.fillRect(x,y-11,s*f,6);
-      ctx.fillStyle=COL.cream; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="left";
+      ctx.fillStyle=COL.cream; ctx.font="bold 9px "+FF; ctx.textAlign="left";
       ctx.fillText("⚔ "+h.atkspdBuffT.toFixed(1)+"s", x+s+6, y-5); }
     // slot frame + body
     ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
@@ -1667,22 +1668,22 @@ export function createRenderer(ctx){
     ctx.globalAlpha=qty>0?1:0.4; ctx.textAlign="center";
     const cic=consumIcon(c);
     if(cic){ ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(cic, Math.round(x+(s-32)/2), y+2, 32,32); ctx.restore(); }
-    else { ctx.fillStyle=c.col; ctx.font="bold 20px 'Courier New'"; ctx.fillText(c.icon,x+s/2,y+24); }
-    ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.fillText(c.short,x+s/2,y+s-5);
+    else { ctx.fillStyle=c.col; ctx.font="bold 20px "+FF; ctx.fillText(c.icon,x+s/2,y+24); }
+    ctx.fillStyle=COL.cream; ctx.font="8px "+FF; ctx.fillText(c.short,x+s/2,y+s-5);
     ctx.globalAlpha=1;
     // cooldown wipe (top-down) — per-consumable cd; the row's cd is the true denominator
     const cd=(h.consumCD&&h.consumCD[c.id])||0;
     if(cd>0){ const f=clamp(cd/(c.cd||1),0,1);
       ctx.fillStyle="rgba(8,10,14,0.66)"; ctx.fillRect(x,y,s,s*f);
-      ctx.fillStyle=COL.cream; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillStyle=COL.cream; ctx.font="bold 12px "+FF; ctx.textAlign="center";
       ctx.fillText(Math.ceil(cd),x+s/2,y+s/2+5); }
     // count badge (top-right)
     ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-5,y+5,8,0,6.28); ctx.fill();
-    ctx.fillStyle=qty>0?COL.textGold:"#7a7f88"; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
+    ctx.fillStyle=qty>0?COL.textGold:"#7a7f88"; ctx.font="bold 11px "+FF; ctx.textAlign="center";
     ctx.fillText(qty,x+s-5,y+9);
     // key hints — CAS-416: strip pulled up 2px + slimmed so it never clips below VH
     ctx.fillStyle=COL.out; ctx.fillRect(x-2,y+s+2,s+4,10);
-    ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="center";
+    ctx.fillStyle=COL.cream; ctx.font="9px "+FF; ctx.textAlign="center";
     ctx.fillText("[Q] usar  [R] ↻",x+s/2,y+s+10);
     ctx.textAlign="left";
     AR("consumable", x-2, y-2, s+4, s+14);
@@ -1704,7 +1705,7 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
       ctx.fillStyle=afford?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
       ctx.save(); ctx.globalAlpha=afford?1:0.5; ctx.textAlign="center"; ctx.textBaseline="middle";
-      ctx.fillStyle=a.col||"#cfd6de"; ctx.font="26px 'Courier New'"; ctx.fillText(a.glyph||"?",x+s/2,y+s/2+1); ctx.restore(); ctx.textBaseline="alphabetic";
+      ctx.fillStyle=a.col||"#cfd6de"; ctx.font="26px "+FF; ctx.fillText(a.glyph||"?",x+s/2,y+s/2+1); ctx.restore(); ctx.textBaseline="alphabetic";
       if(a.status && STATUS[a.status.type]){ const pc=STATUS[a.status.type].col;
         ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-8,y+8,4.5,0,6.28); ctx.fill();
         ctx.fillStyle=pc; ctx.beginPath(); ctx.arc(x+s-8,y+8,3,0,6.28); ctx.fill(); }
@@ -1713,12 +1714,12 @@ export function createRenderer(ctx){
         ctx.fillStyle="rgba(8,10,14,0.42)"; ctx.fillRect(x,y,s,s);
         ctx.fillStyle="rgba(8,10,14,0.62)"; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,s*0.72,top,top+f*6.2832,false); ctx.closePath(); ctx.fill();
         const secs=h.abilCD[i]; const tx=(secs>=10)?(""+Math.ceil(secs)):secs.toFixed(1);
-        ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.font="bold 13px "+FF; ctx.textAlign="center"; ctx.textBaseline="middle";
         ctx.fillStyle=COL.out; ctx.fillText(tx,cx+1,cy+1); ctx.fillStyle="#ffffff"; ctx.fillText(tx,cx,cy); ctx.textBaseline="alphabetic";
       } else if((a.cost||0)>0 && !afford){ ctx.fillStyle="rgba(150,32,32,0.30)"; ctx.fillRect(x,y,s,s); }
-      ctx.fillStyle=COL.out; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(keys[i],x+3,y+13);
-      ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(a.name||"",x+s/2,y+s-4);
-      if((a.cost||0)>0){ ctx.fillStyle=afford?"#8ab8ff":"#ff6b6b"; ctx.font="8px 'Courier New'"; ctx.fillText((a.cost)+"mp",x+s/2,y+s+9); } }
+      ctx.fillStyle=COL.out; ctx.font="bold 12px "+FF; ctx.textAlign="left"; ctx.fillText(keys[i],x+3,y+13);
+      ctx.fillStyle=COL.cream; ctx.font="8px "+FF; ctx.textAlign="center"; ctx.fillText(a.name||"",x+s/2,y+s-4);
+      if((a.cost||0)>0){ ctx.fillStyle=afford?"#8ab8ff":"#ff6b6b"; ctx.font="8px "+FF; ctx.fillText((a.cost)+"mp",x+s/2,y+s+9); } }
     ctx.textAlign="left";
   }
   function renderSpellBar(){ const h=G.hero; const n=4; const s=Math.min(46,VW*0.1); const gap=6; const total=n*s+(n-1)*gap;
@@ -1766,16 +1767,16 @@ export function createRenderer(ctx){
         ctx.fillStyle="rgba(8,10,14,0.62)";                                  // pie over the REMAINING cooldown
         ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,s*0.72,top,top+f*6.2832,false); ctx.closePath(); ctx.fill();
         const secs=h.spellCD[i]; const tx=(secs>=10)?(""+Math.ceil(secs)):secs.toFixed(1);
-        ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.font="bold 13px "+FF; ctx.textAlign="center"; ctx.textBaseline="middle";
         ctx.fillStyle=COL.out; ctx.fillText(tx,cx+1,cy+1); ctx.fillStyle="#ffffff"; ctx.fillText(tx,cx,cy);
         ctx.textBaseline="alphabetic";
       } else if(i>0 && costs[i]>0 && h.mp<costs[i]){
         ctx.fillStyle="rgba(150,32,32,0.30)"; ctx.fillRect(x,y,s,s);         // CAS-1539: red wash when ready but mana-gated
       }
-      ctx.fillStyle=COL.out; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText((i+1),x+3,y+13);
+      ctx.fillStyle=COL.out; ctx.font="bold 12px "+FF; ctx.textAlign="left"; ctx.fillText((i+1),x+3,y+13);
       const label=(i===0) ? ((STR.spellSlot0&&STR.spellSlot0[h.cls])||STR.spells[0]) : names[i-1];
-      ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
-      if(costs[i]>0){ ctx.fillStyle=(h.mp>=costs[i])?"#8ab8ff":"#ff6b6b"; ctx.font="8px 'Courier New'"; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
+      ctx.fillStyle=COL.cream; ctx.font="8px "+FF; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
+      if(costs[i]>0){ ctx.fillStyle=(h.mp>=costs[i])?"#8ab8ff":"#ff6b6b"; ctx.font="8px "+FF; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
   // CAS: the fixed RIGHT sidebar (Tibia-style). Opaque column covering x∈[view.sbx(),VW] with
   // the hero identity + vitals at the top, then the docked minimap (renderMiniMap) and a stack
@@ -1786,10 +1787,10 @@ export function createRenderer(ctx){
     ctx.fillStyle="#0e1016"; ctx.fillRect(L,0,W,VH);                 // opaque column
     ctx.fillStyle=COL.panelB; ctx.fillRect(L,0,2,VH);               // left divider
     // identity + gold
-    let y=P; ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'";
+    let y=P; ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 15px "+FF;
     ctx.fillText(h.name||"—", x0, y+13);
-    ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText((h.gold|0)+" oro", VW-P, y+12);
-    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'";
+    ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="bold 12px "+FF; ctx.fillText((h.gold|0)+" oro", VW-P, y+12);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF;
     const clsName=(STR.classes&&STR.classes[h.cls]&&STR.classes[h.cls].name)||h.cls;
     ctx.fillText(clsName+" · "+STR.level(h.lvl), x0, y+27);
     // vitals bars
@@ -1803,13 +1804,13 @@ export function createRenderer(ctx){
       const hot=!isTouch && ui.mouseX>=b.x && ui.mouseX<=b.x+b.w && ui.mouseY>=b.y && ui.mouseY<=b.y+b.h;
       ctx.fillStyle=hot?"#20242f":"#171a22"; ctx.fillRect(b.x,b.y,b.w,b.h);
       ctx.strokeStyle=hot?COL.textGold:COL.panelB; ctx.lineWidth=1; ctx.strokeRect(b.x+0.5,b.y+0.5,b.w-1,b.h-1);
-      ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="13px 'Courier New'"; ctx.fillText(b.icon, b.x+9, b.y+b.h/2+5);
-      ctx.fillStyle=hot?COL.goldL:COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(b.label, b.x+34, b.y+b.h/2+4);
+      ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="13px "+FF; ctx.fillText(b.icon, b.x+9, b.y+b.h/2+5);
+      ctx.fillStyle=hot?COL.goldL:COL.cream; ctx.font="12px "+FF; ctx.fillText(b.label, b.x+34, b.y+b.h/2+4);
     } }
     // compact mastery / talent read-out below the buttons
     const mr=sim.masteryRank(h.eliteKills|0), nx=sim.masteryNextAt(mr);
     const btop=(sb&&sb.menu)?sb.menu.y+sb.menu.h+12:VH-140;
-    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'";
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="11px "+FF;
     ctx.fillText(STR.masteryHud(mr)+(nx!=null?(" "+(h.eliteKills|0)+"/"+nx):" MÁX"), x0, btop);
     if((h.talentPts|0)>0){ const pl=0.6+0.4*Math.abs(Math.sin(G.t*4));
       ctx.save(); ctx.globalAlpha=pl; ctx.fillStyle=COL.goldL; ctx.fillText("★ "+h.talentPts+" talento(s) (T)", x0, btop+16); ctx.restore(); }
@@ -1825,7 +1826,7 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.panelB; ctx.fillRect(0,BY,W,2);               // top divider
     // recent chat lines, just above the input row (newest last), left-aligned
     const chat=G.chatLog||[]; const n=Math.min(chat.length,2);
-    ctx.textAlign="left"; ctx.font="12px 'Courier New'";
+    ctx.textAlign="left"; ctx.font="12px "+FF;
     for(let i=0;i<n;i++){ const c=chat[chat.length-n+i]; const ly=VH-52+i*15;
       ctx.fillStyle=COL.textGold; const who=(c.who||"")+": ";
       ctx.fillText(who, 12, ly); const ww=ctx.measureText(who).width;
@@ -1890,22 +1891,22 @@ export function createRenderer(ctx){
     for(const [bid,by0,lbl] of mmBtns){
       ctx.fillStyle="rgba(12,14,19,0.85)"; ctx.fillRect(bx0,by0,bs,bs);
       ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(bx0,by0,bs,bs);
-      ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.textAlign="center";
       ctx.fillText(lbl,bx0+bs/2,by0+bs-3);
       if(uiLayout.pubBtn) uiLayout.pubBtn(bid,bx0,by0,bs,bs);
     }
-    if(mz>1){ ctx.fillStyle=COL.cream; ctx.font="10px 'Courier New'"; ctx.textAlign="left"; ctx.fillText("x"+mz,x+3,y+11); }
+    if(mz>1){ ctx.fillStyle=COL.cream; ctx.font="10px "+FF; ctx.textAlign="left"; ctx.fillText("x"+mz,x+3,y+11); }
   }
   function renderBigMap(){ const mw=Math.min(VW*0.7,420), mh=mw; const x=(VW-mw)/2, y=(VH-mh)/2;
-    panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
+    panel(x-10,y-30,mw+20,mh+40); ctx.fillStyle=COL.textGold; ctx.font="bold 16px "+FF; ctx.textAlign="center"; ctx.fillText("VALDORIA",VW/2,y-8);
     const sx=mw/(MAP_W*TS), sy=mh/(MAP_H*TS);
     const zr=[[world.forest,COL.grass,STR.zoneForest],[world.caves,COL.stone,STR.zoneCaves],[world.arena,COL.sand,STR.zoneArena],[world.town,COL.cobble,STR.zoneTown],[world.ruins,COL.grass,STR.zoneRuins],[world.abyss,"#3a2350",STR.zoneAbyss],[world.frost,"#3a4e5e",STR.zoneFrost],[world.trial,"#c8a24a",STR.zoneTrial],[world.swamp,"#3f5a4c",STR.zoneSwamp]];
     for(const [r,c,nm] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy);
-      ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.fillText(nm,x+(r.x+r.w/2)*TS*sx,y+(r.y+r.h/2)*TS*sy); }
+      ctx.fillStyle=COL.cream; ctx.font="9px "+FF; ctx.fillText(nm,x+(r.x+r.w/2)*TS*sx,y+(r.y+r.h/2)*TS*sy); }
     // CAS-114 — portal markers on the world map (violet diamonds)
     if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-2,y+p.y*sy-2,4,4); } }
     ctx.fillStyle=COL.textGold; ctx.fillRect(x+G.hero.x*sx-3,y+G.hero.y*sy-3,6,6);
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText("M / tap: cerrar",VW/2,y+mh+18);
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText("M / tap: cerrar",VW/2,y+mh+18);
   }
 
   function panel(x,y,w,h){ ctx.fillStyle="rgba(8,10,14,0.92)"; ctx.fillRect(0,0,VW,VH); ctx.fillStyle=COL.panel; ctx.fillRect(x,y,w,h);
@@ -1923,9 +1924,9 @@ export function createRenderer(ctx){
     if(pach && IMG[pach+"_idle"] && IMG[pach+"_idle"].complete && IMG[pach+"_idle"].naturalWidth){
       const fi=frameIndex(pach,"idle",G.t,6,true); drawAnim(ctx,pach,"idle",fi, x+34, y+bh/2+ANIM[pach].fh.idle*0.32, 0.62, false, null);
     } else if(psp){ blit(ctx,psp.rows,psp.pal, x+34,y+bh/2, 4,false); }
-    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'"; ctx.fillText(d.npc.name, x+70, y+28);
-    ctx.fillStyle=COL.cream; ctx.font="14px 'Courier New'"; wrapText(d.lines[d.i],x+70,y+52,bw-90,18);
-    ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="right"; ctx.fillText("E / tap ▸ "+STR.dialogContinue, x+bw-14, y+bh-12);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 15px "+FF; ctx.fillText(d.npc.name, x+70, y+28);
+    ctx.fillStyle=COL.cream; ctx.font="14px "+FF; wrapText(d.lines[d.i],x+70,y+52,bw-90,18);
+    ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.textAlign="right"; ctx.fillText("E / tap ▸ "+STR.dialogContinue, x+bw-14, y+bh-12);
   }
   function wrapText(txt,x,y,maxW,lh){ const words=txt.split(" "); let line="",yy=y; for(const w of words){ const t=line+w+" "; if(ctx.measureText(t).width>maxW){ ctx.fillText(line,x,yy); line=w+" "; yy+=lh;} else line=t; } ctx.fillText(line,x,yy); }
 
@@ -1936,7 +1937,7 @@ export function createRenderer(ctx){
   function cmpArrow(inst){ const eq=G.hero.equip[inst.slot]; const v=gearStat(inst)+affixScore(inst)*0.6, e=gearStat(eq)+affixScore(eq)*0.6;
     return v>e+0.5?{s:"▲",c:COL.heal}:(v<e-0.5?{s:"▼",c:"#d05555"}:{s:"=",c:COL.textDim}); }
   // One affix line, e.g. "+8% vel. ataque" in a soft cyan. CAS-117.
-  function drawAffixLines(inst,ax,ay,lh){ const list=affixList(inst); ctx.font="10px 'Courier New'"; ctx.textAlign="left";
+  function drawAffixLines(inst,ax,ay,lh){ const list=affixList(inst); ctx.font="10px "+FF; ctx.textAlign="left";
     for(let k=0;k<list.length;k++){ ctx.fillStyle="#9be7ff"; ctx.fillText("• "+affixLabel(list[k]), ax, ay+k*lh); } return list.length; }
   // A signed coloured delta token ("+12", "-3", "—"). CAS-117 equip-decision diff.
   function deltaTok(d){ if(!d) return {t:"—",c:COL.textDim}; return d>0?{t:"+"+d,c:COL.heal}:{t:""+d,c:"#d05555"}; }
@@ -1948,7 +1949,7 @@ export function createRenderer(ctx){
       ctx.fillText(txt,cx+18,by); return cx+18+ctx.measureText(txt).width+14; }
     ctx.fillText(glyph+" "+txt,cx,by); return cx+ctx.measureText(glyph+" "+txt).width+14; }
   function renderInventory(){ const bw=Math.min(VW*0.9,560), bh=Math.min(VH*0.85,470), x=(VW-bw)/2, y=(VH-bh)/2; const h=G.hero;
-    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.invTitle,VW/2,y+28);
+    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.invTitle,VW/2,y+28);
     // ---- left: Tibia-style equip slots flanking the LIVE animated portrait ----
     // CAS-226. Only weapon/body/shield are functional (data-driven GEAR); the
     // other 7 slots are empty placeholders (no content/art yet) drawn dim. The
@@ -1968,10 +1969,10 @@ export function createRenderer(ctx){
       if(ic&&ic.complete&&ic.naturalWidth){ const ds=ss>=36?32:16; ctx.save(); ctx.imageSmoothingEnabled=false;
         ctx.globalAlpha=inst?1:0.42;
         ctx.drawImage(ic, Math.round(sx+(ss-ds)/2), Math.round(sy+(ss-ds)/2), ds,ds); ctx.restore(); }
-      else if(inst){ ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(ss*0.5)+"px 'Courier New'"; ctx.fillText(glyph, sx+ss/2, sy+ss*0.64); }
-      else { ctx.fillStyle="#3f4856"; ctx.font="bold "+Math.round(ss*0.44)+"px 'Courier New'"; ctx.fillText(glyph, sx+ss/2, sy+ss*0.62); }
-      if(inst){ ctx.fillStyle=COL.cream; ctx.font="9px 'Courier New'"; ctx.textAlign="right"; ctx.fillText(String(gearStat(inst)), sx+ss-3, sy+ss-3); }
-      ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="8px 'Courier New'"; ctx.fillText(label, sx+ss/2, sy-3);
+      else if(inst){ ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(ss*0.5)+"px "+FF; ctx.fillText(glyph, sx+ss/2, sy+ss*0.64); }
+      else { ctx.fillStyle="#3f4856"; ctx.font="bold "+Math.round(ss*0.44)+"px "+FF; ctx.fillText(glyph, sx+ss/2, sy+ss*0.62); }
+      if(inst){ ctx.fillStyle=COL.cream; ctx.font="9px "+FF; ctx.textAlign="right"; ctx.fillText(String(gearStat(inst)), sx+ss-3, sy+ss-3); }
+      ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="8px "+FF; ctx.fillText(label, sx+ss/2, sy-3);
       ui.invSlotRects.push({x:sx,y:sy,w:ss,h:ss,slot:slotKey,inst:!!inst});
     }
     const sy0=y+78, lx=x+18, rrx=x+leftW-18-SS;
@@ -1990,7 +1991,7 @@ export function createRenderer(ctx){
       ctx.drawImage(aimg, fi*CLASS_FW,0,CLASS_FW,CLASS_FH, px-CLASS_AX*fs, feetY-CLASS_FOOT*fs, CLASS_FW*fs, CLASS_FH*fs);
       ctx.restore();
     } else { blit(ctx,SP.hero.rows,SP.hero.pal,px-18,pTop+pH*0.5-22,3,false); }
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 11px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 11px "+FF;
     ctx.fillText((STR.classes&&STR.classes[h.cls]?STR.classes[h.cls].name:h.cls), px, pTop+pH+13);
     // hands row below the portrait: Mano Izq (escudo) + Mano Der (arma)
     const hy=pTop+pH+22, hgap=10;
@@ -1998,9 +1999,9 @@ export function createRenderer(ctx){
     invSlot(px+hgap/2,    hy, SS, STR.slotWeapon, "⚔", "weapon", "weapon");
     // ---- combat totals (folds every equipped affix) ----
     const af=affixTotals(h); const ty=y+bh-56;
-    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'";
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF;
     ctx.fillText(STR.statsDmg+": "+equippedDmg(h)+"   "+STR.statsDef+": "+equippedDef(h), x+18, ty);
-    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'";
+    ctx.fillStyle=COL.cream; ctx.font="11px "+FF;
     ctx.fillText("♥ "+heroMaxHp(h)+(af.atkspd?"  ⚔+"+af.atkspd+"%":"")+(af.movespd?"  »+"+af.movespd+"%":"")+(af.onhit?"  ✦+"+af.onhit:""), x+18, ty+16);
     // CAS-417: potion counters lead with the real CAS-415 flask icons (glyph = load fallback)
     ctx.fillStyle=COL.cream; let ptx=x+18;
@@ -2010,11 +2011,11 @@ export function createRenderer(ctx){
     // CAS-237: open the Forja (forge equipment) panel — accessible from the inventory.
     const fbw=104, fbh=22, fbx=x+bw-fbw-16, fby=y+12;
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(fbx,fby,fbw,fbh); ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(fbx+0.5,fby+0.5,fbw-1,fbh-1);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.invForge, fbx+fbw/2, fby+15);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.fillText(STR.invForge, fbx+fbw/2, fby+15);
     ui.invForgeRect={x:fbx,y:fby,w:fbw,h:fbh};
     // ---- right: backpack — CAS-1594 30-slot fixed grid + scroll ----
     const rx=x+bw*0.50, rw=bw*0.46;
-    ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(STR.backpack, rx, y+54);
+    ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.textAlign="left"; ctx.fillText(STR.backpack, rx, y+54);
     ui.invRects=[];
     const bag=h.bag; if(G.invSel==null) G.invSel=0; G.invSel=Math.max(0,Math.min(G.invSel, Math.max(0,bag.length-1)));
     const cmpH=92;
@@ -2052,12 +2053,12 @@ export function createRenderer(ctx){
         const isz=Math.min(32,slotSz-4), ix=sx+(slotSz-isz)/2, iy=sy+(slotSz-isz)/2;
         const gi=IMG["icon_slot_"+inst.slot];
         if(gi&&gi.complete&&gi.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(gi,Math.round(ix),Math.round(iy),isz,isz); ctx.restore(); }
-        else { ctx.textAlign="center"; ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(isz*0.7)+"px 'Courier New'";
+        else { ctx.textAlign="center"; ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(isz*0.7)+"px "+FF;
           ctx.fillText(({weapon:"⚔",body:"▣",shield:"◈",head:"^",legs:"Π",feet:"▾",neck:"◆",back:"≈",ring:"○",bag:"▦"}[inst.slot]||"▪"), sx+slotSz/2, sy+slotSz*0.68); }
         // rarity dot + affix pips
-        ctx.fillStyle=gearCol(inst); ctx.font="7px 'Courier New'"; ctx.textAlign="right";
+        ctx.fillStyle=gearCol(inst); ctx.font="7px "+FF; ctx.textAlign="right";
         ctx.fillText(String(gearStat(inst)), sx+slotSz-2, sy+slotSz-2);
-        const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="7px 'Courier New'"; ctx.textAlign="left"; ctx.fillText("◈".repeat(na), sx+2, sy+slotSz-2); }
+        const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="7px "+FF; ctx.textAlign="left"; ctx.fillText("◈".repeat(na), sx+2, sy+slotSz-2); }
       }
       // hit rect uses bag index (si); empty slots still register so DnD can target them later
       ui.invRects.push({x:sx,y:sy,w:slotSz,h:slotSz, idx:si});
@@ -2079,7 +2080,7 @@ export function createRenderer(ctx){
     const cy=listY+gridH+6; const sel=bag[G.invSel];
     if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
       const eq=h.equip[sel.slot];
-      ctx.textAlign="left"; ctx.font="10px 'Courier New'"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
+      ctx.textAlign="left"; ctx.font="10px "+FF; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
       ctx.fillStyle=gearCol(eq); ctx.fillText(rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")", rx+6, cy+25);
       drawAffixLines(eq, rx+10, cy+36, 10);
       const midX=rx+rw*0.52;
@@ -2090,11 +2091,11 @@ export function createRenderer(ctx){
       const before={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const old=h.equip[sel.slot]; h.equip[sel.slot]=sel;
       const after={dmg:equippedDmg(h),def:equippedDef(h),hp:heroMaxHp(h)}; const a2=affixTotals(h); h.equip[sel.slot]=old; const a1=affixTotals(h);
       const parts=[["Dmg",after.dmg-before.dmg],["Def",after.def-before.def],["HP",after.hp-before.hp],["AtkV%",a2.atkspd-a1.atkspd],["MovV%",a2.movespd-a1.movespd]];
-      let dx=rx+6; ctx.font="bold 10px 'Courier New'"; const dyb=cy+cmpH-8;
+      let dx=rx+6; ctx.font="bold 10px "+FF; const dyb=cy+cmpH-8;
       for(const [lbl,dv] of parts){ const tk=deltaTok(dv); const seg=lbl+" "; ctx.fillStyle=COL.textDim; ctx.fillText(seg,dx,dyb); dx+=ctx.measureText(seg).width;
         ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
     // ---- CAS-419: DnD overlays — reject flash, target highlights, cursor ghost. ----
     // Pure presentation read from input state (ui.invDrag / ui.invReject) in the same
     // per-frame modal pass; zero RNG, zero state mutation (drops resolve in sim seams).
@@ -2114,8 +2115,8 @@ export function createRenderer(ctx){
         ctx.save(); ctx.globalAlpha=0.85; ctx.imageSmoothingEnabled=false;
         const gi=IMG["icon_slot_"+item.slot]; const gs=28;
         if(gi&&gi.complete&&gi.naturalWidth) ctx.drawImage(gi, Math.round(drag.x-gs/2), Math.round(drag.y-gs/2), gs, gs);
-        else { ctx.fillStyle=gearCol(item); ctx.font="bold 20px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("▣", drag.x, drag.y+7); }
-        ctx.fillStyle=gearCol(item); ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
+        else { ctx.fillStyle=gearCol(item); ctx.font="bold 20px "+FF; ctx.textAlign="center"; ctx.fillText("▣", drag.x, drag.y+7); }
+        ctx.fillStyle=gearCol(item); ctx.font="bold 11px "+FF; ctx.textAlign="center";
         ctx.fillText(gearName(item), drag.x, drag.y-gs/2-4);
         ctx.restore();
       }
@@ -2132,9 +2133,9 @@ export function createRenderer(ctx){
     const tree=TALENTS[h.cls]; if(!tree){ G.scene="play"; return; }
     const bw=Math.min(VW*0.94,660), bh=Math.min(VH*0.92,540), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF;
     ctx.fillText(STR.talentTitle+" — "+(STR.classes[h.cls]?STR.classes[h.cls].name:h.cls), VW/2, y+26);
-    ctx.fillStyle=(h.talentPts>0)?COL.heal:COL.textDim; ctx.font="bold 13px 'Courier New'";
+    ctx.fillStyle=(h.talentPts>0)?COL.heal:COL.textDim; ctx.font="bold 13px "+FF;
     ctx.fillText(STR.talentPoints(h.talentPts|0)+(h.talentPts>0?"":"  ("+STR.talentNoPts+")"), VW/2, y+46);
     ui.talentRects=[];
     const nodes=tree.nodes; const nb=tree.branches.length;
@@ -2142,7 +2143,7 @@ export function createRenderer(ctx){
     const focusId=(function(){ const ns=talentNodes(h.cls); const i=G.talFocus||0; return ns[i]?ns[i].id:null; })();
     // branch headers
     for(let b=0;b<nb;b++){ const cx=x+24+colW*b+colW/2;
-      ctx.fillStyle=COL.cream; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(tree.branches[b], cx, top-8); }
+      ctx.fillStyle=COL.cream; ctx.font="bold 13px "+FF; ctx.textAlign="center"; ctx.fillText(tree.branches[b], cx, top-8); }
     // Position each node by (branch, tier). When a tier holds MORE than one node
     // (an exclusive fork), spread the siblings horizontally so they don't overlap,
     // and shrink their width to fit the column. CAS-119.
@@ -2163,11 +2164,15 @@ export function createRenderer(ctx){
       ctx.fillStyle=fill; ctx.fillRect(bx,by,nw,nh);
       ctx.strokeStyle=border; ctx.lineWidth=(n.id===focusId)?2.5:1.5; ctx.strokeRect(bx,by,nw,nh);
       // exclusive-fork marker
-      if(n.excl){ ctx.fillStyle="#c77dff"; ctx.font="9px 'Courier New'"; ctx.textAlign="left"; ctx.fillText("◆", bx+4, by+12); }
-      ctx.textAlign="center"; ctx.fillStyle=(st==="lock")?COL.textDim:COL.cream; ctx.font=(nw<130?"bold 9px 'Courier New'":"bold 11px 'Courier New'");
+      if(n.excl){ ctx.fillStyle="#c77dff"; ctx.font="9px "+FF; ctx.textAlign="left"; ctx.fillText("◆", bx+4, by+12); }
+      ctx.textAlign="center"; ctx.fillStyle=(st==="lock")?COL.textDim:COL.cream; ctx.font=(nw<130?"bold 9px "+FF:"bold 11px "+FF);
       ctx.fillText(n.name, p.cx, by+22);
-      ctx.fillStyle=(st==="max")?COL.heal:(st==="avail"?COL.textGold:COL.textDim); ctx.font="11px 'Courier New'";
+      ctx.fillStyle=(st==="max")?COL.heal:(st==="avail"?COL.textGold:COL.textDim); ctx.font="11px "+FF;
       ctx.fillText(STR.talentRank(rank,n.max), p.cx, by+40);
+      // CAS-1598: level-gate label on nodes locked purely by hero level ("Nv 3").
+      if(st==="lock"){ const lr=lockReason(h,n.id);
+        if(lr&&lr.indexOf("level:")===0){ ctx.fillStyle="#d0a0a0"; ctx.font="bold 9px "+FF;
+          ctx.fillText("Nv "+lr.slice(6), p.cx, by+51); } }
       ui.talentRects.push({x:bx,y:by,w:nw,h:nh, id:n.id, focus:i});
       if(ui.mouseX>=bx&&ui.mouseX<=bx+nw&&ui.mouseY>=by&&ui.mouseY<=by+nh) hover=n;
     }
@@ -2176,19 +2181,19 @@ export function createRenderer(ctx){
     const dy=y+bh-92, dbx=x+24, dbw=bw-48, dbh=52;
     panelLocal(dbx,dy,dbw,dbh);
     if(dn){ const st=nodeState(h,dn); ctx.textAlign="left";
-      ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(dn.name+"  ["+STR.talentRank(nodeRank(h,dn.id),dn.max)+"]", dbx+10, dy+18);
-      ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(dn.desc, dbx+10, dy+34);
+      ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.fillText(dn.name+"  ["+STR.talentRank(nodeRank(h,dn.id),dn.max)+"]", dbx+10, dy+18);
+      ctx.fillStyle=COL.cream; ctx.font="11px "+FF; ctx.fillText(dn.desc, dbx+10, dy+34);
       const lr=lockReason(h,dn.id); let hint="";
       if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
-      if(hint){ ctx.fillStyle="#d0a0a0"; ctx.font="10px 'Courier New'"; ctx.fillText(hint, dbx+10, dy+48); }
+      if(hint){ ctx.fillStyle="#d0a0a0"; ctx.font="10px "+FF; ctx.fillText(hint, dbx+10, dy+48); }
     }
     // respec button + hint
     const rbw=210, rbh=26, rbx=VW/2-rbw/2, rby=y+bh-32;
     const canR=talentSpent(h)>0;
     ctx.fillStyle=canR?"#3a2c1e":"#23262c"; ctx.fillRect(rbx,rby,rbw,rbh);
-    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.talentRespecBtn,VW/2,rby+17);
+    ctx.textAlign="center"; ctx.fillStyle=canR?COL.cream:COL.textDim; ctx.font="12px "+FF; ctx.fillText(STR.talentRespecBtn,VW/2,rby+17);
     ui.talentRects.push({x:rbx,y:rby,w:rbw,h:rbh, act:()=>sim.respecTalents()});
-    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.talentHint, VW/2, y+bh-6);
+    ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText(STR.talentHint, VW/2, y+bh-6);
   }
 
   // CAS-150 — ELITE-MASTERY REWARD-TRACK panel. The cross-session hook made legible: a
@@ -2199,19 +2204,19 @@ export function createRenderer(ctx){
     const k=h.eliteKills|0; const track=sim.masteryTrack(k); const next=sim.masteryNextMilestone(k);
     const bw=Math.min(VW*0.92,560), bh=Math.min(VH*0.9,470), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF;
     ctx.fillText(STR.masteryTitle, VW/2, y+28);
-    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.masteryPanelHint(k), VW/2, y+48);
+    ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText(STR.masteryPanelHint(k), VW/2, y+48);
     // progress bar toward the next milestone (or "complete")
     const pbx=x+30, pbw=bw-60, pby=y+60, pbh=14;
     ctx.fillStyle="#23262c"; ctx.fillRect(pbx,pby,pbw,pbh);
     if(next){ const prev=(function(){ let p=0; for(const m of track){ if(m.unlocked) p=m.at; } return p; })();
       const span=Math.max(1,next.at-prev); const frac=Math.max(0,Math.min(1,(k-prev)/span));
       ctx.fillStyle=COL.xpf; ctx.fillRect(pbx,pby,pbw*frac,pbh);
-      ctx.fillStyle=COL.textGold; ctx.font="10px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillStyle=COL.textGold; ctx.font="10px "+FF; ctx.textAlign="center";
       ctx.fillText(STR.masteryNextHint(Math.max(0,next.at-k), next.name), VW/2, pby+pbh+14);
     } else { ctx.fillStyle=COL.heal; ctx.fillRect(pbx,pby,pbw,pbh);
-      ctx.fillStyle=COL.heal; ctx.font="10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.masteryAllUnlocked, VW/2, pby+pbh+14); }
+      ctx.fillStyle=COL.heal; ctx.font="10px "+FF; ctx.textAlign="center"; ctx.fillText(STR.masteryAllUnlocked, VW/2, pby+pbh+14); }
     // milestone rows
     const top=y+98, rowH=Math.min(78,(bh-130)/track.length);
     for(let i=0;i<track.length;i++){ const m=track[i]; const ry=top+i*rowH;
@@ -2219,35 +2224,35 @@ export function createRenderer(ctx){
       ctx.fillStyle=m.unlocked?"#1d3324":(m.isNext?"#33301a":"#181c22"); ctx.fillRect(rx,ry,rw,rh);
       ctx.strokeStyle=m.unlocked?COL.heal:(m.isNext?COL.textGold:"#3a4456"); ctx.lineWidth=m.isNext?2.5:1.5; ctx.strokeRect(rx,ry,rw,rh);
       // requirement badge (left)
-      ctx.textAlign="left"; ctx.fillStyle=m.unlocked?COL.heal:COL.textDim; ctx.font="bold 11px 'Courier New'";
+      ctx.textAlign="left"; ctx.fillStyle=m.unlocked?COL.heal:COL.textDim; ctx.font="bold 11px "+FF;
       ctx.fillText((m.unlocked?"✦ ":"")+m.at+" élites", rx+10, ry+18);
       // name + desc
-      ctx.fillStyle=m.unlocked?COL.cream:(m.isNext?COL.textGold:COL.textDim); ctx.font="bold 13px 'Courier New'";
+      ctx.fillStyle=m.unlocked?COL.cream:(m.isNext?COL.textGold:COL.textDim); ctx.font="bold 13px "+FF;
       ctx.fillText(m.name, rx+10, ry+38);
-      ctx.fillStyle=m.unlocked?"#bfe6c4":COL.textDim; ctx.font="11px 'Courier New'";
+      ctx.fillStyle=m.unlocked?"#bfe6c4":COL.textDim; ctx.font="11px "+FF;
       ctx.fillText(m.desc, rx+10, ry+rh-8);
       // status chip (right)
-      ctx.textAlign="right"; ctx.fillStyle=m.unlocked?COL.heal:(m.isNext?COL.textGold:COL.textDim); ctx.font="bold 11px 'Courier New'";
+      ctx.textAlign="right"; ctx.fillStyle=m.unlocked?COL.heal:(m.isNext?COL.textGold:COL.textDim); ctx.font="bold 11px "+FF;
       ctx.fillText(m.unlocked?"DESBLOQUEADO":(m.isNext?"PRÓXIMO":"BLOQUEADO"), rx+rw-10, ry+18);
     }
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText("V / ESC para cerrar", VW/2, y+bh-8);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("V / ESC para cerrar", VW/2, y+bh-8);
     ctx.textAlign="left";
   }
 
   function renderShop(){ const items=sim.shopItems(); const bw=Math.min(VW*0.86,460), bh=Math.min(VH*0.82,420), x=(VW-bw)/2, y=(VH-bh)/2;
     const title=G.merchantShop?STR.merchantTitle:G.healShop?STR.npcLina:STR.shopTitle;
-    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(title,VW/2,y+30);
-    ctx.fillStyle=COL.gold; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.gold(G.hero.gold),VW/2,y+50);
+    panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(title,VW/2,y+30);
+    ctx.fillStyle=COL.gold; ctx.font="bold 13px "+FF; ctx.fillText(STR.gold(G.hero.gold),VW/2,y+50);
     ui.shopRects=[]; const iy=y+72, ih=42;
     for(let i=0;i<items.length;i++){ const it=items[i]; const ry=iy+i*ih; const sel=i===G.shopSel;
       ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(x+20,ry,bw-40,ih-6);
       if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x+20,ry,bw-40,ih-6); }
-      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(it.name,x+34,ry+24);
+      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText(it.name,x+34,ry+24);
       ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.fillText(it.price+" oro",x+bw-34,ry+24);
       ui.shopRects.push({x:x+20,y:ry,w:bw-40,h:ih-6,act:()=>{G.shopSel=i; sim.buyItem(i);}});
     }
     // close
-    const cy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,24); ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Cerrar (E)",VW/2,cy+17);
+    const cy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,24); ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Cerrar (E)",VW/2,cy+17);
     ui.shopRects.push({x:x+bw/2-60,y:cy,w:120,h:24,act:()=>{G.scene="play";G.healShop=false;G.merchantShop=false;}});
   }
 
@@ -2264,8 +2269,8 @@ export function createRenderer(ctx){
       return { slot, name:inst?gearName(inst):null, fl:inst?forgeLevel(inst):0, stat:inst?gearStat(inst):0, next:cost }; }) };
     const bw=Math.min(VW*0.86,470), bh=Math.min(VH*0.78,360), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.forgeTitle,VW/2,y+30);
-    ctx.fillStyle=COL.gold; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.forgeHave(fs.gold, fs.mats),VW/2,y+50);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.forgeTitle,VW/2,y+30);
+    ctx.fillStyle=COL.gold; ctx.font="bold 13px "+FF; ctx.fillText(STR.forgeHave(fs.gold, fs.mats),VW/2,y+50);
     ui.forgeRects=[]; if(G.forgeSel==null) G.forgeSel=0; G.forgeSel=Math.max(0,Math.min(2,G.forgeSel|0));
     const GLY={weapon:"⚔",body:"▣",shield:"◈"}, SLBL={weapon:STR.slotWeapon,body:STR.slotBody,shield:STR.slotShield};
     const iy=y+70, ih=70;
@@ -2274,35 +2279,35 @@ export function createRenderer(ctx){
       if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x+20,ry,bw-40,ih-10); }
       // CAS-417: slot icon (CAS-415) heads the row; glyph text = load fallback only
       const fic=IMG["icon_slot_"+s.slot];
-      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 15px 'Courier New'";
+      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 15px "+FF;
       if(fic&&fic.complete&&fic.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false;
         ctx.drawImage(fic, x+32, ry+9, 16,16); ctx.restore(); ctx.fillText(SLBL[s.slot], x+54, ry+22); }
       else ctx.fillText(GLY[s.slot]+" "+SLBL[s.slot], x+34, ry+22);
       if(s.name){
         // current forge level + resolved stat
-        ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'";
+        ctx.fillStyle=COL.cream; ctx.font="12px "+FF;
         ctx.fillText(s.name+"  "+STR.forgeLvl(s.fl, fs.max), x+34, ry+40);
         ctx.fillStyle=COL.textGold; ctx.fillText((s.slot==="weapon"?STR.statsDmg:STR.statsDef)+": "+s.stat, x+34, ry+57);
         // right side: next-level cost or MÁX tag + a forge button
         if(s.next){
-          ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="12px 'Courier New'"; ctx.fillText(STR.forgeNeed(s.next.gold, s.next.mats), x+bw-110, ry+30);
+          ctx.textAlign="right"; ctx.fillStyle=COL.gold; ctx.font="12px "+FF; ctx.fillText(STR.forgeNeed(s.next.gold, s.next.mats), x+bw-110, ry+30);
           const can=fs.gold>=s.next.gold && fs.mats>=s.next.mats;
           const bx=x+bw-104, by=ry+12, bbw=80, bbh=30;
           ctx.fillStyle=can?"#3a2c1e":"#23262c"; ctx.fillRect(bx,by,bbw,bbh);
           ctx.strokeStyle=can?COL.textGold:"#3a4456"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,bbw-1,bbh-1);
-          ctx.textAlign="center"; ctx.fillStyle=can?COL.textGold:COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.forgeBtn, bx+bbw/2, by+20);
+          ctx.textAlign="center"; ctx.fillStyle=can?COL.textGold:COL.textDim; ctx.font="bold 13px "+FF; ctx.fillText(STR.forgeBtn, bx+bbw/2, by+20);
           ui.forgeRects.unshift({x:bx,y:by,w:bbw,h:bbh,slot:s.slot,act:()=>{ G.forgeSel=i; return sim.forgeUpgrade(s.slot); }}); // button to FRONT of scan → wins the tap over its row rect (returns ok → CAS-279 forge telemetry in forgeTap)
         } else {
-          ctx.textAlign="right"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.forgeMaxTag, x+bw-40, ry+34);
+          ctx.textAlign="right"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px "+FF; ctx.fillText(STR.forgeMaxTag, x+bw-40, ry+34);
         }
-      } else { ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.forgeEmpty, x+34, ry+44); }
+      } else { ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.fillText(STR.forgeEmpty, x+34, ry+44); }
       // full-row select rect (keyboard/tap focus); pushed to the BACK so a button tap on the same row wins first
       ui.forgeRects.push({x:x+20,y:ry,w:bw-40,h:ih-10, sel:i});
     }
     const cy=y+bh-28; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,cy,120,22);
-    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText("Cerrar (G)",VW/2,cy+15);
+    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText("Cerrar (G)",VW/2,cy+15);
     ui.forgeRects.push({x:x+bw/2-60,y:cy,w:120,h:22,act:()=>{G.scene="play";}});
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.forgeHint,VW/2,y+bh-8);
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.forgeHint,VW/2,y+bh-8);
   }
 
   // CAS-134: the Bounty Board — today's daily contracts (progress + claim) and the login
@@ -2314,22 +2319,22 @@ export function createRenderer(ctx){
   function renderBounty(){ const b=daily.board(); ui.bountyRects=[];
     const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.bountyTitle,VW/2,y+28);
-    if(!b){ ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("—",VW/2,y+60); return; }
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.bountyTitle,VW/2,y+28);
+    if(!b){ ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("—",VW/2,y+60); return; }
     // reset countdown (top-right of the panel)
-    ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.bountyResetIn(fmtCountdown(b.resetMs)), x+bw-16, y+24);
+    ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.bountyResetIn(fmtCountdown(b.resetMs)), x+bw-16, y+24);
     // gold readout (top-left)
-    ctx.textAlign="left"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.gold(G.hero.gold), x+16, y+24);
+    ctx.textAlign="left"; ctx.fillStyle=COL.gold; ctx.font="bold 12px "+FF; ctx.fillText(STR.gold(G.hero.gold), x+16, y+24);
 
     // ----- streak banner (CAS-243: escalating return hook — today's reward, tomorrow's preview) -----
     const sy=y+40, sh=58;
     ctx.fillStyle="#241d12"; ctx.fillRect(x+16,sy,bw-32,sh);
     ctx.fillStyle=COL.panelB; ctx.fillRect(x+16,sy,bw-32,3);
     const sr=b.streak.reward, snx=b.streak.next;
-    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.bountyStreak(b.streak.n), x+28, sy+18);
-    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.bountyStreakReward(sr.gold, sr.mena)+(sr.potHP?" · +poción":""), x+28, sy+35);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 14px "+FF; ctx.fillText(STR.bountyStreak(b.streak.n), x+28, sy+18);
+    ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText(STR.bountyStreakReward(sr.gold, sr.mena)+(sr.potHP?" · +poción":""), x+28, sy+35);
     // tomorrow's escalating reward preview (the "come back" hook) — or milestone/comeback flag
-    ctx.font="11px 'Courier New'";
+    ctx.font="11px "+FF;
     if(sr.milestone){ ctx.fillStyle=COL.heal; ctx.fillText(STR.bountyStreakMilestone, x+28, sy+51); }
     else if(b.streak.comeback){ ctx.fillStyle=COL.textGold; ctx.fillText(STR.bountyComeback, x+28, sy+51); }
     else { ctx.fillStyle=COL.textDim; ctx.fillText(STR.bountyStreakNext(snx.gold, snx.mena)+(snx.potHP?" · +poción":""), x+28, sy+51); }
@@ -2338,20 +2343,20 @@ export function createRenderer(ctx){
       ()=>{ daily.claimStreak(); }, b.streak.claimable?STR.bountyClaim:STR.bountyClaimed);
 
     // ----- contracts -----
-    let cy=sy+sh+14; ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.bountyContracts, x+20, cy); cy+=8;
+    let cy=sy+sh+14; ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.bountyContracts, x+20, cy); cy+=8;
     const ih=78;
     for(let i=0;i<b.contracts.length;i++){ const c=b.contracts[i]; const ry=cy+i*ih; const sel=i===(G.bountySel||0);
       ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(x+20,ry,bw-40,ih-10);
       if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x+20,ry,bw-40,ih-10); }
       // title + reward
-      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 13px 'Courier New'"; ctx.fillText(c.title, x+34, ry+22);
-      ctx.fillStyle=COL.gold; ctx.font="12px 'Courier New'"; ctx.fillText(STR.bountyReward(c.gold,c.xp), x+34, ry+58);
+      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 13px "+FF; ctx.fillText(c.title, x+34, ry+22);
+      ctx.fillStyle=COL.gold; ctx.font="12px "+FF; ctx.fillText(STR.bountyReward(c.gold,c.xp), x+34, ry+58);
       // progress bar
       const pbx=x+34, pbw=bw-200, pby=ry+32, pbh=10, f=c.need>0?Math.min(1,c.prog/c.need):0;
       ctx.fillStyle="#14181f"; ctx.fillRect(pbx,pby,pbw,pbh);
       ctx.fillStyle=c.done?COL.heal:COL.textGold; ctx.fillRect(pbx,pby,pbw*f,pbh);
       ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(pbx+0.5,pby+0.5,pbw,pbh);
-      ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(c.prog+"/"+c.need, pbx+pbw+8, pby+9);
+      ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(c.prog+"/"+c.need, pbx+pbw+8, pby+9);
       // claim chip (right)
       const canClaim=c.done && !c.claimed;
       drawClaimChip(x+bw-128, ry+ (ih-10)/2-12, 100, 24, canClaim, c.claimed,
@@ -2361,7 +2366,7 @@ export function createRenderer(ctx){
     }
     // close
     const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
-    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Cerrar (E)",VW/2,ccy+17);
+    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Cerrar (E)",VW/2,ccy+17);
     ui.bountyRects.push({x:x+bw/2-60,y:ccy,w:120,h:24,act:()=>{ G.scene="play"; }});
   }
   // a small CLAIM / CLAIMED chip; `on` = active (gold), `done` = already claimed (dim).
@@ -2369,7 +2374,7 @@ export function createRenderer(ctx){
     ctx.fillStyle=on?"#2e6b2e":(done?"#262b22":"#23272f");
     ctx.fillRect(cx,cy,cw,ch);
     ctx.strokeStyle=on?COL.heal:"#3a4150"; ctx.lineWidth=1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
-    ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(label, cx+cw/2, cy+16);
+    ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px "+FF; ctx.fillText(label, cx+cw/2, cy+16);
     ctx.textAlign="left";
     if(on) ui.bountyRects.push({x:cx,y:cy,w:cw,h:ch,act});
   }
@@ -2393,17 +2398,17 @@ export function createRenderer(ctx){
     // last resort — a rune placeholder so an unloaded strip never renders blank
     ctx.globalAlpha=dim?0.22:0.7; ctx.strokeStyle=COL.panelB; ctx.lineWidth=2;
     ctx.strokeRect(cx-maxH*0.35,cy-maxH*0.35,maxH*0.7,maxH*0.7);
-    ctx.fillStyle=COL.textDim; ctx.textAlign="center"; ctx.font="bold 18px 'Courier New'"; ctx.fillText("?",cx,cy+6); ctx.textAlign="left";
+    ctx.fillStyle=COL.textDim; ctx.textAlign="center"; ctx.font="bold 18px "+FF; ctx.fillText("?",cx,cy+6); ctx.textAlign="left";
     ctx.restore();
   }
   function renderBestiary(){ const b=bestiary.board(); ui.bestRects=[];
     const bw=Math.min(VW*0.94,580), bh=Math.min(VH*0.92,520), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.bestiaryTitle,VW/2,y+28);
-    if(!b||!b.entries.length){ ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("—",VW/2,y+60); return; }
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.bestiaryTitle,VW/2,y+28);
+    if(!b||!b.entries.length){ ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("—",VW/2,y+60); return; }
     // header: discovered rollup (centre) + gold (left)
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.bestiarySub(b.discovered,b.total),VW/2,y+44);
-    ctx.textAlign="left"; ctx.fillStyle=COL.gold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.gold(G.hero.gold), x+16, y+24);
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.bestiarySub(b.discovered,b.total),VW/2,y+44);
+    ctx.textAlign="left"; ctx.fillStyle=COL.gold; ctx.font="bold 12px "+FF; ctx.fillText(STR.gold(G.hero.gold), x+16, y+24);
 
     const n=b.entries.length, rowH=66, listTop=y+56, listBot=y+bh-38, vis=Math.max(1,Math.floor((listBot-listTop)/rowH));
     if(G.bestSel==null) G.bestSel=0; G.bestSel=Math.max(0,Math.min(n-1,G.bestSel|0));
@@ -2419,19 +2424,19 @@ export function createRenderer(ctx){
       drawCodexSprite(e.type, e.sprite, thumbCx, thumbCy, 44, !e.seen);
       // name + boss tag + kill count
       const tx=x+16+62;
-      ctx.textAlign="left"; ctx.fillStyle=e.seen?COL.cream:COL.textDim; ctx.font="bold 14px 'Courier New'"; ctx.fillText(e.name, tx, ry+20);
+      ctx.textAlign="left"; ctx.fillStyle=e.seen?COL.cream:COL.textDim; ctx.font="bold 14px "+FF; ctx.fillText(e.name, tx, ry+20);
       const nameW=ctx.measureText(e.name).width;
-      if(e.seen&&e.boss){ ctx.fillStyle=COL.textGold; ctx.font="9px 'Courier New'"; ctx.fillText("★ JEFE", tx+nameW+10, ry+20); }
-      ctx.fillStyle=e.seen?COL.gold:COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(e.seen?STR.bestiaryKills(e.count):STR.bestiaryUndiscovered, tx, ry+38);
+      if(e.seen&&e.boss){ ctx.fillStyle=COL.textGold; ctx.font="9px "+FF; ctx.fillText("★ JEFE", tx+nameW+10, ry+20); }
+      ctx.fillStyle=e.seen?COL.gold:COL.textDim; ctx.font="11px "+FF; ctx.fillText(e.seen?STR.bestiaryKills(e.count):STR.bestiaryUndiscovered, tx, ry+38);
       // next-tier progress hint
-      if(e.seen && e.nextNeed!=null){ ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.bestiaryNext(e.nextNeed), tx, ry+52); }
+      if(e.seen && e.nextNeed!=null){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText(STR.bestiaryNext(e.nextNeed), tx, ry+52); }
       // tier pips (3 boxes: reached=gold, claimed=green, locked=dark)
       const pipY=ry+(rowH-8)/2-9, pipX0=x+bw-170;
       for(let t=0;t<e.tiers.length;t++){ const ti=e.tiers[t]; const px2=pipX0+t*20;
         ctx.fillStyle=ti.claimed?"#2e6b2e":(ti.reached?COL.textGold:"#23272f");
         ctx.fillRect(px2,pipY,17,17);
         ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(px2+0.5,pipY+0.5,17,17);
-        ctx.fillStyle=(ti.reached||ti.claimed)?"#0b0c11":COL.textDim; ctx.textAlign="center"; ctx.font="bold 11px 'Courier New'";
+        ctx.fillStyle=(ti.reached||ti.claimed)?"#0b0c11":COL.textDim; ctx.textAlign="center"; ctx.font="bold 11px "+FF;
         ctx.fillText(ti.claimed?"✓":ti.label.charAt(0), px2+8.5, pipY+13); ctx.textAlign="left"; }
       // claim chip (right) — claims the next reached-but-unclaimed tier
       drawBestChip(x+bw-96, ry+(rowH-8)/2-12, 80, 24, e.claimable,
@@ -2440,12 +2445,12 @@ export function createRenderer(ctx){
       ui.bestRects.push({x:x+16,y:ry,w:bw-32,h:rowH-8,act:()=>{ G.bestSel=i; }});
     }
     // scroll indicators
-    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="12px "+FF;
     if(scroll>0) ctx.fillText("▲", VW/2, listTop-2);
     if(scroll+vis<n) ctx.fillText("▼", VW/2, listBot+12);
     // close
     const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
-    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Cerrar (E)",VW/2,ccy+17); ctx.textAlign="left";
+    ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Cerrar (E)",VW/2,ccy+17); ctx.textAlign="left";
     ui.bestRects.push({x:x+bw/2-60,y:ccy,w:120,h:24,act:()=>{ G.scene="play"; }});
   }
   // a bestiary CLAIM chip; on=claimable (gold/green), else dim "Cobrado"/locked. Pushes its
@@ -2454,7 +2459,7 @@ export function createRenderer(ctx){
     ctx.fillStyle=on?"#2e6b2e":"#262b22";
     ctx.fillRect(cx,cy,cw,ch);
     ctx.strokeStyle=on?COL.heal:"#3a4150"; ctx.lineWidth=1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
-    ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px "+FF;
     ctx.fillText(on?label:STR.bestiaryClaimedChip, cx+cw/2, cy+16); ctx.textAlign="left";
     if(on) ui.bestRects.push({x:cx,y:cy,w:cw,h:ch,act});
   }
@@ -2463,7 +2468,7 @@ export function createRenderer(ctx){
   // champion clear — three cards, pick one build-modifying boon for the rest of the run.
   // Pure view over G.draft (choices) + G.hero.boons (the active stack); the only state
   // change is the pick, routed through sim.pickBoon via ui.draftRects (tap) / input keys.
-  // Reuses the shared panel() Tibia frame + COL palette + Courier idiom (no art spend).
+  // Reuses the shared panel() Tibia frame + COL palette + pixel-font idiom (no art spend).
   function boonCatCol(cat){ return cat==="offense"?"#ff7a5d":cat==="defense"?"#7fb2ff":"#8be07a"; }
   // CAS-388: rarity accent — common = muted frame, rare = blue, legendary = amber glow. Drives
   // the card's border + a small corner ribbon so the draw reads its tier at a glance.
@@ -2489,17 +2494,17 @@ export function createRenderer(ctx){
     function banishBadge(cx,cy,cw,i){ if(!canBanish) return; const s=18, bx=cx+cw-s-4, by=cy+6;
       ctx.fillStyle="#3a2130"; ctx.fillRect(bx,by,s,s);
       ctx.strokeStyle="#d0556b"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,s,s);
-      ctx.textAlign="center"; ctx.fillStyle="#ff9db0"; ctx.font="bold 12px 'Courier New'"; ctx.fillText("✖", bx+s/2, by+s-5);
+      ctx.textAlign="center"; ctx.fillStyle="#ff9db0"; ctx.font="bold 12px "+FF; ctx.fillText("✖", bx+s/2, by+s-5);
       ui.draftBanishRects.push({x:bx,y:by,w:s,h:s,idx:i}); }
     const bw=Math.min(VW*0.94,660), bh=Math.min(VH*0.9,460), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     // CAS-450: the APEX ceremony hand re-titles the same panel (amber accent — the legendary
     // colour already in BOON_RARITY) so the full-conquest payoff reads as an EVENT, not another
     // routine draft. Same layout/rects — presentation only.
-    ctx.textAlign="center"; ctx.fillStyle=d.apex?"#ffab2e":COL.textGold; ctx.font="bold 19px 'Courier New'"; ctx.fillText(d.apex?STR.apexDraftTitle:STR.draftTitle,VW/2,y+30);
+    ctx.textAlign="center"; ctx.fillStyle=d.apex?"#ffab2e":COL.textGold; ctx.font="bold 19px "+FF; ctx.fillText(d.apex?STR.apexDraftTitle:STR.draftTitle,VW/2,y+30);
     // subtitle: left-aligned wrap inside the frame + smaller font on narrow panels, so it
     // never bleeds past the border on a phone-portrait canvas.
-    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font=(bw<520?"10px":"12px")+" 'Courier New'"; wrapText(d.apex?STR.apexDraftSub:STR.draftSub,x+20,y+48,bw-40,14);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font=(bw<520?"10px":"12px")+" "+FF; wrapText(d.apex?STR.apexDraftSub:STR.draftSub,x+20,y+48,bw-40,14);
 
     const sel=Math.max(0,Math.min(choices.length-1,(G.draftSel||0)));
     const wide=bw>=560; // wide → 3 columns, narrow → 3 stacked rows (mobile-safe)
@@ -2516,12 +2521,12 @@ export function createRenderer(ctx){
         // CAS-388: rarity frame — legendary always reads bold/amber even unselected.
         ctx.strokeStyle=on?COL.textGold:rc; ctx.lineWidth=(on||leg)?2:1; ctx.strokeRect(cx+0.5,cy+0.5,cw,ch);
         ctx.fillStyle=cc; ctx.fillRect(cx,cy,cw,4); // category color bar
-        ctx.textAlign="center"; ctx.fillStyle=rc; ctx.font="bold 9px 'Courier New'"; ctx.fillText(boonRarLabel(b), cx+cw/2, cy+16); // rarity ribbon
-        ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="30px 'Courier New'"; ctx.fillText(b.glyph, cx+cw/2, cy+46);
-        ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(b.name, cx+cw/2, cy+72);
-        ctx.fillStyle=cc; ctx.font="11px 'Courier New'"; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), cx+cw/2, cy+90);
-        ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; wrapText(b.desc, cx+12, cy+112, cw-24, 16);
-        ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), cx+cw/2, cy+ch-12);
+        ctx.textAlign="center"; ctx.fillStyle=rc; ctx.font="bold 9px "+FF; ctx.fillText(boonRarLabel(b), cx+cw/2, cy+16); // rarity ribbon
+        ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="30px "+FF; ctx.fillText(b.glyph, cx+cw/2, cy+46);
+        ctx.fillStyle=COL.cream; ctx.font="bold 14px "+FF; ctx.fillText(b.name, cx+cw/2, cy+72);
+        ctx.fillStyle=cc; ctx.font="11px "+FF; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), cx+cw/2, cy+90);
+        ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; wrapText(b.desc, cx+12, cy+112, cw-24, 16);
+        ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px "+FF; ctx.fillText(STR.draftPick((i+1)), cx+cw/2, cy+ch-12);
         ui.draftRects.push({x:cx,y:cy,w:cw,h:ch,idx:i});
         banishBadge(cx,cy,cw,i); // CAS-392 (after card body so it draws on top)
         if(popped) ctx.restore(); // CAS-272 end reveal pop
@@ -2537,12 +2542,12 @@ export function createRenderer(ctx){
         ctx.fillStyle=on?"#2c3446":"#20262f"; ctx.fillRect(rx,ry,rw,rh);
         ctx.strokeStyle=on?COL.textGold:rc; ctx.lineWidth=(on||leg)?2:1; ctx.strokeRect(rx+0.5,ry+0.5,rw,rh);
         ctx.fillStyle=cc; ctx.fillRect(rx,ry,4,rh);
-        ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="28px 'Courier New'"; ctx.fillText(b.glyph, rx+34, ry+rh/2+8);
-        ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(b.name+"  ", rx+62, ry+22);
-        ctx.fillStyle=rc; ctx.font="9px 'Courier New'"; ctx.fillText(boonRarLabel(b), rx+rw-14-(canBanish?24:0)-ctx.measureText(boonRarLabel(b)).width, ry+16); // rarity ribbon (right; nudged left to clear the CAS-392 banish badge)
-        ctx.fillStyle=cc; ctx.font="10px 'Courier New'"; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), rx+62, ry+38);
-        ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; wrapText(b.desc, rx+62, ry+56, rw-172, 15);
-        ctx.textAlign="right"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.draftPick((i+1)), rx+rw-14, ry+rh/2+4);
+        ctx.textAlign="center"; ctx.fillStyle=cc; ctx.font="28px "+FF; ctx.fillText(b.glyph, rx+34, ry+rh/2+8);
+        ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 14px "+FF; ctx.fillText(b.name+"  ", rx+62, ry+22);
+        ctx.fillStyle=rc; ctx.font="9px "+FF; ctx.fillText(boonRarLabel(b), rx+rw-14-(canBanish?24:0)-ctx.measureText(boonRarLabel(b)).width, ry+16); // rarity ribbon (right; nudged left to clear the CAS-392 banish badge)
+        ctx.fillStyle=cc; ctx.font="10px "+FF; ctx.fillText((BOON_CAT_LABEL[b.cat]||b.cat).toUpperCase(), rx+62, ry+38);
+        ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; wrapText(b.desc, rx+62, ry+56, rw-172, 15);
+        ctx.textAlign="right"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 12px "+FF; ctx.fillText(STR.draftPick((i+1)), rx+rw-14, ry+rh/2+4);
         ui.draftRects.push({x:rx,y:ry,w:rw,h:rh,idx:i});
         banishBadge(rx,ry,rw,i); // CAS-392
         if(popped) ctx.restore(); // CAS-272 end reveal pop
@@ -2550,18 +2555,18 @@ export function createRenderer(ctx){
     }
     // active-boon readout — the run's accumulating stack (glyphs), so builds read as they diverge
     const owned=(h&&h.boons)||[]; const fy=y+bh-botH+18;
-    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'";
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px "+FF;
     ctx.fillText(STR.draftActive(owned.length), x+20, fy);
     // CAS-388: active SYNERGY chips on the same header line (right side) — an owned PAIR lights
     // up amber so the player reads which emergent bonuses their build has unlocked.
     { const os=new Set(owned); const live=SYNERGIES.filter(s=>s.need.every(id=>os.has(id)));
-      if(live.length){ ctx.textAlign="right"; let sx=x+bw-20; ctx.font="bold 11px 'Courier New'";
+      if(live.length){ ctx.textAlign="right"; let sx=x+bw-20; ctx.font="bold 11px "+FF;
         for(let i=live.length-1;i>=0;i--){ const s=live[i]; const lbl="✦ "+s.name;
           ctx.fillStyle="#ffab2e"; ctx.fillText(lbl, sx, fy); sx-=ctx.measureText(lbl).width+16; }
         ctx.textAlign="left";
-      } else { ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'";
+      } else { ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
         ctx.fillText(STR.draftSynHint, x+bw-20, fy); ctx.textAlign="left"; } }
-    if(owned.length){ let gx=x+20; ctx.font="18px 'Courier New'"; const seen={};
+    if(owned.length){ let gx=x+20; ctx.font="18px "+FF; const seen={};
       for(const id of owned){ const b=BOON_MAP[id]; if(!b) continue; seen[id]=(seen[id]||0)+1; }
       const keys=Object.keys(seen); ctx.textAlign="left";
       for(const id of keys){ const b=BOON_MAP[id]; ctx.fillStyle=boonCatCol(b.cat);
@@ -2570,7 +2575,7 @@ export function createRenderer(ctx){
     // CAS-392: REROLL button (bottom-right) — re-draws the whole hand at the same depth odds while a
     // charge is left; greys out when spent. Registered as ui.draftRerollRect for touch + keyboard 'R'.
     if(h){ const canRe=h.rerollLeft>0; const label="⟳ "+STR.draftReroll+" ("+(h.rerollLeft|0)+")";
-      ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
+      ctx.font="bold 12px "+FF; ctx.textAlign="center";
       const rbw=Math.min(bw-40,ctx.measureText(label).width+22), rbh=24, rbx=x+bw-rbw-16, rby=y+bh-rbh-8;
       ctx.fillStyle=canRe?"#243a2b":"#26262a"; ctx.fillRect(rbx,rby,rbw,rbh);
       ctx.strokeStyle=canRe?"#5fd08a":"#555"; ctx.lineWidth=1; ctx.strokeRect(rbx+0.5,rby+0.5,rbw,rbh);
@@ -2578,7 +2583,7 @@ export function createRenderer(ctx){
       if(canRe) ui.draftRerollRect={x:rbx,y:rby,w:rbw,h:rbh};
       // banished-count readout, left of the reroll pill, so the player sees the pool shrinking.
       const nb=(h.banished&&h.banished.length)||0;
-      if(nb){ ctx.textAlign="right"; ctx.fillStyle="#d0556b"; ctx.font="10px 'Courier New'"; ctx.fillText(STR.draftBanished(nb), rbx-12, rby+16); }
+      if(nb){ ctx.textAlign="right"; ctx.fillStyle="#d0556b"; ctx.font="10px "+FF; ctx.fillText(STR.draftBanished(nb), rbx-12, rby+16); }
     }
     ctx.textAlign="left";
   }
@@ -2593,28 +2598,28 @@ export function createRenderer(ctx){
     const bw=Math.min(VW*0.9,460), bh=Math.min(VH*0.82,340), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center";
-    ctx.fillStyle="#ff7a5d"; ctx.font="bold 19px 'Courier New'"; ctx.fillText(STR.curseTitle,VW/2,y+30);
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.zoneName(c.zone),VW/2,y+48);
+    ctx.fillStyle="#ff7a5d"; ctx.font="bold 19px "+FF; ctx.fillText(STR.curseTitle,VW/2,y+30);
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.zoneName(c.zone),VW/2,y+48);
     // modifier card — glyph, name, effect line
     const cardY=y+62, cardH=bh-62-118, cw=bw-40, cx=x+20;
     ctx.fillStyle="#2a2130"; ctx.fillRect(cx,cardY,cw,cardH);
     ctx.strokeStyle="#ff7a5d"; ctx.lineWidth=2; ctx.strokeRect(cx+0.5,cardY+0.5,cw,cardH);
-    ctx.fillStyle="#ff9a7d"; ctx.font="34px 'Courier New'"; ctx.fillText(m.glyph, VW/2, cardY+44);
-    ctx.fillStyle=COL.cream; ctx.font="bold 16px 'Courier New'"; ctx.fillText(m.name, VW/2, cardY+70);
-    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; wrapText(m.desc, cx+16, cardY+92, cw-32, 16);
+    ctx.fillStyle="#ff9a7d"; ctx.font="34px "+FF; ctx.fillText(m.glyph, VW/2, cardY+44);
+    ctx.fillStyle=COL.cream; ctx.font="bold 16px "+FF; ctx.fillText(m.name, VW/2, cardY+70);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; wrapText(m.desc, cx+16, cardY+92, cw-32, 16);
     // reward line (below the card) — centered wrap on the panel midline
-    ctx.textAlign="center"; ctx.fillStyle="#e0c070"; ctx.font="10px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle="#e0c070"; ctx.font="10px "+FF;
     wrapText(STR.curseReward, VW/2, y+bh-108, bw-44, 13);
     // action buttons — Accept (red) / Skip (grey), full-width stacked, tap + keyboard
     const bwid=bw-40, bhei=34, bxx=x+20; let byy=y+bh-64;
     ctx.fillStyle="#3a2126"; ctx.fillRect(bxx,byy,bwid,bhei);
     ctx.strokeStyle="#ff6a5d"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
-    ctx.fillStyle="#ffbfae"; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.curseAccept, VW/2, byy+22);
+    ctx.fillStyle="#ffbfae"; ctx.font="bold 14px "+FF; ctx.fillText(STR.curseAccept, VW/2, byy+22);
     ui.curseRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"accept"});
     byy+=bhei+8;
     ctx.fillStyle="#262a30"; ctx.fillRect(bxx,byy,bwid,bhei);
     ctx.strokeStyle="#7f8794"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
-    ctx.fillStyle=COL.textDim; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.curseSkip, VW/2, byy+22);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 14px "+FF; ctx.fillText(STR.curseSkip, VW/2, byy+22);
     ui.curseRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"skip"});
     ctx.textAlign="left";
   }
@@ -2627,28 +2632,28 @@ export function createRenderer(ctx){
     const bw=Math.min(VW*0.9,460), bh=Math.min(VH*0.82,340), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center";
-    ctx.fillStyle=COL.textGold; ctx.font="bold 19px 'Courier New'"; ctx.fillText(STR.ascendTitle,VW/2,y+30);
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.conquestProgress(4,4),VW/2,y+48);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 19px "+FF; ctx.fillText(STR.ascendTitle,VW/2,y+30);
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.conquestProgress(4,4),VW/2,y+48);
     // tier card — star glyph, target tier name, effect line
     const cardY=y+62, cardH=bh-62-118, cw=bw-40, cx=x+20;
     ctx.fillStyle="#2a2618"; ctx.fillRect(cx,cardY,cw,cardH);
     ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(cx+0.5,cardY+0.5,cw,cardH);
-    ctx.fillStyle="#ffd24d"; ctx.font="34px 'Courier New'"; ctx.fillText("★", VW/2, cardY+44);
-    ctx.fillStyle=COL.cream; ctx.font="bold 16px 'Courier New'"; ctx.fillText(STR.ascendName(a.tier), VW/2, cardY+70);
-    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; wrapText(STR.ascendDesc(a.tier), cx+16, cardY+92, cw-32, 16);
+    ctx.fillStyle="#ffd24d"; ctx.font="34px "+FF; ctx.fillText("★", VW/2, cardY+44);
+    ctx.fillStyle=COL.cream; ctx.font="bold 16px "+FF; ctx.fillText(STR.ascendName(a.tier), VW/2, cardY+70);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; wrapText(STR.ascendDesc(a.tier), cx+16, cardY+92, cw-32, 16);
     // stay-put line (below the card) — centered wrap on the panel midline
-    ctx.textAlign="center"; ctx.fillStyle="#e0c070"; ctx.font="10px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle="#e0c070"; ctx.font="10px "+FF;
     wrapText(STR.ascendReward, VW/2, y+bh-108, bw-44, 13);
     // action buttons — Ascend (gold) / Stay (grey), full-width stacked, tap + keyboard
     const bwid=bw-40, bhei=34, bxx=x+20; let byy=y+bh-64;
     ctx.fillStyle="#3a3218"; ctx.fillRect(bxx,byy,bwid,bhei);
     ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
-    ctx.fillStyle="#ffe2a0"; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.ascendAccept, VW/2, byy+22);
+    ctx.fillStyle="#ffe2a0"; ctx.font="bold 14px "+FF; ctx.fillText(STR.ascendAccept, VW/2, byy+22);
     ui.ascendRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"accept"});
     byy+=bhei+8;
     ctx.fillStyle="#262a30"; ctx.fillRect(bxx,byy,bwid,bhei);
     ctx.strokeStyle="#7f8794"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
-    ctx.fillStyle=COL.textDim; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.ascendSkip, VW/2, byy+22);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 14px "+FF; ctx.fillText(STR.ascendSkip, VW/2, byy+22);
     ui.ascendRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"skip"});
     ctx.textAlign="left";
   }
@@ -2660,7 +2665,7 @@ export function createRenderer(ctx){
   // / new-game reachable from any tab.
   function renderPause(){ const bw=Math.min(VW*0.86,440), bh=Math.min(VH-20,580), x=(VW-bw)/2, y=(VH-bh)/2; panel(x,y,bw,bh);
     if(!G.setTab) G.setTab="access";
-    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.pauseTitle,VW/2,y+30);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 22px "+FF; ctx.fillText(STR.pauseTitle,VW/2,y+30);
     ui.pauseRects=[];
     const px=x+24, pw=bw-48;
     // ---- tab strip ----
@@ -2669,21 +2674,21 @@ export function createRenderer(ctx){
     tabs.forEach(([id,label],i)=>{ const tx=px+i*tw, on=G.setTab===id;
       ctx.fillStyle=on?"#2e3647":"#191e26"; ctx.fillRect(tx,ty,tw-3,th);
       if(on){ ctx.fillStyle=COL.textGold; ctx.fillRect(tx,ty+th-2,tw-3,2); }
-      ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText(label,tx+(tw-3)/2,ty+17);
+      ctx.textAlign="center"; ctx.fillStyle=on?COL.cream:COL.textDim; ctx.font="bold 12px "+FF; ctx.fillText(label,tx+(tw-3)/2,ty+17);
       ui.pauseRects.push({x:tx,y:ty,w:tw-3,h:th,tab:id}); });
     // ---- shared row widgets ----
     function toggle(label,on,act,oy){ ctx.textAlign="left"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,26);
-      ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(label,px+10,oy+17);
+      ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText(label,px+10,oy+17);
       const bx=px+pw-52, bon=!!on; ctx.fillStyle=bon?"#2e5a3a":"#3a2222"; ctx.fillRect(bx,oy+5,42,16);
-      ctx.textAlign="center"; ctx.fillStyle=bon?"#9be7a0":"#e0a0a0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText(bon?"ON":"OFF",bx+21,oy+17);
+      ctx.textAlign="center"; ctx.fillStyle=bon?"#9be7a0":"#e0a0a0"; ctx.font="bold 11px "+FF; ctx.fillText(bon?"ON":"OFF",bx+21,oy+17);
       ui.pauseRects.push({x:px,y:oy,w:pw,h:26,act}); }
     function slider(label,oy,get,set,dim){ const sh=22;
-      ctx.textAlign="left"; ctx.fillStyle=dim?COL.textDim:COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(label,px,oy-2);
+      ctx.textAlign="left"; ctx.fillStyle=dim?COL.textDim:COL.cream; ctx.font="12px "+FF; ctx.fillText(label,px,oy-2);
       const bx=px, by=oy+4, bwd=pw, bhd=sh-8;
       ctx.fillStyle="#20262f"; ctx.fillRect(bx,by,bwd,bhd);
       const f=Math.max(0,Math.min(1,get())); ctx.fillStyle=dim?"#46505f":COL.textGold; ctx.fillRect(bx,by,bwd*f,bhd);
       ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,bwd,bhd);
-      ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(Math.round(f*100)+"%",bx+bwd-3,oy-2);
+      ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(Math.round(f*100)+"%",bx+bwd-3,oy-2);
       ui.pauseRects.push({x:bx,y:oy-6,w:bwd,h:sh+6,slider:true,set}); }
     // ---- tab body ----
     const save=()=>settings.save();
@@ -2701,48 +2706,48 @@ export function createRenderer(ctx){
       toggle(STR.settingCRT, G.settings.crt, ()=>{ G.settings.crt=!G.settings.crt; save(); }, oy); oy+=32;
       // roll-direction is a two-value preference, not on/off — show its current value.
       ctx.textAlign="left"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,26);
-      ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText(STR.settingRollDir,px+10,oy+17);
-      ctx.textAlign="right"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'"; ctx.fillText(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove,px+pw-10,oy+17);
+      ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText(STR.settingRollDir,px+10,oy+17);
+      ctx.textAlign="right"; ctx.fillStyle=COL.textGold; ctx.font="11px "+FF; ctx.fillText(G.settings.rollAim?STR.rollTowardAim:STR.rollTowardMove,px+pw-10,oy+17);
       ui.pauseRects.push({x:px,y:oy,w:pw,h:26,act:()=>{ G.settings.rollAim=!G.settings.rollAim; save(); }}); oy+=34;
       // CAS-418: restore every draggable HUD panel (DOM + minimap/spell bar) to defaults
       ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,24);
-      ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.settingResetHud,VW/2,oy+16);
+      ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText(STR.settingResetHud,VW/2,oy+16);
       ui.pauseRects.push({x:px,y:oy,w:pw,h:24,act:()=>uiLayout.reset()}); oy+=30;
     } else { // controls — 2-column rebind grid + reset
-      ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.controlsHint,px,oy); oy+=14;
+      ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.controlsHint,px,oy); oy+=14;
       const binds=G.settings.binds||settings.defaultBinds();
       const colW=pw/2, rh=21, gridY=oy;
       settings.REBINDS.forEach((rb,i)=>{ const col=i%2, row=(i-col)/2; const cx0=px+col*colW, cy0=gridY+row*rh;
         const arming=G.rebind===rb.a;
         ctx.fillStyle=arming?"#3a2c1e":"#191e26"; ctx.fillRect(cx0,cy0,colW-4,rh-3);
-        ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="10px 'Courier New'"; ctx.fillText((STR.bindLabel[rb.a]||rb.a),cx0+6,cy0+14);
-        ctx.textAlign="right"; ctx.fillStyle=arming?COL.textGold:"#9be7ff"; ctx.font="bold 10px 'Courier New'";
+        ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="10px "+FF; ctx.fillText((STR.bindLabel[rb.a]||rb.a),cx0+6,cy0+14);
+        ctx.textAlign="right"; ctx.fillStyle=arming?COL.textGold:"#9be7ff"; ctx.font="bold 10px "+FF;
         ctx.fillText(arming?"…":keyLabel(binds[rb.a]), cx0+colW-10, cy0+14);
         ui.pauseRects.push({x:cx0,y:cy0,w:colW-4,h:rh-3,rebind:rb.a}); });
       oy=gridY + Math.ceil(settings.REBINDS.length/2)*rh + 6;
-      if(G.rebind){ ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="11px 'Courier New'"; ctx.fillText(STR.bindPressKey,VW/2,oy+10); oy+=18; }
-      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.bindResetDefaults,VW/2,oy+16);
+      if(G.rebind){ ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="11px "+FF; ctx.fillText(STR.bindPressKey,VW/2,oy+10); oy+=18; }
+      ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,oy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText(STR.bindResetDefaults,VW/2,oy+16);
       ui.pauseRects.push({x:px,y:oy,w:pw,h:24,act:()=>{ settings.resetBinds(); G.rebind=null; }}); oy+=30;
     }
     // ---- pinned footer (Resume + replay guide + new game) ----
     let fy=y+bh-118;
-    ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.tutReplay,VW/2,fy+16);
+    ctx.textAlign="center"; ctx.fillStyle="#20262f"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText(STR.tutReplay,VW/2,fy+16);
     // CAS-267: "reset onboarding" — replay now AND re-arm the persisted first-load
     // flag (clearTutSeen) so the coachmark also auto-shows again on the next fresh load.
     ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ clearTutSeen(); G.scene="play"; sim.startTutorial(); }}); fy+=30;
     // CAS-113: "Nueva partida" — two-tap arm/confirm so a misclick can't nuke a run.
     if(G.resetArm){
       const half=(pw-8)/2;
-      ctx.fillStyle="#3a2222"; ctx.fillRect(px,fy,half,24); ctx.fillStyle="#f0a0a0"; ctx.font="bold 11px 'Courier New'"; ctx.fillText("SÍ, BORRAR",px+half/2,fy+16);
+      ctx.fillStyle="#3a2222"; ctx.fillRect(px,fy,half,24); ctx.fillStyle="#f0a0a0"; ctx.font="bold 11px "+FF; ctx.fillText("SÍ, BORRAR",px+half/2,fy+16);
       ui.pauseRects.push({x:px,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; resetGame(); }});
       ctx.fillStyle="#20262f"; ctx.fillRect(px+half+8,fy,half,24); ctx.fillStyle=COL.cream; ctx.fillText("Cancelar",px+half+8+half/2,fy+16);
       ui.pauseRects.push({x:px+half+8,y:fy,w:half,h:24,act:()=>{ G.resetArm=false; }});
     } else {
-      ctx.fillStyle="#2a1c14"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle="#caa07a"; ctx.font="12px 'Courier New'"; ctx.fillText("Nueva partida (borrar guardado)",VW/2,fy+16);
+      ctx.fillStyle="#2a1c14"; ctx.fillRect(px,fy,pw,24); ctx.fillStyle="#caa07a"; ctx.font="12px "+FF; ctx.fillText("Nueva partida (borrar guardado)",VW/2,fy+16);
       ui.pauseRects.push({x:px,y:fy,w:pw,h:24,act:()=>{ G.resetArm=true; }});
     }
     fy+=32;
-    ctx.fillStyle="#3a2c1e"; ctx.fillRect(VW/2-90,fy,180,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.resume,VW/2,fy+20);
+    ctx.fillStyle="#3a2c1e"; ctx.fillRect(VW/2-90,fy,180,30); ctx.fillStyle=COL.textGold; ctx.font="bold 14px "+FF; ctx.fillText(STR.resume,VW/2,fy+20);
     ui.pauseRects.push({x:VW/2-90,y:fy,w:180,h:30,act:()=>{ G.resetArm=false; G.rebind=null; G.scene="play"; }});
   }
 
@@ -2754,38 +2759,38 @@ export function createRenderer(ctx){
     ctx.fillStyle="rgba(40,8,8,0.66)"; ctx.fillRect(0,0,VW,VH);
     const cx=VW/2; let y=VH*0.16;
     ctx.textAlign="center";
-    ctx.fillStyle=COL.skullR; ctx.font="bold 38px 'Courier New'"; ctx.fillText(STR.deathTitle,cx,y); y+=28;
-    ctx.fillStyle=COL.cream; ctx.font="14px 'Courier New'"; ctx.fillText(STR.deathSub,cx,y); y+=34;
+    ctx.fillStyle=COL.skullR; ctx.font="bold 38px "+FF; ctx.fillText(STR.deathTitle,cx,y); y+=28;
+    ctx.fillStyle=COL.cream; ctx.font="14px "+FF; ctx.fillText(STR.deathSub,cx,y); y+=34;
     // recap summary panel — reads the frozen delta snapshot built at death (G.recap)
     const r=G.recap;
     if(r){
-      ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.recapHead,cx,y); y+=10;
+      ctx.fillStyle=COL.textGold; ctx.font="bold 14px "+FF; ctx.fillText(STR.recapHead,cx,y); y+=10;
       const lines=[ STR.recapTime(fmtTime(r.time)), STR.recapKills(r.kills|0), STR.recapGold(r.gold|0),
         STR.recapElites(r.elites|0), (r.lvlUp>0?STR.recapLevelUp(r.lvl|0,r.lvlUp|0):STR.recapLevel(r.lvl|0)) ];
       const pw=Math.min(VW*0.7,340), ph=lines.length*22+18, px=cx-pw/2;
       ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(px,y,pw,ph);
       ctx.fillStyle=COL.panelB; ctx.fillRect(px,y,pw,3);
-      ctx.font="14px 'Courier New'"; ctx.textAlign="left"; ctx.fillStyle=COL.cream;
+      ctx.font="14px "+FF; ctx.textAlign="left"; ctx.fillStyle=COL.cream;
       let ly=y+24; for(const ln of lines){ ctx.fillText(ln, px+16, ly); ly+=22; }
       ctx.textAlign="center"; y+=ph+16;
     }
     // CAS-1557: the meta payoff — Esencia earned this run (frozen on the recap) + total banked.
     // Its own gold-accented line so the between-run currency reads at a glance.
     if(r && typeof r.essence==="number"){
-      ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'";
+      ctx.fillStyle=COL.textGold; ctx.font="bold 15px "+FF;
       ctx.fillText("✦ "+STR.recapEssence(r.essence|0)+"   ("+STR.altarBanked(r.essenceTotal|0)+")", cx, y); y+=22;
     }
     // CAS-1565: Ascensión badge on the recap (only once earned) — the multiplier already folded
     // into the essence gain above, surfaced so the prestige level reads at the between-run screen.
     { const al=(sim.metaSnap().ascension.level|0);
-      if(al>0){ ctx.fillStyle="#c9a0ff"; ctx.font="bold 12px 'Courier New'"; ctx.fillText("★ "+STR.altarAscBadge(al), cx, y); y+=20; } }
+      if(al>0){ ctx.fillStyle="#c9a0ff"; ctx.font="bold 12px "+FF; ctx.fillText("★ "+STR.altarAscBadge(al), cx, y); y+=20; } }
     // PRIMARY — Otra ronda (bind-aware: surfaces the player's attack/confirm key)
     const binds=(G.settings&&G.settings.binds)||settings.defaultBinds();
     const retryKey=keyLabel(binds.attack)+"/Espacio";
     const bw=Math.min(VW*0.7,300), bx=cx-bw/2;
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(bx,y,bw,44);
     ctx.fillStyle=COL.textGold; ctx.fillRect(bx,y,bw,3);
-    ctx.fillStyle=COL.textGold; ctx.font="bold 16px 'Courier New'"; ctx.fillText(STR.recapRetry(retryKey),cx,y+28);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 16px "+FF; ctx.fillText(STR.recapRetry(retryKey),cx,y+28);
     ui.deadRects.push({x:bx,y:y,w:bw,h:44,act:"retry"});
     y+=56;
     // CAS-1557: ALTAR — spend banked Esencia BETWEEN runs (before retrying). A gold-framed
@@ -2793,13 +2798,13 @@ export function createRenderer(ctx){
     const aw=Math.min(VW*0.55,240), ax=cx-aw/2;
     ctx.fillStyle="rgba(38,30,16,0.92)"; ctx.fillRect(ax,y,aw,34);
     ctx.fillStyle=COL.textGold; ctx.fillRect(ax,y,aw,2);
-    ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.fillText("✦ "+STR.altarOpen,cx,y+22);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF; ctx.fillText("✦ "+STR.altarOpen,cx,y+22);
     ui.deadRects.push({x:ax,y:y,w:aw,h:34,act:"altar"});
     y+=44;
     // SECONDARY — Pueblo / Menú (calm regroup at the fountain)
     const sw=Math.min(VW*0.55,240), sx=cx-sw/2;
     ctx.fillStyle="rgba(20,20,28,0.85)"; ctx.fillRect(sx,y,sw,34);
-    ctx.fillStyle=COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.recapHub,cx,y+22);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 13px "+FF; ctx.fillText(STR.recapHub,cx,y+22);
     ui.deadRects.push({x:sx,y:y,w:sw,h:34,act:"hub"});
     ctx.textAlign="left";
   }
@@ -2821,18 +2826,18 @@ export function createRenderer(ctx){
     const im=IMG["assets/ui/icons/altar_"+n.key.toLowerCase()+".png"], iy=y+(rh-isz)/2;
     if(im&&im.complete&&im.naturalWidth){ ctx.drawImage(im,px+9,iy,isz,isz); }
     else { ctx.fillStyle="rgba(40,34,20,0.9)"; ctx.fillRect(px+9,iy,isz,isz);
-      ctx.fillStyle=COL.textGold; ctx.font=(isz-8)+"px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.glyph,px+9+isz/2,iy+isz-6); }
+      ctx.fillStyle=COL.textGold; ctx.font=(isz-8)+"px "+FF; ctx.textAlign="center"; ctx.fillText(n.glyph,px+9+isz/2,iy+isz-6); }
     // CAS-1580: an unlock row (cap:1) shows a 🔒/✓ state chip on the label and swaps the button copy.
     const lbl=(n.unlock?(n.unlocked?"✓ ":"🔒 "):"")+n.label;
-    ctx.textAlign="left"; ctx.fillStyle=(n.unlock&&n.unlocked)?COL.textGold:COL.cream; ctx.font="bold 13px 'Courier New'"; ctx.fillText(lbl,px+isz+18,y+rh*0.42);
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(n.eff+"   "+STR.altarLvl(n.lvl,n.cap),px+isz+18,y+rh*0.80);
+    ctx.textAlign="left"; ctx.fillStyle=(n.unlock&&n.unlocked)?COL.textGold:COL.cream; ctx.font="bold 13px "+FF; ctx.fillText(lbl,px+isz+18,y+rh*0.42);
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(n.eff+"   "+STR.altarLvl(n.lvl,n.cap),px+isz+18,y+rh*0.80);
     const bw=100, bx=px+pw-bw-8, by=y+6, bh=rh-12;
     if(capped){ ctx.fillStyle=(n.unlock)?"rgba(30,44,30,0.9)":"rgba(30,30,36,0.9)"; ctx.fillRect(bx,by,bw,bh);
-      ctx.fillStyle=(n.unlock)?"#7bd44a":COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.unlock?STR.altarUnlocked:STR.altarMax,bx+bw/2,by+bh/2+4); }
+      ctx.fillStyle=(n.unlock)?"#7bd44a":COL.textDim; ctx.font="bold 11px "+FF; ctx.textAlign="center"; ctx.fillText(n.unlock?STR.altarUnlocked:STR.altarMax,bx+bw/2,by+bh/2+4); }
     else { ctx.fillStyle=affordable?"#3a2c1e":"rgba(30,26,20,0.85)"; ctx.fillRect(bx,by,bw,bh);
       ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.fillRect(bx,by,bw,2);
-      ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
-      ctx.fillText(n.unlock?STR.altarUnlock:STR.altarBuy,bx+bw/2,by+bh/2-3); ctx.font="10px 'Courier New'"; ctx.fillText(STR.altarCost(n.cost),bx+bw/2,by+bh/2+11);
+      ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.font="bold 11px "+FF; ctx.textAlign="center";
+      ctx.fillText(n.unlock?STR.altarUnlock:STR.altarBuy,bx+bw/2,by+bh/2-3); ctx.font="10px "+FF; ctx.fillText(STR.altarCost(n.cost),bx+bw/2,by+bh/2+11);
       if(affordable) ui.altarRects.push({x:bx,y:by,w:bw,h:bh,key:n.key}); }
     ctx.textAlign="left";
   }
@@ -2843,11 +2848,11 @@ export function createRenderer(ctx){
     const asc=snap.ascension||{level:0,mult:1}, showT2=!!snap.t2Unlocked;
     ctx.textAlign="center";
     let y=VH*0.055;
-    ctx.fillStyle=COL.textGold; ctx.font="bold 24px 'Courier New'"; ctx.fillText(STR.altarTitle,cx,y); y+=20;
-    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(STR.altarSub,cx,y); y+=18;
+    ctx.fillStyle=COL.textGold; ctx.font="bold 24px "+FF; ctx.fillText(STR.altarTitle,cx,y); y+=20;
+    ctx.fillStyle=COL.cream; ctx.font="11px "+FF; ctx.fillText(STR.altarSub,cx,y); y+=18;
     // CAS-1565: Ascensión badge (only once earned) — the prestige level + its permanent essence mult.
-    if((asc.level|0)>0){ ctx.fillStyle="#c9a0ff"; ctx.font="bold 13px 'Courier New'"; ctx.fillText("★ "+STR.altarAscBadge(asc.level|0),cx,y); y+=17; }
-    ctx.fillStyle=COL.textGold; ctx.font="bold 17px 'Courier New'"; ctx.fillText("✦ "+STR.altarBanked(essence),cx,y); y+=16;
+    if((asc.level|0)>0){ ctx.fillStyle="#c9a0ff"; ctx.font="bold 13px "+FF; ctx.fillText("★ "+STR.altarAscBadge(asc.level|0),cx,y); y+=17; }
+    ctx.fillStyle=COL.textGold; ctx.font="bold 17px "+FF; ctx.fillText("✦ "+STR.altarBanked(essence),cx,y); y+=16;
     // Adaptive row height: reserve chrome (Tier-2 divider + Ascender + Back) and fit the rows in the rest.
     const pw=Math.min(VW*0.86,470), px=cx-pw/2, gap=6;
     // CAS-1574/1580: ability-rank + ability-unlock rows are ALWAYS shown (never gated) → count them + their dividers.
@@ -2863,27 +2868,27 @@ export function createRenderer(ctx){
     // altarRow (glyph icon fallback = $0 art), so the buy button pushes {key:"rank_<id>"} → the
     // generic altarTap buy path already handles it.
     if(abils.length){
-      ctx.textAlign="center"; ctx.fillStyle="#8fd0ff"; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.altarAbilities,cx,y+13); y+=abilDivH;
+      ctx.textAlign="center"; ctx.fillStyle="#8fd0ff"; ctx.font="bold 12px "+FF; ctx.fillText(STR.altarAbilities,cx,y+13); y+=abilDivH;
       for(const n of abils){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
     }
     // CAS-1580: DESBLOQUEOS — permanent Esencia unlocks for the locked abilities (always shown, ungated).
     // Reuses altarRow (cap:1 → "Desbloquear"/"✓ DESBLOQUEADA"); the buy button pushes {key:"unlock_<id>"}
     // → the same generic altarTap buy path (buyMetaNode) handles it with zero new input wiring.
     if(unlocks.length){
-      ctx.textAlign="center"; ctx.fillStyle="#ffb27a"; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.altarUnlocks,cx,y+13); y+=unlockDivH;
+      ctx.textAlign="center"; ctx.fillStyle="#ffb27a"; ctx.font="bold 12px "+FF; ctx.fillText(STR.altarUnlocks,cx,y+13); y+=unlockDivH;
       for(const n of unlocks){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
     }
     // CAS-1565: Tier-2 — locked note until every v1 node is maxed, then the second row + Ascender.
     if(!showT2){
-      ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.altarTier2Locked,cx,y+12); y+=22;
+      ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.altarTier2Locked,cx,y+12); y+=22;
     } else {
-      ctx.textAlign="center"; ctx.fillStyle="#c9a0ff"; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.altarTier2,cx,y+14); y+=dividerH;
+      ctx.textAlign="center"; ctx.fillStyle="#c9a0ff"; ctx.font="bold 12px "+FF; ctx.fillText(STR.altarTier2,cx,y+14); y+=dividerH;
       for(const n of snap.t2){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
       // Ascender button — enabled only at full max (v1 + Tier-2), else shown disabled with the requisite.
       const can=!!snap.canAscend, aw=Math.min(pw,300), ax=cx-aw/2, ah=34;
       ctx.fillStyle=can?"#4a2c5e":"rgba(30,26,34,0.85)"; ctx.fillRect(ax,y,aw,ah);
       ctx.fillStyle=can?"#c9a0ff":COL.textDim; ctx.fillRect(ax,y,aw,2);
-      ctx.fillStyle=can?"#e6c8ff":COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillStyle=can?"#e6c8ff":COL.textDim; ctx.font="bold 13px "+FF; ctx.textAlign="center";
       ctx.fillText(can?STR.altarAscend:STR.altarAscend+"  ·  "+STR.altarAscendReq, cx, y+ah/2+5);
       if(can) ui.altarRects.push({x:ax,y:y,w:aw,h:ah,act:"ascend"});
       y+=ascendH;
@@ -2891,7 +2896,7 @@ export function createRenderer(ctx){
     // back button
     const kw=Math.min(VW*0.5,220), kx=cx-kw/2;
     ctx.fillStyle="rgba(20,20,28,0.9)"; ctx.fillRect(kx,y,kw,28);
-    ctx.fillStyle=COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.altarBack,cx,y+19);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 12px "+FF; ctx.textAlign="center"; ctx.fillText(STR.altarBack,cx,y+19);
     ui.altarRects.push({x:kx,y:y,w:kw,h:28,act:"back"});
     ctx.textAlign="left";
     // CAS-1565: Ascensión confirm modal — an explicit trade-off gate before the sacrifice. When open,
@@ -2901,14 +2906,14 @@ export function createRenderer(ctx){
       ctx.fillStyle="rgba(0,0,0,0.72)"; ctx.fillRect(0,0,VW,VH);
       const mw=Math.min(VW*0.86,420), mh=190, mx=cx-mw/2, my=VH/2-mh/2;
       ctx.fillStyle="#1b1526"; ctx.fillRect(mx,my,mw,mh); ctx.fillStyle="#c9a0ff"; ctx.fillRect(mx,my,mw,3);
-      ctx.textAlign="center"; ctx.fillStyle="#e6c8ff"; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.altarAscConfirmTitle,cx,my+34);
-      ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'";
+      ctx.textAlign="center"; ctx.fillStyle="#e6c8ff"; ctx.font="bold 18px "+FF; ctx.fillText(STR.altarAscConfirmTitle,cx,my+34);
+      ctx.fillStyle=COL.cream; ctx.font="12px "+FF;
       const nextLvl=(asc.level|0)+1;
       wrapText(STR.altarAscConfirmBody(nextLvl, 1+0.25*nextLvl), cx, my+62, mw-40, 17);
       const byw=Math.min((mw-40)/2-8,150), byy=my+mh-48, gap2=16;
       const yx=cx-byw-gap2/2, nx=cx+gap2/2;
       ctx.fillStyle="#4a2c5e"; ctx.fillRect(yx,byy,byw,34); ctx.fillStyle="#c9a0ff"; ctx.fillRect(yx,byy,byw,2);
-      ctx.fillStyle="#e6c8ff"; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.altarAscYes,yx+byw/2,byy+22);
+      ctx.fillStyle="#e6c8ff"; ctx.font="bold 13px "+FF; ctx.fillText(STR.altarAscYes,yx+byw/2,byy+22);
       ctx.fillStyle="rgba(40,36,46,0.95)"; ctx.fillRect(nx,byy,byw,34);
       ctx.fillStyle=COL.cream; ctx.fillText(STR.altarAscNo,nx+byw/2,byy+22);
       ui.altarRects.push({x:yx,y:byy,w:byw,h:34,act:"ascendYes"},{x:nx,y:byy,w:byw,h:34,act:"ascendNo"});
@@ -2929,9 +2934,9 @@ export function createRenderer(ctx){
     const cx=VW/2; let y=VH*0.18;
     // title
     ctx.textAlign="center";
-    ctx.fillStyle=COL.out; ctx.font="bold 46px 'Courier New'"; ctx.fillText(STR.victoryTitle, cx+3, y+3);
+    ctx.fillStyle=COL.out; ctx.font="bold 46px "+FF; ctx.fillText(STR.victoryTitle, cx+3, y+3);
     ctx.fillStyle=COL.textGold; ctx.fillText(STR.victoryTitle, cx, y); y+=40;
-    ctx.fillStyle=COL.cream; ctx.font="14px 'Courier New'"; wrapText(STR.victorySub(v.bossName), cx, y, VW*0.8, 18); y+=46;
+    ctx.fillStyle=COL.cream; ctx.font="14px "+FF; wrapText(STR.victorySub(v.bossName), cx, y, VW*0.8, 18); y+=46;
     // summary panel
     const clsName=(STR.classLabel&&STR.classLabel[v.cls])||v.cls;
     const rarName=(STR.rarityLabel&&v.lootRarity&&STR.rarityLabel[v.lootRarity])||v.lootRarity||"";
@@ -2941,14 +2946,14 @@ export function createRenderer(ctx){
     const pw=Math.min(VW*0.7,360), ph=lines.length*22+20, px=cx-pw/2;
     ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(px,y,pw,ph);
     ctx.fillStyle=COL.panelB; ctx.fillRect(px,y,pw,3);
-    ctx.font="14px 'Courier New'"; ctx.textAlign="left"; ctx.fillStyle=COL.cream;
+    ctx.font="14px "+FF; ctx.textAlign="left"; ctx.fillStyle=COL.cream;
     let ly=y+24; for(const ln of lines){ ctx.fillText(ln, px+18, ly); ly+=22; }
     y+=ph+28;
     // continue button (free play)
     ctx.textAlign="center";
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(cx-150,y,300,40);
-    ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'"; ctx.fillText(STR.victoryContinue, cx, y+26);
-    y+=58; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; wrapText(STR.victoryFooter, cx, y, VW*0.75, 16);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 15px "+FF; ctx.fillText(STR.victoryContinue, cx, y+26);
+    y+=58; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; wrapText(STR.victoryFooter, cx, y, VW*0.75, 16);
     ctx.textAlign="left";
   }
   // minimal word-wrap centred at x (used by the victory screen)
@@ -2974,25 +2979,25 @@ export function createRenderer(ctx){
     if(step==="done"){ head=STR.tutDoneHead; body=bindAware(STR.tutDone); showSkip=false; prog=false; }
     else { head=STR.tutHead[step]||STR.tutTitle; const s=STR.tutSteps[step]; body=s?bindAware(isTouch?s.touch:s.pc):""; }
     const cw=Math.min(VW*0.86,460), cx=VW/2, x=cx-cw/2, y=VH*0.15, lh=17;
-    ctx.font="13px 'Courier New'"; const lines=tutWrap(body, cw-28);
+    ctx.font="13px "+FF; const lines=tutWrap(body, cw-28);
     const ch=44 + lines.length*lh + 14;
     // card
     ctx.fillStyle="rgba(8,10,14,0.86)"; ctx.fillRect(x,y,cw,ch);
     ctx.fillStyle=step==="done"?COL.heal:COL.textGold; ctx.fillRect(x,y,cw,3);
     // header strip: title · step  (left)  +  skip (right)
-    ctx.textAlign="left"; ctx.font="bold 12px 'Courier New'"; ctx.fillStyle=COL.textGold;
+    ctx.textAlign="left"; ctx.font="bold 12px "+FF; ctx.fillStyle=COL.textGold;
     ctx.fillText(prog?(STR.tutTitle+"  ·  "+STR.tutStepLabel(t.i+1, sim.TUT_NSTEPS)):STR.tutTitle, x+14, y+18);
-    if(showSkip){ const st=STR.tutSkip; ctx.font="bold 12px 'Courier New'"; const sw=ctx.measureText(st).width+16, sx=x+cw-sw-10, sy=y+5, sh=18;
+    if(showSkip){ const st=STR.tutSkip; ctx.font="bold 12px "+FF; const sw=ctx.measureText(st).width+16, sx=x+cw-sw-10, sy=y+5, sh=18;
       ctx.fillStyle="#20262f"; ctx.fillRect(sx,sy,sw,sh); ctx.fillStyle=COL.cream; ctx.textAlign="center"; ctx.fillText(st, sx+sw/2, sy+13);
       ui.tutSkipRect={x:sx,y:sy,w:sw,h:sh}; }
     else ui.tutSkipRect={x:0,y:0,w:0,h:0};
     // action verb + wrapped instruction
-    ctx.textAlign="center"; ctx.fillStyle=step==="done"?COL.heal:"#9be7ff"; ctx.font="bold 13px 'Courier New'"; ctx.fillText(head, cx, y+36);
-    ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; let yy=y+54; for(const ln of lines){ ctx.fillText(ln, cx, yy); yy+=lh; }
+    ctx.textAlign="center"; ctx.fillStyle=step==="done"?COL.heal:"#9be7ff"; ctx.font="bold 13px "+FF; ctx.fillText(head, cx, y+36);
+    ctx.fillStyle=COL.cream; ctx.font="13px "+FF; let yy=y+54; for(const ln of lines){ ctx.fillText(ln, cx, yy); yy+=lh; }
     ctx.textAlign="left";
   }
   function renderToast(){ if(G.toastT<=0) return; const a=clamp(G.toastT,0,1); ctx.globalAlpha=a; ctx.textAlign="center";
-    ctx.font="bold 15px 'Courier New'"; const w=ctx.measureText(G.toast).width+24; ctx.fillStyle="rgba(8,10,14,0.9)"; ctx.fillRect(VW/2-w/2,VH*0.18,w,30);
+    ctx.font="bold 15px "+FF; const w=ctx.measureText(G.toast).width+24; ctx.fillStyle="rgba(8,10,14,0.9)"; ctx.fillRect(VW/2-w/2,VH*0.18,w,30);
     ctx.fillStyle=COL.panelB; ctx.fillRect(VW/2-w/2,VH*0.18,w,3); ctx.fillStyle=COL.textGold; ctx.fillText(G.toast,VW/2,VH*0.18+20); ctx.globalAlpha=1; }
 
   function renderTouch(){ const tb=tbtns(); const top=topBtns();
@@ -3000,12 +3005,12 @@ export function createRenderer(ctx){
     if(stick.active){ ctx.globalAlpha=0.5; ctx.fillStyle="#1a1e26"; ctx.beginPath(); ctx.arc(stick.cx,stick.cy,52,0,6.28); ctx.fill();
       ctx.fillStyle="#5a4632"; let dx=stick.x-stick.cx,dy=stick.y-stick.cy; const m=Math.hypot(dx,dy)||1; const cl=Math.min(m,48); ctx.beginPath(); ctx.arc(stick.cx+dx/m*cl,stick.cy+dy/m*cl,22,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
     function btn(b,col,big){ if(!b.r) return; ctx.globalAlpha=0.55; ctx.fillStyle="#12161d"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,6.28); ctx.fill();
-      ctx.globalAlpha=0.9; ctx.strokeStyle=col||COL.panelB; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle=col||COL.cream; ctx.font="bold "+(big?20:14)+"px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(b.label,b.x,b.y+ (big?7:5)); ctx.globalAlpha=1; }
+      ctx.globalAlpha=0.9; ctx.strokeStyle=col||COL.panelB; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle=col||COL.cream; ctx.font="bold "+(big?20:14)+"px "+FF; ctx.textAlign="center"; ctx.fillText(b.label,b.x,b.y+ (big?7:5)); ctx.globalAlpha=1; }
     btn(tb.attack,COL.textGold,true); btn(tb.roll,COL.cream); btn(tb.s2,COL.flame); btn(tb.s3,COL.heal); btn(tb.s4,COL.rune); btn(tb.act,COL.cream); btn(tb.pick,COL.cream);
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
     // mp cost hints on spell buttons (data-driven per class)
     const sp=SPELLS[G.hero.cls]||SPELLS.warrior;
-    ctx.globalAlpha=0.8; ctx.font="9px 'Courier New'"; ctx.fillStyle="#8ab8ff"; ctx.textAlign="center";
+    ctx.globalAlpha=0.8; ctx.font="9px "+FF; ctx.fillStyle="#8ab8ff"; ctx.textAlign="center";
     ctx.fillText(""+sp[0].cost,tb.s2.x,tb.s2.y+tb.s2.r+10); ctx.fillText(""+sp[1].cost,tb.s3.x,tb.s3.y+tb.s3.r+10); ctx.fillText(""+sp[2].cost,tb.s4.x,tb.s4.y+tb.s4.r+10); ctx.globalAlpha=1;
   }
 
@@ -3023,17 +3028,17 @@ export function createRenderer(ctx){
     ctx.fillStyle="#0c130d"; for(let i=0;i<10;i++){ const x=i*VW/9; ctx.fillRect(x-10,VH-120,20,120); ctx.beginPath(); ctx.moveTo(x-22,VH-100); ctx.lineTo(x,VH-180); ctx.lineTo(x+22,VH-100); ctx.fill(); }
     ctx.textAlign="center";
     // title
-    ctx.fillStyle=COL.out; ctx.font="bold 56px 'Courier New'"; ctx.fillText(STR.title,VW/2+3,VH*0.30+3);
+    ctx.fillStyle=COL.out; ctx.font="bold 56px "+FF; ctx.fillText(STR.title,VW/2+3,VH*0.30+3);
     ctx.fillStyle=COL.textGold; ctx.fillText(STR.title,VW/2,VH*0.30);
-    ctx.fillStyle=COL.cream; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.subtitle,VW/2,VH*0.30+34);
+    ctx.fillStyle=COL.cream; ctx.font="bold 18px "+FF; ctx.fillText(STR.subtitle,VW/2,VH*0.30+34);
     // sword+shield emblem
     drawMenuEmblem(VW/2,VH*0.30-78);
     // play button
     const bw=200,bh=52,bx=VW/2-bw/2,by=VH*0.62; ui.menuPlayRect={x:bx,y:by,w:bw,h:bh};
     ctx.fillStyle="#2e231a"; ctx.fillRect(bx,by,bw,bh); ctx.fillStyle=COL.panelB; ctx.fillRect(bx,by,bw,4); ctx.fillRect(bx,by+bh-4,bw,4);
-    ctx.fillStyle=COL.textGold; ctx.font="bold 24px 'Courier New'"; ctx.fillText(STR.play,VW/2,by+34);
-    ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.controlsHintPC((a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a])),VW/2,VH-40);
-    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.version,VW/2,VH-18);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 24px "+FF; ctx.fillText(STR.play,VW/2,by+34);
+    ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.fillText(STR.controlsHintPC((a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a])),VW/2,VH-40);
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.version,VW/2,VH-18);
   }
   // CAS-1570 — run-start ability draft: pick 2 of the class-agnostic pool. Full-screen
   // scene (like class-select). Cards toggle on tap / 1-N keys; Listo confirms when 2 are
@@ -3045,9 +3050,9 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
     rrng.seed(11); for(let i=0;i<50;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
-    ctx.fillStyle=COL.textGold; ctx.font="bold 24px 'Courier New'"; ctx.fillText("Habilidades Activas",VW/2,VH*0.13);
-    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText("Elige 2 habilidades para tu partida  ·  toca / 1-"+pool.length+" · ←→ + Espacio · Enter para empezar",VW/2,VH*0.13+22);
-    ctx.fillStyle=chosen.length>=2?"#7bd44a":COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText("Seleccionadas: "+chosen.length+"/2",VW/2,VH*0.13+40);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 24px "+FF; ctx.fillText("Habilidades Activas",VW/2,VH*0.13);
+    ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText("Elige 2 habilidades para tu partida  ·  toca / 1-"+pool.length+" · ←→ + Espacio · Enter para empezar",VW/2,VH*0.13+22);
+    ctx.fillStyle=chosen.length>=2?"#7bd44a":COL.textDim; ctx.font="bold 12px "+FF; ctx.fillText("Seleccionadas: "+chosen.length+"/2",VW/2,VH*0.13+40);
     ui.abilRects.length=0;
     const n=pool.length, gap=12, cw=Math.min(168,(VW-40)/n-gap), ch=Math.min(228,VH*0.5);
     const totalW=n*cw+(n-1)*gap, x0=(VW-totalW)/2, cy=VH*0.52;
@@ -3058,23 +3063,23 @@ export function createRenderer(ctx){
       ctx.fillStyle=a.col||"#cfd6de"; ctx.fillRect(rx+cw/2-16,ry+10,32,4);   // colour bar
       // big glyph icon
       ctx.save(); ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle=a.col||"#cfd6de";
-      ctx.font="46px 'Courier New'"; ctx.fillText(a.glyph, rx+cw/2, ry+ch*0.30); ctx.restore(); ctx.textBaseline="alphabetic";
-      ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(a.name, rx+cw/2, ry+ch*0.44);
+      ctx.font="46px "+FF; ctx.fillText(a.glyph, rx+cw/2, ry+ch*0.30); ctx.restore(); ctx.textBaseline="alphabetic";
+      ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.cream; ctx.font="bold 14px "+FF; ctx.fillText(a.name, rx+cw/2, ry+ch*0.44);
       // type · CD · mana line
       const meta=a.type.toUpperCase()+"  ·  CD "+a.cd+"s"+(a.cost?("  ·  "+a.cost+" MP"):"");
-      ctx.fillStyle="#9aa0aa"; ctx.font="9px 'Courier New'"; ctx.fillText(meta, rx+cw/2, ry+ch*0.44+16);
-      ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; wrapText(a.desc, rx+12, ry+ch*0.44+36, cw-24, 15);
+      ctx.fillStyle="#9aa0aa"; ctx.font="9px "+FF; ctx.fillText(meta, rx+cw/2, ry+ch*0.44+16);
+      ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; wrapText(a.desc, rx+12, ry+ch*0.44+36, cw-24, 15);
       // order badge on a chosen card
       if(on){ const bs=22, bx=rx+cw-bs-6, by=ry+6; ctx.fillStyle=COL.textGold; ctx.fillRect(bx,by,bs,bs);
-        ctx.fillStyle="#1a1d24"; ctx.font="bold 14px 'Courier New'"; ctx.textAlign="center"; ctx.fillText((pick+1), bx+bs/2, by+bs-6); }
-      ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.fillText(on?"◄ SELECCIONADA":("["+(i+1)+"] elegir"), rx+cw/2, ry+ch-10);
+        ctx.fillStyle="#1a1d24"; ctx.font="bold 14px "+FF; ctx.textAlign="center"; ctx.fillText((pick+1), bx+bs/2, by+bs-6); }
+      ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 11px "+FF; ctx.fillText(on?"◄ SELECCIONADA":("["+(i+1)+"] elegir"), rx+cw/2, ry+ch-10);
       ui.abilRects.push({x:rx,y:ry,w:cw,h:ch,idx:i});
     }
     // Listo button
     const ready=chosen.length>=2, bw=Math.min(240,VW*0.5), bh=42, bx=VW/2-bw/2, by=cy+ch/2+22;
     ctx.fillStyle=ready?"#2c5a2c":"#242832"; ctx.fillRect(bx,by,bw,bh);
     ctx.strokeStyle=ready?"#7bd44a":COL.panelB; ctx.lineWidth=2; ctx.strokeRect(bx+0.5,by+0.5,bw,bh);
-    ctx.textAlign="center"; ctx.fillStyle=ready?"#d6ffcf":COL.textDim; ctx.font="bold 16px 'Courier New'";
+    ctx.textAlign="center"; ctx.fillStyle=ready?"#d6ffcf":COL.textDim; ctx.font="bold 16px "+FF;
     ctx.fillText(ready?"LISTO — ¡A la aventura!":"Elige 2 habilidades", VW/2, by+bh/2+6);
     ui.abilConfirmRect={x:bx,y:by,w:bw,h:bh};
     ctx.textAlign="left";
@@ -3085,8 +3090,8 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
     rrng.seed(7); for(let i=0;i<50;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
-    ctx.fillStyle=COL.textGold; ctx.font="bold 26px 'Courier New'"; ctx.fillText("Elige tu clase",VW/2,VH*0.15);
-    ctx.fillStyle=COL.cream; ctx.font="13px 'Courier New'"; ctx.fillText("Toca una clase  ·  1-5 / ←→ + Enter  ·  C personalizar",VW/2,VH*0.15+24);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 26px "+FF; ctx.fillText("Elige tu clase",VW/2,VH*0.15);
+    ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Toca una clase  ·  1-5 / ←→ + Enter  ·  C personalizar",VW/2,VH*0.15+24);
     ui.classRects.length=0;
     const n=CLASS_LIST.length, gap=10, cw=Math.min(150,(VW-30)/n-gap), ch=Math.min(210,VH*0.52);
     const totalW=n*cw+(n-1)*gap, x0=(VW-totalW)/2, cy=VH*0.55;
@@ -3107,21 +3112,21 @@ export function createRenderer(ctx){
         const sc=Math.max(2,Math.min(4,Math.floor((cw-10)/22)));
         drawClassFrame(ctx,cls,"idle","down",0, rx+cw/2, ry+ch*0.66, sc, null);
       }
-      ctx.fillStyle=sel?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(META[cls][0],rx+cw/2,ry+ch-40);
-      ctx.fillStyle="#9aa0aa"; ctx.font="10px 'Courier New'"; ctx.fillText(META[cls][1],rx+cw/2,ry+ch-28);
+      ctx.fillStyle=sel?COL.textGold:COL.cream; ctx.font="bold 14px "+FF; ctx.fillText(META[cls][0],rx+cw/2,ry+ch-40);
+      ctx.fillStyle="#9aa0aa"; ctx.font="10px "+FF; ctx.fillText(META[cls][1],rx+cw/2,ry+ch-28);
       // CAS-100: per-class base stats so the player can SEE each class plays different,
       // not just looks different. 4 normalized bars (HP / MP / DMG / SPD) under the name.
       const cs=CLASS_STATS[cls]; if(cs){
         const rows=[["VID",cs.hp,135,"#c64b4b"],["MAN",cs.mp,82,"#4b86c6"],["DÑO",cs.dmg,14,"#e0b24a"],["VEL",cs.moveScale,1.07,"#5fae5a"]];
         const bx=rx+30, bw=cw-40, by=ry+ch-22, bh=3;
-        ctx.textAlign="left"; ctx.font="7px 'Courier New'";
+        ctx.textAlign="left"; ctx.font="7px "+FF;
         for(let r=0;r<rows.length;r++){ const [lab,v,mx,col]=rows[r], yy=by+r*5;
           ctx.fillStyle="#7a808a"; ctx.fillText(lab,rx+6,yy+3);
           ctx.fillStyle="#1b2027"; ctx.fillRect(bx,yy,bw,bh);
           ctx.fillStyle=col; ctx.fillRect(bx,yy,bw*Math.min(1,v/mx),bh); }
         ctx.textAlign="center";
       }
-      ctx.fillStyle=COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.fillText(String(i+1),rx+10,ry+18);
+      ctx.fillStyle=COL.textDim; ctx.font="bold 11px "+FF; ctx.fillText(String(i+1),rx+10,ry+18);
       ui.classRects.push({x:rx,y:ry,w:cw,h:ch,cls});
     }
     // CAS-128: contextual help for the highlighted class — its role + a one-line fantasy
@@ -3129,12 +3134,12 @@ export function createRenderer(ctx){
     // live as the selection moves (1-5 / ←→ / tap-focus).
     const selCls=CLASS_LIST[G.classSel]||CLASS_LIST[0], info=(STR.classes&&STR.classes[selCls]);
     if(info){ const hy=cy+ch/2+26;
-      ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText(info.name+" — "+info.role, VW/2, hy);
-      ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(info.attack, VW/2, hy+20); }
+      ctx.fillStyle=COL.textGold; ctx.font="bold 14px "+FF; ctx.fillText(info.name+" — "+info.role, VW/2, hy);
+      ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText(info.attack, VW/2, hy+20); }
     // CAS-169: "Personalizar ▸" — open the wardrobe for the highlighted class before play.
     const pbW=Math.min(220,VW*0.6), pbH=30, pbX=VW/2-pbW/2, pbY=Math.min(VH-46, cy+ch/2+40);
     ctx.fillStyle="#262d3a"; ctx.fillRect(pbX,pbY,pbW,pbH); ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(pbX,pbY,pbW,pbH);
-    ctx.fillStyle=COL.textGold; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.customizeOpen+" ▸", VW/2, pbY+20);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF; ctx.fillText(STR.customizeOpen+" ▸", VW/2, pbY+20);
     const pc=ui.classCustomRect; pc.x=pbX; pc.y=pbY; pc.w=pbW; pc.h=pbH;
   }
   // CAS-169: the 6 customization rows (4 recolorable parts + 2 variation swaps) and
@@ -3158,8 +3163,8 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
     rrng.seed(11); for(let i=0;i<40;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
     ctx.textAlign="center";
-    ctx.fillStyle=COL.textGold; ctx.font="bold 22px 'Courier New'"; ctx.fillText(STR.customizeTitle, VW/2, 34);
-    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(STR.customizeHint, VW/2, 54);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 22px "+FF; ctx.fillText(STR.customizeTitle, VW/2, 34);
+    ctx.fillStyle=COL.cream; ctx.font="11px "+FF; ctx.fillText(STR.customizeHint, VW/2, 54);
 
     // ---- live preview (baked clshero strip, breathing idle loop) ----
     const pvW=Math.min(150,VW*0.34), pvX=VW*0.5-VW*0.30, pvY=72, pvH=Math.min(190,VH*0.34);
@@ -3180,7 +3185,7 @@ export function createRenderer(ctx){
       const row=CUST_ROWS[r], ry=pvY+r*rowH, foc=(G.custFocus===r);
       ctx.fillStyle=foc?"#262d3a":"#181c24"; ctx.fillRect(colX,ry,colW,rowH-6);
       ctx.strokeStyle=foc?COL.textGold:"#3a4456"; ctx.lineWidth=foc?2:1; ctx.strokeRect(colX,ry,colW,rowH-6);
-      ctx.fillStyle=foc?COL.textGold:COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.fillText(row.label, colX+8, ry+15);
+      ctx.fillStyle=foc?COL.textGold:COL.cream; ctx.font="bold 11px "+FF; ctx.fillText(row.label, colX+8, ry+15);
       if(row.t==="color"){
         const cur=h.palette[row.key];
         // current chip
@@ -3199,8 +3204,8 @@ export function createRenderer(ctx){
         // ‹  value  ›
         ctx.textAlign="center";
         ctx.fillStyle="#2b3340"; ctx.fillRect(colX+90,vy,aw,vh); ctx.fillRect(rx-aw,vy,aw,vh);
-        ctx.fillStyle=COL.textGold; ctx.font="bold 14px 'Courier New'"; ctx.fillText("‹",colX+90+aw/2,vy+vh*0.7); ctx.fillText("›",rx-aw/2,vy+vh*0.7);
-        ctx.fillStyle=COL.cream; ctx.font="bold 11px 'Courier New'"; ctx.fillText(CUST_VARNAME[val]||val,(colX+90+aw+rx-aw)/2,vy+vh*0.7);
+        ctx.fillStyle=COL.textGold; ctx.font="bold 14px "+FF; ctx.fillText("‹",colX+90+aw/2,vy+vh*0.7); ctx.fillText("›",rx-aw/2,vy+vh*0.7);
+        ctx.fillStyle=COL.cream; ctx.font="bold 11px "+FF; ctx.fillText(CUST_VARNAME[val]||val,(colX+90+aw+rx-aw)/2,vy+vh*0.7);
         ctx.textAlign="left";
         ui.customRects.push({kind:"var",key:row.key,dir:-1,x:colX+90,y:vy,w:aw,h:vh});
         ui.customRects.push({kind:"var",key:row.key,dir:1, x:rx-aw, y:vy,w:aw,h:vh});
@@ -3211,12 +3216,12 @@ export function createRenderer(ctx){
     const by=VH-46, bw=Math.min(150,VW*0.4), bh=32, gap=14;
     const dX=VW/2+gap/2, sX=VW/2-gap/2-bw;
     ctx.fillStyle="#1d3324"; ctx.fillRect(dX,by,bw,bh); ctx.strokeStyle=COL.heal; ctx.lineWidth=2; ctx.strokeRect(dX,by,bw,bh);
-    ctx.fillStyle=COL.heal; ctx.font="bold 14px 'Courier New'"; ctx.fillText(STR.customizeDone, dX+bw/2, by+21);
+    ctx.fillStyle=COL.heal; ctx.font="bold 14px "+FF; ctx.fillText(STR.customizeDone, dX+bw/2, by+21);
     ctx.fillStyle="#33301a"; ctx.fillRect(sX,by,bw,bh); ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(sX,by,bw,bh);
     ctx.fillStyle=COL.textGold; ctx.fillText(STR.customizeReset, sX+bw/2, by+21);
     ui.customRects.push({kind:"done",x:dX,y:by,w:bw,h:bh});
     ui.customRects.push({kind:"reset",x:sX,y:by,w:bw,h:bh});
-    ctx.fillStyle=COL.textDim; ctx.font="10px 'Courier New'"; ctx.fillText(STR.customizeKeys, VW/2, VH-8);
+    ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText(STR.customizeKeys, VW/2, VH-8);
     ctx.textAlign="left";
   }
   function drawMenuEmblem(x,y){ ctx.save(); ctx.translate(x,y);

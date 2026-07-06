@@ -19,6 +19,7 @@ import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
+import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
 import { rarityRank } from "./sim/gear.js";
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
@@ -60,7 +61,7 @@ export function createGame(canvas, ctx, getView){
     chatEl=document.createElement("input");
     chatEl.id="chatInput"; chatEl.maxLength=120; chatEl.autocomplete="off"; chatEl.spellcheck=false;
     chatEl.setAttribute("aria-label","Chat"); chatEl.placeholder="Escribe y pulsa Enter…";
-    chatEl.style.cssText="position:fixed;display:none;z-index:30;box-sizing:border-box;font:13px 'Courier New',monospace;"
+    chatEl.style.cssText="position:fixed;display:none;z-index:30;box-sizing:border-box;font:13px 'MithraldaPixel',monospace;"
       +"color:#d8d3c4;background:#0c0e13;border:1px solid #3a3f49;border-radius:3px;outline:none;padding:5px 9px;";
     // typing must never leak to the game (WASD/hotkeys); only send on Enter, cancel on Escape.
     chatEl.addEventListener("keydown",(e)=>{ e.stopPropagation();
@@ -87,6 +88,11 @@ export function createGame(canvas, ctx, getView){
 
   // boot
   loadAllAssets();
+  // CAS-1610: register the pixel UI webfont so canvas (ctx.font) + DOM chrome render it.
+  // Non-blocking: the family stack falls back to system `monospace` on the first frames
+  // (and for glyphs the font lacks) — never the old typewriter face. Once ready, text
+  // repaints in the pixel font on the next frame (canvas redraws every frame).
+  loadUIFont();
   // CAS-265: load persisted accessibility / QoL settings (reduce-motion, colour-blind
   // cues, screen-shake, key rebindings) BEFORE input + the first frame so a returning
   // player's preferences are live from frame 0. Separate localStorage key from the save,
@@ -348,7 +354,22 @@ export function createGame(canvas, ctx, getView){
       // CAS-131 audio/soundscape contract consumed by tools/cas131-audio.mjs — additive
       audioState:()=>audio.state(), setMaster:(v)=>audio.setMaster(v), setMusic:(v)=>audio.setMusic(v),
       setSfx:(v)=>audio.setSfx(v), setMuted:(v)=>audio.setMuted(v), setAmbient:(z)=>audio.setAmbient(z),
-      playMusic:(t)=>audio.playMusic(t) };
+      playMusic:(t)=>audio.playMusic(t),
+      // CAS-1594/1595 inventory 30-slot grid + scroll — consumed by tools/cas1595-invgrid.mjs (additive, dev-only).
+      // Read-only grid state (scroll is ROW-based, per CTO reconciliation) + a clamped scroll setter +
+      // a deterministic bag filler (NO seed RNG — hand-built instances) so QA can exercise a full backpack.
+      invGrid:()=>{ const g=ui.invGrid||{}; return {slots:30, cols:g.cols||0, visibleRows:g.visRows||0,
+        scroll:(G.invScrollRow||0), scrollMax:(g.maxScrollRow||0), rects:(ui.invRects||[]).length,
+        filled:(G.hero&&G.hero.bag?G.hero.bag.length:0)}; },
+      setInvScroll:(n)=>{ const mx=(ui.invGrid&&ui.invGrid.maxScrollRow)||0; G.invScrollRow=Math.max(0,Math.min(mx,n|0)); },
+      fillBag:(n)=>{ const h=G.hero; if(!h) return 0;
+        const DEFS=[["weapon","w_iron"],["body","a_leather"],["shield","s_iron"],["weapon","w_steel"],
+          ["body","a_plate"],["weapon","w_rune"],["shield","s_tower"],["body","a_wyrm"]];
+        const RAR=["common","rare","epic"], AFX=["dmg","hp","atkspd","movespd"];
+        h.bag.length=0; const c=Math.max(0,Math.min(30, n==null?16:(n|0)));
+        for(let i=0;i<c;i++){ const d=DEFS[i%DEFS.length]; const inst={slot:d[0],defId:d[1],rarity:RAR[i%RAR.length]};
+          if(i%2===0) inst.affixes=[{id:AFX[i%AFX.length],amt:3}]; h.bag.push(inst); }
+        if(G.invSel!=null) G.invSel=Math.min(G.invSel, Math.max(0,h.bag.length-1)); return h.bag.length; } };
   }
   syncMenuDom(); positionNameInput();
 
