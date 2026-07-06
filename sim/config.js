@@ -375,6 +375,20 @@ export const ETPL = {
   // 3rd strike through the proven CAS-109 radial-slam channel. richAnim drives all 6 strips.
   bogtyrant:{hp:940,dmg:35, spd:50, aggro:380, range:76, windup:0.94, recover:0.8,  xp:300,gold:[90,140],sprite:"bogtyrant",size:44, knock:88, boss:true, richAnim:true, bossLabel:"TIRANO DEL PANTANO",
             special:{ name:"Barrido del Pantano", every:3, windup:1.0, slam:{ count:12, spd:170, dmg:20, life:1.15 } } },
+
+  // CAS-1694 (padre CAS-1692) — NUEVOS MOBS de las CAVES (tier-3, sin power-gate). 3 trash rows nuevos,
+  // cada uno CLON verbatim de un arquetipo tier-3 EXISTENTE (mage/orc) → CERO IA/rama de combate nueva;
+  // escalan por applyZoneScale("caves"). Sólo `sprite` (+ size) difieren del molde. Gated tras
+  // NEW_MOBS.enabled (world.js caves spawner); con enabled:false el pool NO cambia ⇒ sim byte-idéntico.
+  // Arte FOUNTAINS: ENEMY_IMG side-view cutouts (mismo path que skel/bandit/orc); si el PNG falta el
+  // fallback SP procedural cubre sin crash (CAS-360).
+  // ashwraith — caster a distancia: CLON de `mage` (bolt ceniciento). Kitea y castea, telegrafía el windup.
+  ashwraith:   {hp:56, dmg:16, spd:62, aggro:340, range:250, windup:0.9,  recover:0.85, xp:36, gold:[11,20], sprite:"ashwraith",    size:26, knock:60,  boss:false, gearChance:0.26, ranged:true, arch:"caster", kite:170, projspd:240, proj:"bolt"},
+  // ironback — bruto/tanque melee: CLON de `orc` (ground-slam AoE) con hp/dmg/knock ALTOS y spd lento.
+  ironback:    {hp:112,dmg:26, spd:58, aggro:220, range:52, windup:0.86, recover:0.74, xp:44, gold:[12,22], sprite:"ironback",     size:28, knock:200, boss:false, gearChance:0.30, arch:"brute", aoe:64},
+  // thornspitter — a distancia: CLON de `mage`/quillback que aplica infl (veneno) montado en el proyectil,
+  // como el bolt-slow del wraith (CAS-118). Dodgear el proj evita el veneno (infl viaja con el disparo).
+  thornspitter:{hp:52, dmg:14, spd:66, aggro:320, range:230, windup:0.85, recover:0.8,  xp:34, gold:[10,18], sprite:"thornspitter", size:24, knock:55,  boss:false, gearChance:0.26, ranged:true, arch:"caster", kite:160, projspd:230, proj:"bolt", infl:{type:"poison",dmg:4,dur:3.5}},
 };
 
 // CAS-146 — ELITE AMBUSH / pack event. While the hero is actively fighting inside a hunt
@@ -843,6 +857,13 @@ export const ZONE_EVENTS = {
 export const SOCKETS = {
   enabled:true, dropRate:0.06, socketChance:[0.55,0.28],
 };
+
+// CAS-1694 — master switch for the 3 new CAVES mobs. Default false ⇒ the caves spawner `types` array
+// is UNCHANGED ⇒ the ri() draw sequence is identical ⇒ sim byte-idéntico a un build sin la feature
+// (AC3 [AC-RNG-STRONG]). `types` = los 3 nuevos, appendados al pool de caves SÓLO si enabled (world.js).
+// `bonusLootRate` = la ÚNICA tirada RNG de estos mobs (killEnemy), y sale del stream dedicado mobRng
+// (nunca del srand autoritativo). El QA flip vive tras dev hook __dev.newMobsEnable / harness.
+export const NEW_MOBS = { enabled:false, zone:"caves", types:["ashwraith","ironback","thornspitter"], bonusLootRate:0.10 };
 
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };

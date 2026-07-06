@@ -5,7 +5,7 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_WATER, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND, setMapDims } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_WATER, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND, setMapDims, NEW_MOBS } from "./config.js";
 import { inRect } from "./math.js";
 import { TDECO } from "./tiled-deco-data.js";  // CAS-462: props visuales del mapa Tiled
 import { MAP as TILED_MAP } from "./tiled-map-data.js";
@@ -148,7 +148,9 @@ export function buildWorld(rng){
   // that punishes face-tanking the pack and rewards reading/killing it at range.
   // CAS-360: the Quillback Stalker (richAnim quilled beast, skeleton-tier melee) joins the caves
   // trash pool — same power band as the caves skeleton it clones, so zone difficulty is unchanged.
-  spawners.push({rect:caves,types:["skeleton","mage","spearman","wraith","summoner","volatile","quillback"],max:12,cool:4,t:0,zone:"caves"});
+  // CAS-1694: the 3 nuevos MOBS de caves se APPENDAN al pool SÓLO si NEW_MOBS.enabled → con la feature
+  // apagada este array es idéntico al histórico ⇒ ri() draws idénticos ⇒ byte-id (AC3). Todos tier-3 caves.
+  spawners.push({rect:caves,types:NEW_MOBS.enabled?["skeleton","mage","spearman","wraith","summoner","volatile","quillback",...NEW_MOBS.types]:["skeleton","mage","spearman","wraith","summoner","volatile","quillback"],max:12,cool:4,t:0,zone:"caves"});
   // ---- dungeon walls in the caves (perimeter ring + interior alcoves) ----
   const wallSet=new Set();
   const cx0=caves.x, cy0=caves.y, cx1=caves.x+caves.w-1, cy1=caves.y+caves.h-1;

@@ -879,6 +879,8 @@ export function createRenderer(ctx){
     orc:{w:4.4,fps:6},   moose:{w:4.4,fps:6}, charger:{w:5.0,fps:6},
     skeleton:{w:4.8,fps:6}, spearman:{w:4.8,fps:6}, mage:{w:4.6,fps:6},
     summoner:{w:4.6,fps:6}, wraith:{w:4.2,fps:6}, golem:{w:3.8,fps:6},
+    // CAS-1692: new mob gaits
+    thornspitter:{w:5.8,fps:7}, ironback:{w:4.0,fps:6}, ashwraith:{w:4.4,fps:6},
   };
   const mobGait = e => MOB_GAIT[e.type] || {w:6.0,fps:7};
   function drawEnemy(e){

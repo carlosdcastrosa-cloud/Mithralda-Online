@@ -379,6 +379,8 @@ export const ENEMY_ANIM={ mage:"mage", moose:"moose" };
 // the common mobs so the bestiary reads at FOUNTAINS fidelity. Falls back to SP rows
 // while the image loads or for mobs without a generated sprite.
 export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"enemy_wraith", orc:"enemy_orc",
+  // CAS-1692: new FOUNTAINS-style PixelLab cutouts (side-view, same load path as skel/bandit/orc)
+  thornspitter:"enemy_thornspitter", ironback:"enemy_ironback", ashwraith:"enemy_ashwraith",
   // CAS-312: dark_demon_3 idle cutout (claw frame 0). drawEnemy uses this for idle/walk
   // (resolveStrip returns null for those states → ENEMY_IMG path adds the breathe/walk-bob),
   // and the demon_attack / demon_cast strips below for the two board animations.

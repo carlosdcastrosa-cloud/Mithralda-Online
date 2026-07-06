@@ -40,8 +40,8 @@ export const bestiary = (()=>{
   const DEF_TIERS  = [ {id:"seen",n:1}, {id:"hunted",n:25}, {id:"mastered",n:100} ];
   const BOSS_TIERS = [ {id:"seen",n:1}, {id:"hunted",n:5},  {id:"mastered",n:20}  ];
   const ROSTER = [
-    "rat","wolf","bat","skeleton","spearman","orc","bandit","moose",
-    "mage","wraith","charger","summoner","healer","volatile","revenant",
+    "rat","wolf","bat","thornspitter","skeleton","spearman","orc","bandit","ironback","moose",
+    "mage","wraith","charger","summoner","healer","volatile","revenant","ashwraith",
     "quillback","demon","wendigo",
     "mudlurker","wisp","toadbrute", // CAS-442: the Ciénaga de Bruma family (art CAS-440)
     "golem","dragon",
