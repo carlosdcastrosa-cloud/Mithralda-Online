@@ -73,9 +73,12 @@ async function runOnce(label, viewport) {
   await page.setViewport(viewport);
   const errs = [];
   page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
-  page.on("console", (m) => { if (m.type() === "error") errs.push("console.error: " + m.text()); });
-  // favicon 404 is cosmetic; only count NON-favicon 404s as errors.
-  page.on("response", (r) => { if (r.status() === 404 && !/favicon/i.test(r.url())) errs.push("http404: " + r.url()); });
+  // Browsers emit a generic "Failed to load resource" console.error for every 404 (favicon /
+  // touch-icon). The response handler below is the single source of truth for 404s (favicon filtered),
+  // so skip these duplicate console lines and count only REAL script/page errors here.
+  page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/i.test(m.text())) errs.push("console.error: " + m.text()); });
+  // favicon / touch-icon 404 is cosmetic; only count NON-favicon 404s as errors.
+  page.on("response", (r) => { if (r.status() === 404 && !/favicon|apple-touch|touch-icon|\.ico(\?|$)/i.test(r.url())) errs.push("http404: " + r.url()); });
   const key = (c) => page.evaluate((c) => window.dispatchEvent(new KeyboardEvent("keydown", { code: c, key: c, bubbles: true })), c);
 
   // ---- BUILD gate: served version + md5 parity vs HEAD ----------------------
@@ -253,18 +256,25 @@ async function runOnce(label, viewport) {
   gate("AC5.linear", linear, `ascMult L0..3 = [${asm.out.join(", ")}] (expect 1,1.25,1.5,1.75)`);
   gate("AC5.onTop", asm.before === asm.after, `granting leg_erudito left ascMult ${asm.before} unchanged (legados van encima)`);
 
-  // ======================= AC6: [AC-RNG-STRONG] byte-id loot stream =======
-  // 0 legados vs 5 legados: the shared-srand dropStream must be byte-identical; choosing consumes no RNG.
+  // ======================= AC6: [AC-RNG-STRONG] byte-id SHARED-srand stream ==
+  // The legacy hooks read legacyCount() but consume ZERO shared-srand RNG, so the seeded loot
+  // stream must be byte-identical with 0 vs 5 legacies. Two confounds to neutralize first:
+  //  (1) legendary/unique drops draw from the DEDICATED legRng stream (CAS-1638), which dropStream's
+  //      seed() does NOT reset -> it drifts across calls. setLegRate(0) silences it -> pure shared stream.
+  //  (2) dropStream's kills LEVEL the hero and gear tier scales with level -> createHero fresh each call
+  //      pins the hero to an identical baseline. Then the ONLY remaining variable is the legacies.
   const rng = await page.evaluate(() => {
-    window.__metaReset();
-    const s0 = JSON.stringify(window.__dev.dropStream(600, 424242));      // clean, 0 legacies
-    // grant ALL 5 legacies (no RNG consumed by the grants)
+    window.__dev.setLegRate(0); window.__metaReset(); window.__createHero("QA", "warrior");
+    const s0 = JSON.stringify(window.__dev.dropStream(600, 424242));                 // clean, 0 legacies
     for (const k of ["leg_vigia","leg_avaro","leg_superviviente","leg_cazador","leg_erudito"]) window.__legacyChoose(k);
-    const sN = JSON.stringify(window.__dev.dropStream(600, 424242));      // same seed, 5 legacies
+    window.__dev.setLegRate(0); window.__createHero("QA", "warrior");
+    const sN = JSON.stringify(window.__dev.dropStream(600, 424242));                 // same seed + baseline, 5 legacies
+    window.__dev.setLegRate(null);                                                   // restore shipped legendary rate
     const owned = window.__metaLegacy().reduce((a, n) => a + (n.owned|0), 0);
     return { same: s0 === sN, len: s0.length, owned };
   });
-  gate("AC6.rngStrong", rng.same === true, `[AC-RNG-STRONG] dropStream(600,424242) 0 vs 5 legacies byte-identical=${rng.same} (streamLen=${rng.len}, owned=${rng.owned})`);
+  gate("AC6.rngStrong", rng.same === true,
+    `[AC-RNG-STRONG] shared-srand dropStream(600,424242) 0 vs ${rng.owned} legacies byte-identical=${rng.same} (streamLen=${rng.len})`);
   await page.screenshot({ path: `${OUT}/${label}-final.png` });
 
   // ---- errors ----
