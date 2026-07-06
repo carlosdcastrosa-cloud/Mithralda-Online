@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -82,6 +82,14 @@ const eventRng = createRNG(0xe7e40a1d);
 // via SOCKETS.enabled=false / setSocketRate(0) (which draw ZERO from any stream). Engarzar/desengarzar
 // and socketTotals are pure arithmetic — no RNG at all.
 const runeRng = createRNG(0x3c9a7b21);
+// CAS-1694 — DEDICATED Nuevos-MOBS stream (distinct seed 0x4d0b7e15; NOT one of the used seeds
+// 0x1a2b3c4d/0x5e75c0de/0x117a1a7e/0xa5e4a000/0xe7e40a1d/0x3c9a7b21). The 3 new caves mobs' ONLY
+// random draw — a small bonus-loot roll on kill (killEnemy) — comes ONLY from here, never the
+// authoritative srand, and the whole feature is HARD-GATED behind NEW_MOBS.enabled. So with the
+// feature off no new mob spawns and no mobRng draw happens → the sim is byte-identical to a build
+// without it (AC3 [AC-RNG-STRONG]); at ANY setting the shared srand is provably untouched. Like the
+// other dedicated streams, seed() does NOT reset it — the harness neutralises via NEW_MOBS.enabled=false.
+const mobRng = createRNG(0x4d0b7e15);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -4680,4 +4688,30 @@ export const dev = {
     const poiN=G.zoneEvents.pois.length; const enemN=G.enemies.length;
     ZONE_EVENTS.enabled=savEn; ZONE_EVENTS.density=savD;
     return { enabled:!!enabled, density:usedD, zone:z, poiN, enemN, fingerprint:fp }; },
+
+  // --- CAS-1692 NUEVOS MOBS dev hooks (tools/cas1692-mobs-live-qa.mjs); additive ---
+  // Static config read: NEW_MOBS flag + the 3 new ETPL entries.
+  newMobsMeta(){ return { enabled:NEW_MOBS.enabled,
+    mobs:["thornspitter","ironback","ashwraith"].map(k=>({ id:k, hp:ETPL[k]?.hp||0, arch:ETPL[k]?.arch||null, sprite:ETPL[k]?.sprite||null })) }; },
+  // Toggle the feature gate (QA: byte-identity check when disabled).
+  setNewMobsEnabled(b){ NEW_MOBS.enabled=!!b; return NEW_MOBS.enabled; },
+  // RNG-neutrality probe: run probeN srand draws with NEW_MOBS on vs off; fingerprints must match
+  // at position (same world seed, same draw count → byte-identical when no new mob was chosen).
+  newMobsGenProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savEn=NEW_MOBS.enabled; NEW_MOBS.enabled=!!enabled;
+    G.enemies.length=0;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    NEW_MOBS.enabled=savEn;
+    return { enabled:!!enabled, fingerprint:fp }; },
+  // Directly spawn a new mob in the world at a named zone position (QA: proves ETPL entry resolves).
+  spawnNewMob(type, zone){ const sp=world.spawners&&world.spawners.find(s=>s.zone===zone);
+    const rect=sp?sp.rect:{x:G.hero.x/TS-2,y:G.hero.y/TS-2,w:4,h:4};
+    const tx=(rect.x+2)*TS, ty=(rect.y+2)*TS;
+    const e=spawnEnemy(type,tx,ty); if(e) applyZoneScale(e,zone||"forest");
+    return e?{type:e.type,hp:e.hp,arch:e.tpl.arch||null,x:Math.round(e.x),y:Math.round(e.y)}:null; },
+  // Probe: direct enemy spawn+kill to check loot from a new mob type.
+  newMobSpawnKill(type){ const before=G.drops.length; const e=spawnEnemy(type, G.hero.x, G.hero.y);
+    if(!e) return { type, spawned:false }; e.hp=0; killEnemy(e);
+    return { type, spawned:true, drops:G.drops.slice(before).map(d=>({kind:d.kind,slot:d.inst?d.inst.slot:null})) }; },
 };

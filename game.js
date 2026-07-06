@@ -383,6 +383,13 @@ export function createGame(canvas, ctx, getView){
       forceSocketRune:(t,z)=>simDev.forceSocketRune(t,z), socketRune:(i)=>simDev.socketRune(i), removeSocketRune:(sl)=>simDev.removeSocketRune(sl),
       socketSnap:()=>simDev.socketSnap(), socketPersist:(sl,t)=>simDev.socketPersist(sl,t),
       socketRngProbe:(n,s)=>simDev.socketRngProbe(n,s), socketGenProbe:(en,r,s,p)=>simDev.socketGenProbe(en,r,s,p),
+      // CAS-1692 Nuevos MOBS — dev probes consumed by tools/cas1692-mobs-live-qa.mjs — additive
+      newMobsMeta:()=>simDev.newMobsMeta(),
+      setNewMobsEnabled:(b)=>simDev.setNewMobsEnabled(b),
+      newMobsGenProbe:(en,s,p)=>simDev.newMobsGenProbe(en,s,p),
+      spawnNewMob:(type,zone)=>simDev.spawnNewMob(type,zone),
+      newMobSpawnKill:(type)=>simDev.newMobSpawnKill(type),
+      newMobImgLoaded:(type)=>{ const key="enemy_"+type; const im=IMG[key]; return { type, key, loaded:!!(im&&im.complete&&im.naturalWidth), w:im?im.naturalWidth:0, h:im?im.naturalHeight:0 }; },
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

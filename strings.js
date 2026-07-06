@@ -392,6 +392,8 @@ export const STR = {
     wendigo:"Wéndigo", golem:"Gólem de Piedra", dragon:"Dragón Ancestral",
     // CAS-442: the Ciénaga de Bruma family (art CAS-440) + its capstone.
     mudlurker:"Acechador del Fango", wisp:"Fuego Fatuo", toadbrute:"Bruto Sapo", bogtyrant:"Tirano del Pantano",
+    // CAS-1692: new mobs
+    thornspitter:"Escupidor de Espinas", ironback:"Dorso de Hierro", ashwraith:"Espectro de Ceniza",
   }[t] || (t || "Enemigo")),
   bestiaryTitle: "BESTIARIO",
   bestiarySub: (d, tot) => "Descubiertos " + d + "/" + tot,
