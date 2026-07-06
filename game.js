@@ -199,6 +199,10 @@ export function createGame(canvas, ctx, getView){
       spawnKill:(type)=>simDev.spawnKill(type),
       pickup:()=>simDev.pickup(),
       bag:()=>simDev.bag(),
+      // CAS-1579: read-only proof each backpack row resolves a real slot-icon PNG (the same
+      // asset the equip slots use) rather than falling to a text glyph — iconKey mirrors the
+      // renderInventory row draw. Consumed by tools/cas1579-inv-icons-live.mjs.
+      invIcons:()=>(((G.hero&&G.hero.bag)||[]).map((it,idx)=>{const im=it?IMG["icon_slot_"+it.slot]:null;return{idx,slot:it?it.slot:null,name:it?it.id:null,iconLoaded:!!(im&&im.complete&&im.naturalWidth)};})),
       equipBag:(i)=>simDev.equipBag(i),
       moveBag:(from,to)=>simDev.moveBag(from,to), // CAS-419 DnD seam, consumed by tools/cas419-dnd-qa.mjs
       // CAS-117 affix/equip-decision contract consumed by tools/cas117-affix.mjs — additive

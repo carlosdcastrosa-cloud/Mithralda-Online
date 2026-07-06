@@ -460,8 +460,12 @@ function invMove(x,y,pid){ const d=ui.invDrag; if(!d) return false;
 function invUp(pid,cancelled){ const d=ui.invDrag; if(!d) return false; if(pid!==d.id) return true;
   ui.invDrag=null; if(cancelled||G.scene!=="inventory") return true;
   const h=G.hero, x=d.x, y=d.y;
-  if(!d.active){ // below threshold → the original tap semantics
-    if(d.kind==="bag"){ G.invSel=d.idx; sim.equipBag(d.idx); }
+  if(!d.active){ // below threshold → tap semantics. CAS-1579: single tap SELECTS (feeds the
+    // CAS-117 compare box); DOUBLE-click/tap on the SAME row equips (board: "doble click para
+    // equipar"). Drag-to-equip (below) is unchanged. Window uses G.t (game-seconds).
+    if(d.kind==="bag"){ const lt=ui.invLastTap;
+      if(lt&&lt.idx===d.idx&&(G.t-lt.t)<=0.35){ G.invSel=d.idx; sim.equipBag(d.idx); ui.invLastTap=null; }
+      else { G.invSel=d.idx; ui.invLastTap={idx:d.idx,t:G.t}; } }
     return true; }
   const sl=rectHit(ui.invSlotRects,x,y), row=rectHit(ui.invRects,x,y);
   if(d.kind==="bag"){ const item=h.bag[d.idx]; if(!item) return true;
