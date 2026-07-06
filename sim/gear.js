@@ -142,7 +142,7 @@ export const ZONE_LOOT = {
 // ---- pure gear helpers (no game state, no RNG; safe in sim or render) ----
 export function gearDef(slot,defId){ const arr=GEAR[slot]; if(!arr) return null; for(let i=0;i<arr.length;i++) if(arr[i].id===defId) return arr[i]; return null; }
 export function gearStat(inst){ if(!inst) return 0; const d=gearDef(inst.slot,inst.defId); if(!d) return 0; const base=(d.dmg!=null?d.dmg:d.def)||0; const r=RARITY[inst.rarity]||RARITY.common; return Math.round(base*r.mult*forgeMult(inst.fl)); } // CAS-237: forge level folds in here (the one stat resolver)
-export function gearName(inst){ if(!inst) return "—"; const u=inst.uniq&&uniqDef(inst); if(u) return u.name; /* CAS-1632: a UNIQUE reads by its named title everywhere (floaters/tooltips route through here) */ const d=gearDef(inst.slot,inst.defId); return d?d.name:"?"; }
+export function gearName(inst){ if(!inst) return "—"; const u=inst.uniq&&uniqDef(inst); if(u) return u.name; /* CAS-1632: a UNIQUE reads by its named title everywhere (floaters/tooltips route through here) */ const sp=inst.set&&setPieceDef(inst); if(sp) return sp.name; /* CAS-1654: a set piece reads by its named title too */ const d=gearDef(inst.slot,inst.defId); return d?d.name:"?"; }
 export function gearCol(inst){ const r=inst&&RARITY[inst.rarity]; return r?r.col:RARITY.common.col; }
 export function rarityRank(k){ const r=RARITY[k]; return r?r.rank:0; }
 
@@ -215,7 +215,7 @@ export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip
 // and leveling stay clean (mirrors how timed buffs stay out of permDmg/permDef).
 // CAS-150: Elite-Mastery reward-track +maxHp milestones fold in here too (h.mperk.hp,
 // built in sim.recalcMastery) — derived, never baked, so reload reproduces it from the count.
-export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0)) * ((h.bb&&h.bb.hpMul)||1) * uniqTotals(h).hpMul); } // CAS-383 boon hpMul + CAS-1632 corazon_titan (uniqTotals.hpMul) scale the effective pool (derived, never baked → reload/reset clean)
+export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0)) * ((h.bb&&h.bb.hpMul)||1) * uniqTotals(h).hpMul * setTotals(h).hpMul); } // CAS-383 boon hpMul + CAS-1632 corazon_titan (uniqTotals.hpMul) + CAS-1654 Vigía set (setTotals.hpMul) scale the effective pool (derived, never baked → reload/reset clean)
 
 // ===========================================================================
 // CAS-1632 — ÍTEMS ÚNICOS/LEGENDARIOS (loot que define builds). A "unique" is a
@@ -275,3 +275,72 @@ export function uniqEmpower(h, sp){ if(!h||!sp||!h.equip) return sp;
     if(m.rangeMul!=null) cp.range=(sp.range||0)*m.rangeMul;
     return cp; }
   return sp; }
+
+// ===========================================================================
+// CAS-1654 — CONJUNTOS DE OBJETOS (Item Sets). A parallel build-defining loot
+// layer to the UNIQUES (CAS-1632): instead of one build-defining piece, you
+// COLLECT matching pieces to earn tiered bonuses. Art cost = $0 (a set piece is
+// an ordinary instance {slot, defId, rarity, set:"<pieceId>"} — `defId` points at
+// an existing GEAR base so gearStat() resolves stats normally by tier/mult; the
+// set tint reuses the rarity pips/colour). The build twist rides ENTIRELY on
+// `setTotals()`, the live copy-on-write aggregate mirrored on uniqTotals().
+//
+// BALANCE NOTE (AC1): a set is an ALTERNATE path, never dominant over a legendary.
+// A legendary gives its whole bonus in ONE slot (e.g. corazon_titan hpMul 1.20),
+// leaving the other two slots free. The Vigía set needs 2 pieces for a SMALLER
+// hpMul 1.15 and, to reach its 3pz capstone, occupies all THREE slots — a real
+// opportunity cost (you cannot also run legendaries there). So the set trades
+// slot-flexibility for cumulative, cheaper stats: strong when fully committed,
+// weaker per-slot than a unique. Tunable below; keep it a side-grade.
+//
+// 3 sets × {b2, b3}; each set has EXACTLY one piece per slot (weapon/body/shield)
+// so a full 3-piece set = all three slots and both tiers are reachable.
+export const SETS = {
+  vigia:   { name:"Vestiduras del Vigía",  b2:{hpMul:1.15},    b3:{reflectPct:10} },   // defensivo: vida + espinas
+  cazador: { name:"Atavío del Cazador",    b2:{atkspd:10},     b3:{critDmgPct:20} },   // ofensivo: vel. ataque + daño crítico
+  erudito: { name:"Ropajes del Erudito",   b2:{essencePct:15}, b3:{abilCdr:10} },      // caster: esencia + enfriamiento
+};
+export const SET_ORDER = ["vigia","cazador","erudito"];
+// SET_PIECES — the droppable named pieces (mirror of UNIQUES[]). `defId` borrows an
+// existing GEAR base def for its raw stats; `set` ties the instance to a SETS entry.
+export const SET_PIECES = [
+  {id:"vigia_arma",   name:"Alabarda del Vigía",   slot:"weapon", defId:"w_steel", set:"vigia"},
+  {id:"vigia_cuerpo", name:"Coraza del Vigía",     slot:"body",   defId:"a_plate", set:"vigia"},
+  {id:"vigia_escudo", name:"Broquel del Vigía",    slot:"shield", defId:"s_tower", set:"vigia"},
+  {id:"cazador_arma", name:"Estoque del Cazador",  slot:"weapon", defId:"w_steel", set:"cazador"},
+  {id:"cazador_cuerpo",name:"Jubón del Cazador",   slot:"body",   defId:"a_leather",set:"cazador"},
+  {id:"cazador_escudo",name:"Rodela del Cazador",  slot:"shield", defId:"s_iron",  set:"cazador"},
+  {id:"erudito_arma", name:"Cetro del Erudito",    slot:"weapon", defId:"w_iron",  set:"erudito"},
+  {id:"erudito_cuerpo",name:"Túnica del Erudito",  slot:"body",   defId:"a_wyrm",  set:"erudito"},
+  {id:"erudito_escudo",name:"Égida del Erudito",   slot:"shield", defId:"s_iron",  set:"erudito"},
+];
+// Resolve a set-piece def from an instance (or null for an ordinary/absent piece).
+export function setPieceDef(inst){ if(!inst||!inst.set) return null; for(let i=0;i<SET_PIECES.length;i++) if(SET_PIECES[i].id===inst.set) return SET_PIECES[i]; return null; }
+export function setPieceById(id){ for(let i=0;i<SET_PIECES.length;i++) if(SET_PIECES[i].id===id) return SET_PIECES[i]; return null; }
+export function setPieceName(inst){ const p=setPieceDef(inst); return p?p.name:null; }
+// Build a fresh set-piece instance (used by the drop roll + dev bridge). Epic rarity
+// (distinct tint from a legendary UNIQUE) — the value is the SET bonus, not the base roll.
+export function setInst(id){ const p=setPieceById(id); return p?{slot:p.slot, defId:p.defId, rarity:"epic", set:p.id}:null; }
+// Count equipped pieces per setId over the 3 slots. Pure/derived helper for UI + totals.
+export function setCounts(h){ const c={}; if(!h||!h.equip) return c;
+  for(const slot of ["weapon","body","shield"]){ const p=setPieceDef(h.equip[slot]); if(p) c[p.set]=(c[p.set]|0)+1; }
+  return c; }
+// Sum every ACTIVE set bonus into one live combat bundle — the mirror of uniqTotals
+// (CAS-1632). For each set with ≥2 equipped pieces apply b2; with ≥3 also apply b3
+// (cumulative, includes b2). The ONLY reader of set bonuses (combat + UI route through
+// this) so collecting a set moves REAL numbers, never a stored/baked stat, and stays
+// recomputable from the equipped instances (Stage-2 server-authority-ready). 0 RNG.
+export function setTotals(h){ const t={hpMul:1, atkspd:0, essencePct:0, abilCdr:0, reflectPct:0, critDmgPct:0};
+  const c=setCounts(h);
+  for(const id in c){ const s=SETS[id]; if(!s) continue; const n=c[id];
+    if(n>=2 && s.b2) applyTier(t, s.b2);
+    if(n>=3 && s.b3) applyTier(t, s.b3); }
+  return t; }
+function applyTier(t, b){
+  if(b.hpMul) t.hpMul*=b.hpMul;
+  if(b.atkspd) t.atkspd+=b.atkspd;
+  if(b.essencePct) t.essencePct+=b.essencePct;
+  if(b.abilCdr) t.abilCdr+=b.abilCdr;
+  if(b.reflectPct) t.reflectPct+=b.reflectPct;
+  if(b.critDmgPct) t.critDmgPct+=b.critDmgPct;
+}

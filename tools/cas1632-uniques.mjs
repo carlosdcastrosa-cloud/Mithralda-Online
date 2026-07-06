@@ -160,7 +160,11 @@ try {
   else fail(`[AC-PERS] unique lost across save→load: ${JSON.stringify(per)}`);
 
   // (5) AC-RNG0 — setLegRate(0): drop stream byte-identical across a fixed seed + ZERO uniques.
-  await page.evaluate(() => window.__dev.setLegRate(0));
+  // CAS-1654: also neutralize the INDEPENDENT set-piece drop stream (setRng). seed() reseeds only the
+  // shared srand — setRng is its own append-only stream, so a live set rate would inject non-
+  // deterministic set drops into these back-to-back dropStream() calls. Set-stream neutrality is
+  // proven in its own harness (tools/cas1653-sets.mjs). Restored to the shipped rate below.
+  await page.evaluate(() => { window.__dev.setLegRate(0); if (window.__dev.setSetRate) window.__dev.setSetRate(0); });
   const s1 = await page.evaluate(() => window.__dev.dropStream(400, 987654));
   const s2 = await page.evaluate(() => window.__dev.dropStream(400, 987654));
   const legs0 = s1.filter((d) => d.uniq).length;
@@ -181,9 +185,10 @@ try {
   // stream, NEVER the shared srand — so the NON-legendary drops (kind/rarity/tier) must be
   // byte-identical between the two rates; the ON run only *appends* extra `uniq` entries. Under the
   // old shared-srand roll this would DIVERGE (the gate draw shifts every downstream loot roll).
+  // setRng held at 0 throughout (from section 5) so ONLY the legendary rate varies here.
   const base0 = await page.evaluate(() => { window.__dev.setLegRate(0); return window.__dev.dropStream(600, 424242); });
   const onRaw = await page.evaluate(() => { window.__dev.setLegRate(0.5); return window.__dev.dropStream(600, 424242); });
-  await page.evaluate(() => window.__dev.setLegRate(null)); // restore shipped rate
+  await page.evaluate(() => { window.__dev.setLegRate(null); if (window.__dev.setSetRate) window.__dev.setSetRate(null); }); // restore shipped rates
   const stripLeg = (s) => s.filter((d) => !d.uniq);         // remove the appended legendary entries
   const baseStr = JSON.stringify(stripLeg(base0));
   const onStr = JSON.stringify(stripLeg(onRaw));
