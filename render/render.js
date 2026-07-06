@@ -595,7 +595,27 @@ export function createRenderer(ctx){
     const fps=(state==="walk")?9:(state==="attack")?(def.fc/Math.max(0.15,CFG.atkCD)):(state==="roll")?(def.fc/Math.max(0.12,CFG.rollTime||0.2)):2;
     const loop=(state==="walk");
     let fi=Math.floor((h.animT||0)*fps); fi=loop?(fi%def.fc):Math.min(fi,def.fc-1);
-    if(h.rolling){ ctx.globalAlpha=0.35; ctx.fillStyle="#aeb6c2"; ctx.beginPath(); ctx.arc(h.x,h.y+4,15,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
+    if(h.rolling){ ctx.globalAlpha=0.35; ctx.fillStyle="#aeb6c2"; ctx.beginPath(); ctx.arc(h.x,h.y+4,15,0,6.28); ctx.fill(); ctx.globalAlpha=1;
+      // CAS-1619: procedural DIRECTIONAL dash streak. The warrior_dash8 sprite bakes its
+      // whoosh HORIZONTAL in every direction row (frames 0-3), so N/S/diagonal dashes read
+      // as an E-O streak. We suppress those baked frames in drawHeroClass and draw the streak
+      // here, oriented along the real dash vector (rollX,rollY) → all 8 directions. Additive,
+      // gated on !reduceMotion, derived from rollT/rollTime only (no RNG, no sim mutation → Stage-2 safe).
+      if(!G.settings.reduceMotion && (h.rollX||h.rollY)){
+        const ra=Math.atan2(h.rollY,h.rollX), c=Math.cos(ra), s=Math.sin(ra);
+        const fade=clamp((h.rollT||0)/Math.max(0.12,CFG.rollTime||0.2),0,1); // 1→0 across the dash (strongest at start)
+        const cx0=h.x, cy0=h.y-6, len=34+18*fade;   // torso anchor; trail toward -dash
+        ctx.save(); ctx.globalCompositeOperation="lighter";
+        for(let i=0;i<3;i++){ const off=(i-1)*4, nx=-s*off, ny=c*off; // 3 stacked lines = streak body
+          const g=ctx.createLinearGradient(cx0+nx,cy0+ny, cx0-c*len+nx, cy0-s*len+ny);
+          g.addColorStop(0,`rgba(255,224,138,${0.55*fade})`);
+          g.addColorStop(0.5,`rgba(255,176,71,${0.28*fade})`);
+          g.addColorStop(1,"rgba(255,176,71,0)");
+          ctx.strokeStyle=g; ctx.lineWidth=(i===1?5:2.4); ctx.lineCap="round";
+          ctx.beginPath(); ctx.moveTo(cx0+nx,cy0+ny); ctx.lineTo(cx0-c*len+nx,cy0-s*len+ny); ctx.stroke(); }
+        ctx.restore();
+      }
+    }
     if(h.iframe>0 && !h.dead && Math.floor(G.t*20)%2===0) ctx.globalAlpha=0.45;
     const flip=Math.cos(ang)<0, tint=h.hurtFlash>0?"#ffffff":null;
     const bob=(state==="idle")?Math.sin(G.t*2)*1.2:0;   // gentle idle breathing only
@@ -690,7 +710,7 @@ export function createRenderer(ctx){
     // CAS-333 (CAS-301a): `rows`/`row` carry the 8-direction strip layout (8 stacked rows,
     // pick row by facing bucket); legacy single-facing strips keep rows=1,row=0. `flipOff`
     // suppresses the horizontal flip for 8-dir strips (every facing is real art).
-    let key,fc,fi,rows=1,row=0,flipOff=false;
+    let key,fc,fi,rows=1,row=0,flipOff=false,rotAng=null;
     if(state==="dead" && has("clsdeath_"+art)){
       key="clsdeath_"+art; fc=CLASS_DEATH_FC; fi=Math.min(fc-1,Math.floor((animT||0)*(fc/CLASS_DEATH_DUR)));
     } else if(state==="special" && has("clsspecial_"+art)){
@@ -706,7 +726,11 @@ export function createRenderer(ctx){
       // the roll; row = dash heading bucket (the call site passes ang=atan2(rollY,rollX) during
       // a roll). Real per-facing art → flip suppressed. Gated FIRST so it wins over the single-
       // dir clsdash_ strip; non-warrior / missing file falls through to clsdash_ then idle-roll.
-      key="clsdash8_"+art; fc=CLASS_DASH8_FC; rows=8; row=dir8FromAngle(ang||0); flipOff=true;
+      // CAS-1618: warrior_dash8.png has all 8 rows baked identically (E-W only). Row selection
+      // was a no-op — always showed horizontal regardless of direction. Fix: always use row 0
+      // (the canonical E-W bake) and rotate the canvas to match the actual dash angle so the
+      // streak trails correctly in any of the 8 directions.
+      key="clsdash8_"+art; fc=CLASS_DASH8_FC; rows=8; row=0; flipOff=true; rotAng=ang||0;
       fi=Math.min(fc-1, Math.floor((animT||0)*(fc/Math.max(0.12, CFG.rollTime||0.2))));
     } else if(state==="roll" && has("clsdash_"+art)){
       // CAS-329: dodge-roll dash — play the 8f dash strip once across the roll duration.
@@ -756,7 +780,13 @@ export function createRenderer(ctx){
       _heroBx.globalAlpha=1; _heroBx.globalCompositeOperation="source-over";
       src=_heroBuf; ssx=0; ssy=0; }
     ctx.save(); ctx.imageSmoothingEnabled=false;
-    if(useFlip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,fw,fh,0,0,dw,dh); }
+    if(rotAng !== null){
+      // CAS-1618: rotate canvas around the hero body pivot so the E-W dash art trails
+      // in the actual dash direction.
+      const pivX=cx, pivY=feet-(bobUp||0);
+      ctx.translate(pivX, pivY); ctx.rotate(rotAng);
+      ctx.drawImage(src,ssx,ssy,fw,fh,-ax*S*sqX,-foot*S*sqY,dw,dh);
+    } else if(useFlip){ ctx.translate(dx+dw,dy); ctx.scale(-1,1); ctx.drawImage(src,ssx,ssy,fw,fh,0,0,dw,dh); }
     else ctx.drawImage(src,ssx,ssy,fw,fh,dx,dy,dw,dh);
     ctx.restore(); return true;
   }
@@ -2137,9 +2167,13 @@ export function createRenderer(ctx){
     ctx.fillText(STR.talentTitle+" — "+(STR.classes[h.cls]?STR.classes[h.cls].name:h.cls), VW/2, y+26);
     ctx.fillStyle=(h.talentPts>0)?COL.heal:COL.textDim; ctx.font="bold 13px "+FF;
     ctx.fillText(STR.talentPoints(h.talentPts|0)+(h.talentPts>0?"":"  ("+STR.talentNoPts+")"), VW/2, y+46);
+    // CAS-1602: make the AXIS explicit — this is the per-RUN, level-keyed tree, NOT the
+    // cross-run Esencia altar. Nivel actual shown so level-gated nodes read in context.
+    ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
+    ctx.fillText("Nivel "+(h.lvl|0)+"  ·  "+STR.talentAxis, VW/2, y+62);
     ui.talentRects=[];
     const nodes=tree.nodes; const nb=tree.branches.length;
-    const colW=(bw-48)/nb, top=y+70, rowH=78, nh=54;
+    const colW=(bw-48)/nb, top=y+84, rowH=78, nh=54;
     const focusId=(function(){ const ns=talentNodes(h.cls); const i=G.talFocus||0; return ns[i]?ns[i].id:null; })();
     // branch headers
     for(let b=0;b<nb;b++){ const cx=x+24+colW*b+colW/2;
@@ -2165,6 +2199,8 @@ export function createRenderer(ctx){
       ctx.strokeStyle=border; ctx.lineWidth=(n.id===focusId)?2.5:1.5; ctx.strokeRect(bx,by,nw,nh);
       // exclusive-fork marker
       if(n.excl){ ctx.fillStyle="#c77dff"; ctx.font="9px "+FF; ctx.textAlign="left"; ctx.fillText("◆", bx+4, by+12); }
+      // CAS-1602: spell-empower node marker (★) — this node upgrades a class spell, not stats.
+      if(n.empower){ ctx.fillStyle="#7fd6ff"; ctx.font="9px "+FF; ctx.textAlign="left"; ctx.fillText("★", bx+4, by+12); }
       ctx.textAlign="center"; ctx.fillStyle=(st==="lock")?COL.textDim:COL.cream; ctx.font=(nw<130?"bold 9px "+FF:"bold 11px "+FF);
       ctx.fillText(n.name, p.cx, by+22);
       ctx.fillStyle=(st==="max")?COL.heal:(st==="avail"?COL.textGold:COL.textDim); ctx.font="11px "+FF;
@@ -2184,7 +2220,9 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.fillText(dn.name+"  ["+STR.talentRank(nodeRank(h,dn.id),dn.max)+"]", dbx+10, dy+18);
       ctx.fillStyle=COL.cream; ctx.font="11px "+FF; ctx.fillText(dn.desc, dbx+10, dy+34);
       const lr=lockReason(h,dn.id); let hint="";
-      if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
+      // CAS-1602: level-gate reason ("level:N") → explicit "Requiere Nivel N".
+      if(lr&&lr.indexOf("level:")===0) hint=STR.talentLevelReq(lr.slice(6));
+      else if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
       if(hint){ ctx.fillStyle="#d0a0a0"; ctx.font="10px "+FF; ctx.fillText(hint, dbx+10, dy+48); }
     }
     // respec button + hint
