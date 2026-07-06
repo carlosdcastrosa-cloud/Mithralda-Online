@@ -13,7 +13,7 @@
 // A Stage-2 networking layer wraps sim/ by feeding intents per tick and ignoring
 // render/audio/view — no rewrite of the gameplay logic required.
 // ===========================================================================
-import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode, ascendMeta } from "./sim/sim.js";
+import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode, ascendMeta, castAbility as simCastAbility } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
@@ -297,6 +297,10 @@ export function createGame(canvas, ctx, getView){
       respecTalents:()=>simDev.respecTalents(), canAlloc:(id)=>simDev.canAlloc(id),
       // CAS-120 active-skill-bar contract consumed by tools/cas120-skills.mjs — additive
       skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot),
+      // CAS-1570 active-abilities QA contract (tools/cas1570-*.mjs) — additive
+      abilityPool:()=>simDev.abilityPool(), abilityBar:()=>simDev.abilityBar(),
+      loadout:()=>simDev.loadout(), setLoadout:(ids)=>simDev.setLoadout(ids),
+      castAbility:(slot)=>simCastAbility(slot), abilityProbe:(id)=>simDev.abilityProbe(id),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

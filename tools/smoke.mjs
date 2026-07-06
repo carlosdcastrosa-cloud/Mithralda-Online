@@ -67,8 +67,13 @@ try {
   await page.waitForFunction("window.__dev.scene() === 'classsel'", { timeout: 5000 });
   log("✔ name entered -> class select");
 
-  // 3) class select -> play (choose class 1 = warrior)
+  // 3) class select -> ability draft (choose class 1 = warrior)
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true })));
+  // CAS-1570: the run-start ability-draft scene now sits between class-select and play.
+  await page.waitForFunction("window.__dev.scene() === 'abilitysel'", { timeout: 5000 });
+  log("✔ class select -> ability draft");
+  // seed is pre-filled with the default loadout (2 abilities) so Enter confirms straight through.
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
   await page.waitForFunction("window.__dev.scene() === 'play'", { timeout: 5000 });
   const hero = await page.evaluate(() => window.__dev.hero());
   if (hero && hero.cls) log(`✔ entered play as '${hero.cls}' at (${hero.x | 0}, ${hero.y | 0})`);
