@@ -311,10 +311,6 @@ export function createGame(canvas, ctx, getView){
       talentState:()=>simDev.talentState(), talentTree:(cls)=>simDev.talentTree(cls),
       grantTalentPts:(n)=>simDev.grantTalentPts(n), allocTalent:(id)=>simDev.allocTalent(id),
       respecTalents:()=>simDev.respecTalents(), canAlloc:(id)=>simDev.canAlloc(id),
-      // CAS-1601 level-gate hooks consumed by QA (lockReason "level:N" + set hero level)
-      lockReason:(id)=>simDev.lockReason(id), setLevel:(n)=>simDev.setLevel(n), setLvl:(n)=>simDev.setLevel(n),
-      // CAS-1602 spell-empower probe (ENTREGABLE 1↔2 bridge; copy-on-write per class)
-      empowerProbe:(cls)=>simDev.empowerProbe(cls),
       // CAS-120 active-skill-bar contract consumed by tools/cas120-skills.mjs — additive
       skillBar:(cls)=>simDev.skillBar(cls), skillProbe:(cls,slot)=>simDev.skillProbe(cls,slot),
       // CAS-1570 active-abilities QA contract (tools/cas1570-*.mjs) — additive

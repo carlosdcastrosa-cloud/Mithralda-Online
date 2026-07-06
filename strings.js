@@ -155,6 +155,11 @@ export const STR = {
   talentExcl: "Elección exclusiva (ya elegiste la otra rama)",
   talentNoPts: "Sin puntos — sube de nivel",
   talentRank: (r, m) => r + "/" + m,
+  // CAS-1602: this tree is per-RUN, keyed to LEVEL (distinct from the Esencia altar, which is
+  // meta/cross-run). Subtitle makes the axis explicit; level-lock hint shows the required level.
+  talentAxis: "Por partida · 1 punto por NIVEL · (distinto de Esencia — meta del altar)",
+  talentLevelReq: (n) => "Requiere Nivel " + n,
+  talentEmpowerTag: "HECHIZO",
   talentDodge: "¡ESQUIVA!",
 
   shopTitle: "TIENDA DE SOLANA",

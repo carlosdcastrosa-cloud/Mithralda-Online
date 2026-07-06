@@ -2137,13 +2137,9 @@ export function createRenderer(ctx){
     ctx.fillText(STR.talentTitle+" — "+(STR.classes[h.cls]?STR.classes[h.cls].name:h.cls), VW/2, y+26);
     ctx.fillStyle=(h.talentPts>0)?COL.heal:COL.textDim; ctx.font="bold 13px "+FF;
     ctx.fillText(STR.talentPoints(h.talentPts|0)+(h.talentPts>0?"":"  ("+STR.talentNoPts+")"), VW/2, y+46);
-    // CAS-1602: make the AXIS explicit — this is the per-RUN, level-keyed tree, NOT the
-    // cross-run Esencia altar. Nivel actual shown so level-gated nodes read in context.
-    ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
-    ctx.fillText("Nivel "+(h.lvl|0)+"  ·  "+STR.talentAxis, VW/2, y+62);
     ui.talentRects=[];
     const nodes=tree.nodes; const nb=tree.branches.length;
-    const colW=(bw-48)/nb, top=y+84, rowH=78, nh=54;
+    const colW=(bw-48)/nb, top=y+70, rowH=78, nh=54;
     const focusId=(function(){ const ns=talentNodes(h.cls); const i=G.talFocus||0; return ns[i]?ns[i].id:null; })();
     // branch headers
     for(let b=0;b<nb;b++){ const cx=x+24+colW*b+colW/2;
@@ -2169,8 +2165,6 @@ export function createRenderer(ctx){
       ctx.strokeStyle=border; ctx.lineWidth=(n.id===focusId)?2.5:1.5; ctx.strokeRect(bx,by,nw,nh);
       // exclusive-fork marker
       if(n.excl){ ctx.fillStyle="#c77dff"; ctx.font="9px "+FF; ctx.textAlign="left"; ctx.fillText("◆", bx+4, by+12); }
-      // CAS-1602: spell-empower node marker (★) — this node upgrades a class spell, not stats.
-      if(n.empower){ ctx.fillStyle="#7fd6ff"; ctx.font="9px "+FF; ctx.textAlign="left"; ctx.fillText("★", bx+4, by+12); }
       ctx.textAlign="center"; ctx.fillStyle=(st==="lock")?COL.textDim:COL.cream; ctx.font=(nw<130?"bold 9px "+FF:"bold 11px "+FF);
       ctx.fillText(n.name, p.cx, by+22);
       ctx.fillStyle=(st==="max")?COL.heal:(st==="avail"?COL.textGold:COL.textDim); ctx.font="11px "+FF;
@@ -2190,9 +2184,7 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.fillText(dn.name+"  ["+STR.talentRank(nodeRank(h,dn.id),dn.max)+"]", dbx+10, dy+18);
       ctx.fillStyle=COL.cream; ctx.font="11px "+FF; ctx.fillText(dn.desc, dbx+10, dy+34);
       const lr=lockReason(h,dn.id); let hint="";
-      // CAS-1602: level-gate reason ("level:N") → explicit "Requiere Nivel N".
-      if(lr&&lr.indexOf("level:")===0) hint=STR.talentLevelReq(lr.slice(6));
-      else if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
+      if(lr==="req") hint=STR.talentLocked; else if(lr==="excl") hint=STR.talentExcl; else if(lr==="pts") hint=STR.talentNoPts; else if(lr==="max") hint="MÁX";
       if(hint){ ctx.fillStyle="#d0a0a0"; ctx.font="10px "+FF; ctx.fillText(hint, dbx+10, dy+48); }
     }
     // respec button + hint

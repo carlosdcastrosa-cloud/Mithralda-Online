@@ -62,7 +62,9 @@ for (const cls of ["warrior", "paladin", "mage", "druid", "priest"]) {
   const { TALENTS } = await import("../sim/talents.js");
   const gated = TALENTS[cls].nodes.filter((n) => n.levelReq);
   const t1 = TALENTS[cls].nodes.filter((n) => n.tier === 1).every((n) => n.levelReq === 3);
-  const t2 = TALENTS[cls].nodes.filter((n) => n.tier === 2).every((n) => n.levelReq === 6);
+  // CAS-1602: tier-2 STAT capstones stay Nv6; the tier-2 SPELL-EMPOWER node is a deeper Nv8
+  // gate (validated in tools/cas1602-talent-empower.mjs), so exclude empower nodes here.
+  const t2 = TALENTS[cls].nodes.filter((n) => n.tier === 2 && !n.empower).every((n) => n.levelReq === 6);
   const t0 = TALENTS[cls].nodes.filter((n) => n.tier === 0).every((n) => !n.levelReq);
   if (t1 && t2 && t0 && gated.length >= 5) pass(`[data] ${cls}: tier-1→Nv3, tier-2→Nv6, tier-0 ungated (${gated.length} gated)`);
   else fail(`[data] ${cls} gating wrong: t1=${t1} t2=${t2} t0=${t0} gated=${gated.length}`);
