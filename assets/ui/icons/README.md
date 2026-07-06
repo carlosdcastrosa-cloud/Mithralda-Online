@@ -43,6 +43,29 @@ slot_bag, slot_weapon, slot_shield` — one per Tibia-style equip slot
 `hud_potion_hp.png` (red flask), `hud_potion_mp.png` (blue flask),
 `hud_coin.png` (gold coin) — replace the `♥ ◆` text glyphs where an icon fits.
 
+## Meta-progression altar — node icons `altar_*.png`
+
+Same 32×32 native formula, palette locked to the HUD set (steel, gold, crimson,
+frost `#7fd6ff`, arcane `#b57bff`, leather). Key → `altar_<key.toLowerCase()>.png`;
+GE renders PNG with a glyph fallback (CAS-417/1562).
+
+**v1 (CAS-1558)** — `altar_hpmax` (crimson heart+gold `+`), `altar_dmg` (steel sword),
+`altar_movespd` (boot+wind), `altar_reroll` (cyan cycle+bone die), `altar_startgold`
+(coin stack), `altar_essence` (arcane shard currency).
+
+**v2 Tier-2 + Ascension (CAS-1566)** — regenerate with `node tools/cas1566-altar-t2-icons.mjs`:
+
+| file | motif / palette |
+|---|---|
+| altar_t2_boonrare | frost-blue faceted "rare" gem + gold boon sparkle |
+| altar_t2_startboon | arcane gift box, crimson ribbon+bow, gold sparkle (boon granted at run start) |
+| altar_t2_dashiframe | steel shield + cyan dash streaks + cyan chevron glimmer (invuln dash) |
+| altar_t2_zonechest | wooden treasure chest, gold bands + lock |
+| altar_t2_reroll | cyan cycle arrows + bone die + gold `+` (extra Tier-2 reroll charge) |
+| altar_ascension | radiant gold rising chevrons + crowning star (rank marker) |
+
+`tools/cas1566-montage.png` — v1 (row 1) vs v2 (row 2) at 1× and 5× on `#12141b`.
+
 ## Review
 
 `cas415-montage.png` — full set at 1× and 2× on `#12141b`
