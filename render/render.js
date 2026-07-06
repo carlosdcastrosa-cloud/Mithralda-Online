@@ -1620,6 +1620,7 @@ export function createRenderer(ctx){
     // spell bar
     renderSpellBar();
     renderAbilityBar(); // CAS-1570: the 2 drafted active-ability slots (radial cooldown)
+    renderVitalsShoulders(h, mhp); // CAS-1611: HP/MP "hombreras" flanking the action bar
     // minimap
     if(!isTouch || true) renderMiniMap();
     if(auditRects){ try{ window.__uiRects=auditRects; }catch(e){} }
@@ -1665,23 +1666,28 @@ export function createRenderer(ctx){
     g.globalCompositeOperation="destination-in"; g.drawImage(base,0,0,32,32);
     _consumIcon[c.id]=cv; return cv;
   }
-  function renderConsumableSlot(h, hudUI){ if(isTouch) return; const s=44;
-    // CAS-299: the legacy slot lives bottom-left, where the HUD console now sits. When the
-    // HUD is active, reflow the quick-use slot to just LEFT of the spell bar (combat-coherent:
-    // potions beside spells) so it never overlaps the console frame.
-    const sidebar=view.sbw>0;
-    let x=12, y=VH-12-s;
-    if(sidebar){ // CAS: quick-use slot sits in the bottom bar, just LEFT of the attacks hotbar
-      const sb=Math.min(46,VW*0.1), sbTotal=4*sb+3*6, hbx=Math.round(view.gcx()-sbTotal/2);
-      x=Math.max(10, hbx-s-14); y=VH-view.bbh+8; }
-    else if(hudUI){ const sb=Math.min(46,VW*0.1); const sbTotal=4*sb+3*6; const sbx=VW/2-sbTotal/2;
-      x=Math.max(12, Math.round(sbx-s-16)); y=VH-14-s;
-      // CAS-416: below ~930px wide the spell bar sits close enough to the left corner
-      // that "just LEFT of the spell bar" lands ON the HUD console frame (DOM panel,
-      // 340px × HUD scale wide). Flip the slot to the RIGHT of the spell bar instead
-      // (still combat-coherent, and the minimap corner stays clear down to 640px).
-      const hs=VW>=1280?1:VW>=1024?0.92:VW>=640?0.84:0.78; // mirror hud.js applyScale --s
-      if(x<12+340*hs+8) x=Math.round(sbx+sbTotal+16); }
+  // CAS-1611 (board CAS-1603 / AD dir CAS-1604): ONE action bar abajo-centro — the single
+  // command hub (Diablo IV / Hades / Last Epoch pattern). Seven contiguous 48px slots in one
+  // centred row: [básico · 3 hechizos] · [Z · X habilidades] · [poción]. Every actor
+  // (renderSpellBar/renderAbilityBar/renderConsumableSlot/renderVitalsShoulders) reads its
+  // geometry from here so the block never desyncs. UI-ONLY: casts stay keyboard/touch-driven
+  // (input.js hit-tests NOTHING here), so this just RELOCATES the block — the CAS-1570/1539
+  // radial cooldown mechanic is untouched. Draggable+persistent via the uiLayout "actionbar"
+  // anchor in the canvas-HUD path (sidebar mode pins it centred over the game area, as before).
+  // Reused mutated object → zero per-frame alloc (frame-budget lens).
+  const AB_S=48, AB_GAP=6, AB_N=7;               // 4 spells + 2 abilities + 1 potion = 7
+  const _abGeom={s:AB_S,gap:AB_GAP,total:AB_N*AB_S+(AB_N-1)*AB_GAP,x0:0,y:0,h:AB_S+16,sidebar:false};
+  function actionBarGeom(){
+    const total=_abGeom.total, h=_abGeom.h, sidebar=view.sbw>0; let x0, y;
+    if(sidebar){ x0=Math.round(view.gcx()-total/2); y=VH-view.bbh+8; }        // centred over game area
+    else { x0=uiLayout.cx("actionbar", Math.round(VW/2-total/2), total);      // CAS-418 store default = bottom-centre
+           y=uiLayout.cy("actionbar", VH-8-h, h);                             // y = VH - 8 - h (AD spec)
+           uiLayout.pub("actionbar", x0, y, total, h); }                      // hit-rect for the drag router
+    _abGeom.x0=x0; _abGeom.y=y; _abGeom.sidebar=sidebar; return _abGeom;
+  }
+  function abSlotX(i){ return _abGeom.x0+i*(_abGeom.s+_abGeom.gap); }           // slot 0..6 left→right
+  function renderConsumableSlot(h, hudUI){ if(isTouch) return;
+    const g=actionBarGeom(); const s=g.s, x=abSlotX(6), y=g.y;                 // potion = rightmost slot
     const c=CONSUMABLES[h.consumSel|0]||CONSUMABLES[0]; const qty=(h.consum&&h.consum[c.id])|0;
     // active fury buff timer (shrinking bar) above the slot
     if(h.atkspdBuffT>0){ const f=clamp(h.atkspdBuffT/6,0,1);
@@ -1716,19 +1722,14 @@ export function createRenderer(ctx){
     ctx.textAlign="left";
     AR("consumable", x-2, y-2, s+4, s+14);
   }
-  // CAS-1570 — the two DRAFTED active-ability slots. Sits just LEFT of the class spellbar
-  // so all castable actions read in one row. Reuses the exact CAS-1539 radial-cooldown
-  // sweep. $0 art: the icon is the ability's glyph tinted by its colour (no PNG needed).
+  // CAS-1570 — the two DRAFTED active-ability slots. CAS-1611: slots 4 & 5 of the unified
+  // action bar (immediately RIGHT of the 4 class-spell slots), so all castable actions read
+  // in one centred row. Reuses the exact CAS-1539 radial-cooldown sweep — mechanic unchanged,
+  // block merely relocated. $0 art: the icon is the ability's glyph tinted by its colour.
   function renderAbilityBar(){ const h=G.hero; if(!h||!h.loadout||h.abilCD==null||isTouch) return;
-    const n=2, s=Math.min(46,VW*0.1), gap=6, sp4=4*s+3*gap, total=n*s+(n-1)*gap;
-    // Sit LEFT of the consumable quick-slot (which itself sits left of the spellbar), so
-    // the three clusters — abilities | potion | class spells — never overlap. cons=44+14.
-    const sidebar=view.sbw>0; let x0, y;
-    if(sidebar){ x0=Math.round(view.gcx()-sp4/2)-58-total-12; y=VH-view.bbh+8; }
-    else { x0=(uiLayout.cx("spellbar", VW/2-sp4/2, sp4))-58-total-12; y=uiLayout.cy("spellbar", VH-14-s, s+11); }
-    if(x0<8) x0=8; // never clip off the left edge on a narrow canvas
+    const n=2; const g=actionBarGeom(); const s=g.s, y=g.y;
     const keys=["Z","X"];
-    for(let i=0;i<n;i++){ const a=ABILITY_MAP[h.loadout[i]]||{}; const x=x0+i*(s+gap);
+    for(let i=0;i<n;i++){ const a=ABILITY_MAP[h.loadout[i]]||{}; const x=abSlotX(4+i);
       const afford=h.mp>=(a.cost||0);
       ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
       ctx.fillStyle=afford?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
@@ -1750,21 +1751,14 @@ export function createRenderer(ctx){
       if((a.cost||0)>0){ ctx.fillStyle=afford?"#8ab8ff":"#ff6b6b"; ctx.font="8px "+FF; ctx.fillText((a.cost)+"mp",x+s/2,y+s+9); } }
     ctx.textAlign="left";
   }
-  function renderSpellBar(){ const h=G.hero; const n=4; const s=Math.min(46,VW*0.1); const gap=6; const total=n*s+(n-1)*gap;
+  function renderSpellBar(){ const h=G.hero; const n=4;
     if(isTouch) return; // touch uses buttons
-    // CAS-418: anchor from the layout store (default = bottom-centre, unchanged);
-    // cx/cy clamp a stored anchor to the live viewport EVERY draw (covers load+resize).
-    const sidebar=view.sbw>0;
-    let x0, y;
-    if(sidebar){ // CAS: attacks hotbar sits in the bottom bar, centred over the game area, just
-      // above the chat input (which the DOM owns at y≈VH-30)
-      x0=Math.round(view.gcx()-total/2); y=VH-view.bbh+8; }
-    else {
-      x0=uiLayout.cx("spellbar", VW/2-total/2, total);
-      y=uiLayout.cy("spellbar", VH-14-s, s+11);
-      uiLayout.pub("spellbar", x0, y, total, s+11); } // hit-rect for the input drag router
-    AR("spellbar", x0-2, y-2, total+4, s+13); // incl. the mp-cost caption line
-    if(uiLayout.dragging()==="spellbar"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x0-4,y-4,total+8,s+15); }
+    // CAS-1611: slots 0..3 (básico + 3 hechizos) of the unified action bar. Geometry + the
+    // uiLayout "actionbar" anchor (default bottom-centre, draggable, Reset) come from
+    // actionBarGeom(); this draws the class-spell cluster + the whole-bar drag affordance.
+    const g=actionBarGeom(); const s=g.s, gap=g.gap, x0=g.x0, y=g.y, total=g.total;
+    AR("actionbar", x0-2, y-2, total+4, s+13); // full 7-slot row incl. the mp-cost caption line
+    if(uiLayout.dragging()==="actionbar"){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(x0-4,y-4,total+8,s+15); }
     // costs / colours / labels are data-driven from SPELLS[cls] (slot 0 = basic attack)
     const sp=SPELLS[h.cls]||SPELLS.warrior; const names=(STR.spellNames&&STR.spellNames[h.cls])||["","",""];
     const costs=[0,sp[0].cost,sp[1].cost,sp[2].cost];
@@ -1806,6 +1800,23 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.cream; ctx.font="8px "+FF; ctx.textAlign="center"; ctx.fillText(label,x+s/2,y+s-4);
       if(costs[i]>0){ ctx.fillStyle=(h.mp>=costs[i])?"#8ab8ff":"#ff6b6b"; ctx.font="8px "+FF; ctx.fillText(costs[i]+"mp",x+s/2,y+s+9);} }
   }
+  // CAS-1611 (AD P1 #5/#6): vitals as "hombreras" flanking the action bar — HP left, MP right,
+  // engrosadas (≥22px) so the most important stat carries real visual weight (HP dominates:
+  // taller + wider). They ride the action-bar flanks (move+persist with the "actionbar" uiLayout
+  // anchor, restored by Reset). In the canvas-HUD overlay path the DOM statframe still owns
+  // vitals until CAS-1613 retires it, so skip there to avoid a duplicate readout.
+  function renderVitalsShoulders(h, mhp){ if(isTouch) return;
+    const sidebar=view.sbw>0; if(!sidebar && hudActive()) return;
+    const g=actionBarGeom();
+    const hHP=26, hMP=22, wHP=138, wMP=120, gapB=16;        // HP taller+wider = dominates; both ≥22px
+    const yHP=g.y+Math.round((g.s-hHP)/2), yMP=g.y+Math.round((g.s-hMP)/2);
+    let xHP=g.x0-gapB-wHP; if(xHP<8) xHP=8;                 // never clip off the left edge
+    let xMP=g.x0+g.total+gapB; const rEdge=sidebar?view.sbx():VW;
+    if(xMP+wMP>rEdge-8) xMP=rEdge-8-wMP;                    // keep MP inside the game area / viewport
+    bar(xHP,yHP,wHP,hHP, h.hp/mhp,          COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
+    bar(xMP,yMP,wMP,hMP, h.mp/h.maxMp,      COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
+    AR("vitals_hp", xHP-2, yHP-2, wHP+4, hHP+4); AR("vitals_mp", xMP-2, yMP-2, wMP+4, hMP+4);
+  }
   // CAS: the fixed RIGHT sidebar (Tibia-style). Opaque column covering x∈[view.sbx(),VW] with
   // the hero identity + vitals at the top, then the docked minimap (renderMiniMap) and a stack
   // of action buttons (inventory / talents / mastery / wardrobe / map / menu) + a mastery
@@ -1821,11 +1832,10 @@ export function createRenderer(ctx){
     ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF;
     const clsName=(STR.classes&&STR.classes[h.cls]&&STR.classes[h.cls].name)||h.cls;
     ctx.fillText(clsName+" · "+STR.level(h.lvl), x0, y+27);
-    // vitals bars
+    // vitals — CAS-1611: HP/MP relocated to the action-bar "hombreras" (renderVitalsShoulders);
+    // the sidebar keeps only the XP/level bar here until CAS-1612 relocates XP full-width.
     y+=34;
-    bar(x0,y,    iw,16, h.hp/mhp,      COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
-    bar(x0,y+20, iw,13, h.mp/h.maxMp,  COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
-    bar(x0,y+37, iw,9,  h.xp/h.xpNext, COL.xpf,COL.xpb, STR.level(h.lvl));
+    bar(x0,y, iw,12, h.xp/h.xpNext, COL.xpf,COL.xpb, STR.level(h.lvl));
     // action buttons (minimap is drawn later by renderMiniMap into the gap at y≈104)
     const sb=sidebarBtns();
     if(sb){ for(const k in sb){ const b=sb[k];
