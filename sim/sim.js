@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -57,6 +57,13 @@ const setRng = createRNG(0x5e75c0de);
 // byte-identical whether or not an Ultimate is offered/drafted (AC4 [AC-RNG-STRONG]). Append-only.
 // Charge accrual (hitEnemy/killEnemy) is pure arithmetic — no RNG at all.
 const ultRng = createRNG(0x117a1a7e);
+// CAS-1664 — DEDICATED Arena-de-Oleadas stream (distinct seed from leg/set/ult). EVERY random
+// draw the wave mode makes (mob count, mob type, elite-affix/champion gate, boss pick) comes ONLY
+// from here — never the authoritative srand — and the whole arena controller is HARD-GATED behind
+// G.arenaMode. So a normal adventure (arenaMode off) never runs a line of arena code and stays
+// byte-identical to a build without the mode at ANY arenaAffixRate (AC5 [AC-RNG-STRONG]). Like the
+// other dedicated streams, seed() does NOT reset it — the determinism harness neutralises via rate 0.
+const arenaRng = createRNG(0xa5e4a000);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -136,6 +143,15 @@ export const G = {
   // one-shot flush flag the persistence controller consumes to write the store the instant
   // essence is banked or a node bought (durable without waiting for the throttled autosave).
   meta:null, metaDirty:false,
+  // CAS-1664: Arena de Oleadas (Wave Survival) endgame MODE. `arenaMode` is the master gate —
+  // false for every normal adventure, so no arena code runs and the sim/RNG is byte-identical to
+  // a build without the mode. `pendingArena` is set by the menu "Arena de Oleadas" entry and
+  // consumed by createHero (which flips arenaMode on + starts the gauntlet). `arena` is PURELY
+  // runtime bookkeeping (never serialized into the run save); only `best` is durable, persisted in
+  // its OWN store (mithralda.arena.v1) via persist.js on the `arenaDirty` flush flag — the run save
+  // schema is untouched (AC4). wave = highest wave REACHED (the score); resting = the between-wave breather.
+  arenaMode:false, pendingArena:false, arenaDirty:false,
+  arena:{ wave:0, spawnedThisWave:0, aliveTarget:0, resting:false, restT:0, best:0 },
 };
 // CAS-128: armed at boot by the persistence controller when this is a FIRST run
 // (no save AND the tutorial-seen flag is unset). createHero() reads it once so the
@@ -568,7 +584,137 @@ export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunt
   // per-run reroll charges on top of newHero's fresh budget; then fill HP to the boosted cap.
   reconcileMeta(G.hero); applyMetaReroll(G.hero); applyMetaStartBoons(G.hero); G.hero.hp=heroMaxHp(G.hero); // CAS-1565: Vanguardia start-boons before HP fill
   beginRun();                                                   // CAS-277: first run baseline for the recap
-  if(tutArmed){ startTutorial(); tutArmed=false; } }            // CAS-128: first-run guided flow
+  if(tutArmed){ startTutorial(); tutArmed=false; }              // CAS-128: first-run guided flow
+  // CAS-1664: a NEW run always starts OUTSIDE arena (a prior arena run can't leak its mode into a
+  // fresh adventure). Only the menu "Arena de Oleadas" entry (which set pendingArena) flips it on.
+  G.arenaMode=false;
+  if(G.pendingArena){ G.pendingArena=false; G.arenaMode=true; startArena(); } }
+
+// ==================== CAS-1664: ARENA DE OLEADAS (Wave Survival) ====================
+// A separate endgame MODE that reuses the WHOLE content library — the ETPL trash pool, the HUNTS
+// capstone stat blocks, the elite affixes, the boon draft, the loot streams and the Esencia bank —
+// with ZERO new art. Every random draw comes from the DEDICATED `arenaRng` stream and every path
+// below is reachable ONLY while G.arenaMode is on, so a normal adventure is byte-identical to a
+// build without the mode (RNG-neutral by construction). Persistence is additive: only the best wave
+// survives, in its own store (mithralda.arena.v1); the run save schema is never touched.
+
+// The eligible trash pool: every ETPL row the ADVENTURE uses as a hostile mob — damaging, non-neutral,
+// non-boss. Derived from the live table (stable insertion order) so a new mob joins the arena for free.
+function arenaMobPool(){ const out=[]; for(const k in ETPL){ const t=ETPL[k]; if((t.dmg||0)>0 && !t.neutral && !t.boss) out.push(k); } return out; }
+// Elite-affix probability for wave n (climbs with the wave, capped). A dev override (arenaSetAffixRate)
+// pins it for deterministic affix tests. Pure arithmetic — no RNG, no srand touch.
+let arenaAffixOverride=null;
+function arenaAffixRate(n){ if(arenaAffixOverride!=null) return arenaAffixOverride;
+  return Math.min(ARENA.affixCap, ARENA.affixBase + (n|0)*ARENA.affixStep); }
+// A clear open tile a readable ring-distance from the hero (same approach as the ambush/champion
+// spawn). Draws its angle/distance from arenaRng ONLY. Falls back to a fixed offset if crowded.
+function arenaSpawnPos(){ const h=G.hero;
+  for(let i=0;i<24;i++){ const a=arenaRng.rr(0,6.28), dpx=arenaRng.rr(180,260);
+    const x=h.x+Math.cos(a)*dpx, y=h.y+Math.sin(a)*dpx;
+    if(!solidBlocked(x,y,16)) return {x,y}; }
+  return {x:h.x+200, y:h.y}; }
+// Roll an elite affix onto a freshly-spawned ARENA mob, gated by `rate` on arenaRng (NOT srand).
+// Reuses the adventure's applyAffix/applyChampion (both RNG-free once the id is chosen) so the
+// affix combat/render hooks are wired identically — only the roll's stream differs.
+function arenaMaybeAffix(e, rate){
+  if(!e || e.isBoss || e.tpl.neutral) return e;
+  if((e.tpl.dmg||0)<=0 || e.tpl.arch==="volatile") return e;    // supports / bombers make degenerate carriers (mirror maybeAffix)
+  if(!(rate>0)) return e;                                        // OFF → zero arenaRng draw
+  if(arenaRng.srand()>=rate) return e;
+  let pool=MOB_AFFIX_IDS; if(e.tpl.ranged) pool=MOB_AFFIX_IDS.filter(id=>!MOB_AFFIX[id].melee);
+  const firstId=pool[arenaRng.ri(0,pool.length-1)];
+  applyAffix(e, firstId);
+  // A fraction of affixed arena mobs promote to an Élite Campeón (2nd distinct affix + champion
+  // stat block) — the SAME applyChampion path the adventure uses, gated on arenaRng. applyChampion
+  // sets e.champElite, so killEnemy takes the TRASH champElite branch (onChampElite: superior loot +
+  // banked Esencia) — NOT the e.champion path, whose onChampionKill needs a hunt zone we don't have.
+  if(arenaRng.srand()<ARENA.champChance){ const others=pool.filter(id=>id!==firstId);
+    if(others.length) applyChampion(e, firstId, others[arenaRng.ri(0,others.length-1)]); }
+  return e;
+}
+// Spawn ONE wave-boss: reuse a HUNTS boss stat block (chosen from ARENA.bossZones via arenaRng),
+// scaled by the wave. Mirrors spawnChampion's capstone wiring (enrage + special AI intact) but tags
+// it isBoss+arena (NOT champion) so killEnemy takes the boss-loot branch — never onChampionKill's
+// zone-clear/victory path (and the excluded frost/trial bosses can't fire the win screen anyway).
+function arenaSpawnBoss(n){
+  const zone=ARENA.bossZones[arenaRng.ri(0,ARENA.bossZones.length-1)]; const B=HUNTS[zone].boss;
+  const p=arenaSpawnPos(); const e=spawnEnemy(B.base, p.x, p.y); const base=e.tpl;
+  const hpMul=1+n*ARENA.hpStep, dmgMul=1+n*ARENA.dmgStep;
+  e.tpl=Object.assign({},base,{ sprite:B.sprite||base.sprite, hp:Math.round(B.hp*hpMul), dmg:Math.round(B.dmg*dmgMul),
+    size:B.size, spd:B.spd??base.spd, knock:B.knock??base.knock, windup:B.windup??base.windup, recover:B.recover??base.recover,
+    ranged:false, aggro:Math.max(base.aggro,340), xp:B.xp, champName:B.name });
+  e.capstone=true; e.enraged=false; e.enrageAt=B.enrageAt||0.5;
+  e.baseSpd=e.tpl.spd; e.enrageSpd=B.enrageSpd||1.35; e.enrageWindup=B.enrageWindup||0.72; e.slam=B.slam||null;
+  e.carapace=B.carapace||null; e.shielded=false; e.shieldBroken=false; e.atkCount=0;
+  e.special=B.special||null; e.specialNow=false;
+  e.rwdTier=B.tier; e.rwdMinR=B.minR; e.rwdXp=B.xp; e.rwdGold=B.gold;
+  e.hp=e.maxHp=e.tpl.hp; e.isBoss=true; e.arena=true; e.zone=zone; e.state="chase";
+  return e;
+}
+// Build wave n: clear any arena remnants, then spawn the roster. Boss waves (every BOSS_EVERY)
+// spawn a single wave-scaled HUNTS boss; every other wave spawns a scaled trash pack whose count,
+// types and affixes all draw from arenaRng.
+function spawnWave(n){
+  const A=G.arena; n=Math.max(1,n|0);
+  arenaClearEnemies();                                       // limpia arena de restos (createHero/prev wave)
+  const boss=(n % ARENA.bossEvery)===0;
+  if(boss){ arenaSpawnBoss(n); }
+  else {
+    const count=Math.min(ARENA.mobCap, ARENA.baseMobs + Math.floor(n*ARENA.mobStep));
+    const pool=arenaMobPool(), rate=arenaAffixRate(n), hpMul=1+n*ARENA.hpStep, dmgMul=1+n*ARENA.dmgStep;
+    for(let i=0;i<count;i++){ const type=pool[arenaRng.ri(0,pool.length-1)]; const p=arenaSpawnPos();
+      const e=spawnEnemy(type, p.x, p.y); const b=e.tpl;
+      e.tpl=Object.assign({},b,{ hp:Math.round(b.hp*hpMul), dmg:Math.round((b.dmg||0)*dmgMul) }); // wave scale on a CLONE (never the shared row)
+      e.hp=e.maxHp=e.tpl.hp; e.arena=true; e.state="chase";
+      arenaMaybeAffix(e, rate); }
+  }
+  A.spawnedThisWave=arenaAliveCount(); A.aliveTarget=A.spawnedThisWave; A.resting=false;
+}
+// Count / clear the LIVE arena enemies (tagged e.arena) — used by the wave-clear check and by
+// spawnWave's remnant sweep. Removes them outright (a hard reset, not a kill → no loot/death FX).
+function arenaAliveCount(){ let c=0; for(const e of G.enemies){ if(e.arena && !e.dead && e.hp>0) c++; } return c; }
+function arenaClearEnemies(){ for(let i=G.enemies.length-1;i>=0;i--){ if(G.enemies[i].arena) G.enemies.splice(i,1); } }
+// Esencia banked when wave n is cleared (feeds the meta tree — the arena's tie-in to progression).
+function arenaEssence(n){ return Math.ceil((n|0)*ARENA.essStep); }
+// Start the gauntlet on the freshly-created (live) hero. Clears the field (createHero does NOT
+// touch G.enemies by itself), banks the loaded best, and launches wave 1. `best` is preserved
+// (loaded at boot by persist.bootArena) — never reset here.
+function startArena(){ const A=G.arena;
+  arenaClearEnemies(); G.projectiles.length=0; G.fields.length=0; G.drops.length=0; G.draft=null;
+  A.spawnedThisWave=0; A.aliveTarget=0; A.resting=false; A.restT=0;
+  G.scene="play"; A.wave=1; spawnWave(1); // arena always begins IN play (createHero's later openAbilityDraft re-gates the loadout scene)
+}
+// The between-wave payoff: bank the wave's Esencia (immediate, survives death), heal the hero, and
+// every BOON_EVERY waves offer a boon draft (reuses the adventure's openDraft → scene "draft"; the
+// rest timer is frozen while the panel is up and resumes on pick). Then enter the REST.
+function onWaveCleared(){ const A=G.arena, h=G.hero; if(!h) return;
+  const gain=arenaEssence(A.wave);
+  if(gain>0){ ensureMeta().essence=(ensureMeta().essence|0)+gain; G.metaDirty=true; } // AC7: bank to the meta tree
+  const mhp=heroMaxHp(h); if(h.hp<mhp && h.hp>0) h.hp=Math.min(mhp, h.hp+Math.round(mhp*ARENA.healFrac)); // AC3: rest heal
+  A.spawnedThisWave=0; A.resting=true; A.restT=ARENA.restSeconds;
+  toast("Respiro… próxima oleada", ARENA.restSeconds);
+  audio&&audio.sfx&&audio.sfx.levelup&&audio.sfx.levelup();
+  if(A.wave>0 && (A.wave % ARENA.boonEvery)===0) openDraft("arena"); // AC3: periodic boon draft during the rest
+}
+// The arena controller — advances the wave loop each play frame while arenaMode. During a REST it
+// counts down (frozen when a draft panel is up, since update() short-circuits non-play scenes) then
+// spawns the NEXT wave; otherwise it watches for a fully-cleared wave and hands off to onWaveCleared.
+function tickArena(dt){ const A=G.arena, h=G.hero; if(!h) return;
+  if(A.resting){ A.restT-=dt;
+    if(A.restT<=0){ A.resting=false; A.wave++; spawnWave(A.wave); }
+    return; }
+  const alive=arenaAliveCount(); A.aliveTarget=alive;
+  if(alive===0 && A.spawnedThisWave>0) onWaveCleared();
+}
+// Hero death ends the arena run: the highest wave REACHED is the score; persist it as the new best
+// (own store, additive) if it beats the record. Called from heroDie (arena branch only).
+function arenaOnDeath(){ const A=G.arena;
+  if(A.wave>A.best){ A.best=A.wave; G.arenaDirty=true; } }
+// Additive Arena persistence (mirror of serializeMeta/loadMeta): the sim owns the shape, persist.js
+// owns the localStorage medium + the arenaDirty flush. `bestWave` is the only durable arena state.
+export function serializeArena(){ return { v:1, bestWave:G.arena.best|0 }; }
+export function loadArena(d){ G.arena.best = (d && Number.isFinite(+d.bestWave)) ? Math.max(0, Math.floor(+d.bestWave)) : 0; return G.arena.best; }
+// ================== end CAS-1664 Arena de Oleadas ==================
 
 // --------------------- CAS-128: onboarding tutorial ---------------------
 // A pure, deterministic step machine layered ON TOP of the existing game (no balance
@@ -1029,6 +1175,7 @@ export function loadSave(d){
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
     G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false};
+    G.arenaMode=false; G.pendingArena=false; // CAS-1664: a resumed run is the normal adventure, never arena (the arena best lives in its own store)
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
     G.scene="play"; G.started=true;
     beginRun();                                               // CAS-277: baseline this resumed session's run
@@ -2092,6 +2239,9 @@ function heroDie(){
   // screen can show the "+X Esencia" payoff. Pure read of existing counters — no new economy.
   { const gain=essenceForRun(h, G.recap); if(gain>0){ ensureMeta().essence=(ensureMeta().essence|0)+gain; G.metaDirty=true; }
     if(G.recap){ G.recap.essence=gain; G.recap.essenceTotal=ensureMeta().essence|0; } }
+  // CAS-1664: a death in Arena de Oleadas ENDS the gauntlet — bank the highest wave reached as the
+  // new best (own store, additive) so the score survives. The death screen reads G.arena to show it.
+  if(G.arenaMode) arenaOnDeath();
   h.deaths=(h.deaths||0)+1; // CAS-123: a run attempt for the victory summary
   const red=G.skull.level>=3;
   let frac = h.blessings>0 && !red ? 0.10 : 0.30;
@@ -2112,6 +2262,7 @@ export function respawn(){
   reconcileMeta(h); applyMetaReroll(h); applyMetaStartBoons(h); // CAS-1565: Vanguardia start-boons re-granted after the death boon-wipe (per-run)
   h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
+  G.arenaMode=false; // CAS-1664: leaving the death screen exits Arena de Oleadas → back to the normal world (no-op in a normal run)
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
 }
 // CAS-277: the death recap's secondary action — respawn at the safe fountain but land in
@@ -2347,17 +2498,21 @@ export function update(dtMs){
   // CAS-131: per-biome ambient soundscape crossfades under the music on zone change.
   if(z!==G._ambZone){ G._ambZone=z; if(audio&&audio.setAmbient) audio.setAmbient(z); }
   if(z==="arena" && !G.arenaWarned){ G.arenaWarned=true; toast(STR.enteredArena,3.5); }
+  // CAS-1664: in Arena de Oleadas the wave controller OWNS the field — the free-play world systems
+  // below (zone-curse offers, elite-ambush clock, natural spawners) are suppressed so nothing
+  // pollutes the gauntlet. Each is guarded by !G.arenaMode; in a normal run arenaMode is false, so
+  // every branch runs EXACTLY as before → byte-identical. The arena loop advances at the tail.
   // CAS-394: OPT-IN ZONE MODIFIER — the FIRST time the hero steps into a combat zone (HUNTS key)
   // whose hunt isn't already cleared this run, pause into the "curse" scene and offer one modifier
   // (accept/skip). Fires exactly once per zone per run (curseSeen), and only from free play so it
   // never stacks over another panel. Cleared zones + town/field are skipped (no reward to gate).
-  if(HUNTS[z] && (h.curseSeen||[]).indexOf(z)<0){ const CH=G.hunts&&G.hunts[z];
+  if(!G.arenaMode && HUNTS[z] && (h.curseSeen||[]).indexOf(z)<0){ const CH=G.hunts&&G.hunts[z];
     if(!(CH&&CH.cleared)) offerCurse(z); }
   // CAS-342: the caves dragon is no longer a positional deep-walk spawn — it is now the caves
   // ZONE CAPSTONE (HUNTS.caves.boss), summoned deliberately by spawnChampion when the kill quota
   // is met. The old `z==="caves" && !G.bossSpawned … spawnBoss()` trigger is removed so the dragon
   // appears EXACTLY once, only as the earned end-of-zone climax (never a random high-HP ambush).
-  updateAmbush(dt, z, inDanger); // CAS-146: elite-ambush event clock (deterministic, in-zone only)
+  if(!G.arenaMode) updateAmbush(dt, z, inDanger); // CAS-146: elite-ambush event clock (deterministic, in-zone only) — suppressed in arena (the wave loop owns spawns)
 
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
@@ -2430,8 +2585,10 @@ export function update(dtMs){
   updateFields(dt);
   updateDrops(dt);
   updateFx(dt); updateFloaters(dt);
-  // spawners
-  for(const sp of world.spawners){ sp.t-=dt; const count=G.enemies.filter(e=>e.tpl && sp.types.includes(e.type)&&!e.isBoss).length;
+  // CAS-1664: advance the Arena de Oleadas wave loop (rest countdown / wave-clear → next wave).
+  if(G.arenaMode) tickArena(dt);
+  // spawners — suppressed in arena so only the wave roster is present (CAS-1664)
+  if(!G.arenaMode) for(const sp of world.spawners){ sp.t-=dt; const count=G.enemies.filter(e=>e.tpl && sp.types.includes(e.type)&&!e.isBoss).length;
     if(sp.t<=0 && count<sp.max){ sp.t=sp.cool; const tp=sp.types[ri(0,sp.types.length-1)];
       let tx,ty,tries=0; do{ tx=(sp.rect.x+rr(2,sp.rect.w-2))*TS; ty=(sp.rect.y+rr(2,sp.rect.h-2))*TS; tries++; }
         while((dist2(tx,ty,h.x,h.y)<300*300 || (world.wallSet&&world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS)))) && tries<10);
@@ -3666,6 +3823,33 @@ export const dev = {
       e.hp=0; killEnemy(e);
       for(const d of G.drops.slice(before)) out.push({kind:d.kind, rarity:d.rarity||null, tier:d.tier||0, uniq:(d.inst&&d.inst.uniq)||null, set:(d.inst&&d.inst.set)||null}); }
     return out; },
+  // --- CAS-1664 ARENA DE OLEADAS harness hooks (tools/cas1664-arena.mjs); additive, drive the REAL paths ---
+  // Live arena state read (AC1/AC3): mode gate, current+best wave, rest flag, alive arena-enemy count, scene.
+  arenaState(){ const A=G.arena, h=G.hero; return { mode:!!G.arenaMode, wave:A.wave|0, best:A.best|0,
+    resting:!!A.resting, restT:+((A.restT||0).toFixed(3)), spawnedThisWave:A.spawnedThisWave|0,
+    alive:arenaAliveCount(), scene:G.scene, hp:h?Math.round(h.hp):0, maxHp:h?Math.round(heroMaxHp(h)):0 }; },
+  // Start the gauntlet on the live hero (bypasses the menu flag) → flips arenaMode on + startArena. AC1/AC3.
+  arenaStart(){ const h=G.hero; if(!h) return null; G.arenaMode=true; startArena(); return this.arenaState(); },
+  // Force wave n (clears remnants, spawns the roster). Reports the spawned set so QA can prove scaling
+  // (hp/dmg climb with n), the boss-wave rule (n%BOSS_EVERY==0 → 1 boss), and that types ∈ the ETPL pool. AC2.
+  arenaSpawnWave(n){ n=Math.max(1,n|0); const A=G.arena; A.wave=n; spawnWave(n);
+    const mobs=G.enemies.filter(e=>e.arena).map(e=>({ type:e.type, hp:Math.round(e.tpl.hp), dmg:Math.round(e.tpl.dmg||0),
+      isBoss:!!e.isBoss, affix:e.affix||null, champElite:!!e.champElite }));
+    return { wave:n, count:mobs.length, alive:arenaAliveCount(), boss:mobs.some(m=>m.isBoss), pool:arenaMobPool(), mobs }; },
+  // Kill (remove) all live arena enemies to SIMULATE a wave clear in QA, then report state. AC3.
+  arenaClearWave(){ arenaClearEnemies(); return this.arenaState(); },
+  // Override arenaAffixRate deterministically (null → restore the wave-scaled curve). Pure — no RNG,
+  // never touches srand → proves the [AC-RNG-STRONG] neutrality confound is arena-only. AC5.
+  arenaSetAffixRate(r){ arenaAffixOverride=(r==null)?null:Math.max(0,+r||0); return arenaAffixOverride; },
+  // Read the durable best wave (mithralda.arena.v1 → G.arena.best, loaded at boot by persist.bootArena). AC4.
+  arenaBest(){ return G.arena.best|0; },
+  // AC7: drive a full wave-clear through the REAL onWaveCleared → report the Esencia banked to the meta.
+  arenaClearReward(){ const A=G.arena; const before=ensureMeta().essence|0;
+    if(!(A.wave>0)) A.wave=1; A.spawnedThisWave=1; arenaClearEnemies(); onWaveCleared();
+    return { wave:A.wave|0, essBefore:before, essAfter:ensureMeta().essence|0, gain:(ensureMeta().essence|0)-before, resting:!!A.resting }; },
+  // AC4: serialize→load the arena best through the REAL persistence pair (mirror of ultPersist).
+  arenaPersist(bestWave){ G.arena.best=Math.max(0,bestWave|0); const blob=JSON.parse(JSON.stringify(serializeArena()));
+    G.arena.best=0; const after=loadArena(blob); return { wrote:bestWave|0, blob, after }; },
   // --- CAS-1586 AURA GÉLIDA + Esencia tie-in harness hooks (tools/cas1586-frost-live.mjs) ---
   // Clean arena, force ONE frost mob, place the FROZEN mob `dist` px from the hero, tick the REAL
   // update() a few frames, then report the hero's slow channel + resulting effective movespeed.

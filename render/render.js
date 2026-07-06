@@ -278,6 +278,7 @@ export function createRenderer(ctx){
     renderEntities();
     ctx.restore();
     renderHUD();
+    if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.showMap) renderBigMap();
     if(G.scene==="inventory") renderInventory();
     if(G.scene==="talents") renderTalents();
@@ -2920,6 +2921,10 @@ export function createRenderer(ctx){
     ctx.textAlign="center";
     ctx.fillStyle=COL.skullR; ctx.font="bold 38px "+FF; ctx.fillText(STR.deathTitle,cx,y); y+=28;
     ctx.fillStyle=COL.cream; ctx.font="14px "+FF; ctx.fillText(STR.deathSub,cx,y); y+=34;
+    // CAS-1664: in Arena de Oleadas the run's SCORE is the wave reached — surface it (and the best)
+    // as a gold banner above the recap so the endgame result reads at a glance.
+    if(G.arenaMode){ ctx.fillStyle=COL.textGold; ctx.font="bold 16px "+FF;
+      ctx.fillText("Oleada alcanzada: "+(G.arena.wave|0)+"  ·  Mejor: "+(G.arena.best|0), cx, y); y+=28; }
     // recap summary panel — reads the frozen delta snapshot built at death (G.recap)
     const r=G.recap;
     if(r){
@@ -3229,6 +3234,19 @@ export function createRenderer(ctx){
     ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH); }
 
   // ------------------------------- menu ----------------------------------
+  // CAS-1664: Arena de Oleadas HUD overlay — the current wave + best (top-centre, under the zone
+  // band) and, during the between-wave breather, a "Respiro…" note. Screen-space, pixel font, $0 art.
+  function renderArenaOverlay(){ const A=G.arena; if(!A) return;
+    ctx.save(); ctx.textAlign="center";
+    const cx=VW/2, y=64;
+    const label="Oleada "+(A.wave|0)+"  ·  Mejor "+(A.best|0);
+    ctx.font="16px "+FF;
+    ctx.fillStyle=COL.out; ctx.fillText(label,cx+1,y+1);
+    ctx.fillStyle=COL.textGold; ctx.fillText(label,cx,y);
+    if(A.resting){ ctx.font="12px "+FF; ctx.fillStyle=COL.cream;
+      ctx.fillText("Respiro… próxima oleada",cx,y+18); }
+    ctx.restore(); ctx.textAlign="left";
+  }
   function renderMenu(){
     // dark fantasy backdrop
     ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
@@ -3246,6 +3264,13 @@ export function createRenderer(ctx){
     const bw=200,bh=52,bx=VW/2-bw/2,by=VH*0.62; ui.menuPlayRect={x:bx,y:by,w:bw,h:bh};
     ctx.fillStyle="#2e231a"; ctx.fillRect(bx,by,bw,bh); ctx.fillStyle=COL.panelB; ctx.fillRect(bx,by,bw,4); ctx.fillRect(bx,by+bh-4,bw,4);
     ctx.fillStyle=COL.textGold; ctx.font="bold 24px "+FF; ctx.fillText(STR.play,VW/2,by+34);
+    // CAS-1664: a SECOND entry — Arena de Oleadas (Wave Survival). Same class→ability→play flow
+    // (sets G.pendingArena); shows the durable best wave. $0 art (reuses the button chrome).
+    const aw=200,ah=42,ax=VW/2-aw/2,ay=by+bh+16; ui.menuArenaRect={x:ax,y:ay,w:aw,h:ah};
+    ctx.fillStyle="#241d2e"; ctx.fillRect(ax,ay,aw,ah); ctx.fillStyle=COL.panelB; ctx.fillRect(ax,ay,aw,4); ctx.fillRect(ax,ay+ah-4,aw,4);
+    ctx.fillStyle=COL.cream; ctx.font="bold 18px "+FF; ctx.fillText("Arena de Oleadas",VW/2,ay+27);
+    { const best=(G.arena&&G.arena.best|0)||0; // loaded at boot by persist.bootArena
+      if(best>0){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("Mejor oleada: "+best,VW/2,ay+ah+14); } }
     ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.fillText(STR.controlsHintPC((a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a])),VW/2,VH-40);
     ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.version,VW/2,VH-18);
   }

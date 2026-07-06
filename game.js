@@ -112,6 +112,7 @@ export function createGame(canvas, ctx, getView){
   // store BEFORE persist.boot() rehydrates a run save — so a loaded hero's loadSave reconcile
   // reads the live meta, and a fresh createHero applies it. Independent of any character.
   persist.bootMeta();
+  persist.bootArena();  // CAS-1664: rehydrate the Arena de Oleadas best wave from its OWN store (independent of any character)
   persist.boot();
   persist.initFlush();
   // CAS-132: privacy-light retention/funnel analytics. boot() opens the anonymous
@@ -354,6 +355,11 @@ export function createGame(canvas, ctx, getView){
       ultOffer:()=>simDev.ultOffer(), castUltimate:()=>simCastUltimate(),
       ultCastProbe:(id)=>simDev.ultCastProbe(id), ultPersist:(id,c)=>simDev.ultPersist(id,c), ultLoadLegacy:()=>simDev.ultLoadLegacy(),
       ultChargeStream:(n,s,id)=>simDev.ultChargeStream(n,s,id), ultDraftNeutral:(d,n,s)=>simDev.ultDraftNeutral(d,n,s),
+      // CAS-1664 ARENA DE OLEADAS contract consumed by tools/cas1664-arena.mjs — additive. MUST wire the
+      // passthroughs HERE (curated wrapper), not only in sim.js dev, else "not a function" (cas1654/1659).
+      arenaState:()=>simDev.arenaState(), arenaStart:()=>simDev.arenaStart(), arenaSpawnWave:(n)=>simDev.arenaSpawnWave(n),
+      arenaClearWave:()=>simDev.arenaClearWave(), arenaSetAffixRate:(r)=>simDev.arenaSetAffixRate(r), arenaBest:()=>simDev.arenaBest(),
+      arenaClearReward:()=>simDev.arenaClearReward(), arenaPersist:(b)=>simDev.arenaPersist(b),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

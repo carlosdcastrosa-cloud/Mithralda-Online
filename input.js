@@ -25,7 +25,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, legacyRects:[], legacyChoose:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, legacyRects:[], legacyChoose:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, menuArenaRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
   // CAS-419 inventory DnD: live drag state (render draws the ghost/highlights from it),
   // last rejected drop rect (render shakes it red until `until`, sim time), and the
   // backpack list area rect render publishes so an equip-slot drag can target empty rows.
@@ -82,7 +82,9 @@ function onKeyDown(e){
     if(code!=="Escape" && code!=="Tab") settings.setBind(G.rebind, code);
     G.rebind=null; e.preventDefault(); return; }
   if(G.scene==="menu"){ if(document.activeElement===nameInput && e.code!=="Enter") return;
-    if(e.code==="Enter") startGame(); return; }
+    if(e.code==="Enter"){ G.pendingArena=false; startGame(); }       // CAS-1664: Enter = normal adventure
+    else if(e.code==="KeyA"){ G.pendingArena=true; startGame(); }     // CAS-1664: A = Arena de Oleadas
+    return; }
   if(G.scene==="classsel"){ const c=e.code;
     if(c==="Digit1"||c==="Numpad1") chooseClass(CLASS_LIST[0]);
     else if(c==="Digit2"||c==="Numpad2") chooseClass(CLASS_LIST[1]);
@@ -235,7 +237,8 @@ function edge(code){
 // ----------------------------- pointer ---------------------------------
 function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left, y=e.clientY-r.top;
   audio.resume();
-  if(G.scene==="menu"){ if(menuPlayHit(x,y)) startGame(); return; }
+  if(G.scene==="menu"){ if(menuArenaHit(x,y)){ G.pendingArena=true; startGame(); } // CAS-1664: Arena de Oleadas entry
+    else if(menuPlayHit(x,y)){ G.pendingArena=false; startGame(); } return; }
   if(G.scene==="classsel"){ const pc=ui.classCustomRect; if(pc&&pc.w&&x>=pc.x&&x<=pc.x+pc.w&&y>=pc.y&&y<=pc.y+pc.h){ customizeNewHero(CLASS_LIST[G.classSel]); return; }
     for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
   if(G.scene==="abilitysel"){ // CAS-1570: tap an ability card to toggle it, tap Listo to confirm
@@ -528,6 +531,7 @@ function forgeTap(x,y){ for(const r of (ui.forgeRects||[])){ if(x>=r.x&&x<=r.x+r
     if(r.act){ const ok=r.act(); if(ok===true && r.slot) analytics.event("forge_upgrade"); } // CAS-279: count successful Forja taps (observation only)
     else if(r.sel!=null) G.forgeSel=r.sel; return true; } } return true; }
 function menuPlayHit(x,y){ const r=ui.menuPlayRect; return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
+function menuArenaHit(x,y){ const r=ui.menuArenaRect; return r&&r.w&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; } // CAS-1664
 
 // ----------------------------- menu flow -------------------------------
 function startGame(){
