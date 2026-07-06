@@ -1,0 +1,56 @@
+// CAS-1649 deploy: overlay the Meta-progresión v3 (Nodos de Legado) build onto gh-pages.
+// The 4 game files that changed between the live build (966ba74 -> 34acf5b35e1d) and master
+// HEAD (b8128d5) carry ONLY the additive legacy-node code; the HEAD version.json is a stale
+// c4a549 regression swept in by the CAS-1643/1645 QA-harness commits, so we re-stamp a FRESH
+// content hash here. Base is verified clean (all 4 gh-pages files == live build). Overlay
+// recipe mirrors tools/cas927-deploy.mjs (read-tree gh-pages + update-index the changed blobs).
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+
+const OVERLAY = ["game.js", "input.js", "render/render.js", "sim/sim.js"]; // HEAD versions
+const ROOT_FILES = ["index.html","game.js","audio.js","input.js","view.js","strings.js","analytics.js","analytics.html","overlay.js","hud.js","daily.js","bestiary.js","persist.js","settings.js"];
+
+const git = (...a) => execFileSync("git", a, { maxBuffer: 256 * 1024 * 1024 });
+const gitStr = (...a) => git(...a).toString().trim();
+
+git("fetch", "origin", "gh-pages", "--quiet");
+
+// Write HEAD's blob for each overlaid file into the object DB, keep its sha.
+const shas = {};
+for (const f of OVERLAY) shas[f] = gitStr("rev-parse", `HEAD:${f}`);
+
+function computeBuild() {
+  const tracked = git("ls-tree","-r","--name-only","origin/gh-pages","--","sim","render","assets","ui").toString().split("\n").filter(Boolean);
+  const files = [...new Set([...ROOT_FILES, ...tracked, ...OVERLAY])].sort();
+  const h = createHash("sha256");
+  for (const f of files) {
+    const blob = OVERLAY.includes(f) ? git("cat-file", "blob", shas[f]) : git("show", `origin/gh-pages:${f}`);
+    h.update(f); h.update("\0"); h.update(blob);
+  }
+  return { build: h.digest("hex").slice(0, 12), files: files.length };
+}
+
+function buildAndPush() {
+  const { build, files } = computeBuild();
+  const version = JSON.stringify({ build, files });
+  const idx = "/tmp/cas1649-index";
+  const env = { ...process.env, GIT_INDEX_FILE: idx };
+  execFileSync("git", ["read-tree", "origin/gh-pages"], { env });
+  for (const f of OVERLAY) execFileSync("git", ["update-index","--add","--cacheinfo",`100644,${shas[f]},${f}`], { env });
+  const vsha = execFileSync("git", ["hash-object","-w","--stdin"], { input: version }).toString().trim();
+  execFileSync("git", ["update-index","--add","--cacheinfo",`100644,${vsha},version.json`], { env });
+  const tree = execFileSync("git", ["write-tree"], { env }).toString().trim();
+  const parent = gitStr("rev-parse", "origin/gh-pages");
+  const commit = gitStr("commit-tree", tree, "-p", parent, "-m", `CAS-1649: Meta-progresión v3 (Nodos de Legado) — build ${build}`);
+  try {
+    execFileSync("git", ["push","origin",`${commit}:refs/heads/gh-pages`], { stdio: "pipe" });
+    return { build, files, commit, pushed: true };
+  } catch (e) {
+    return { build, files, commit, pushed: false, err: (e.stderr||e.stdout||e.message||"").toString().slice(0,300) };
+  }
+}
+
+let res = buildAndPush();
+if (!res.pushed) { git("fetch","origin","gh-pages","--quiet"); res = buildAndPush(); }
+console.log(JSON.stringify(res));
+if (!res.pushed) process.exit(1);
