@@ -135,17 +135,17 @@ async function runOnce(label, viewport, headHashes) {
     await page.screenshot({ path: `${OUT}/${label}-play.png` });
 
     // ---- AC2: new mobs spawn in correct zones with correct ETPL ----
-    const thorn = await page.evaluate(() => window.__dev.spawnNewMob("thornspitter", "forest"));
+    const thorn = await page.evaluate(() => window.__dev.spawnNewMob("thornspitter", "caves"));
     gate("AC2/thornspitter/spawn", !!(thorn && thorn.type === "thornspitter"), JSON.stringify(thorn));
     gate("AC2/thornspitter/arch", thorn && thorn.arch === "caster", `arch=${thorn?.arch}`);
 
-    const iron = await page.evaluate(() => window.__dev.spawnNewMob("ironback", "ruins"));
+    const iron = await page.evaluate(() => window.__dev.spawnNewMob("ironback", "caves"));
     gate("AC2/ironback/spawn", !!(iron && iron.type === "ironback"), JSON.stringify(iron));
-    gate("AC2/ironback/arch", iron && iron.arch === "charger", `arch=${iron?.arch}`);
+    gate("AC2/ironback/arch", iron && iron.arch === "brute", `arch=${iron?.arch}`);
 
     const ash = await page.evaluate(() => window.__dev.spawnNewMob("ashwraith", "caves"));
     gate("AC2/ashwraith/spawn", !!(ash && ash.type === "ashwraith"), JSON.stringify(ash));
-    gate("AC2/ashwraith/arch", ash && ash.arch === "warlock", `arch=${ash?.arch}`);
+    gate("AC2/ashwraith/arch", ash && ash.arch === "caster", `arch=${ash?.arch}`);
 
     await page.screenshot({ path: `${OUT}/${label}-spawned.png` });
 
