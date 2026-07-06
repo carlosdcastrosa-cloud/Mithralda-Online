@@ -25,7 +25,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, legacyRects:[], legacyChoose:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
   // CAS-419 inventory DnD: live drag state (render draws the ghost/highlights from it),
   // last rejected drop rect (render shakes it red until `until`, sim time), and the
   // backpack list area rect render publishes so an equip-slot drag can target empty rows.
@@ -124,6 +124,10 @@ function edge(code){
   // CAS-1557: altar scene — Esc/A closes back to the death recap. Number keys 1-5 buy the
   // matching node (sim guards cap + essence), a lightweight keyboard path alongside the taps.
   if(G.scene==="altar"){
+    // CAS-1649: the legacy-choice modal (opened after a confirmed ascend) OWNS input — it is a
+    // forced choice (like the boon draft, no skip). Number keys pick the matching eligible legacy.
+    if(ui.legacyChoose){ if(code.startsWith("Digit")){ const i=(+code.slice(5))-1;
+        const ch=(sim.metaSnap().legacyChoices||[])[i]; if(ch){ sim.chooseLegacy(ch.key); ui.legacyChoose=false; } } return; }
     // CAS-1565: while the Ascensión confirm modal is open it owns input — Esc cancels it (not the altar).
     if(ui.altarAscendConfirm){ if(code==="Escape") ui.altarAscendConfirm=false; return; }
     if(code==="Escape"||code==="KeyA") G.scene="dead";
@@ -353,11 +357,18 @@ function deadRetry(){ analytics.event("recap_retry"); sim.respawn(); }
 function deadHub(){ analytics.event("recap_hub"); sim.returnToHub(); }
 // CAS-1557: the ALTAR panel taps — a node buy button (key set) buys the next level (sim guards
 // cap + essence); the back button (or a miss) returns to the death recap so retry/hub stay live.
-function altarTap(x,y){ for(const r of (ui.altarRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+function altarTap(x,y){
+  // CAS-1649: the legacy-choice modal owns taps while open — a tap on a row grants that legacy
+  // and closes the modal. It is a forced choice, so a miss is swallowed (no close).
+  if(ui.legacyChoose){ for(const r of (ui.legacyRects||[])){ if(r.key&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+        sim.chooseLegacy(r.key); ui.legacyChoose=false; return true; } } return true; }
+  for(const r of (ui.altarRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
       if(r.act==="back"){ G.scene="dead"; return true; }
       // CAS-1565: Ascensión flow — open the confirm modal, then commit/cancel from it.
       if(r.act==="ascend"){ ui.altarAscendConfirm=true; return true; }
-      if(r.act==="ascendYes"){ sim.ascendMeta(); ui.altarAscendConfirm=false; return true; }
+      // CAS-1649: a confirmed sacrifice hands off to the legacy-choice modal (agency payoff) rather
+      // than just closing — the player picks 1 permanent legacy before returning to the altar.
+      if(r.act==="ascendYes"){ sim.ascendMeta(); ui.altarAscendConfirm=false; ui.legacyChoose=true; return true; }
       if(r.act==="ascendNo"){ ui.altarAscendConfirm=false; return true; }
       if(r.key){ sim.buyMetaNode(r.key); return true; } } }
   return true; }
