@@ -855,6 +855,14 @@ export function createRenderer(ctx){
         // soft additive halo so the affix colour reads on the sprite mass itself (the "tint")
         ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=0.12+0.05*(0.5+0.5*Math.sin(G.t*5));
         ctx.fillStyle=col; ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.size*1.05,0,6.28); ctx.fill();
+        // CAS-1586 AURA GÉLIDA telegraph: draw the actual SLOW-ZONE footprint (radius auraR) as a
+        // faint dashed ice ring on the ground, so the danger area is legible — step outside it and
+        // the slow lifts. Data-driven radius (MOB_AFFIX.frost.auraR); no new art, no sim state read.
+        if(e.affix==="frost" && A.auraR){ ctx.globalCompositeOperation="source-over";
+          ctx.globalAlpha=0.16+0.06*(0.5+0.5*Math.sin(G.t*3)); ctx.strokeStyle=col; ctx.lineWidth=1.5;
+          if(ctx.setLineDash) ctx.setLineDash([6,7]);
+          ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,A.auraR,A.auraR*0.5,0,0,6.28); ctx.stroke();
+          if(ctx.setLineDash) ctx.setLineDash([]); }
         ctx.restore(); } }
     // CAS-121 CORAZA DE ESCARCHA telegraph: while the boss channels its Freeze Nova it
     // wears a pulsing ice shell (reads as IMMUNE) and a danger ring GROWS toward the nova

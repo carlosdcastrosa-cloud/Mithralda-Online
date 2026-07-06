@@ -265,6 +265,8 @@ export function createGame(canvas, ctx, getView){
       affixMeta:()=>simDev.affixMeta(), affixRollRate:(n,type)=>simDev.affixRollRate(n,type),
       affixArena:(id,type,dx)=>simDev.affixArena(id,type,dx), affixSnap:()=>simDev.affixSnap(),
       affixHit:(d)=>simDev.affixHit(d), affixKill:()=>simDev.affixKill(), affixSpawnKill:(id,type,zone)=>simDev.affixSpawnKill(id,type,zone),
+      // CAS-1586 Aura Gélida (frost) + Esencia tie-in — consumed by tools/cas1586-frost-live.mjs (additive)
+      affixAura:(type,dist)=>simDev.affixAura(type,dist), affixEssence:(id,type)=>simDev.affixEssence(id,type),
       // CAS-149 Elite-Mastery progression contract consumed by tools/cas149-progression.mjs — additive
       masterySnap:()=>simDev.masterySnap(), setEliteKills:(n)=>simDev.setEliteKills(n), bumpMastery:()=>simDev.bumpMastery(),
       masteryTrackSnap:()=>simDev.masteryTrackSnap(), // CAS-150 reward-track panel/harness read-out

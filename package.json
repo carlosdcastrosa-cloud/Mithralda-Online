@@ -76,6 +76,7 @@
     "cas1564": "node tools/cas1564-meta-v2.mjs",
     "cas1574": "node tools/cas1574-ability-ranks.mjs",
     "cas1580": "node tools/cas1580-ability-unlocks.mjs",
+    "cas1586": "node tools/cas1586-frost-live.mjs",
     "test": "node tools/determinism.mjs && node tools/smoke.mjs && node tools/cas1547-publish-guard-test.mjs && node tools/cas1557-meta.mjs && node tools/cas1564-meta-v2.mjs && node tools/cas1574-ability-ranks.mjs && node tools/cas1580-ability-unlocks.mjs",
     "erw": "python3 tools/erw_pipeline.py",
     "hero-anim": "node tools/slice-hero-anim.mjs",

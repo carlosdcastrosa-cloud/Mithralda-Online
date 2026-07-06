@@ -79,12 +79,15 @@ try {
   // (1) DATA — 4 distinct affixes + rate in the ~10-15% band.
   const meta = await page.evaluate(() => window.__dev.affixMeta());
   const byId = Object.fromEntries(meta.defs.map((d) => [d.id, d]));
-  const distinct = meta.ids.length === 4
+  // CAS-1586: the pool grew to 5 with the frost (Aura Gélida) control affix; the original 4 must
+  // stay byte-intact (AC-5) and frost must carry its distinct data-driven aura fields (AC-1).
+  const distinct = meta.ids.length === 5
     && byId.swift && byId.swift.spdMul > 1 && byId.swift.gaitMul === byId.swift.spdMul
     && byId.armored && byId.armored.dmgReduce > 0
     && byId.vampiric && byId.vampiric.lifesteal > 0 && byId.vampiric.melee === true
-    && byId.volatile && byId.volatile.blast > 0;
-  if (distinct) pass(`[DATA] 4 distinct affixes present (swift/armored/vampiric/volatile)`);
+    && byId.volatile && byId.volatile.blast > 0
+    && byId.frost && byId.frost.auraR > 0 && byId.frost.auraSlow > 0 && byId.frost.auraSlow < 1 && !byId.frost.melee;
+  if (distinct) pass(`[DATA] 5 distinct affixes present (swift/armored/vampiric/volatile/frost)`);
   else fail(`[DATA] affix set missing/not distinct: ${JSON.stringify(meta.defs)}`);
   if (meta.rate >= 0.10 && meta.rate <= 0.15) pass(`[DATA] spawn rate ${(meta.rate * 100).toFixed(0)}% within the 10-15% band`);
   else fail(`[DATA] spawn rate ${meta.rate} outside 10-15%`);

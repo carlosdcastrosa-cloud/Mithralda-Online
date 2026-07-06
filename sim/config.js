@@ -388,13 +388,21 @@ export const AMBUSH = {
 //   sizeMul   — the "scale" visual cue; bumps tpl.size so ALL four draw paths render bigger at once
 //   melee     — gates the affix to contact attackers (Vampiric can't lifesteal from range)
 export const MOB_AFFIX_RATE = 0.13;
-export const MOB_AFFIX_IDS = ["swift","armored","vampiric","volatile"];
+export const MOB_AFFIX_IDS = ["swift","armored","vampiric","volatile","frost"];
 export const MOB_AFFIX = {
   swift:    { name:"Veloz",      col:"#5fd6ff", hpMul:1.5, spdMul:1.42, gaitMul:1.42, sizeMul:1.06, xpMul:1.6, goldMul:1.6, gearBonus:0.10 },
   armored:  { name:"Acorazado",  col:"#c8d2e0", hpMul:1.9, spdMul:0.92, gaitMul:0.92, dmgReduce:0.45, sizeMul:1.16, xpMul:1.7, goldMul:1.7, gearBonus:0.12 },
   vampiric: { name:"Vampírico",  col:"#ff5a6a", hpMul:1.8, lifesteal:0.10, sizeMul:1.12, xpMul:1.7, goldMul:1.7, gearBonus:0.12, melee:true },
   volatile: { name:"Volátil",    col:"#ff9a3a", hpMul:1.6, blast:84, blastDmgMul:0.85, sizeMul:1.12, xpMul:1.7, goldMul:1.7, gearBonus:0.12 },
+  // CAS-1586 AURA GÉLIDA — a ranged control affix (not melee): while the hero stands inside auraR
+  // it is slowed to auraSlow (refreshed each tick; the h.slowT channel expires on its own when you
+  // step out). Data-driven radius/slow so a playtest can retune without touching the loop.
+  frost:    { name:"Aura Gélida", col:"#7fe0ff", hpMul:1.7, auraR:96, auraSlow:0.6, sizeMul:1.12, xpMul:1.7, goldMul:1.7, gearBonus:0.12 },
 };
+// CAS-1586 tie-in: every affixed (Élite-trash) kill also drips Esencia — closing the meta-progression
+// loop so the affix system feeds the altar, not just the loot table. Data-driven (Esencia per kill).
+// Pure additive on essenceForRun; RNG-untouched (0 affixed kills at rate=0 → term=0 → byte-identity).
+export const MOB_AFFIX_ESSENCE = 2;
 
 // CAS-149 — ELITE MASTERY: the persistent, cross-session progression HOOK that gives a
 // returning player a reason to come back. EVERY elite-class kill (ambush elites CAS-146 +

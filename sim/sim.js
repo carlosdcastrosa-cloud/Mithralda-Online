@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -244,6 +244,9 @@ function newHero(name,cls){
     // CAS-149: monotonic lifetime ELITE-class kills (ambush elites + champions + final boss).
     // Drives the persistent Elite-Mastery rank; saved additively (no SAVE_VERSION bump).
     eliteKills:0,
+    // CAS-1586: monotonic lifetime AFFIXED-trash kills (any mob carrying a MOB_AFFIX). Feeds the
+    // Esencia tie-in (per-run delta × MOB_AFFIX_ESSENCE). Saved additively (no SAVE_VERSION bump).
+    affixKills:0,
     // CAS-150: cached Elite-Mastery REWARD-TRACK perk bundle, derived from eliteKills (never
     // stored — recomputed by recalcMastery on load + every elite kill). Combat reads it hot.
     // Named `mperk` (NOT `mp` — that's mana) to avoid the mana field collision.
@@ -675,7 +678,11 @@ function essenceForRun(h, r){ if(!h) return 0;
   const lvl=h.lvl|0, elites=(r&&r.elites)|0;
   const zonas=((h.conquest&&h.conquest.bossesDown&&h.conquest.bossesDown.length)|0);
   const tier=(h.conquest&&h.conquest.tier)||1;
-  const raw = lvl*2 + elites*5 + zonas*10 + (tier-1)*15;
+  // CAS-1586: Élite-afijo tie-in — each affixed kill this run adds MOB_AFFIX_ESSENCE to the raw
+  // essence (before the Ascensión multiplier). No RNG → at rate=0 there are 0 affixed kills →
+  // r.affixKills=0 → the term vanishes → the essence payout stays byte-identical to build 87346b8599db.
+  const afk=(r&&r.affixKills)|0;
+  const raw = lvl*2 + elites*5 + zonas*10 + (tier-1)*15 + afk*MOB_AFFIX_ESSENCE;
   if(raw<=0) return 0;
   // CAS-1565: Ascensión/Prestigio multiplier — the permanent payoff for sacrificing the altar.
   return Math.max(1, Math.floor(raw * ascMult(ascLevel()))); }
@@ -848,6 +855,7 @@ export function serializeSave(){
     // permanent +maxHp granted at each rank-up is already baked into the saved maxHp above,
     // so the bonus is restored with maxHp and is NEVER re-applied on load (no double-count).
     eliteKills:h.eliteKills||0,
+    affixKills:h.affixKills||0, // CAS-1586: durable lifetime affixed-trash kills (additive; old saves → 0, no SAVE_VERSION bump)
     // CAS-169: durable character-customization look. Additive — old saves simply lack
     // these and rehydrate on the class default look, so NO SAVE_VERSION bump / progress
     // wipe (bumping would discard every live player's progress; an additive+guarded field
@@ -889,6 +897,7 @@ export function loadSave(d){
     // CAS-375: rehydrate per-type tally (sanitized to non-negative ints; absent in old saves → {}).
     h.killsByType={}; if(d.killsByType && typeof d.killsByType==="object"){ for(const k in d.killsByType){ const v=Math.max(0,Math.floor(num(d.killsByType[k],0))); if(v>0) h.killsByType[k]=v; } }
     h.eliteKills=Math.max(0,Math.floor(num(d.eliteKills,0))); // CAS-149 (rank derives; maxHp already carries the baked bonus)
+    h.affixKills=Math.max(0,Math.floor(num(d.affixKills,0))); // CAS-1586 (additive lifetime counter; absent in old saves → 0)
     h.boons=sanitizeBoons(d.boons); recalcBoons(h); // CAS-383: rehydrate current-run boons (validated ids) + rebuild bundle BEFORE heroMaxHp reads it
     // CAS-392: rehydrate the draft-agency budget + banished pool (clamped; absent in old saves →
     // fresh 1/1). banished re-validated against BOON_MAP (sanitizeBoons) so a corrupt blob can't
@@ -1256,6 +1265,10 @@ function killEnemy(e){
     if(e.elite){ onEliteKill(e, zone); }
     else if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
       dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1])); }
+    // CAS-1586: an AFFIXED trash kill also ticks the lifetime affix-kill counter (feeds the Esencia
+    // tie-in via the run recap). Rides the SAME branch that already paid the affix xp/gold/gear, so
+    // no new roll/RNG — an un-affixed mob (incl. rate=0) leaves e.affix undefined → counter untouched.
+    if(e.affix && G.hero){ G.hero.affixKills=(G.hero.affixKills|0)+1; }
     huntKill(zone); // a normal kill in a hunt zone advances that zone's contract
     if(G.hero && (G.hero.kills%4)===0) grantMats(1); // CAS-237: a steady forge-material trickle from hunting (deterministic off the kill counter, no RNG)
   }
@@ -1808,6 +1821,7 @@ export function tryPickup(){
 // victory free play). Presentation-only — additive, transient, read-only on the sim.
 export function beginRun(){ const h=G.hero; if(!h) return;
   G.run={ pT0:h.playT||0, kills0:h.kills|0, gold0:h.gold|0, elite0:h.eliteKills|0,
+          affix0:h.affixKills|0, // CAS-1586: baseline the lifetime affix-kill counter for this run's Esencia delta
           champ0:h.champKills|0, lvl0:h.lvl|0 };
   G.recap=null; }
 // Build the FROZEN recap delta from current counters minus the run baseline. Time uses
@@ -1816,6 +1830,7 @@ export function beginRun(){ const h=G.hero; if(!h) return;
 function buildRecap(){ const h=G.hero, r=G.run; if(!h) return null; const b=r||{};
   return { time:Math.max(0,(h.playT||0)-(b.pT0||0)), kills:Math.max(0,(h.kills|0)-(b.kills0||0)),
     gold:Math.max(0,(h.gold|0)-(b.gold0||0)), elites:Math.max(0,(h.eliteKills|0)-(b.elite0||0)),
+    affixKills:Math.max(0,(h.affixKills|0)-(b.affix0||0)), // CAS-1586: this run's affixed kills → extra Esencia
     lvl:h.lvl|0, lvlUp:Math.max(0,(h.lvl|0)-(b.lvl0||0)) }; }
 
 // ------------------------------ death ----------------------------------
@@ -2190,6 +2205,13 @@ function updateEnemies(dt){ const h=G.hero;
     e.hurtFlash=Math.max(0,e.hurtFlash-dt);
     if(e.hurtT>0) e.hurtT=Math.max(0,e.hurtT-dt); // CAS-317: one-shot hurt-flinch window (rich-anim boss)
     if(e.slowT>0) e.slowT-=dt;
+    // CAS-1586 AURA GÉLIDA: a LIVE frost-affix mob radiates a slow field. While the hero stands
+    // within auraR it is slowed to auraSlow — refreshed every tick through the SAME CAS-118
+    // h.slow/h.slowT channel (HUD tint + movespd drag already wired at :2130), so stepping out of
+    // range lets the short (0.2s) timer expire on its own. Gated hard on e.affix==="frost" and the
+    // mob being alive → 0 frost mobs = 0 work = byte-identical sim. Radius/slow read from the data.
+    if(e.affix==="frost" && e.hp>0 && !e.dead && h && !h.dead){ const af=MOB_AFFIX.frost;
+      if(Math.hypot(h.x-e.x,h.y-e.y)<=af.auraR){ h.slow=Math.min(h.slow||1, af.auraSlow); h.slowT=Math.max(h.slowT||0, 0.2); } }
     // CAS-118: DoTs tick first so a burning/poisoned enemy keeps losing HP even while
     // stunned. A lethal tick runs the REAL killEnemy path (drops/xp/clear), then we skip
     // this corpse for the rest of the frame.
@@ -3147,6 +3169,36 @@ export const dev = {
     e.hp=0; killEnemy(e);
     return { baseXp, xp:e.tpl.xp, gearChance:+(e.tpl.gearChance||0).toFixed(3),
       drops:G.drops.slice(before).map(d=>({ kind:d.kind, rarity:d.rarity, tier:d.tier, amt:d.amt||0 })) }; },
+  // --- CAS-1586 AURA GÉLIDA + Esencia tie-in harness hooks (tools/cas1586-frost-live.mjs) ---
+  // Clean arena, force ONE frost mob, place the FROZEN mob `dist` px from the hero, tick the REAL
+  // update() a few frames, then report the hero's slow channel + resulting effective movespeed.
+  // Call with dist < auraR (INSIDE → slowed) then dist > auraR (OUTSIDE → slow=1) to prove the
+  // radius gate (AC-1). Mob spd/aggro zeroed so it can't drift into/out of the radius mid-probe.
+  affixAura(type, dist){ const af=MOB_AFFIX.frost; if(!af||!af.auraR) return null;
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.stun=0; h.dots=null;
+    h.maxHp=100000; h.hp=100000; h.cls="warrior"; h.slow=1; h.slowT=0;
+    const d=(dist==null)?Math.round(af.auraR*0.5):dist;              // default: comfortably INSIDE
+    const e=spawnEnemy(type||"skeleton", h.x+d, h.y); if(!e) return null;
+    applyAffix(e, "frost"); e.tpl=Object.assign({},e.tpl,{spd:0,aggro:0}); e.state="idle"; // pin it: aura is passive
+    for(let i=0;i<8;i++) update(16);                                 // ~8 frames through the REAL game loop
+    const statusSlow=(h.slowT>0)?(h.slow||1):1;
+    const baseSpd=(h.moveSpeed||CFG.heroSpeed);
+    return { auraR:af.auraR, auraSlow:af.auraSlow, dist:d, inside:d<=af.auraR,
+      heroSlow:+(h.slow||1).toFixed(3), heroSlowT:+(h.slowT||0).toFixed(3),
+      baseSpd:Math.round(baseSpd), movespdEffective:Math.round(baseSpd*statusSlow) }; },
+  // Spawn-kill a forced-affix mob through the REAL trash branch and report the Esencia DELTA that
+  // kill earns (via the run recap → essenceForRun). Proves the reward multiplier (AC-2): each
+  // affixed kill adds MOB_AFFIX_ESSENCE. baseline0 has no affixKills → its essence is the control.
+  affixEssence(id, type){ const h=G.hero; beginRun();               // baseline the run counters
+    const e=spawnEnemy(type||"skeleton", h.x, h.y); applyAffix(e, id||"frost");
+    e.tpl=Object.assign({},e.tpl,{xp:0,gold:[0,0]});                 // isolate: no level-up churn
+    e.hp=0; killEnemy(e);
+    const recap=buildRecap(); const essence=essenceForRun(h, recap);
+    // control: the SAME recap with the affix term removed → the pure per-kill Esencia contribution
+    const ctrl=essenceForRun(h, Object.assign({}, recap, { affixKills:0 }));
+    return { affixKills:recap.affixKills|0, essence, essenceNoAffix:ctrl,
+      perAffix:MOB_AFFIX_ESSENCE, delta:essence-ctrl }; },
   // --- CAS-149 Elite-Mastery harness hooks (tools/cas149-progression.mjs) ---
   // Live, read-only Mastery telemetry: lifetime elite kills, derived rank, next threshold,
   // and the player's current maxHp (so the test can assert the rank-up +maxHp baked in).
