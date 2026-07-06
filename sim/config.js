@@ -158,6 +158,28 @@ export const ABILITY_MAP = Object.fromEntries(ACTIVE_ABILITIES.map(a=>[a.id,a]))
 // even if the draft is skipped (respawn / test harness / legacy entry).
 export const DEFAULT_LOADOUT = [ACTIVE_ABILITIES[0].id, ACTIVE_ABILITIES[1].id];
 
+// CAS-1659 — HABILIDAD DEFINITIVA (Ultimate) + medidor de carga. A high-impact combat payoff in
+// its OWN slot (separate from the 2 drafted abilities): it CHARGES from combat (damage dealt +
+// kills, NO mana) and unleashes when the meter is full, consuming it entirely. Each entry REUSES
+// an existing resolveSpell `type` (nova/field/buff+heal/chain) → ZERO new combat code, $0 art
+// (text glyph). Drafted 1-of-3 at run start via a DEDICATED RNG stream (never the shared srand),
+// so a run's authoritative sequence is byte-identical whether or not an Ultimate is drafted.
+// No `cost` (mana) and no timed `cd`: gated purely by charge (the refill IS the cooldown).
+export const ULT_CHARGE_PER_DMG = 0.0075;   // meter gain per point of hero damage dealt (fills over ~2-3 fights)
+export const ULT_CHARGE_PER_KILL = 0.04;    // flat meter bump per kill (keeps the fill legible)
+export const ULT_OFFER_N = 3;               // run-start offer size (3-of-4)
+export const ULTIMATES = [
+  {id:"torbellino", name:"Torbellino",           glyph:"✳", type:"nova",  dmg:80, range:150, col:"#ffd24d", fx:"novacast", style:"crystal", sfx:"crit",
+    desc:"Torbellino devastador: enorme estallido cuerpo a cuerpo a tu alrededor."},
+  {id:"meteoro",    name:"Meteoro",              glyph:"☄", type:"field", dmg:26, range:132, tick:0.4, dur:2.4, offset:0, col:"#ff7a3a", style:"spike", fx:"novacast", sfx:"fire",
+    desc:"Impacto de meteoro: revienta un área enorme y deja brasas ardientes."},
+  {id:"bastion",    name:"Bastión",              glyph:"⛨", type:"buff",  stat:"def", amt:60, dur:5.0, heal:120, col:"#9be7ff", fx:"buffaura", sfx:"heal",
+    desc:"Bastión sagrado: te cura y te vuelve casi invulnerable unos segundos."},
+  {id:"tormenta",   name:"Tormenta de Cadenas",  glyph:"⚡", type:"chain", dmg:48, range:240, jumps:8, jumpRange:170, falloff:0.9, status:{type:"stun",dur:0.4}, col:"#bfe6ff", fx:"spellburst", sfx:"fire",
+    desc:"Tormenta que salta entre muchos enemigos cercanos, aturdiéndolos."},
+];
+export const ULTIMATE_MAP = Object.fromEntries(ULTIMATES.map(u=>[u.id,u]));
+
 // CAS-1574 — ABILITY RANKS: PERMANENT, Esencia-bought upgrades to each active ability, one
 // row per ability, ONE scaled parameter each. Purely data: the cost curve, cap, effect text
 // and the scaling FORMULA (`apply`) all live here — the single source of truth — so designers

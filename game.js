@@ -13,7 +13,7 @@
 // A Stage-2 networking layer wraps sim/ by feeding intents per tick and ignoring
 // render/audio/view — no rewrite of the gameplay logic required.
 // ===========================================================================
-import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode, ascendMeta, castAbility as simCastAbility } from "./sim/sim.js";
+import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode, ascendMeta, castAbility as simCastAbility, castUltimate as simCastUltimate } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { uiLayout } from "./ui/layout.js"; // CAS-1613: classic-sidebar opt-in flag (default OFF)
@@ -347,6 +347,13 @@ export function createGame(canvas, ctx, getView){
       abilityPool:()=>simDev.abilityPool(), abilityBar:()=>simDev.abilityBar(),
       loadout:()=>simDev.loadout(), setLoadout:(ids)=>simDev.setLoadout(ids),
       castAbility:(slot)=>simCastAbility(slot), abilityProbe:(id)=>simDev.abilityProbe(id),
+      // CAS-1659 HABILIDAD DEFINITIVA (Ultimate) contract consumed by tools/cas1659-ultimate.mjs — additive.
+      // MUST wire the passthroughs HERE (curated game.js wrapper), not only in sim.js dev, else "not a function" (cas1654).
+      ultMeta:()=>simDev.ultMeta(), ultimateState:()=>simDev.ultimateState(),
+      setUltId:(id)=>simDev.setUltId(id), fillUltimate:()=>simDev.fillUltimate(), setUltRate:(x)=>simDev.setUltRate(x),
+      ultOffer:()=>simDev.ultOffer(), castUltimate:()=>simCastUltimate(),
+      ultCastProbe:(id)=>simDev.ultCastProbe(id), ultPersist:(id,c)=>simDev.ultPersist(id,c), ultLoadLegacy:()=>simDev.ultLoadLegacy(),
+      ultChargeStream:(n,s,id)=>simDev.ultChargeStream(n,s,id), ultDraftNeutral:(d,n,s)=>simDev.ultDraftNeutral(d,n,s),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

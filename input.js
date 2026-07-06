@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -58,6 +58,7 @@ const ACTIONS = {
   skill2:()=>kbCast(1), skill3:()=>kbCast(2), skill4:()=>kbCast(3),
   ability1:()=>{ if(!isTouch) faceMouse(); sim.castAbility(0); },   // CAS-1570 drafted ability slots
   ability2:()=>{ if(!isTouch) faceMouse(); sim.castAbility(1); },
+  ultimate:()=>{ if(!isTouch) faceMouse(); sim.castUltimate(); },   // CAS-1659 HABILIDAD DEFINITIVA (charge-gated, no mana)
   pickup:()=>sim.tryPickup(), interact:()=>sim.interact(),
   useConsumable:()=>sim.doConsumable(), cycleConsumable:()=>sim.cycleConsumable(1),
   potionHP:()=>sim.doPotionHP(), potionMP:()=>sim.doPotionMP(),
@@ -104,6 +105,7 @@ function onKeyDown(e){
     else if(c==="Digit4"||c==="Numpad4") toggle(3);
     else if(c==="Digit5"||c==="Numpad5") toggle(4);
     else if(c==="Space") toggle(G.abilCursor);
+    else if(c==="KeyU"){ const un=(G.ultOffer&&G.ultOffer.length)||0; if(un) G.ultSel=((G.ultSel|0)+1)%un; } // CAS-1659: cycle the Ultimate pick
     else if(c==="Enter") confirmLoadout();
     e.preventDefault(); return; }
   const md=moveDir(e.code); if(md){ keys.add(md); e.preventDefault(); }
@@ -238,6 +240,8 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
     for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
   if(G.scene==="abilitysel"){ // CAS-1570: tap an ability card to toggle it, tap Listo to confirm
     const cf=ui.abilConfirmRect; if(cf&&cf.w&&x>=cf.x&&x<=cf.x+cf.w&&y>=cf.y&&y<=cf.y+cf.h){ confirmLoadout(); return; }
+    // CAS-1659: tap one of the 3 offered Ultimate cards to pick it for the run.
+    for(const r of (ui.ultRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){ G.ultSel=r.idx; return; } }
     for(const r of (ui.abilRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
       const pool=(G.abilPool&&G.abilPool.length)?G.abilPool:ACTIVE_ABILITIES; // CAS-1580 filtered pool
       G.abilCursor=r.idx; const id=pool[r.idx].id; const at=G.abilChosen.indexOf(id);
@@ -305,11 +309,16 @@ export function tbtns(){ // returns button rects for current scene
     // two active abilities read separately from the class-spell numbers on the right.
     ab1:{x:m+bs*0.5,  y:VH-m-bs*3.35, r:bs*0.46, label:abilGlyph(0), act:()=>sim.castAbility(0)},
     ab2:{x:m+bs*1.55, y:VH-m-bs*3.35, r:bs*0.46, label:abilGlyph(1), act:()=>sim.castAbility(1)},
+    // CAS-1659: Ultimate button — above the ability cluster, distinct star/glyph. Only meaningful
+    // (and drawn) when the run has a drafted ultimate; casting no-ops otherwise (charge-gated).
+    ult:{x:m+bs*0.5,  y:VH-m-bs*4.45, r:(G.hero&&G.hero.ultId)?bs*0.5:0, label:ultGlyph(), act:()=>sim.castUltimate()},
     bs
   };
 }
 // CAS-1570: current drafted-ability glyph for a touch slot (falls back to slot number).
 function abilGlyph(slot){ const lo=(G.hero&&G.hero.loadout)||[]; const a=ABILITY_MAP[lo[slot]]; return a?a.glyph:String(slot+1); }
+// CAS-1659: current drafted-ultimate glyph for the touch button (falls back to ★).
+function ultGlyph(){ const u=G.hero&&ULTIMATE_MAP[G.hero.ultId]; return u?u.glyph:"★"; }
 export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(38,s*0.075); const y=14+b/2; return {
   inv:{x:VW-14-b*0.5, y, r:b*0.5, label:"I", act:()=>{G.scene=G.scene==="inventory"?"play":"inventory";}},
   tal:{x:VW-14-b*1.6, y, r:b*0.5, label:"T", act:()=>{G.scene=G.scene==="talents"?"play":"talents";}}, // CAS-119
@@ -537,9 +546,15 @@ function openAbilityDraft(){ G.needAbilityDraft=false; G.abilCursor=0;
   G.abilPool=(sim.draftPool&&sim.draftPool())||ACTIVE_ABILITIES.filter(a=>!a.locked);
   const poolIds=new Set(G.abilPool.map(a=>a.id));
   const lo=(sim.dev.loadout&&sim.dev.loadout())||[]; G.abilChosen=lo.filter(id=>poolIds.has(id)).slice(0,2);
+  // CAS-1659: draw the run-start Ultimate offer (3-of-4 via the dedicated ultRng) + default to the
+  // first, so the same-scene pick persists and a single confirm still enters play (offer[0]).
+  if(sim.openUltimateOffer) sim.openUltimateOffer(); else { G.ultOffer=[]; G.ultSel=0; }
   G.scene="abilitysel"; }
 function confirmLoadout(){ if(!G.abilChosen||G.abilChosen.length<2) return;
-  sim.dev.setLoadout(G.abilChosen.slice()); G.scene="play"; }
+  sim.dev.setLoadout(G.abilChosen.slice());
+  // CAS-1659: bank the drafted Ultimate (default = first offered) for the run before entering play.
+  const off=G.ultOffer||[]; if(sim.chooseUltimate) sim.chooseUltimate(off[G.ultSel|0]||off[0]||null);
+  G.scene="play"; }
 // CAS-169: pick a class but open the wardrobe BEFORE play (createHero spawns the hero
 // in town + starts the run audio; we just hold on the customize scene first). "Listo"
 // in the wardrobe drops into play.
