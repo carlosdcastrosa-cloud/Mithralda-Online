@@ -775,8 +775,15 @@ export const ARENA = {
   hpStep:0.12, dmgStep:0.08,
   affixBase:0.10, affixStep:0.03, affixCap:0.60,
   champChance:0.15,                 // P(promote an affixed arena mob to an Élite Campeón) — own arenaRng gate
-  bossEvery:5, boonEvery:3, restSeconds:3,
+  bossEvery:5, boonEvery:3, restSeconds:3,   // bossEvery: every Nth wave is a boss wave — TUNABLE (starts at N=5)
   healFrac:0.40, essStep:3,
+  // CAS-1670 — Boss-wave payoff, scaled by k = wave/bossEvery (1,2,3…). Both hooks are
+  // guaranteed (no drop-chance roll): the Esencia bump is pure arithmetic (0 RNG), the extra
+  // loot pieces draw from the DEDICATED arenaRng (never srand → srand byte-identical at bonus 0).
+  bossEssBase:25,        // extra Esencia per boss wave = ceil(bossEssBase * k), on top of arenaEssence(wave)
+  bossBonusDrops:1,      // BASE count of guaranteed EXTRA loot pieces on a boss kill (arenaBonusDropCount adds floor(k/2))
+  bossBonusCap:4,        // cap on the extra-loot count as k climbs
+  bossDropRareFloor:"rare", // min rarity of the extra loot (reuses rollGearInst tier 2-3 pool; no new tables)
   // HUNTS zones whose `boss` block the arena reuses as its wave-boss stats. EXCLUDES `frost`
   // (its boss carries final:true → Stage-1 win) and `trial` (the optional post-finale world-boss),
   // so an arena boss never fires the victory screen and never gates on world-boss depth.
