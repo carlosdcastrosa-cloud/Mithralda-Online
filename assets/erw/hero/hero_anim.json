@@ -1,0 +1,12 @@
+{
+  "frameW": 403,
+  "frameH": 450,
+  "anchorX": 122,
+  "foot": 448,
+  "states": {
+    "walk": 4,
+    "attack": 4,
+    "roll": 4,
+    "idle": 1
+  }
+}

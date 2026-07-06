@@ -1,0 +1,148 @@
+{
+  "_doc": "CAS-167 phase2: value-normalised (gray+alpha) recolorable part masks split from art-reference/main-character.png. Runtime tints each by the player's palette (multiply, mid-ref 165) and composites in z-order, then bakes into the 140x166 clshero_/clswalk_ cells. Variations swap a slot's mask.",
+  "figure": {
+    "fw": 58,
+    "fh": 158
+  },
+  "bounds": {
+    "HEAD_BOTTOM": 34,
+    "LEG_TOP": 110
+  },
+  "zOrder": [
+    "longcape",
+    "legs",
+    "cloak/nocape",
+    "sash",
+    "hood/helmet"
+  ],
+  "colorSlots": [
+    "hood",
+    "cloak",
+    "sash",
+    "legs"
+  ],
+  "variations": {
+    "headwear": [
+      "hood",
+      "helmet",
+      "none"
+    ],
+    "cape": [
+      "cape",
+      "nocape",
+      "longcape"
+    ]
+  },
+  "defaultPalettes": {
+    "warrior": {
+      "hood": [
+        150,
+        174,
+        200
+      ],
+      "cloak": [
+        150,
+        174,
+        200
+      ],
+      "sash": [
+        200,
+        40,
+        60
+      ],
+      "legs": [
+        40,
+        40,
+        46
+      ]
+    },
+    "paladin": {
+      "hood": [
+        214,
+        176,
+        92
+      ],
+      "cloak": [
+        214,
+        176,
+        92
+      ],
+      "sash": [
+        180,
+        40,
+        50
+      ],
+      "legs": [
+        40,
+        40,
+        46
+      ]
+    },
+    "mage": {
+      "hood": [
+        150,
+        96,
+        200
+      ],
+      "cloak": [
+        150,
+        96,
+        200
+      ],
+      "sash": [
+        70,
+        200,
+        225
+      ],
+      "legs": [
+        40,
+        40,
+        46
+      ]
+    },
+    "druid": {
+      "hood": [
+        96,
+        168,
+        96
+      ],
+      "cloak": [
+        96,
+        168,
+        96
+      ],
+      "sash": [
+        150,
+        110,
+        60
+      ],
+      "legs": [
+        40,
+        40,
+        46
+      ]
+    },
+    "priest": {
+      "hood": [
+        225,
+        222,
+        210
+      ],
+      "cloak": [
+        225,
+        222,
+        210
+      ],
+      "sash": [
+        220,
+        185,
+        90
+      ],
+      "legs": [
+        40,
+        40,
+        46
+      ]
+    }
+  }
+}

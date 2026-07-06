@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Mithralda - El Reino Pixelado</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0c0e13;
+    font-family:'Courier New',monospace;-webkit-tap-highlight-color:transparent;
+    touch-action:none;user-select:none;-webkit-user-select:none;}
+  #c{display:block;image-rendering:pixelated;image-rendering:crisp-edges;}
+  #dev{position:fixed;top:4px;left:4px;color:#0f0;font:12px monospace;display:none;z-index:50;}
+  /* HTML overlay for the hero-name input on the main menu (mobile keyboard friendly) */
+  #nameWrap{position:fixed;left:50%;top:0;transform:translateX(-50%);z-index:40;display:none;width:min(86vw,420px);}
+  #nameInput{width:100%;box-sizing:border-box;padding:12px 14px;font:18px 'Courier New',monospace;
+    text-align:center;color:#e8e0d0;background:#1a1e26;border:3px solid #5a4632;border-radius:6px;outline:none;}
+  #nameInput::placeholder{color:#7d7460;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="dev"></div>
+<div id="nameWrap"><input id="nameInput" maxlength="14" autocomplete="off" spellcheck="false"></div>
+
+<!--
+  CACHE-BUSTING BOOTSTRAP (CAS-58)
+  ================================
+  Higgsfield serves our fixed-name ES modules with NO cache headers (no
+  cache-control / etag / last-modified). A returning player who loaded the game
+  yesterday keeps executing yesterday's CACHED modules — the deploy looked
+  identical to the board even though master had moved on.
+
+  Fix without server-header control and without renaming any file:
+   1) Fetch a tiny version.json with cache:'no-store' — this ALWAYS hits the
+      network, even when index.html itself is served from cache. Its `build`
+      field is a content hash that changes whenever any shipped file changes.
+   2) Inject an import map that routes EVERY module specifier (including the
+      internal static imports inside game.js / sim/* / render/*) to a
+      `?v=<build>` URL. One build id busts the entire module graph at once.
+   3) Expose window.__BUILD so render/sprites.js can append the same `?v=` to
+      image asset URLs.
+
+  This is a CLASSIC script on purpose: a classic inline script does not trigger
+  a module-graph load on parse, so we can register the import map and only THEN
+  dynamic-import the entry — the order the import-map spec requires.
+
+  Because filenames never change, the deploy-verify byte-identity gate (CAS-37)
+  stays valid: live bytes still equal master bytes for every file.
+-->
+<script>
+(async function boot(){
+  let build = "";
+  try {
+    const r = await fetch("./version.json?_=" + Date.now(), { cache: "no-store" });
+    if (r.ok) build = String((await r.json()).build || "");
+  } catch (e) { /* offline / very first deploy: fall through with no id */ }
+  if (!build) build = "0";
+  window.__BUILD = build; // consumed by render/sprites.js for asset URLs
+
+  // Every shipped ES module, keyed by its resolved path. The import map remaps the
+  // RESOLVED specifier, so internal `./sim/sim.js` imports (resolved relative to the
+  // entry's URL) are caught too — not just the entry.
+  // CAS-134: registered daily.js (the daily return loop). Also added the pre-existing
+  // omissions persist.js + sim/talents.js so the WHOLE module graph is cache-busted on
+  // deploy (an unlisted module loaded at its plain URL could otherwise serve stale).
+  // CAS-180: keys are built relative to BASE (this document's directory) instead of the
+  // server root, so the SAME bundle runs at any host root — "/" on Higgsfield/Cloudflare
+  // Pages, or "/<repo>/" on a GitHub Pages project site. At root BASE === "/", so the
+  // generated map is byte-identical to the previous root-absolute one (no behavior change).
+  const BASE = location.pathname.replace(/[^/]*$/, ""); // dir of this document, trailing "/"
+  const MODS = ["game.js","audio.js","view.js","input.js","strings.js","analytics.js","overlay.js","hud.js","daily.js","bestiary.js","persist.js","settings.js",
+    "sim/sim.js","sim/config.js","sim/math.js","sim/rng.js","sim/world.js","sim/gear.js","sim/talents.js",
+    "render/render.js","render/sprites.js","render/palette.js","render/customize.js"];
+  const imports = {};
+  for (const m of MODS) imports[BASE + m] = BASE + m + "?v=" + build;
+  const im = document.createElement("script");
+  im.type = "importmap";
+  im.textContent = JSON.stringify({ imports });
+  document.head.appendChild(im);
+
+  const { createGame } = await import(BASE + "game.js"); // -> <base>game.js?v=<build> via the map
+
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const DPR_CAP = 1.5;
+  let viewW = 0, viewH = 0, dpr = 1;
+  let game = null;
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+    viewW = window.innerWidth; viewH = window.innerHeight;
+    canvas.width = Math.floor(viewW * dpr);
+    canvas.height = Math.floor(viewH * dpr);
+    canvas.style.width = viewW + "px";
+    canvas.style.height = viewH + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    if (game) game.onResize(viewW, viewH);
+  }
+
+  game = createGame(canvas, ctx, () => ({ w: viewW, h: viewH }));
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", () => setTimeout(resize, 100));
+  resize();
+
+  // Fixed-timestep loop; pause on blur/visibility change.
+  const STEP = 1000 / 60;
+  let acc = 0, last = performance.now(), paused = false;
+  let frames = 0, fpsAt = last, fps = 0;
+  const devOn = new URLSearchParams(location.search).has("dev");
+  if (devOn) document.getElementById("dev").style.display = "block";
+
+  window.addEventListener("blur", () => { paused = true; game.onFocusLost(); });
+  window.addEventListener("focus", () => { paused = false; last = performance.now(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { paused = true; game.onFocusLost(); }
+    else { paused = false; last = performance.now(); }
+  });
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (paused) return;
+    let delta = now - last; last = now;
+    if (delta > 250) delta = 250; // avoid spiral after a stall
+    acc += delta;
+    let steps = 0;
+    while (acc >= STEP && steps < 5) { game.update(STEP); acc -= STEP; steps++; }
+    if (steps === 5) acc = 0;
+    game.render(acc / STEP);
+    if (devOn) {
+      frames++;
+      if (now - fpsAt >= 500) {
+        fps = Math.round(frames * 1000 / (now - fpsAt)); frames = 0; fpsAt = now;
+        document.getElementById("dev").textContent = fps + " fps | " + game.devInfo();
+      }
+    }
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

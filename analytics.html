@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mithralda — Analítica (retención + funnel)</title>
+<!--
+  CAS-132 — privacy-light analytics dashboard. STANDALONE + READ-ONLY: it reads the
+  same-origin localStorage blob written by analytics.js and renders retention + funnel.
+  It deliberately does NOT boot the game or open an analytics session, so OPENING THE
+  DASHBOARD NEVER POLLUTES THE METRICS.
+
+  SCOPE NOTE (honest): analytics is client-only + anonymous, so this page reports the
+  CURRENT BROWSER's user. Cross-user cohort retention needs a remote sink (REMOTE in
+  analytics.js, OFF by default, board-approval-gated — no infra added now).
+-->
+<style>
+  :root{--bg:#0c0e13;--panel:#161a22;--line:#2a313e;--ink:#e8e0d0;--dim:#8b93a3;--accent:#6fd3a3;--bar:#3a4658;--barfill:#6fd3a3;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 'Courier New',monospace;}
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px;}
+  h1{font-size:20px;margin:0 0 4px;} h2{font-size:15px;margin:24px 0 10px;color:var(--accent);}
+  .sub{color:var(--dim);margin:0 0 18px;font-size:12px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0;}
+  .kv{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dashed var(--line);}
+  .kv:last-child{border-bottom:0;} .kv b{color:#fff;font-weight:700;}
+  .yes{color:var(--accent);} .no{color:#d8736b;}
+  .step{margin:10px 0;} .step .lbl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;}
+  .track{background:var(--bar);border-radius:5px;height:18px;overflow:hidden;}
+  .fill{background:var(--barfill);height:100%;border-radius:5px;min-width:2px;transition:width .3s;}
+  .step.miss .fill{background:#4a5566;}
+  pre{background:#0a0c10;border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-size:11px;color:#a8b0c0;}
+  button{background:#222937;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 12px;
+    font:13px 'Courier New',monospace;cursor:pointer;margin-right:8px;} button:hover{border-color:var(--accent);}
+  .empty{color:var(--dim);font-style:italic;padding:20px 0;}
+  a{color:var(--accent);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mithralda — Analítica Stage-1</h1>
+  <p class="sub">Retención + funnel · privacy-light · anónimo · datos de <b>este navegador</b> (sin PII, sin login).</p>
+  <div id="root"></div>
+  <div style="margin-top:20px">
+    <button onclick="location.reload()">↻ Refrescar</button>
+    <button onclick="copyJson()">⧉ Copiar JSON</button>
+  </div>
+  <h2>Dump JSON crudo</h2>
+  <pre id="raw"></pre>
+  <p class="sub">Funnel: <b>boot → onboarding → primer hunt → primer boss → primera muerte/victoria</b>.
+  Para retención de cohortes entre usuarios se necesita un sink remoto (apagado por defecto, requiere aprobación del board).</p>
+</div>
+<script>
+const KEY="mithralda.analytics.v1";
+const FUNNEL=[
+  ["boot","Boot (sesión iniciada)"],
+  ["onboarding_complete","Onboarding completado"],
+  ["first_hunt","Primer hunt"],
+  ["first_boss","Primer boss"],
+  ["first_death","Primera muerte"],
+  ["first_victory","Primera victoria Stage-1"],
+];
+function day(ts){const d=new Date(ts);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");}
+function nextDay(s){const[y,m,d]=s.split("-").map(Number);const t=new Date(y,m-1,d);t.setDate(t.getDate()+1);return day(t.getTime());}
+function read(){try{const r=localStorage.getItem(KEY);return r?JSON.parse(r):null;}catch(e){return null;}}
+function esc(s){return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+function fmtTs(ts){return ts?new Date(ts).toLocaleString():"—";}
+function render(){
+  const s=read(), root=document.getElementById("root");
+  document.getElementById("raw").textContent=s?JSON.stringify(s,null,2):"(sin datos)";
+  if(!s){ root.innerHTML='<div class="empty">Aún no hay datos de analítica en este navegador. Abre el juego (<a href="./">jugar</a>), juega una sesión y vuelve aquí.</div>'; return; }
+  // retention
+  const created=s.createdDay, d1Want=nextDay(created);
+  const d1=(s.days||[]).includes(d1Want);
+  const kv=[
+    ["ID anónimo", s.aid],
+    ["Primera sesión", created+" ("+fmtTs(s.createdTs)+")"],
+    ["Sesiones totales", "<b>"+(s.sessions||0)+"</b>"],
+    ["Días activos distintos", "<b>"+((s.days||[]).length)+"</b>"],
+    ["Jugador recurrente", (s.sessions>1)?'<span class="yes">SÍ</span>':'<span class="no">no (1 sesión)</span>'],
+    ["Retención D1 (volvió al día siguiente)", d1?'<span class="yes">SÍ</span>':'<span class="no">no</span>'],
+    ["Tiempo jugado total", Math.round((s.totalPlayMs||0)/60000)+" min"],
+    ["Última actividad", fmtTs(s.lastTs)],
+  ];
+  let html='<h2>Retención</h2><div class="panel">'+kv.map(([k,v])=>'<div class="kv"><span>'+esc(k)+'</span><span>'+v+'</span></div>').join("")+'</div>';
+  // funnel
+  const bootN=(s.funnel&&s.funnel.boot&&s.funnel.boot.n)||0;
+  html+='<h2>Funnel de conversión</h2><div class="panel">';
+  if(!bootN){ html+='<div class="empty">Sin eventos de funnel todavía.</div>'; }
+  for(const [step,label] of FUNNEL){
+    const f=s.funnel&&s.funnel[step];
+    const n=f?f.n:0, pct=bootN?Math.round((n/bootN)*100):0;
+    html+='<div class="step'+(f?'':' miss')+'"><div class="lbl"><span>'+esc(label)+'</span>'+
+      '<span>'+(f?(n+' · '+pct+'%'):'—')+'</span></div>'+
+      '<div class="track"><div class="fill" style="width:'+(bootN?pct:0)+'%"></div></div></div>';
+  }
+  html+='</div>';
+  // session log
+  const log=(s.sessionsLog||[]).slice().reverse();
+  html+='<h2>Sesiones recientes</h2><div class="panel">';
+  if(!log.length){ html+='<div class="empty">—</div>'; }
+  else for(const r of log.slice(0,12)){
+    html+='<div class="kv"><span>'+esc(fmtTs(r.start))+'</span><span><b>'+Math.round((r.durMs||0)/1000)+'s</b> · '+esc((r.build||"").slice(0,8)||"—")+'</span></div>';
+  }
+  html+='</div>';
+  root.innerHTML=html;
+}
+function copyJson(){const s=read();const t=s?JSON.stringify(s,null,2):"";try{navigator.clipboard.writeText(t);}catch(e){}}
+render();
+</script>
+</body>
+</html>

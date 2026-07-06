@@ -1,0 +1,1159 @@
+{
+  "source": "EPIC RPG World packs (board Drive, CAS-53/CAS-74)",
+  "grid": 32,
+  "tiles": {
+    "tiles/ruins_stone_ground.png": {
+      "path": "assets/erw/tiles/ruins_stone_ground.png",
+      "w": 576,
+      "h": 320,
+      "bytes": 12389,
+      "from": "ERW - Ancient Ruins V 2.3/Tilesets/stone ground-transp.png"
+    },
+    "tiles/ruins_stone_ground2.png": {
+      "path": "assets/erw/tiles/ruins_stone_ground2.png",
+      "w": 640,
+      "h": 288,
+      "bytes": 15924,
+      "from": "ERW - Ancient Ruins V 2.3/Tilesets/stone ground2-transp.png"
+    },
+    "tiles/ruins_grass.png": {
+      "path": "assets/erw/tiles/ruins_grass.png",
+      "w": 992,
+      "h": 416,
+      "bytes": 30892,
+      "from": "ERW - Ancient Ruins V 2.3/Tilesets/grass-mid tone-transp.png"
+    },
+    "tiles/ruins_grass_dark.png": {
+      "path": "assets/erw/tiles/ruins_grass_dark.png",
+      "w": 992,
+      "h": 416,
+      "bytes": 30909,
+      "from": "ERW - Ancient Ruins V 2.3/Tilesets/grass-dark-transp.png"
+    },
+    "tiles/ruins_water.png": {
+      "path": "assets/erw/tiles/ruins_water.png",
+      "w": 256,
+      "h": 32,
+      "bytes": 2238,
+      "from": "ERW - Ancient Ruins V 2.3/Tilesets/full tile water.png"
+    },
+    "tiles/ruins_flooded_grass.png": {
+      "path": "assets/erw/tiles/ruins_flooded_grass.png",
+      "w": 480,
+      "h": 192,
+      "bytes": 24368,
+      "from": "ERW - Ancient Ruins V 2.3/Tilesets/flooded grass-full tiles variations.png"
+    },
+    "tiles/sewer_water.png": {
+      "path": "assets/erw/tiles/sewer_water.png",
+      "w": 256,
+      "h": 32,
+      "bytes": 1257,
+      "from": "EPIC RPG World - Sewers V1.5/Tilesets/Animated sewage water tiles (full tile).png"
+    }
+  },
+  "characters": {
+    "moose": {
+      "pack": "ancient_ruins",
+      "anims": {
+        "death": [
+          {
+            "path": "assets/erw/mobs/moose/moose1-death-347x192.png",
+            "w": 5205,
+            "h": 192,
+            "bytes": 26461,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 15,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose2-death-347x192.png",
+            "w": 5205,
+            "h": 192,
+            "bytes": 28803,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 15,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose3-death-347x192.png",
+            "w": 5205,
+            "h": 192,
+            "bytes": 26903,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 15,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose4-death-347x192.png",
+            "w": 5205,
+            "h": 192,
+            "bytes": 29183,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 15,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose5-death-347x192.png",
+            "w": 5205,
+            "h": 192,
+            "bytes": 26777,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 15,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose6-death-347x192.png",
+            "w": 5205,
+            "h": 192,
+            "bytes": 29065,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 15,
+            "rows": 1
+          }
+        ],
+        "hurt": [
+          {
+            "path": "assets/erw/mobs/moose/moose1-hurt-347x192.png",
+            "w": 2082,
+            "h": 192,
+            "bytes": 13917,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 6,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose2-hurt-347x192.png",
+            "w": 2082,
+            "h": 192,
+            "bytes": 14910,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 6,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose3-hurt-347x192.png",
+            "w": 2082,
+            "h": 192,
+            "bytes": 14337,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 6,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose4-hurt-347x192.png",
+            "w": 2082,
+            "h": 192,
+            "bytes": 15203,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 6,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose5-hurt-347x192.png",
+            "w": 2082,
+            "h": 192,
+            "bytes": 14239,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 6,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose6-hurt-347x192.png",
+            "w": 2082,
+            "h": 192,
+            "bytes": 15098,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 6,
+            "rows": 1
+          }
+        ],
+        "idle": [
+          {
+            "path": "assets/erw/mobs/moose/moose1-idle-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 11116,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose2-idle-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 11804,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose3-idle-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 11445,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose4-idle-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 12003,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose5-idle-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 13110,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose6-idle-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 14127,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          }
+        ],
+        "run": [
+          {
+            "path": "assets/erw/mobs/moose/moose1-run-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 14407,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose2-run-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 15687,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose3-run-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 14757,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose4-run-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 15848,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose5-run-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 14560,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/moose/moose6-run-347x192.png",
+            "w": 2776,
+            "h": 192,
+            "bytes": 15654,
+            "frameW": 347,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          }
+        ]
+      }
+    },
+    "stone_golem": {
+      "pack": "ancient_ruins",
+      "anims": {
+        "attack": [
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem_v2-attack-224x192.png",
+            "w": 3808,
+            "h": 192,
+            "bytes": 22342,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 17,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem-attack-224x192.png",
+            "w": 3808,
+            "h": 192,
+            "bytes": 20102,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 17,
+            "rows": 1
+          }
+        ],
+        "death": [
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem_v2-death-224x192.png",
+            "w": 2912,
+            "h": 192,
+            "bytes": 25222,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 13,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem-death-224x192.png",
+            "w": 2912,
+            "h": 192,
+            "bytes": 23019,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 13,
+            "rows": 1
+          }
+        ],
+        "hurt": [
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem_v2-hurt-224x192.png",
+            "w": 2688,
+            "h": 192,
+            "bytes": 19637,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 12,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem-hurt-224x192.png",
+            "w": 2688,
+            "h": 192,
+            "bytes": 17965,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 12,
+            "rows": 1
+          }
+        ],
+        "idle": [
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem_v2-idle-224x192.png",
+            "w": 1792,
+            "h": 192,
+            "bytes": 11648,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem-idle-224x192.png",
+            "w": 1792,
+            "h": 192,
+            "bytes": 9765,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem-idle.png",
+            "w": 1792,
+            "h": 192,
+            "bytes": 9765,
+            "frameW": null,
+            "frameH": 192,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "run": [
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem_v2-run-224x192.png",
+            "w": 1792,
+            "h": 192,
+            "bytes": 11930,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/stone_golem/Stone-golem-run-224x192.png",
+            "w": 1792,
+            "h": 192,
+            "bytes": 10022,
+            "frameW": 224,
+            "frameH": 192,
+            "frames": 8,
+            "rows": 1
+          }
+        ]
+      }
+    },
+    "npc_merchant": {
+      "pack": "ancient_ruins",
+      "anims": {
+        "idle": [
+          {
+            "path": "assets/erw/mobs/npc_merchant/NPC_Merchant-idle.png",
+            "w": 880,
+            "h": 110,
+            "bytes": 4513,
+            "frameW": null,
+            "frameH": 110,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/npc_merchant/NPC_Merchant-idle.png",
+            "w": 880,
+            "h": 110,
+            "bytes": 4513,
+            "frameW": null,
+            "frameH": 110,
+            "frames": null,
+            "rows": 1
+          }
+        ]
+      }
+    },
+    "mutant_rat": {
+      "pack": "sewers",
+      "anims": {
+        "attack": [
+          {
+            "path": "assets/erw/mobs/mutant_rat/mutant_rat_-_attack1.png",
+            "w": 1792,
+            "h": 96,
+            "bytes": 11366,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/mutant_rat/mutant_rat_-_attack2.png",
+            "w": 1280,
+            "h": 96,
+            "bytes": 8458,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "projectile": [
+          {
+            "path": "assets/erw/mobs/mutant_rat/mutant_rat_-_bubble-projectile.png",
+            "w": 333,
+            "h": 37,
+            "bytes": 654,
+            "frameW": null,
+            "frameH": 37,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "death": [
+          {
+            "path": "assets/erw/mobs/mutant_rat/mutant_rat_-_death.png",
+            "w": 1536,
+            "h": 96,
+            "bytes": 13376,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "hurt": [
+          {
+            "path": "assets/erw/mobs/mutant_rat/mutant_rat_-_hurt.png",
+            "w": 1408,
+            "h": 96,
+            "bytes": 9960,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "idle": [
+          {
+            "path": "assets/erw/mobs/mutant_rat/mutant_rat_-_idle.png",
+            "w": 1024,
+            "h": 96,
+            "bytes": 7224,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "run": [
+          {
+            "path": "assets/erw/mobs/mutant_rat/mutant_rat_-_walk.png",
+            "w": 1024,
+            "h": 96,
+            "bytes": 8431,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ]
+      }
+    },
+    "viper": {
+      "pack": "sewers",
+      "anims": {
+        "attack": [
+          {
+            "path": "assets/erw/mobs/viper/viper-attack.png",
+            "w": 864,
+            "h": 96,
+            "bytes": 4040,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "death": [
+          {
+            "path": "assets/erw/mobs/viper/viper-death.png",
+            "w": 864,
+            "h": 96,
+            "bytes": 4769,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "hurt": [
+          {
+            "path": "assets/erw/mobs/viper/viper-hurt.png",
+            "w": 576,
+            "h": 96,
+            "bytes": 3234,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/viper/viper-hurt2.png",
+            "w": 384,
+            "h": 96,
+            "bytes": 2238,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "idle": [
+          {
+            "path": "assets/erw/mobs/viper/viper-idle.png",
+            "w": 768,
+            "h": 96,
+            "bytes": 2637,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "run": [
+          {
+            "path": "assets/erw/mobs/viper/viper-walk.png",
+            "w": 768,
+            "h": 96,
+            "bytes": 3098,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ]
+      }
+    },
+    "beholder": {
+      "pack": "sewers",
+      "anims": {
+        "attack": [
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk1-_3quarters_pose-_back_view-_loop.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 2939,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk1-_3quarters_pose-_front_view-_loop.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3571,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk1-_back_view-_loop.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3036,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk1-_side_view-_loop.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3231,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk1-back_view-_finishing_atk1_animation.png",
+            "w": 640,
+            "h": 96,
+            "bytes": 5719,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk1-front_view-_finishing_atk1_animation.png",
+            "w": 640,
+            "h": 96,
+            "bytes": 6872,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk1-front_view-loop.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3566,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk2-back_view-finishing.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 2910,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk2-back_view-loop.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3029,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk2-front_view-finishing.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3692,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk2-front_view-loop.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3668,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk3-finishing_the_spin.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3699,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk3-loop-FX.png",
+            "w": 512,
+            "h": 96,
+            "bytes": 743,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk3-spin_loop.png",
+            "w": 512,
+            "h": 96,
+            "bytes": 4413,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-atk3-spin_start.png",
+            "w": 256,
+            "h": 96,
+            "bytes": 3749,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "death": [
+          {
+            "path": "assets/erw/mobs/beholder/beholder-death.png",
+            "w": 1664,
+            "h": 128,
+            "bytes": 14884,
+            "frameW": null,
+            "frameH": 128,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "run": [
+          {
+            "path": "assets/erw/mobs/beholder/beholder-walk-3quarters_pose_-_back_view.png",
+            "w": 2048,
+            "h": 96,
+            "bytes": 10962,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-walk-3quarters_pose_-_front_view.png",
+            "w": 2048,
+            "h": 96,
+            "bytes": 14400,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-walk-back_view.png",
+            "w": 2048,
+            "h": 96,
+            "bytes": 11095,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-walk-front_view.png",
+            "w": 2048,
+            "h": 96,
+            "bytes": 14629,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/beholder-walk-side_view.png",
+            "w": 2048,
+            "h": 96,
+            "bytes": 11315,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "projectile": [
+          {
+            "path": "assets/erw/mobs/beholder/eye-projectile-impact.png",
+            "w": 120,
+            "h": 24,
+            "bytes": 280,
+            "frameW": null,
+            "frameH": 24,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/eye-projectile-loop.png",
+            "w": 48,
+            "h": 24,
+            "bytes": 219,
+            "frameW": null,
+            "frameH": 24,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/beholder/eye-projectile-spawn.png",
+            "w": 96,
+            "h": 24,
+            "bytes": 361,
+            "frameW": null,
+            "frameH": 24,
+            "frames": null,
+            "rows": 1
+          }
+        ]
+      }
+    },
+    "skeleton": {
+      "pack": "old_prison",
+      "anims": {
+        "attack": [
+          {
+            "path": "assets/erw/mobs/skeleton/Skeleton_1_-_animations-atk_1.png",
+            "w": 3960,
+            "h": 220,
+            "bytes": 16124,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/skeleton/Skeleton_1_-_animations-atk2.png",
+            "w": 2860,
+            "h": 220,
+            "bytes": 11935,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "death": [
+          {
+            "path": "assets/erw/mobs/skeleton/Skeleton_1_-_animations-death.png",
+            "w": 2860,
+            "h": 220,
+            "bytes": 16016,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "hurt": [
+          {
+            "path": "assets/erw/mobs/skeleton/Skeleton_1_-_animations-hurt.png",
+            "w": 1760,
+            "h": 220,
+            "bytes": 8837,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "idle": [
+          {
+            "path": "assets/erw/mobs/skeleton/Skeleton_1_-_animations-idle.png",
+            "w": 1760,
+            "h": 220,
+            "bytes": 6925,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "run": [
+          {
+            "path": "assets/erw/mobs/skeleton/Skeleton_1_-_animations-walk.png",
+            "w": 1760,
+            "h": 220,
+            "bytes": 7268,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ]
+      }
+    },
+    "mage_skeleton": {
+      "pack": "old_prison",
+      "anims": {
+        "attack": [
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-atk_1-initial_stage.png",
+            "w": 1320,
+            "h": 220,
+            "bytes": 8389,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-atk1-final_stage.png",
+            "w": 1540,
+            "h": 220,
+            "bytes": 9751,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-atk1-loopable.png",
+            "w": 1760,
+            "h": 220,
+            "bytes": 6884,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-atk2.png",
+            "w": 3520,
+            "h": 220,
+            "bytes": 15993,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-atk2-dust_FX.png",
+            "w": 1280,
+            "h": 96,
+            "bytes": 3348,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "death": [
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-death.png",
+            "w": 2860,
+            "h": 220,
+            "bytes": 18133,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "hurt": [
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-hurt.png",
+            "w": 1760,
+            "h": 220,
+            "bytes": 10827,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "idle": [
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-idle.png",
+            "w": 1760,
+            "h": 220,
+            "bytes": 7534,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "run": [
+          {
+            "path": "assets/erw/mobs/mage_skeleton/Mage_Skeleton_-_animations-walk.png",
+            "w": 1760,
+            "h": 220,
+            "bytes": 9509,
+            "frameW": null,
+            "frameH": 220,
+            "frames": null,
+            "rows": 1
+          }
+        ]
+      }
+    },
+    "assassin": {
+      "pack": "old_prison",
+      "anims": {
+        "attack": [
+          {
+            "path": "assets/erw/mobs/assassin/Assassin_like_enemy_-_animations-atk1.png",
+            "w": 1980,
+            "h": 96,
+            "bytes": 7423,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/assassin/Assassin_like_enemy_-_animations-atk2-_jump_atk_after_running.png",
+            "w": 2420,
+            "h": 96,
+            "bytes": 11133,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/assassin/Assassin_like_enemy_-_animations-atk2-fixed_X_axis.png",
+            "w": 2420,
+            "h": 96,
+            "bytes": 11268,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "death": [
+          {
+            "path": "assets/erw/mobs/assassin/Assassin_like_enemy_-_animations-death.png",
+            "w": 2640,
+            "h": 96,
+            "bytes": 11041,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "hurt": [
+          {
+            "path": "assets/erw/mobs/assassin/Assassin_like_enemy_-_animations-hurt.png",
+            "w": 1540,
+            "h": 96,
+            "bytes": 6865,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "idle": [
+          {
+            "path": "assets/erw/mobs/assassin/Assassin_like_enemy_-_animations-idle.png",
+            "w": 2200,
+            "h": 96,
+            "bytes": 7413,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          },
+          {
+            "path": "assets/erw/mobs/assassin/Assassin_like_enemy_-_animations-idle2.png",
+            "w": 1540,
+            "h": 96,
+            "bytes": 4908,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ],
+        "run": [
+          {
+            "path": "assets/erw/mobs/assassin/Assassin_like_enemy_-_animations-run.png",
+            "w": 1320,
+            "h": 96,
+            "bytes": 5761,
+            "frameW": null,
+            "frameH": 96,
+            "frames": null,
+            "rows": 1
+          }
+        ]
+      }
+    }
+  },
+  "hero": {
+    "path": "assets/erw/hero/hero_hooded.png",
+    "w": 256,
+    "h": 256,
+    "bytes": 5075,
+    "note": "single 256x256 pose; movement = procedural or needs walk-sheet"
+  }
+}
