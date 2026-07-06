@@ -185,6 +185,9 @@ export function createGame(canvas, ctx, getView){
       hero:()=>G.hero?{cls:G.hero.cls,x:G.hero.x,y:G.hero.y}:null,
       // CAS-92: read-only hero animation state, used by tools/hero-anim-shot.mjs
       heroAnim:()=>G.hero?{state:G.hero.animState,rolling:!!G.hero.rolling,atk:G.hero.atkAnim>0,hurtAnim:+(G.hero.hurtAnim||0).toFixed(3),specialAnim:+(G.hero.specialAnim||0).toFixed(3),facing:+(G.hero.facing||0).toFixed(4),moved:!!G.hero.moved}:null, // CAS-347: read-only facing/moved for the facing-follows-movement QA harness
+      // CAS-1619: read-only dash-streak orientation so QA can prove the dash VFX follows the real
+      // dash vector in all 8 directions (streak angle == atan2(rollY,rollX); dir8 bucket 0=E..7=NE).
+      dashStreak:()=>{const h=G.hero; if(!h||!h.rolling||!(h.rollX||h.rollY))return{active:false}; const ang=Math.atan2(h.rollY,h.rollX); return {active:true, ang:+ang.toFixed(4), dx:+(h.rollX||0).toFixed(4), dy:+(h.rollY||0).toFixed(4), dir8:((Math.round(ang/(Math.PI/4))%8)+8)%8, rollT:+(h.rollT||0).toFixed(4)};},
       enemyCount:()=>G.enemies.length,
       // CAS-441: positional enemy snapshot (read-only) so the swamp harness can prove the
       // zone spawner populates the rect from its pool — consumed by tools/cas441-swamp.mjs.
