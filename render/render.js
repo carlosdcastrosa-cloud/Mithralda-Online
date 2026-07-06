@@ -546,6 +546,9 @@ export function createRenderer(ctx){
     for(const c of world.chests){ if(!c.opened) order.push({y:c.y,draw:()=>blit(ctx,SP.chest.rows,SP.chest.pal,c.x,c.y,3,false)}); }
     for(const f of world.fragments){ if(!f.taken) order.push({y:f.y,draw:()=>drawFragment(ctx,f.x,f.y,2,G.t)}); }
     for(const d of G.drops){ order.push({y:d.y,draw:()=>{ if(d.kind==="gold")drawCoin(ctx,d.x,d.y,2,G.t); else if(d.kind==="gear")drawGearDrop(d); else if(d.kind==="potionhp")drawPotion(ctx,d.x,d.y,2,COL.hpf,"#ff8a8a"); else drawPotion(ctx,d.x,d.y,2,COL.mpf,"#8ab8ff"); }}); }
+    // CAS-1681: telegraphed zone-event POI markers (procedural, y-sorted, RNG-neutral — animated from
+    // sim time only). Only ACTIVE POIs draw; nothing exists unless ZONE_EVENTS.enabled seeded them.
+    if(G.zoneEvents&&G.zoneEvents.pois.length) for(const poi of G.zoneEvents.pois){ if(poi.state!=="active") continue; order.push({y:poi.y,draw:()=>drawZonePOI(poi)}); }
     G._decoOrder=order;
   }
 
@@ -556,6 +559,25 @@ export function createRenderer(ctx){
     ctx.fillStyle="#0c0e12"; ctx.beginPath(); ctx.moveTo(x,y-9); ctx.lineTo(x+7,y); ctx.lineTo(x,y+9); ctx.lineTo(x-7,y); ctx.closePath(); ctx.fill();
     ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x,y-7); ctx.lineTo(x+5,y); ctx.lineTo(x,y+7); ctx.lineTo(x-5,y); ctx.closePath(); ctx.fill();
     ctx.fillStyle="rgba(255,255,255,0.7)"; ctx.beginPath(); ctx.moveTo(x,y-7); ctx.lineTo(x+2,y-1); ctx.lineTo(x-2,y-1); ctx.closePath(); ctx.fill();
+  }
+
+  // CAS-1681: procedural zone-event POI marker (no new art). Shrine = rune pillar, chest = the shared
+  // chest sprite with a gold glint, goblin = a coin beacon above the fleeing courier (the mob itself is
+  // drawn by drawEnemy). An "!" beacon floats over any POI the hero hasn't yet approached (opt-in signal).
+  function drawZonePOI(poi){ const x=poi.x, y=poi.y, t=G.t; const bob=Math.sin(t*3+x*0.05)*3;
+    ctx.globalAlpha=0.3; ctx.fillStyle="#000"; ctx.beginPath(); ctx.ellipse(x,y+4,9,4,0,0,6.28); ctx.fill(); ctx.globalAlpha=1;
+    if(poi.type==="shrine"){
+      ctx.fillStyle="#3a2f52"; ctx.fillRect(x-7,y-20,14,20); ctx.fillStyle="#241b38"; ctx.fillRect(x-7,y-20,14,4);
+      const pulse=2+Math.sin(t*4+x)*1.5; ctx.globalAlpha=0.9; ctx.fillStyle="#b07cff";
+      ctx.beginPath(); ctx.arc(x,y-14,4+pulse,0,6.28); ctx.fill(); ctx.globalAlpha=1;
+      for(let i=0;i<3;i++){ const a=t*1.6+i*2.09; ctx.fillStyle="#dcc6ff"; ctx.fillRect(Math.round(x+Math.cos(a)*10-1),Math.round(y-14+Math.sin(a)*6-1),2,2); }
+    } else if(poi.type==="chest"){
+      if(SP.chest) blit(ctx,SP.chest.rows,SP.chest.pal,x,y,3,false); else { ctx.fillStyle="#caa14a"; ctx.fillRect(x-8,y-8,16,10); }
+      const gl=Math.sin(t*5+x)*0.5+0.5; ctx.globalAlpha=0.4+gl*0.5; ctx.fillStyle="#ffe27a"; ctx.fillRect(x-1,y-11,2,2); ctx.globalAlpha=1;
+    } else if(poi.type==="goblin"){
+      drawCoin(ctx,x,y-28+bob,2,t);
+    }
+    if(!poi.seen){ const by=y-32+Math.sin(t*4)*2; ctx.fillStyle="#ffd24d"; ctx.fillRect(Math.round(x)-1,Math.round(by),2,7); ctx.fillRect(Math.round(x)-1,Math.round(by)+9,2,2); }
   }
 
   function renderEntities(){
