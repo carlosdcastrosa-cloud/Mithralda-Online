@@ -14,11 +14,11 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost, UNIQUES, uniqDef, uniqById, uniqInst, uniqName, uniqTotals, uniqEmpower } from "./gear.js";
 import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, lockReason, sanitizeTalents, talentEmpower, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
 // feedback floater palette (presentation hints carried by sim events)
@@ -40,6 +40,13 @@ const { srand, seed, rr, ri } = rng;
 // the render-side isolation established in CAS-15.
 const fxRng = createRNG();
 const frr = (a,b)=>fxRng.rr(a,b);
+
+// CAS-1638 — legendary/unique drop RNG: a THIRD isolated stream (distinct seed so it never
+// correlates with the fx stream). The legendary gate + unique pick draw from THIS stream only,
+// never the authoritative srand — so the existing loot/spawn sequence is byte-identical for a
+// seed at ANY legendary rate, not merely rate=0. This is the AC3 fix flagged by the CTO on
+// CAS-1631: the append-only legendary roll must not consume or shift the shared srand stream.
+const legRng = createRNG(0x1a2b3c4d);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -596,8 +603,11 @@ function safeInst(inst){ if(!(inst && inst.slot && gearDef(inst.slot,inst.defId)
   const o={slot:inst.slot,defId:inst.defId,rarity:RARITY_VALID(inst.rarity)};
   const af=safeAffixes(inst.affixes); if(af) o.affixes=af;
   const fl=forgeLevel(inst); if(fl>0) o.fl=fl;   // CAS-237: persist clamped forge level (0 omitted)
+  // CAS-1632: preserve the UNIQUE id (only if it resolves to a real unique) so a legendary
+  // survives save→load and its mod stays live; a bad/unknown uniq is dropped (falls back to base).
+  if(inst.uniq && uniqDef(inst)) o.uniq=inst.uniq;
   return o; }
-function RARITY_VALID(r){ return (r==="common"||r==="uncommon"||r==="rare"||r==="epic")?r:"common"; }
+function RARITY_VALID(r){ return (r==="common"||r==="uncommon"||r==="rare"||r==="epic"||r==="legendary")?r:"common"; }
 // CAS-117: validate persisted affixes — drop anything unknown/malformed so a
 // corrupted/old save can never compute against a missing affix; cap at 2.
 function safeAffixes(arr){ if(!Array.isArray(arr)) return null; const out=[];
@@ -688,8 +698,11 @@ function essenceForRun(h, r){ if(!h) return 0;
   // CAS-1590: each Élite Campeón slain this run banks a GUARANTEED, data-driven Esencia bounty on
   // top of the affix drip. No RNG → 0 champions (incl. CHAMPION_RATE=0) → term vanishes → byte-identity.
   const champs=(r&&r.champElites)|0;
-  const raw = lvl*2 + elites*5 + zonas*10 + (tier-1)*15 + afk*MOB_AFFIX_ESSENCE + champs*CHAMPION.essence;
-  if(raw<=0) return 0;
+  const raw0 = lvl*2 + elites*5 + zonas*10 + (tier-1)*15 + afk*MOB_AFFIX_ESSENCE + champs*CHAMPION.essence;
+  if(raw0<=0) return 0;
+  // CAS-1632: corona_ecos unique (+25% Esencia) scales the raw haul BEFORE the Ascensión mult.
+  // Read live off the equipped instances (uniqTotals) — derived, 0 RNG; unequipped → ×1 (byte-identical).
+  const raw = raw0 * (1 + uniqTotals(h).essencePct/100);
   // CAS-1565: Ascensión/Prestigio multiplier — the permanent payoff for sacrificing the altar.
   return Math.max(1, Math.floor(raw * ascMult(ascLevel()))); }
 // Reconcile the DURABLE meta stats (HP / dmg / gold / moveSpeed) onto a hero at a run-start
@@ -1120,12 +1133,31 @@ function applyAffix(e, id){
   return e;
 }
 
+// CAS-1632/1638 — LEGENDARY/UNIQUE drop. Live rate (ships at LEGENDARY.rate). A ?dev seam
+// (__dev.setLegRate) forces it to 0 for the OFF-path test. __dev.forceLegendary sets a
+// one-shot id so the harness can guarantee a specific unique drops on the next kill.
+let legRate=LEGENDARY.rate, forcedLeg=null;
+// Called APPEND-ONLY at the very end of a kill's loot resolution — AFTER every pre-existing
+// dropGear/rollGearInst — so those rolls are already fixed (byte-identical). `kindBias` scales
+// the base rate for elite/champion/boss kills. CAS-1638 AC3 fix: the gate + unique pick draw
+// from the DEDICATED legRng stream, NEVER the authoritative srand — so the existing loot/spawn
+// sequence is byte-identical for a seed at ANY rate (the shared stream is provably untouched).
+function maybeLegendary(x, y, kindBias){
+  if(forcedLeg){ const id=forcedLeg; forcedLeg=null; const inst=uniqInst(id); if(inst) dropGear(x, y, inst); return; }
+  const rate=legRate*(kindBias>0?kindBias:1);
+  if(!(rate>0)) return;                                    // OFF / rate 0 → early out, no RNG at all
+  if(legRng.srand()>=(rate<1?rate:1)) return;              // dedicated-stream gate — shared srand untouched
+  const u=UNIQUES[Math.floor(legRng.srand()*UNIQUES.length)]; // dedicated-stream uniform pick
+  dropGear(x, y, { slot:u.slot, defId:u.defId, rarity:"legendary", uniq:u.id });
+}
+
 // CAS-197 — the ONE place the three atkspd sources (affixes CAS-117 + talents CAS-119 +
 // the "furia" consumable CAS-192) are summed, clamped to the global cohesion ceiling
 // ATKSPD_TOTAL_CAP so the independently-capped systems can't compound past intent. Both
 // the swing formula and the harness read-out call this, so they can never drift apart.
 export function heroAtkspd(h){ h=h||G.hero; if(!h) return 0;
-  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0);
+  // CAS-1632: guante_berserker unique (+12% atkspd) joins the summed sources under the same cap.
+  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd;
   return s>ATKSPD_TOTAL_CAP?ATKSPD_TOTAL_CAP:s; }
 
 // ------------------------------ combat ---------------------------------
@@ -1299,8 +1331,9 @@ function killEnemy(e){
     noteEliteKill(); // CAS-149: the final boss is an elite-class kill → feeds Elite Mastery
     grantMats(3);    // CAS-237: a boss kill is a signature forge-material haul
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
+    maybeLegendary(e.x, e.y+18, LEGENDARY.bossMul);       // CAS-1632: append-only unique roll (after the guaranteed boss piece)
     gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
-  else if(e.champion){ onChampionKill(e); } // hunt climax — clears the zone, guaranteed payoff
+  else if(e.champion){ onChampionKill(e); maybeLegendary(e.x, e.y-24, LEGENDARY.bossMul); } // hunt climax — clears the zone; CAS-1632 unique roll after all clear-drops
   else { gainXP(tpl.xp);
     audio.sfx.mobDie&&audio.sfx.mobDie(); // CAS-447: regular kills get an audible finisher (boss/champion keep sfx.boss)
     // CAS-273: every kill now lands a subtle, size-scaled screen-shake (the requested
@@ -1322,6 +1355,10 @@ function killEnemy(e){
     if(e.affix && G.hero){ G.hero.affixKills=(G.hero.affixKills|0)+1; }
     huntKill(zone); // a normal kill in a hunt zone advances that zone's contract
     if(G.hero && (G.hero.kills%4)===0) grantMats(1); // CAS-237: a steady forge-material trickle from hunting (deterministic off the kill counter, no RNG)
+    // CAS-1632: append-only unique roll — runs AFTER onEliteKill/onChampElite/trash-gear have already
+    // drawn their srand, so their rolls stay byte-identical. Bias climbs for elites/champions.
+    const legBias=e.champElite?LEGENDARY.champMul : (e.elite?LEGENDARY.eliteMul : 1);
+    maybeLegendary(e.x, e.y+14, legBias);
   }
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
@@ -1641,6 +1678,10 @@ function onNeutralKill(){ const s=G.skull; s.kills++; s.killT=90;
 // castSpell(0) is the basic attack (per-class ATK). Slots 1-3 read SPELLS[cls][slot-1]
 // and run through resolveSpell — there is ZERO per-class branching here, so a new
 // class is purely a data row in config.js. Each slot has its own MP cost + cooldown.
+// CAS-1632 — the ONE cooldown-reduction factor: talent cdr (CAS-119) + the reloj_vacio unique's
+// abilCdr, summed and clamped to 60% so the two systems can't stack a spell/ability to ~0 cd.
+// Read live off the equipped instances (0 when no unique) → un-equipped cd is byte-identical.
+function cdrFactor(h){ const c=Math.min(60, (h&&h.tt?h.tt.cdr:0) + uniqTotals(h).abilCdr); return 1 - c/100; }
 export function castSpell(i){
   const h=G.hero; if(h.rolling||h.stun>0) return; // CAS-118: stun gates casting
   if(i===0){ heroAttack(); return; }
@@ -1651,11 +1692,12 @@ export function castSpell(i){
   // returns a COPY with one param scaled (never mutates SPELLS, never touches RNG). Before the gates
   // so an empower that changed cd/cost would drive them (none do today; matches castAbility ordering).
   sp=talentEmpower(h, sp);
+  sp=uniqEmpower(h, sp);  // CAS-1632: prisma_fracturado overlays chain-jumps/nova-range (copy-on-write, before gates)
   if(h.spellCD[i]>0) return;                                   // per-slot cooldown gate
   if(h.mp<sp.cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
   // CAS-119: a cooldown-reduction build (cdr) shortens the class-spell cooldown; the
-  // HUD ring reads spellCDmax so the shorter wheel is visible.
-  const cd=sp.cd*(1-(h.tt?h.tt.cdr:0)/100); h.mp-=sp.cost; h.spellCD[i]=cd; h.spellCDmax[i]=cd;
+  // HUD ring reads spellCDmax so the shorter wheel is visible. CAS-1632: reloj_vacio folds in via cdrFactor.
+  const cd=sp.cd*cdrFactor(h); h.mp-=sp.cost; h.spellCD[i]=cd; h.spellCDmax[i]=cd;
   h.specialAnim=SPECIAL_ANIM_DUR; h.hurtAnim=0; // CAS-256: a class-skill cast plays the special-attack strip (must match render CLASS_SPECIAL_DUR)
   if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
   resolveSpell(h,sp);
@@ -1675,8 +1717,9 @@ export function castAbility(slot){
   // Done BEFORE the mana/cd gates so the scaled `cd` (rayo) drives h.abilCD below.
   const rl=metaLvl("rank_"+id);
   if(rl>0){ const rk=ABILITY_RANK_MAP[id]; if(rk) sp=rk.apply(sp, rl); }
+  sp=uniqEmpower(h, sp);  // CAS-1632: prisma_fracturado overlays chain-jumps/nova-range (copy-on-write, before gates)
   if(h.mp<sp.cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
-  const cd=sp.cd*(1-(h.tt?h.tt.cdr:0)/100); h.mp-=sp.cost; h.abilCD[slot]=cd; h.abilCDmax[slot]=cd;
+  const cd=sp.cd*cdrFactor(h); h.mp-=sp.cost; h.abilCD[slot]=cd; h.abilCDmax[slot]=cd;  // CAS-1632: reloj_vacio abilCdr via cdrFactor
   h.specialAnim=SPECIAL_ANIM_DUR; h.hurtAnim=0;
   if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
   resolveSpell(h,sp);
@@ -3281,6 +3324,59 @@ export const dev = {
     const essence=essenceForRun(h, { champElites:dChamp, affixKills:dAffix, elites:0 }); // isolated: only this run's champ+affix kills (+ the flat lvl*2 floor)
     return { champElites:dChamp, affixKills:dAffix, champTerm:dChamp*CHAMPION.essence, essence, affixes:(e.affixes||[]).slice(),
       drops:G.drops.slice(before).map(d=>({ kind:d.kind, rarity:d.rarity, tier:d.tier, amt:d.amt||0 })) }; },
+  // --- CAS-1632 ÍTEMS ÚNICOS/LEGENDARIOS harness hooks (tools/cas1632-uniques.mjs); additive, curated bridge ---
+  // Static config + unique table straight off the data (no sim step) — asserts the RARITY tail,
+  // weight:0, the 6 uniques and their mod-hooks, and the live drop rate.
+  legendaryMeta(){ return { rate:LEGENDARY.rate, liveRate:legRate, def:Object.assign({},LEGENDARY),
+    uniques:UNIQUES.map(u=>({id:u.id,name:u.name,slot:u.slot,defId:u.defId,mod:JSON.parse(JSON.stringify(u.mod))})) }; },
+  // RNG-neutrality seam: force the live legendary rate (0 → feature OFF). CAS-1638: the roll draws
+  // from the dedicated legRng stream, so the shared srand is byte-identical at ANY rate; QA can prove
+  // it by diffing the drop stream at rate=0 vs the shipped rate (both identical for the same seed).
+  setLegRate(r){ legRate=(r==null)?LEGENDARY.rate:Math.max(0,+r||0); return legRate; },
+  // Live unique bundle read off the equipped instances (the ONLY scalar-mod reader; combat routes here).
+  uniqTotals(){ return uniqTotals(G.hero); },
+  // Force-EQUIP a unique into its slot through the REAL safeInst path, returns the live combat read-outs
+  // so a test proves the mod moved a real number (maxHp / atkspd / cdrFactor / procs / essence / empower).
+  equipUnique(id){ const h=G.hero; const u=uniqById(id); if(!h||!u) return null;
+    const inst=safeInst(uniqInst(id)); if(!inst) return null; h.equip[u.slot]=inst; return this.uniqSnap(); },
+  uniqSnap(){ const h=G.hero; if(!h) return null;
+    const chain={id:"chain",type:"chain",jumps:3,range:120}, nova={id:"nova",type:"nova",range:100};
+    return { equip:{ weapon:(h.equip.weapon&&h.equip.weapon.uniq)||null, body:(h.equip.body&&h.equip.body.uniq)||null, shield:(h.equip.shield&&h.equip.shield.uniq)||null },
+      totals:uniqTotals(h), maxHp:heroMaxHp(h), atkspd:heroAtkspd(h), cdrFactor:+cdrFactor(h).toFixed(4),
+      procs:weaponProcs(h)||[], essence:essenceForRun(h,{elites:10}),
+      empChain:uniqEmpower(h,chain).jumps, empNova:uniqEmpower(h,nova).range,
+      empChainSameRef:uniqEmpower(h,chain)===chain, empNovaSameRef:uniqEmpower(h,nova)===nova }; },
+  // Force the NEXT kill to drop `id` and spawn-kill a mob through the REAL killEnemy loot path;
+  // reports the dropped gear so a test proves the unique lands (append-only, carries `uniq`).
+  forceLegendary(id, zone){ const h=G.hero; const before=G.drops.length; forcedLeg=id;
+    const e=spawnEnemy("skeleton", h.x+40, h.y); if(e){ e.scaleZone=zone||"caves"; e.hp=0; killEnemy(e); }
+    forcedLeg=null;
+    const drops=G.drops.slice(before).filter(d=>d.kind==="gear"&&d.inst).map(d=>({slot:d.inst.slot,defId:d.inst.defId,rarity:d.inst.rarity,uniq:d.inst.uniq||null,name:gearName(d.inst)}));
+    return { drops, leg:drops.find(d=>d.uniq)||null }; },
+  // Roll-rate probe: spawn-kill N plain mobs at the LIVE legRate and tally unique drops. At legRate=0
+  // → 0 uniques (proves OFF). Cleans up its enemies (spawned off-screen). Reseed for a repeat.
+  legendaryRollRate(n){ n=Math.max(1,n|0); let legs=0, kills=0; const tally={};
+    for(let i=0;i<n;i++){ const before=G.drops.length; const e=spawnEnemy("skeleton",-9000-i,-9000); if(!e) continue;
+      e.hp=0; killEnemy(e); kills++;
+      for(const d of G.drops.slice(before)){ if(d.kind==="gear"&&d.inst&&d.inst.uniq){ legs++; tally[d.inst.uniq]=(tally[d.inst.uniq]||0)+1; } } }
+    return { n:kills, legs, rate:+(legs/Math.max(1,kills)).toFixed(4), tally }; },
+  // Persistence probe: EQUIP a forced unique, serialize→load through the REAL save path, report whether
+  // `uniq` survived (AC: save→load keeps the unique + its mod stays live).
+  uniqPersist(id){ const u=uniqById(id); if(!u) return null; const h=G.hero; if(!h) return null;
+    h.equip[u.slot]=safeInst(uniqInst(id));
+    const before={ slot:u.slot, uniq:(h.equip[u.slot]&&h.equip[u.slot].uniq)||null, maxHp:heroMaxHp(h) };
+    const blob=JSON.parse(JSON.stringify(serializeSave()));   // simulate a localStorage round-trip
+    const ok=loadSave(blob); const after=G.hero.equip[u.slot];
+    return { ok, before,
+      after: after?{slot:after.slot,defId:after.defId,rarity:after.rarity,uniq:after.uniq||null}:null,
+      survived: !!(after && after.uniq===id), maxHp:heroMaxHp(G.hero), totals:uniqTotals(G.hero) }; },
+  // Append-only proof: capture the FULL drop stream (kind/rarity) of a spawn-kill sequence at the
+  // current legRate, so the harness can run it at legRate=0 twice with a fixed seed and diff byte-identity.
+  dropStream(n, seedVal){ if(seedVal!=null) seed(seedVal); n=Math.max(1,n|0); const out=[];
+    for(let i=0;i<n;i++){ const before=G.drops.length; const e=spawnEnemy("skeleton",-8000-i,-8000); if(!e) continue;
+      e.hp=0; killEnemy(e);
+      for(const d of G.drops.slice(before)) out.push({kind:d.kind, rarity:d.rarity||null, tier:d.tier||0, uniq:(d.inst&&d.inst.uniq)||null}); }
+    return out; },
   // --- CAS-1586 AURA GÉLIDA + Esencia tie-in harness hooks (tools/cas1586-frost-live.mjs) ---
   // Clean arena, force ONE frost mob, place the FROZEN mob `dist` px from the hero, tick the REAL
   // update() a few frames, then report the hero's slow channel + resulting effective movespeed.

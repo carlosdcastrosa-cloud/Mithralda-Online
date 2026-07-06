@@ -291,6 +291,11 @@ export function createGame(canvas, ctx, getView){
       championMeta:()=>simDev.championMeta(), setChampRate:(r)=>simDev.setChampRate(r),
       championRollRate:(n,type)=>simDev.championRollRate(n,type), championArena:(a,b,type,dx)=>simDev.championArena(a,b,type,dx),
       championKill:(zone,a,b)=>simDev.championKill(zone,a,b),
+      // CAS-1632 Ítems Únicos/Legendarios — consumed by tools/cas1632-uniques.mjs (additive)
+      legendaryMeta:()=>simDev.legendaryMeta(), setLegRate:(r)=>simDev.setLegRate(r), uniqTotals:()=>simDev.uniqTotals(),
+      equipUnique:(id)=>simDev.equipUnique(id), uniqSnap:()=>simDev.uniqSnap(),
+      forceLegendary:(id,zone)=>simDev.forceLegendary(id,zone), legendaryRollRate:(n)=>simDev.legendaryRollRate(n),
+      uniqPersist:(id)=>simDev.uniqPersist(id), dropStream:(n,s)=>simDev.dropStream(n,s),
       // CAS-149 Elite-Mastery progression contract consumed by tools/cas149-progression.mjs — additive
       masterySnap:()=>simDev.masterySnap(), setEliteKills:(n)=>simDev.setEliteKills(n), bumpMastery:()=>simDev.bumpMastery(),
       masteryTrackSnap:()=>simDev.masteryTrackSnap(), // CAS-150 reward-track panel/harness read-out
