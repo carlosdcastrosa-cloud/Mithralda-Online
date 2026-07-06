@@ -495,6 +495,12 @@ export const hud = (()=>{
   // canvas es la UI en pantallas anchas). A diferencia de hide(), NUNCA escribe la pref.
   let forcedOff=false;
   function setForcedOff(v){ forcedOff=!!v;
+    // CAS-1613: mirror the force-off state onto window.__hudForced so window.__hud.isOn()
+    // (which render.js hudActive() reads) reports FALSE while suppressed. Before PR4 this only
+    // happened in sidebar mode (where the canvas sidebar carried the vitals), so the missing
+    // wiring was harmless; the sidebar-less default needs hudActive() honest so the canvas
+    // hombreras own the vitals instead of the (hidden) DOM overlay silently claiming them.
+    try{ if(typeof window!=="undefined") window.__hudForced=forcedOff; }catch(e){}
     if(root) root.style.display = (on && !forcedOff) ? "block" : "none";
     if(forcedOff){ if(timer){ clearInterval(timer); timer=0; } }
     else if(on && !timer){ timer=setInterval(paint, REFRESH_MS); paint(); } }

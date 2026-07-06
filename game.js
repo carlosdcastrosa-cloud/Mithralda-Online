@@ -16,6 +16,7 @@
 import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode, ascendMeta, castAbility as simCastAbility } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
+import { uiLayout } from "./ui/layout.js"; // CAS-1613: classic-sidebar opt-in flag (default OFF)
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
@@ -56,7 +57,7 @@ export function createGame(canvas, ctx, getView){
   // HUD is force-hidden while active (no double UI); narrow/mobile collapses both to 0.
   const SIDEBAR_W=216, SIDEBAR_MIN=900, BOTTOMBAR_H=94;
   let chatEl=null;
-  function pushChat(who,text){ if(!G.chatLog) G.chatLog=[]; G.chatLog.push({who,text}); if(G.chatLog.length>40) G.chatLog.shift(); }
+  function pushChat(who,text){ if(!G.chatLog) G.chatLog=[]; G.chatLog.push({who,text}); G.chatT=G.t||0; if(G.chatLog.length>40) G.chatLog.shift(); }
   function ensureChat(){ if(chatEl || typeof document==="undefined") return;
     chatEl=document.createElement("input");
     chatEl.id="chatInput"; chatEl.maxLength=120; chatEl.autocomplete="off"; chatEl.spellcheck=false;
@@ -76,12 +77,19 @@ export function createGame(canvas, ctx, getView){
       chatEl.style.display="block"; chatEl.style.left=m+"px"; chatEl.style.top=(view.VH-30)+"px";
       chatEl.style.width=w+"px"; chatEl.style.height="26px"; }
     else { chatEl.style.display="none"; if(document.activeElement===chatEl) chatEl.blur(); } }
-  function applySidebar(){ const on=view.VW>=SIDEBAR_MIN;
+  function applySidebar(){ const wide=view.VW>=SIDEBAR_MIN;
+    // CAS-1613 (PR4): the fixed Tibia sidebar is RETIRED as the default. Only when the player
+    // opts back into the classic chrome (uiLayout.sidebarOn(), OFF by default) do we reserve
+    // the 216px right column + 94px bottom bar; otherwise the full width/height is game space
+    // and the canvas HUD (action bar + HP/MP hombreras + XP strip) owns the vitals. On wide
+    // screens the legacy DOM overlay stays force-hidden either way (canvas HUD is the sole UI);
+    // narrow/mobile keeps the DOM HUD until the dedicated mobile pass.
+    const on = wide && uiLayout.sidebarOn();
     view.sbw = on ? SIDEBAR_W : 0; view.bbh = on ? BOTTOMBAR_H : 0;
-    // wide screens: right sidebar + bottom bar replace the DOM HUD. Narrow/mobile keeps the
-    // existing HUD for now (a dedicated "small map only" mobile pass is separate).
-    try{ hud.setForcedOff(on); }catch(e){}
+    try{ hud.setForcedOff(wide); }catch(e){}
     positionChatInput(); }
+  // CAS-1613: flipping the sidebar flag (pause menu / __sidebar) re-applies the layout live.
+  uiLayout.setRelayout(applySidebar);
   function onResize(w,h){ view.VW=w; view.VH=h; applySidebar(); if(G.scene==="menu") positionNameInput(); }
   function onFocusLost(){ if(G.scene==="play") G.scene="pause"; }
   function devInfo(){ return "ent:"+G.enemies.length+" fx:"+G.fx.length+" scene:"+G.scene; }
@@ -174,7 +182,10 @@ export function createGame(canvas, ctx, getView){
     // scripting of the altar; the human path is the on-screen Altar panel.
     // CAS-1565: __metaBuy accepts t2_* keys (buyMetaNode gates them on t2Unlock); __metaReset now
     // also clears Tier-2 + ascension; __metaAscend performs the opt-in prestige (full-max guarded).
-    window.__meta=()=>metaSnap(); window.__metaReset=()=>resetMeta(); window.__metaBuy=(k)=>buyMetaNode(k); window.__metaAscend=()=>ascendMeta(); }
+    window.__meta=()=>metaSnap(); window.__metaReset=()=>resetMeta(); window.__metaBuy=(k)=>buyMetaNode(k); window.__metaAscend=()=>ascendMeta();
+    // CAS-1613 (PR4): read/flip the classic-sidebar opt-in flag headlessly (default OFF). Flipping
+    // re-applies the layout live (view.sbw/bbh + DOM-HUD force-off) — presentation only, RNG-neutral.
+    window.__sidebar=(v)=>{ if(v!==undefined) uiLayout.setSidebar(v); return { on:uiLayout.sidebarOn(), sbw:view.sbw, bbh:view.bbh }; }; }
   if(typeof location!=="undefined" && location.search.indexOf("dev")>=0){
     window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)

@@ -50,6 +50,20 @@ export const uiLayout = (()=>{
   function save(){ try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch(e){} }
   load();
 
+  // CAS-1613 (PR4): the fixed Tibia sidebar is now OFF by default — the canvas HUD (action
+  // bar + HP/MP hombreras + XP strip) is the sole HUD, so the 216px column it used to eat is
+  // reclaimed as game space. The sidebar CODE is kept behind this opt-in flag (its OWN key, so
+  // it survives a layout Reset and is independent of panel positions) — no work is lost, and a
+  // player can restore the classic chrome from the pause menu. setSidebar() re-runs game.js
+  // applySidebar() through the registered relayout callback so the change is live immediately.
+  const SBKEY="mithralda.sidebar.v1";
+  let sidebarPref=false; try{ sidebarPref=localStorage.getItem(SBKEY)==="1"; }catch(e){}
+  let relayout=null;
+  function sidebarOn(){ return sidebarPref; }
+  function setSidebar(v){ sidebarPref=!!v; try{ localStorage.setItem(SBKEY, sidebarPref?"1":"0"); }catch(e){}
+    if(relayout){ try{ relayout(); }catch(e){} } }
+  function setRelayout(fn){ if(typeof fn==="function") relayout=fn; }
+
   function vw(){ return (typeof innerWidth!=="undefined"?innerWidth:1280); }
   function vh(){ return (typeof innerHeight!=="undefined"?innerHeight:720); }
   function clampXY(p,w,h){ // keep the WHOLE panel on screen (corner always reachable)
@@ -189,6 +203,8 @@ export const uiLayout = (()=>{
   const api={ attachDom, clampAll, setPlayCheck:(fn)=>{ if(typeof fn==="function") isPlay=fn; },
     frame, get, pub, pubBtn, mmZoom:()=>mmZoom, cx, cy, canvasDown, canvasMove, canvasUp, reset,
     dragging:()=>dragId, KEY,
+    // CAS-1613 (PR4): classic-sidebar opt-in flag (default OFF) + live re-layout hook
+    sidebarOn, setSidebar, setRelayout,
     // QA hooks — read/seed the layout headlessly (presentation only)
     _store:()=>store, _set:(id,x,y)=>{ store[id]={x,y}; save(); const r=panels[id]; if(r){ applyDom(r); clampDom(r); } } };
   try{ if(typeof window!=="undefined") window.__uiLayout=api; }catch(e){}
