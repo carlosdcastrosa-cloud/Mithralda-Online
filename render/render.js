@@ -2701,9 +2701,11 @@ export function createRenderer(ctx){
       // row card
       ctx.fillStyle="rgba(0,0,0,0.45)"; ctx.fillRect(px,y,pw,rh);
       ctx.fillStyle=n.lvl>0?COL.textGold:COL.panelB; ctx.fillRect(px,y,3,rh);
-      // glyph placeholder box
-      ctx.fillStyle="rgba(40,34,20,0.9)"; ctx.fillRect(px+10,y+10,32,32);
-      ctx.fillStyle=COL.textGold; ctx.font="20px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.glyph,px+26,y+33);
+      // CAS-1562: PNG node icon (art CAS-1558), glyph as load-fallback (CAS-417 idiom)
+      const im=IMG["assets/ui/icons/altar_"+n.key.toLowerCase()+".png"];
+      if(im&&im.complete&&im.naturalWidth){ ctx.drawImage(im,px+10,y+10,32,32); }
+      else { ctx.fillStyle="rgba(40,34,20,0.9)"; ctx.fillRect(px+10,y+10,32,32);
+        ctx.fillStyle=COL.textGold; ctx.font="20px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.glyph,px+26,y+33); }
       // label + effect + level
       ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(n.label,px+52,y+20);
       ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(n.eff+"   "+STR.altarLvl(n.lvl,n.cap),px+52,y+38);

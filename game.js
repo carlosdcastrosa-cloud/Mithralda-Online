@@ -18,7 +18,7 @@ import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
 import { createRenderer } from "./render/render.js";
-import { loadAllAssets } from "./render/sprites.js";
+import { loadAllAssets, IMG } from "./render/sprites.js";
 import { rarityRank } from "./sim/gear.js";
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
@@ -171,6 +171,9 @@ export function createGame(canvas, ctx, getView){
     window.__dev={ spawn:(type,dx,dy)=>simDev.spawn(type,dx,dy), tp:(tx,ty)=>simDev.tp(tx,ty),
       // introspection contract consumed by tools/smoke.mjs (read-only views of sim state)
       scene:()=>G.scene,
+      // CAS-1562: read-only load state of the altar node PNG icons — proves renderAltar
+      // takes the PNG branch (not glyph fallback). Consumed by tools/cas1562-altar-icons-live.mjs
+      altarIcons:()=>["hpmax","dmg","movespd","reroll","startgold"].map(k=>{const im=IMG["assets/ui/icons/altar_"+k+".png"];return{k,loaded:!!(im&&im.complete&&im.naturalWidth),w:im?im.naturalWidth:0,h:im?im.naturalHeight:0};}),
       hero:()=>G.hero?{cls:G.hero.cls,x:G.hero.x,y:G.hero.y}:null,
       // CAS-92: read-only hero animation state, used by tools/hero-anim-shot.mjs
       heroAnim:()=>G.hero?{state:G.hero.animState,rolling:!!G.hero.rolling,atk:G.hero.atkAnim>0,hurtAnim:+(G.hero.hurtAnim||0).toFixed(3),specialAnim:+(G.hero.specialAnim||0).toFixed(3),facing:+(G.hero.facing||0).toFixed(4),moved:!!G.hero.moved}:null, // CAS-347: read-only facing/moved for the facing-follows-movement QA harness

@@ -642,6 +642,10 @@ export function loadAllAssets(){
     loadImg("icon_slot_"+s,"./assets/ui/icons/slot_"+s+".png");
   for(const k of ["potion_hp","potion_mp","coin"])
     loadImg("icon_hud_"+k,"./assets/ui/icons/hud_"+k+".png");
+  // CAS-1562: meta-progression altar node icons (art CAS-1558, 32x32). Keyed by full path so
+  // renderAltar can index them directly from n.key.toLowerCase(); glyph stays as load-fallback.
+  for(const k of ["hpmax","dmg","movespd","reroll","startgold","essence"])
+    loadImg("assets/ui/icons/altar_"+k+".png","./assets/ui/icons/altar_"+k+".png");
   // CAS-1545: professional purchased combat-VFX sprite strips ("Beat 'em Up 2D Pixel Art
   // VFX Pack"). Horizontal frame strips (frame = square, N frames). drawFx animates them by
   // effect progress. FX_STRIP holds per-effect frame count + frame size (see assets/fx/_meta.json).
