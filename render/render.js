@@ -1553,10 +1553,11 @@ export function createRenderer(ctx){
     // CAS: draw the fixed sidebar column (opaque bg + vitals + buttons) UNDER the minimap /
     // spell bar / consumable that render later so they overlay it. Recentred game overlays follow.
     if(sidebar){ drawSidebarPanel(h, mhp); drawBottomBar(h); }
-    if(!hudUI){ // CAS-299: legacy vitals (HP/MP/XP bars · gold/potions · name/skull) — HUD owns these
+    if(!hudUI){ // CAS-299: legacy vitals (HP/MP · gold/potions · name/skull) — HUD owns these
+      // CAS-1612: XP no longer lives here — it is the full-width strip pegged to the
+      // bottom edge (renderXpBar), so drop the buried 10px bar and keep HP/MP only.
       bar(pad,pad,bw,16,h.hp/mhp,COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
       bar(pad,pad+22,bw,12,h.mp/h.maxMp,COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
-      bar(pad,pad+38,bw,10,h.xp/h.xpNext,COL.xpf,COL.xpb, STR.level(h.lvl));
     }
     // CAS-119: unspent talent-point badge — prompts the player to open the tree (T). CAS-299:
     // when the HUD owns the top-left, the badge moves to the left column UNDER the HUD panel.
@@ -1602,6 +1603,10 @@ export function createRenderer(ctx){
     // (minimapa/equipo/mochila) so the trackers never sit under the rail frames.
     ctx.textAlign="right"; ctx.font="bold 12px "+FF;
     const qx=sidebar?(view.sbx()-12):(VW-(hudUI?176:12)); let qy=isTouch?64:18;
+    // CAS-1612: the minimap now defaults TOP-RIGHT (renderMiniMap, non-sidebar/non-touch),
+    // so drop the tracker column below it — read the live anchor so a dragged minimap still
+    // clears. Sidebar docks the minimap under vitals; touch hides it → trackers stay put.
+    if(!sidebar && !isTouch){ const mm=uiLayout.get("minimap"); const mmBot=(mm?mm.y:12)+120+10; if(qy<mmBot) qy=mmBot; }
     ctx.fillStyle=COL.out; const qt=G.quest.done?STR.questDone:STR.questLabel(G.quest.wolves);
     const qw=ctx.measureText(qt).width+12;
     // CAS-416: at narrow widths the centred OBJETIVO banner reaches the tracker column;
@@ -1623,7 +1628,44 @@ export function createRenderer(ctx){
     renderVitalsShoulders(h, mhp); // CAS-1611: HP/MP "hombreras" flanking the action bar
     // minimap
     if(!isTouch || true) renderMiniMap();
+    renderBoonChips(h);            // CAS-1612: active run-boons as a top-left chip row
+    renderXpBar(h);               // CAS-1612: XP as a full-width strip on the bottom edge
     if(auditRects){ try{ window.__uiRects=auditRects; }catch(e){} }
+  }
+  // CAS-1612 (AD P0 #4): XP as a full-width strip pegged to the bottom edge (PoE / Vampire
+  // Survivors convention), replacing the 9px bar buried in the top-left stat block. Pure
+  // presentation — a dark track + gold fill spanning the whole width, no ornamental frame;
+  // a compact level tag anchors the left so it still reads as XP/level. Sits below the action
+  // bar (y≈VH-72) with room to spare. Zero sim/rng reads (Stage-2 server-authority lens).
+  function renderXpBar(h){
+    const barH=9, y=VH-barH, w=VW;
+    ctx.fillStyle="rgba(6,7,11,0.88)"; ctx.fillRect(0,y,w,barH);                 // track
+    ctx.fillStyle=COL.xpf; ctx.fillRect(0,y,Math.round(w*clamp(h.xp/h.xpNext,0,1)),barH); // fill
+    ctx.fillStyle="rgba(0,0,0,0.45)"; ctx.fillRect(0,y,w,1);                     // 1px seam for contrast
+    ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 9px "+FF;
+    ctx.fillText(STR.level(h.lvl), 6, y+barH-1);
+    ctx.textAlign="left";
+    AR("xpbar", 0, y, w, barH);
+  }
+  // CAS-1612 (AD): active run-boons as a top-left chip row (the universal status-effect
+  // convention) so the roguelite build is legible at a glance mid-run. Reads h.boons (the
+  // per-run drafted BOONS — sim-owned), grouped with a ×N count, coloured by category
+  // (boonCatCol). Presentation-only. Default anchor is x=12,y=12; while the stat block still
+  // owns the top-left corner it drops just below it (statframe retires in CAS-1613 → then y=12).
+  function renderBoonChips(h){
+    const owned=h.boons; if(!owned||!owned.length) return;
+    const seen={}; for(const id of owned){ if(BOON_MAP[id]) seen[id]=(seen[id]||0)+1; }
+    const keys=Object.keys(seen); if(!keys.length) return;
+    const sidebar=view.sbw>0;
+    let bx=12, by=12;                                    // top-left convention (corner)
+    if(!sidebar) by=hudActive()?270:118;                 // clear the DOM statframe / canvas vitals column
+    ctx.textAlign="left"; ctx.textBaseline="alphabetic"; ctx.font="18px "+FF;
+    let gx=bx;
+    for(const id of keys){ const b=BOON_MAP[id];
+      const lbl=b.glyph+(seen[id]>1?("×"+seen[id]):"");
+      ctx.fillStyle=boonCatCol(b.cat); ctx.fillText(lbl, gx, by+16);
+      gx+=ctx.measureText(lbl).width+12; }
+    AR("boonChips", bx, by, gx-bx, 20);
   }
   // CAS-123: the persistent Stage-1 objective banner (top-centre, under the zone name).
   function drawObjective(h){
@@ -1833,9 +1875,8 @@ export function createRenderer(ctx){
     const clsName=(STR.classes&&STR.classes[h.cls]&&STR.classes[h.cls].name)||h.cls;
     ctx.fillText(clsName+" · "+STR.level(h.lvl), x0, y+27);
     // vitals — CAS-1611: HP/MP relocated to the action-bar "hombreras" (renderVitalsShoulders);
-    // the sidebar keeps only the XP/level bar here until CAS-1612 relocates XP full-width.
-    y+=34;
-    bar(x0,y, iw,12, h.xp/h.xpNext, COL.xpf,COL.xpb, STR.level(h.lvl));
+    // CAS-1612: the XP/level bar is now the full-width bottom strip (renderXpBar), so the
+    // sidebar no longer draws its own — level already reads in the identity caption above.
     // action buttons (minimap is drawn later by renderMiniMap into the gap at y≈104)
     const sb=sidebarBtns();
     if(sb){ for(const k in sb){ const b=sb[k];
@@ -1884,9 +1925,10 @@ export function createRenderer(ctx){
     let mw=120, mh=120, x, y;
     if(sidebar){ // CAS: minimap docked in the right sidebar (under the vitals), centred
       mw=mh=Math.min(view.sbw-28,176); x=view.sbx()+Math.round((view.sbw-mw)/2); y=104; }
-    else { // CAS-418: anchor from the layout store (default = bottom-right, unchanged), clamped every draw
+    else { // CAS-418 anchor from the layout store, clamped every draw. CAS-1612 (AD P1 #9):
+      // default moved to TOP-RIGHT (x=VW-mw-12, y=12) — the ARPG convention; Reset restores here.
       x=uiLayout.cx("minimap", VW-mw-12, mw);
-      y=uiLayout.cy("minimap", VH-mh-12, mh);
+      y=uiLayout.cy("minimap", 12, mh);
       uiLayout.pub("minimap", x, y, mw, mh); } // hit-rect for the input drag router
     AR("minimap", x-2, y-2, mw+4, mh+4);
     // CAS-454: gold border matching Tibia panels; dark fill
