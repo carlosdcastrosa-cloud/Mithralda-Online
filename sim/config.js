@@ -104,12 +104,21 @@ export const SPELLS = {
   ],
   druid: [
     {id:"vines",      type:"nova", cost:12, cd:4.0, dmg:14, range:92,  status:{type:"stun",dur:1.4}, col:"#8fd47a", fx:"novacast", style:"spike", sfx:"rune"},
-    {id:"regen",      type:"hot",  cost:12, cd:8.0, heal:11, dur:5.0, col:"#7bd44a", fx:"buffaura", sfx:"heal"},
+    // CAS-1598 druid audit: `regen` (passive HoT, no agency) → `floracion` — nature burst that
+    // heals the hero + AoE-damages + slows nearby enemies. REUSES the existing nova+heal resolver
+    // (same shape as paladin.consecration) → 0 new combat code, 0 new RNG path. (Priest slot-2 audit
+    // was delivered by sibling CAS-1600 as `holynova`; anatema dropped to avoid clobbering it.)
+    {id:"floracion", type:"nova", cost:12, cd:5.0, dmg:14, range:88, heal:10, status:{type:"slow",amt:0.4,dur:2.2}, col:"#7bd44a", fx:"novacast", style:"spike", sfx:"heal"},
     {id:"thornstorm", type:"field", cost:20, cd:6.0, dmg:11, tick:0.5, dur:3.0, range:74, offset:46, status:{type:"slow",amt:0.6,dur:1.1}, col:"#5fae4a", fx:"thornfield", style:"spike", sfx:"rune"},
   ],
   priest: [
     {id:"greaterheal", type:"heal", cost:16, cd:5.0, heal:60, col:"#7fffa8", fx:"healburst", sfx:"heal"},
-    {id:"powerword",   type:"buff", cost:12, cd:9.0, stat:"def", amt:8, dur:7.0, col:"#bfeaff", fx:"buffaura", sfx:"heal"},
+    // CAS-1600: reasignación del slot redundante `powerword` (+def buff, solapado con Égida/
+    // divineshield/boons) por Nova Sagrada — daño AoE con cura menor. REUTILIZA el resolver
+    // `nova` existente (mismo shape que paladin.consecration: nova+dmg+heal+status) → 0 código
+    // de combate nuevo. Priest queda greaterheal / holynova / smite = battle-priest coherente
+    // que conserva su identidad de sanador (support-DPS). No añade 4º slot (spellCD[1..3] intacto).
+    {id:"holynova",    type:"nova", cost:14, cd:6.0, dmg:24, range:104, heal:8, status:{type:"burn"}, col:"#fff0b0", fx:"holynova", sfx:"rune"},
     {id:"smite",       type:"proj", cost:14, cd:2.4, dmg:38, spd:460, kind:"holybolt", status:{type:"stun",dur:0.6}, col:"#fff0b0", fx:"spellburst", sfx:"fire"},
   ],
 };
