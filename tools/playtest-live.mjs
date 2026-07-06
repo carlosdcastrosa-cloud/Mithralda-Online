@@ -81,6 +81,20 @@ async function enterAs(fr, cls) {
   await fr.waitForFunction("window.__dev.scene()==='classsel'", { timeout: 8000 });
   const idx = CLASSES.indexOf(cls) + 1;
   await fr.evaluate((d) => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit" + d, key: "" + d, bubbles: true })), idx);
+  // CAS-169 wardrobe (customize) + CAS-1570 ability draft (abilitysel) now sit between
+  // class selection and play. Pass through whichever the build routes into: confirm the
+  // wardrobe with Enter, then draft exactly 2 abilities (Digit1+Digit2) and confirm.
+  await fr.waitForFunction("['customize','abilitysel','play'].includes(window.__dev.scene())", { timeout: 8000 });
+  if (await fr.evaluate(() => window.__dev.scene()) === "customize") {
+    await fr.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
+    await fr.waitForFunction("['abilitysel','play'].includes(window.__dev.scene())", { timeout: 8000 });
+  }
+  if (await fr.evaluate(() => window.__dev.scene()) === "abilitysel") {
+    // CAS-1570/1580: openAbilityDraft pre-seeds abilChosen with the class's 2 default
+    // abilities (confirmLoadout needs exactly 2). Toggling here would REMOVE the defaults,
+    // so just confirm with Enter and accept the default loadout + CAS-1659 default Ultimate.
+    await fr.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
+  }
   await fr.waitForFunction("window.__dev.scene()==='play'", { timeout: 8000 });
   return fr.evaluate(() => window.__dev.hero());
 }
