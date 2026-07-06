@@ -2655,6 +2655,10 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.textGold; ctx.font="bold 15px 'Courier New'";
       ctx.fillText("✦ "+STR.recapEssence(r.essence|0)+"   ("+STR.altarBanked(r.essenceTotal|0)+")", cx, y); y+=22;
     }
+    // CAS-1565: Ascensión badge on the recap (only once earned) — the multiplier already folded
+    // into the essence gain above, surfaced so the prestige level reads at the between-run screen.
+    { const al=(sim.metaSnap().ascension.level|0);
+      if(al>0){ ctx.fillStyle="#c9a0ff"; ctx.font="bold 12px 'Courier New'"; ctx.fillText("★ "+STR.altarAscBadge(al), cx, y); y+=20; } }
     // PRIMARY — Otra ronda (bind-aware: surfaces the player's attack/confirm key)
     const binds=(G.settings&&G.settings.binds)||settings.defaultBinds();
     const retryKey=keyLabel(binds.attack)+"/Espacio";
@@ -2685,51 +2689,92 @@ export function createRenderer(ctx){
   // AD art issue drops polished icons later, non-blocking). Reads the sim's metaSnap() view
   // model; each row's buy button writes ui.altarRects, consumed by input.js altarTap. Esc/tap
   // "Volver" returns to the death recap so the retry/hub flow is preserved.
+  // CAS-1557/1565: draw ONE altar node row at [px,y] with height rh; pushes the buy rect when
+  // affordable. Shared by the Tier-1 and Tier-2 rows so both tiers read identically. rh is adaptive
+  // (the fully-unlocked altar packs 10 rows), so icon/button sizes derive from it.
+  function altarRow(n, essence, px, pw, y, rh){
+    const capped=(n.cost==null), affordable=!capped && essence>=n.cost, isz=Math.min(32,rh-12);
+    ctx.fillStyle="rgba(0,0,0,0.45)"; ctx.fillRect(px,y,pw,rh);
+    ctx.fillStyle=n.lvl>0?COL.textGold:COL.panelB; ctx.fillRect(px,y,3,rh);
+    // CAS-1562: PNG node icon (art CAS-1558), glyph as load-fallback (CAS-417 idiom). Tier-2 icons
+    // ship later (AD) → their altar_t2_*.png are absent → the glyph branch renders, non-blocking.
+    const im=IMG["assets/ui/icons/altar_"+n.key.toLowerCase()+".png"], iy=y+(rh-isz)/2;
+    if(im&&im.complete&&im.naturalWidth){ ctx.drawImage(im,px+9,iy,isz,isz); }
+    else { ctx.fillStyle="rgba(40,34,20,0.9)"; ctx.fillRect(px+9,iy,isz,isz);
+      ctx.fillStyle=COL.textGold; ctx.font=(isz-8)+"px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.glyph,px+9+isz/2,iy+isz-6); }
+    ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 13px 'Courier New'"; ctx.fillText(n.label,px+isz+18,y+rh*0.42);
+    ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(n.eff+"   "+STR.altarLvl(n.lvl,n.cap),px+isz+18,y+rh*0.80);
+    const bw=100, bx=px+pw-bw-8, by=y+6, bh=rh-12;
+    if(capped){ ctx.fillStyle="rgba(30,30,36,0.9)"; ctx.fillRect(bx,by,bw,bh);
+      ctx.fillStyle=COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.altarMax,bx+bw/2,by+bh/2+4); }
+    else { ctx.fillStyle=affordable?"#3a2c1e":"rgba(30,26,20,0.85)"; ctx.fillRect(bx,by,bw,bh);
+      ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.fillRect(bx,by,bw,2);
+      ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText(STR.altarBuy,bx+bw/2,by+bh/2-3); ctx.font="10px 'Courier New'"; ctx.fillText(STR.altarCost(n.cost),bx+bw/2,by+bh/2+11);
+      if(affordable) ui.altarRects.push({x:bx,y:by,w:bw,h:bh,key:n.key}); }
+    ctx.textAlign="left";
+  }
   function renderAltar(){
     ui.altarRects=[];
     ctx.fillStyle="rgba(14,10,20,0.9)"; ctx.fillRect(0,0,VW,VH);
-    const snap=sim.metaSnap(); const cx=VW/2;
+    const snap=sim.metaSnap(), essence=snap.essence|0, cx=VW/2;
+    const asc=snap.ascension||{level:0,mult:1}, showT2=!!snap.t2Unlocked;
     ctx.textAlign="center";
-    let y=VH*0.10;
-    ctx.fillStyle=COL.textGold; ctx.font="bold 26px 'Courier New'"; ctx.fillText(STR.altarTitle,cx,y); y+=22;
-    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText(STR.altarSub,cx,y); y+=22;
-    // banked essence header
-    ctx.fillStyle=COL.textGold; ctx.font="bold 18px 'Courier New'"; ctx.fillText("✦ "+STR.altarBanked(snap.essence|0),cx,y); y+=20;
-    // node rows
-    const pw=Math.min(VW*0.82,460), px=cx-pw/2, rh=52, gap=8;
-    for(const n of snap.nodes){
-      const capped=(n.cost==null);
-      const affordable=!capped && (snap.essence|0)>=n.cost;
-      // row card
-      ctx.fillStyle="rgba(0,0,0,0.45)"; ctx.fillRect(px,y,pw,rh);
-      ctx.fillStyle=n.lvl>0?COL.textGold:COL.panelB; ctx.fillRect(px,y,3,rh);
-      // CAS-1562: PNG node icon (art CAS-1558), glyph as load-fallback (CAS-417 idiom)
-      const im=IMG["assets/ui/icons/altar_"+n.key.toLowerCase()+".png"];
-      if(im&&im.complete&&im.naturalWidth){ ctx.drawImage(im,px+10,y+10,32,32); }
-      else { ctx.fillStyle="rgba(40,34,20,0.9)"; ctx.fillRect(px+10,y+10,32,32);
-        ctx.fillStyle=COL.textGold; ctx.font="20px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(n.glyph,px+26,y+33); }
-      // label + effect + level
-      ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(n.label,px+52,y+20);
-      ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(n.eff+"   "+STR.altarLvl(n.lvl,n.cap),px+52,y+38);
-      // buy button (right)
-      const bw=104, bx=px+pw-bw-10, by=y+9, bh=rh-18;
-      if(capped){ ctx.fillStyle="rgba(30,30,36,0.9)"; ctx.fillRect(bx,by,bw,bh);
-        ctx.fillStyle=COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.altarMax,bx+bw/2,by+bh/2+5); }
-      else { ctx.fillStyle=affordable?"#3a2c1e":"rgba(30,26,20,0.85)"; ctx.fillRect(bx,by,bw,bh);
-        ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.fillRect(bx,by,bw,2);
-        ctx.fillStyle=affordable?COL.textGold:COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center";
-        ctx.fillText(STR.altarBuy,bx+bw/2,by+bh/2-2); ctx.font="11px 'Courier New'"; ctx.fillText(STR.altarCost(n.cost),bx+bw/2,by+bh/2+13);
-        if(affordable) ui.altarRects.push({x:bx,y:by,w:bw,h:bh,key:n.key}); }
-      ctx.textAlign="left";
-      y+=rh+gap;
+    let y=VH*0.055;
+    ctx.fillStyle=COL.textGold; ctx.font="bold 24px 'Courier New'"; ctx.fillText(STR.altarTitle,cx,y); y+=20;
+    ctx.fillStyle=COL.cream; ctx.font="11px 'Courier New'"; ctx.fillText(STR.altarSub,cx,y); y+=18;
+    // CAS-1565: Ascensión badge (only once earned) — the prestige level + its permanent essence mult.
+    if((asc.level|0)>0){ ctx.fillStyle="#c9a0ff"; ctx.font="bold 13px 'Courier New'"; ctx.fillText("★ "+STR.altarAscBadge(asc.level|0),cx,y); y+=17; }
+    ctx.fillStyle=COL.textGold; ctx.font="bold 17px 'Courier New'"; ctx.fillText("✦ "+STR.altarBanked(essence),cx,y); y+=16;
+    // Adaptive row height: reserve chrome (Tier-2 divider + Ascender + Back) and fit the rows in the rest.
+    const pw=Math.min(VW*0.86,470), px=cx-pw/2, gap=6;
+    const rowCount=snap.nodes.length+(showT2?snap.t2.length:0);
+    const dividerH=showT2?22:0, ascendH=(showT2?40:0), backH=30, chrome=dividerH+ascendH+backH+18;
+    const avail=VH-y-chrome;
+    const rh=Math.max(30, Math.min(50, Math.floor(avail/Math.max(1,rowCount))-gap));
+    // Tier-1 rows
+    for(const n of snap.nodes){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
+    // CAS-1565: Tier-2 — locked note until every v1 node is maxed, then the second row + Ascender.
+    if(!showT2){
+      ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.altarTier2Locked,cx,y+12); y+=22;
+    } else {
+      ctx.textAlign="center"; ctx.fillStyle="#c9a0ff"; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.altarTier2,cx,y+14); y+=dividerH;
+      for(const n of snap.t2){ altarRow(n,essence,px,pw,y,rh); y+=rh+gap; }
+      // Ascender button — enabled only at full max (v1 + Tier-2), else shown disabled with the requisite.
+      const can=!!snap.canAscend, aw=Math.min(pw,300), ax=cx-aw/2, ah=34;
+      ctx.fillStyle=can?"#4a2c5e":"rgba(30,26,34,0.85)"; ctx.fillRect(ax,y,aw,ah);
+      ctx.fillStyle=can?"#c9a0ff":COL.textDim; ctx.fillRect(ax,y,aw,2);
+      ctx.fillStyle=can?"#e6c8ff":COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText(can?STR.altarAscend:STR.altarAscend+"  ·  "+STR.altarAscendReq, cx, y+ah/2+5);
+      if(can) ui.altarRects.push({x:ax,y:y,w:aw,h:ah,act:"ascend"});
+      y+=ascendH;
     }
     // back button
-    y+=6;
     const kw=Math.min(VW*0.5,220), kx=cx-kw/2;
-    ctx.fillStyle="rgba(20,20,28,0.9)"; ctx.fillRect(kx,y,kw,32);
-    ctx.fillStyle=COL.textDim; ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.altarBack,cx,y+21);
-    ui.altarRects.push({x:kx,y:y,w:kw,h:32,act:"back"});
+    ctx.fillStyle="rgba(20,20,28,0.9)"; ctx.fillRect(kx,y,kw,28);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(STR.altarBack,cx,y+19);
+    ui.altarRects.push({x:kx,y:y,w:kw,h:28,act:"back"});
     ctx.textAlign="left";
+    // CAS-1565: Ascensión confirm modal — an explicit trade-off gate before the sacrifice. When open,
+    // it OWNS input: clear the underlying rects so only Confirmar/Cancelar are tappable.
+    if(ui.altarAscendConfirm){
+      ui.altarRects=[];
+      ctx.fillStyle="rgba(0,0,0,0.72)"; ctx.fillRect(0,0,VW,VH);
+      const mw=Math.min(VW*0.86,420), mh=190, mx=cx-mw/2, my=VH/2-mh/2;
+      ctx.fillStyle="#1b1526"; ctx.fillRect(mx,my,mw,mh); ctx.fillStyle="#c9a0ff"; ctx.fillRect(mx,my,mw,3);
+      ctx.textAlign="center"; ctx.fillStyle="#e6c8ff"; ctx.font="bold 18px 'Courier New'"; ctx.fillText(STR.altarAscConfirmTitle,cx,my+34);
+      ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'";
+      const nextLvl=(asc.level|0)+1;
+      wrapText(STR.altarAscConfirmBody(nextLvl, 1+0.25*nextLvl), cx, my+62, mw-40, 17);
+      const byw=Math.min((mw-40)/2-8,150), byy=my+mh-48, gap2=16;
+      const yx=cx-byw-gap2/2, nx=cx+gap2/2;
+      ctx.fillStyle="#4a2c5e"; ctx.fillRect(yx,byy,byw,34); ctx.fillStyle="#c9a0ff"; ctx.fillRect(yx,byy,byw,2);
+      ctx.fillStyle="#e6c8ff"; ctx.font="bold 13px 'Courier New'"; ctx.fillText(STR.altarAscYes,yx+byw/2,byy+22);
+      ctx.fillStyle="rgba(40,36,46,0.95)"; ctx.fillRect(nx,byy,byw,34);
+      ctx.fillStyle=COL.cream; ctx.fillText(STR.altarAscNo,nx+byw/2,byy+22);
+      ui.altarRects.push({x:yx,y:byy,w:byw,h:34,act:"ascendYes"},{x:nx,y:byy,w:byw,h:34,act:"ascendNo"});
+      ctx.textAlign="left";
+    }
   }
 
   // CAS-123: the Stage-1 VICTORY / run-completion screen. Reads the frozen G.victory

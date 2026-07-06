@@ -191,6 +191,16 @@ export const STR = {
   altarCost: (n) => n + " ✦",
   altarLvl: (l, cap) => "Nv " + l + "/" + cap,
   altarBack: "Volver  [Esc]",
+  // CAS-1565 — Tier-2 row + Ascensión / Prestigio
+  altarTier2: "— TIER II —",
+  altarTier2Locked: "Maximiza las 5 mejoras para desbloquear el Tier II",
+  altarAscBadge: (lvl) => "Ascensión " + lvl + "  (+" + Math.round(25 * lvl) + "% Esencia)",
+  altarAscend: "ASCENDER",
+  altarAscendReq: "Requiere el altar al máximo",
+  altarAscConfirmTitle: "¿Ascender?",
+  altarAscConfirmBody: (lvl, mult) => "Sacrificas TODAS las mejoras y la Esencia acumulada. A cambio: Ascensión " + lvl + " — toda la Esencia futura x" + mult.toFixed(2) + " (permanente).",
+  altarAscYes: "Confirmar",
+  altarAscNo: "Cancelar",
 
   // CAS-123 — Stage-1 objective tracker (HUD) + victory / run-completion screen.
   // The single legible GOAL, shown from minute one so a new player knows where the run
