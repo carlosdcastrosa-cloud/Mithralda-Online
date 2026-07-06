@@ -575,14 +575,22 @@ export function createRenderer(ctx){
     // then settle. Crits pop biggest; DoT/status ticks render small + status-coloured.
     // Pure presentation off pooled floater flags; no allocation, no sim state touched.
     for(const f of G.floaters){ const k=clamp(1-f.t/f.life,0,1); ctx.globalAlpha=k;
-      const base=f.small?10:13; const pk=(f.pop&&f.pop>1)?1+(f.pop-1)*clamp(1-f.t/0.16,0,1):1; const sz=Math.round(base*pk);
+      // CAS-1614: bigger, bolder damage numbers so dense combat stays readable. Crits SUSTAIN a
+      // 20px read (not just the transient spawn-pop), normal hits 15px, DoT/status ticks 12px —
+      // so a crit is distinguishable by size even after the pop settles. Per-type hue rides on
+      // f.col (unchanged). reduceMotion drops the spawn-pop overshoot (crit stays big via base
+      // size, so the readability cue survives without the motion).
+      const base=f.crit?20:(f.small?12:15);
+      const pk=(!G.settings.reduceMotion && f.pop&&f.pop>1)?1+(f.pop-1)*clamp(1-f.t/0.16,0,1):1; const sz=Math.round(base*pk);
       // CAS-265: in colour-blind mode crits carry a "!" shape cue (the size-pop already
       // reads big), so a crit is distinguishable from a normal hit without relying on hue.
       const txt=(cb()&&f.crit)?("!"+f.txt):f.txt;
       ctx.font="bold "+sz+"px "+FF; ctx.textAlign="center";
       // CAS-273: apply the spawn-time anti-overlap lane offset (f.dx) so stacked numbers fan out.
       const fx=f.x+(f.dx||0);
-      ctx.fillStyle=COL.out; ctx.fillText(txt,fx+1,f.y+1); ctx.fillStyle=f.col; ctx.fillText(txt,fx,f.y); ctx.globalAlpha=1; }
+      // CAS-1614: 2px near-black (#0a0c10 = COL.out) drop shadow keeps numbers legible over bright
+      // terrain and busy VFX (was a 1px shadow).
+      ctx.fillStyle=COL.out; ctx.fillText(txt,fx+2,f.y+2); ctx.fillStyle=f.col; ctx.fillText(txt,fx,f.y); ctx.globalAlpha=1; }
   }
 
   function drawHero(h){
@@ -3122,14 +3130,23 @@ export function createRenderer(ctx){
     // joystick
     if(stick.active){ ctx.globalAlpha=0.5; ctx.fillStyle="#1a1e26"; ctx.beginPath(); ctx.arc(stick.cx,stick.cy,52,0,6.28); ctx.fill();
       ctx.fillStyle="#5a4632"; let dx=stick.x-stick.cx,dy=stick.y-stick.cy; const m=Math.hypot(dx,dy)||1; const cl=Math.min(m,48); ctx.beginPath(); ctx.arc(stick.cx+dx/m*cl,stick.cy+dy/m*cl,22,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
-    function btn(b,col,big){ if(!b.r) return; ctx.globalAlpha=0.55; ctx.fillStyle="#12161d"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,6.28); ctx.fill();
-      ctx.globalAlpha=0.9; ctx.strokeStyle=col||COL.panelB; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle=col||COL.cream; ctx.font="bold "+(big?20:14)+"px "+FF; ctx.textAlign="center"; ctx.fillText(b.label,b.x,b.y+ (big?7:5)); ctx.globalAlpha=1; }
+    // CAS-1614: mobile-contrast pass. ≥65% dark fill (0.55→0.68) so each button reads as a solid
+    // disc over bright terrain; a crisp 2px colour-key outline (full alpha) rings it; the label
+    // carries a near-black shadow so the bright glyph stays legible on light ground.
+    function btn(b,col,big){ if(!b.r) return;
+      const kc=col||COL.cream;
+      ctx.globalAlpha=0.68; ctx.fillStyle="#12161d"; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,6.28); ctx.fill();
+      ctx.globalAlpha=1; ctx.strokeStyle=col||COL.panelB; ctx.lineWidth=2; ctx.stroke();
+      ctx.font="bold "+(big?20:14)+"px "+FF; ctx.textAlign="center"; const ly=b.y+(big?7:5);
+      ctx.fillStyle=COL.out; ctx.fillText(b.label,b.x+1,ly+1); ctx.fillStyle=kc; ctx.fillText(b.label,b.x,ly); }
     btn(tb.attack,COL.textGold,true); btn(tb.roll,COL.cream); btn(tb.s2,COL.flame); btn(tb.s3,COL.heal); btn(tb.s4,COL.rune); btn(tb.act,COL.cream); btn(tb.pick,COL.cream);
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
-    // mp cost hints on spell buttons (data-driven per class)
+    // mp cost hints on spell buttons (data-driven per class) — CAS-1614: near-black shadow so the
+    // small light-blue digits stay readable over bright terrain.
     const sp=SPELLS[G.hero.cls]||SPELLS.warrior;
-    ctx.globalAlpha=0.8; ctx.font="9px "+FF; ctx.fillStyle="#8ab8ff"; ctx.textAlign="center";
-    ctx.fillText(""+sp[0].cost,tb.s2.x,tb.s2.y+tb.s2.r+10); ctx.fillText(""+sp[1].cost,tb.s3.x,tb.s3.y+tb.s3.r+10); ctx.fillText(""+sp[2].cost,tb.s4.x,tb.s4.y+tb.s4.r+10); ctx.globalAlpha=1;
+    ctx.font="9px "+FF; ctx.textAlign="center"; ctx.globalAlpha=0.9;
+    const hint=(txt,bx,by)=>{ ctx.fillStyle=COL.out; ctx.fillText(txt,bx+1,by+1); ctx.fillStyle="#8ab8ff"; ctx.fillText(txt,bx,by); };
+    hint(""+sp[0].cost,tb.s2.x,tb.s2.y+tb.s2.r+10); hint(""+sp[1].cost,tb.s3.x,tb.s3.y+tb.s3.r+10); hint(""+sp[2].cost,tb.s4.x,tb.s4.y+tb.s4.r+10); ctx.globalAlpha=1;
   }
 
   function renderCRT(){ ctx.globalAlpha=0.10; ctx.fillStyle="#000";
