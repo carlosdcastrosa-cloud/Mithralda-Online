@@ -158,7 +158,7 @@ function newHero(name,cls){
   // CAS-100: base stats + per-level growth + mobility come from CLASS_STATS so each
   // class plays differently from level 1 (warrior fallback keeps unknown class safe).
   const cs = CLASS_STATS[cls] || CLASS_STATS.warrior;
-  return { name:name||"Héroe", x:world.tcx, y:world.tcy+TS*2, vx:0,vy:0, facing:Math.PI/2,
+  const h = { name:name||"Héroe", x:world.tcx, y:world.tcy+TS*2, vx:0,vy:0, facing:Math.PI/2,
     hp:cs.hp, maxHp:cs.hp, mp:cs.mp, maxMp:cs.mp, lvl:1, xp:0, xpNext:60, gold:30,
     baseDmg:cs.dmg, dmgBonus:0, defBonus:0,
     // per-class mobility (px/s) + level-growth amounts; read by movement / gainXP.
@@ -262,6 +262,11 @@ function newHero(name,cls){
     // Named `mperk` (NOT `mp` — that's mana) to avoid the mana field collision.
     mperk:zeroMP(),
     respawn:{x:world.templeF.x, y:world.templeF.y+TS} };
+  // CAS-1649: leg_superviviente legacy — +1 HP & +1 mana potion at run-start per stack. Granted
+  // HERE (newHero only, NOT respawn/loadSave) so the persisted stash never compounds run-over-run.
+  // 0 stacks → no-op → byte-identical starter inventory.
+  { const s=legacyCount("leg_superviviente"); if(s>0){ h.consum.greater+=s; h.consum.mana+=s; } }
+  return h;
 }
 function xpForLevel(l){ return Math.floor(40*Math.pow(l,1.55)); }
 
@@ -654,6 +659,37 @@ export const META_T2 = [
   { key:"t2_xpGain",     cap:3, cost:l=>130*(l+1), per:0.08, label:"Erudición",      eff:"+8% experiencia",     glyph:"✜" },
   { key:"t2_reroll",     cap:2, cost:l=>100*(l+1), per:1,    label:"Vidente",        eff:"+1 reroll boon",      glyph:"↺" },
 ];
+// ===================== CAS-1649: META-PROGRESSION v3 (Nodos de Legado) ======
+// Legacy Nodes add AGENCY to the Ascensión: on each ascend the player picks ONE permanent
+// legacy from this pool. Legacies SURVIVE the altar sacrifice (ascendMeta never touches
+// legacyNodes) and ACCUMULATE across ascensions — they sit ON TOP of the linear ascMult.
+// Same isolated store (mithralda.meta.v1) — ADDITIVE schema, `v` is NOT bumped (a v1/v2 blob
+// with no legacyNodes migrates to []). Each node reuses an EXISTING deterministic sim lever
+// gated on legacyCount>0, so 0 legacies → every hook is a no-op → the sim stream is byte-
+// identical to build 34acf5b35e1d (AC6). $0 art: glyphs are reused from the altar rows.
+//   `oneTime:true`  → offered only while NOT owned (leg_vigia); numeric nodes are stackable.
+export const LEGACY_NODES = [
+  // key                 oneTime  label            eff (blurb)                                   glyph
+  { key:"leg_vigia",        oneTime:true,  label:"Vigía",         eff:"El Tier-2 del altar arranca desbloqueado", glyph:"❖" },
+  { key:"leg_avaro",        oneTime:false, label:"Avaro",         eff:"+1 reroll de boon por run",               glyph:"↻" },
+  { key:"leg_superviviente",oneTime:false, label:"Superviviente", eff:"+1 poción de vida y +1 de maná por run",   glyph:"♥" },
+  { key:"leg_cazador",      oneTime:false, label:"Cazador",       eff:"+10% daño vs élites/campeones",           glyph:"⚔" },
+  { key:"leg_erudito",      oneTime:false, label:"Erudito",       eff:"+50% Esencia en el payout del run",       glyph:"✜" },
+];
+const LEGACY_MAP = (()=>{ const m={}; for(const n of LEGACY_NODES) m[n.key]=n; return m; })();
+// How many times `key` has been chosen (stackable numeric nodes) — the read-live count every
+// effect hook multiplies against. Reads the untrusted array defensively (guardrail like safeAffixes).
+function legacyCount(key){ const a=ensureMeta().legacyNodes; if(!Array.isArray(a)) return 0;
+  let c=0; for(const k of a) if(k===key) c++; return c; }
+function hasLegacy(key){ return legacyCount(key)>0; }
+// The nodes ELIGIBLE for the current ascension = all LEGACY_NODES except one-time nodes already
+// owned. Stackable nodes always appear. Deterministic, 0 RNG.
+function legacyPool(){ return LEGACY_NODES.filter(n=> !n.oneTime || !hasLegacy(n.key)); }
+// Grant one legacy on ascension. Validates key ∈ legacyPool() (eligible) — a one-time node
+// already owned, or an unknown key, is rejected. Deterministic, 0 RNG (AC6).
+export function chooseLegacy(key){ if(!LEGACY_MAP[key]) return false;
+  if(!legacyPool().some(n=>n.key===key)) return false;
+  ensureMeta().legacyNodes.push(key); G.metaDirty=true; return true; }
 // CAS-1574: ability-rank rows join the SAME lookup that buyMetaNode/metaLvl/metaNodeCost read
 // (each carries its own {cap, cost(lvl)}), so they buy/persist through the one meta store with no
 // parallel system. They are NOT added to T2_MAP → never gated by t2Unlocked().
@@ -668,11 +704,14 @@ function metaDefault(){ const nodes={ hpMax:0,dmg:0,moveSpd:0,reroll:0,startGold
           t2_boonRare:0,t2_startBoon:0,t2_dashIframe:0,t2_xpGain:0,t2_reroll:0 };
   for(const r of ABILITY_RANKS) nodes[r.key]=0; // CAS-1574: ability-rank rows default to 0
   for(const r of ABILITY_UNLOCKS) nodes[r.key]=0; // CAS-1580: ability-unlock rows default to 0 (=locked)
-  return { v:2, essence:0, nodes, ascension:{ level:0, mult:1 } }; }
+  // CAS-1649: legacyNodes = ordered list of chosen legacy keys (accumulates across ascensions).
+  // Additive — `v` stays 2 (a v1/v2 blob without it migrates to [] in loadMeta).
+  return { v:2, essence:0, nodes, legacyNodes:[], ascension:{ level:0, mult:1 } }; }
 // Ascensión level currently banked (defensive: an old in-memory blob may predate ascension).
 function ascLevel(){ const a=ensureMeta().ascension; return (a&&a.level|0)||0; }
 // Tier-2 is visible/buyable ONLY once every v1 node is at its cap (the progress gate).
-function t2Unlocked(){ for(const n of META_NODES){ if(metaLvl(n.key)<n.cap) return false; } return true; }
+function t2Unlocked(){ if(hasLegacy("leg_vigia")) return true; // CAS-1649: Vigía legacy skips the Tier-1-maxed gate
+  for(const n of META_NODES){ if(metaLvl(n.key)<n.cap) return false; } return true; }
 // Ascender is offered ONLY when the WHOLE altar (v1 + Tier-2) is maxed.
 function altarFullMax(){ if(!t2Unlocked()) return false; for(const n of META_T2){ if(metaLvl(n.key)<n.cap) return false; } return true; }
 // Lazily materialise the in-memory meta (before persist.bootMeta rehydrates it, or in a
@@ -702,7 +741,9 @@ function essenceForRun(h, r){ if(!h) return 0;
   if(raw0<=0) return 0;
   // CAS-1632: corona_ecos unique (+25% Esencia) scales the raw haul BEFORE the Ascensión mult.
   // Read live off the equipped instances (uniqTotals) — derived, 0 RNG; unequipped → ×1 (byte-identical).
-  const raw = raw0 * (1 + uniqTotals(h).essencePct/100);
+  // CAS-1649: leg_erudito legacy (+50%/stack Esencia) scales the raw haul at the SAME point as
+  // corona_ecos — before the Ascensión mult. Read-live off the meta count; 0 stacks → ×1 (byte-id).
+  const raw = raw0 * (1 + uniqTotals(h).essencePct/100) * (1 + 0.5*legacyCount("leg_erudito"));
   // CAS-1565: Ascensión/Prestigio multiplier — the permanent payoff for sacrificing the altar.
   return Math.max(1, Math.floor(raw * ascMult(ascLevel()))); }
 // Reconcile the DURABLE meta stats (HP / dmg / gold / moveSpeed) onto a hero at a run-start
@@ -728,7 +769,7 @@ function reconcileMeta(h){ if(!h) return; ensureMeta();
 // ONLY at true run-start seams (createHero / respawn) AFTER rerollLeft is reset to its base,
 // because respawn wipes rerollLeft to 1 — the CRÍTICO seam the epic plan calls out.
 function applyMetaReroll(h){ if(!h) return;
-  const rr=metaLvl("reroll")*META_MAP.reroll.per + metaLvl("t2_reroll")*T2_MAP.t2_reroll.per; // CAS-1565: Vidente stacks on v1 Presagio
+  const rr=metaLvl("reroll")*META_MAP.reroll.per + metaLvl("t2_reroll")*T2_MAP.t2_reroll.per + legacyCount("leg_avaro"); // CAS-1565: Vidente stacks on v1 Presagio; CAS-1649: +1/stack Avaro legacy
   if(rr) h.rerollLeft=(h.rerollLeft|0)+rr; }
 // CAS-1565: grant the Tier-2 "Vanguardia" starting boon(s) at a run-start seam. Boons are a
 // PER-RUN pool (respawn wipes h.boons), so this is a clean one-shot each run — exactly like
@@ -747,7 +788,8 @@ export function serializeMeta(){ const m=ensureMeta(); const nodes={};
   for(const r of ABILITY_RANKS) nodes[r.key]=metaLvl(r.key); // CAS-1574: ability-rank levels
   for(const r of ABILITY_UNLOCKS) nodes[r.key]=metaLvl(r.key); // CAS-1580: ability-unlock levels
   const lvl=ascLevel();
-  return { v:2, essence:Math.max(0,m.essence|0), nodes, ascension:{ level:lvl, mult:ascMult(lvl) } }; }
+  // CAS-1649: legacyNodes persist as a flat array of chosen keys (additive; `v` unchanged).
+  return { v:2, essence:Math.max(0,m.essence|0), nodes, legacyNodes:(m.legacyNodes||[]).slice(), ascension:{ level:lvl, mult:ascMult(lvl) } }; }
 // CAS-1565: retro-compatible migration (one-way door — critical). A v1 blob (v:1, no t2_*/
 // ascension) loads clean: v1 nodes + essence are preserved, the missing t2_* keys stay at the
 // metaDefault() 0, and ascension defaults to level 0. A v2 blob round-trips fully. Every level is
@@ -760,7 +802,10 @@ export function loadMeta(d){ const def=metaDefault();
     for(const r of ABILITY_RANKS) def.nodes[r.key]=Math.max(0, Math.min(r.cap, (n[r.key]|0))); // CAS-1574: additive — blobs w/o rank_* load to 0
     for(const r of ABILITY_UNLOCKS) def.nodes[r.key]=Math.max(0, Math.min(r.cap, (n[r.key]|0))); // CAS-1580: additive — blobs w/o unlock_* load to 0 (=locked)
     const lvl=Math.max(0, (d.ascension&&d.ascension.level|0)||0);
-    def.ascension={ level:lvl, mult:ascMult(lvl) }; }
+    def.ascension={ level:lvl, mult:ascMult(lvl) };
+    // CAS-1649: migrate legacyNodes — a v1/v2 blob without the key → [] (default). Filter unknown
+    // keys (untrusted-blob guardrail like safeAffixes) so a tampered save can't inject fake legacies.
+    def.legacyNodes = Array.isArray(d.legacyNodes) ? d.legacyNodes.filter(k=>LEGACY_MAP[k]) : []; }
   G.meta=def; return true; }
 // --- gameplay API (input.js / render.js / QA hooks call these) ---
 // Read-only altar view model: essence + each node's level, cap, next cost (null=capped), effect.
@@ -782,6 +827,11 @@ export function metaSnap(){ const m=ensureMeta();
     unlocks:ABILITY_UNLOCKS.map(unlockView), // CAS-1580: ability-unlock rows (never gated)
     t2Unlocked:t2Unlocked(),              // gate: every v1 node maxed
     canAscend:altarFullMax(),             // Ascender enabled: whole altar maxed
+    // CAS-1649: legacy view — ALL nodes (with owned count) for the codex, plus the eligible
+    // choices for the current ascension (one-time owned nodes dropped). Render reads these with
+    // no logic of its own (mirrors the nodes/t2 rows).
+    legacy:LEGACY_NODES.map(n=>({ key:n.key, label:n.label, eff:n.eff, glyph:n.glyph, owned:legacyCount(n.key), oneTime:n.oneTime })),
+    legacyChoices:legacyPool().map(n=>({ key:n.key, label:n.label, eff:n.eff, glyph:n.glyph, owned:legacyCount(n.key), oneTime:n.oneTime })),
     ascension:{ level:lvl, mult:ascMult(lvl) } }; }
 // Buy the next level of a node: guarded on cap + sufficient essence (never over-spends or
 // over-caps). Returns true on a real purchase (marks the store dirty for an immediate flush).
@@ -799,6 +849,8 @@ export function buyMetaNode(key){ const n=META_MAP[key]; if(!n) return false;
 // run. Reversibility: hero.metaApplied is DELIBERATELY LEFT INTACT — the next run-start
 // reconcileMeta reads want=0 (nodes reset) vs had=(old baked amounts) and applies the negative
 // delta, cleanly stripping the sacrificed v1 stats off the live hero (delta engine, no double-apply).
+// CAS-1649: the sacrifice NEVER touches m.legacyNodes (AC2) — legacies survive the ascend and
+// accumulate. The UI opens the legacy-choice modal AFTER this returns (input.js altarTap).
 export function ascendMeta(){ if(!altarFullMax()) return false;
   const m=ensureMeta(); const lvl=ascLevel()+1;
   for(const n of META_NODES) m.nodes[n.key]=0;
@@ -1232,6 +1284,10 @@ function hitEnemy(e,dmg,ang){
   if(mk){ let mul=1+(mk.dmgPct||0)/100;
     if((mk.eliteDmgPct||0)>0 && (e.elite||e.champion||e.isBoss)) mul+=(mk.eliteDmgPct||0)/100;
     if(mul!==1) dmg*=mul; }
+  // CAS-1649: leg_cazador legacy — +10%/stack damage vs elite-class targets (affixed mobs, champions,
+  // élite-campeones, bosses). Deterministic multiply on the damage number — consumes NO srand, so
+  // 0 stacks → byte-identical hit sequence.
+  { const cz=legacyCount("leg_cazador"); if(cz>0 && (e.elite||e.champion||e.champElite||e.isBoss||mobAffixes(e).length>0)) dmg*=(1+0.10*cz); }
   // Crit chance = talents + the "Instinto Asesino" milestone (mk.crit). RNG is consumed only
   // when the combined chance is >0, so a fresh hero (no talents, no milestones) stays byte-
   // identical for the determinism baseline.
@@ -2915,6 +2971,11 @@ export const dev = {
   // CAS-1565: dev-only Esencia grant so the live QA harness can bankroll the altar (Tier-2 +
   // Ascensión need ~thousands of Esencia to max) without grinding deaths. Additive, dev-only.
   metaGrant(n){ ensureMeta().essence=Math.max(0,(ensureMeta().essence|0)+(n|0)); G.metaDirty=true; return metaSnap(); },
+  // CAS-1649: legacy-node QA hooks (curated bridge). metaLegacy = full codex w/ owned counts;
+  // legacyPool = eligible choices for the current ascension; legacyChoose = grant a legacy.
+  metaLegacy(){ return metaSnap().legacy; },
+  legacyPool(){ return metaSnap().legacyChoices; },
+  legacyChoose(k){ return chooseLegacy(k); },
   // CAS-1574: QA hook — the bought rank of an ability + its next cost + the ABILITY_MAP entry with
   // the rank scaling applied (lvl 0 → identical to base). Lets QA verify the in-run effect without
   // re-deriving the formula. Pair with __dev.metaGrant + buyMetaNode("rank_<id>") to fund/buy.

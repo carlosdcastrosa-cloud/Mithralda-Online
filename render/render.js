@@ -2967,8 +2967,26 @@ export function createRenderer(ctx){
       if(affordable) ui.altarRects.push({x:bx,y:by,w:bw,h:bh,key:n.key}); }
     ctx.textAlign="left";
   }
+  // CAS-1649: draw ONE legacy-choice row at [px,y] (height rh) — the altar row idiom (bg + glyph
+  // box + label/eff + a right-side action button), but pushes to ui.legacyRects with {key} (no cost,
+  // always tappable). $0 art: reuses the node glyph. Shows the current owned count as "· xN".
+  function legacyRow(n, px, pw, y, rh){
+    const isz=Math.min(32,rh-12), iy=y+(rh-isz)/2;
+    ctx.fillStyle="rgba(0,0,0,0.45)"; ctx.fillRect(px,y,pw,rh);
+    ctx.fillStyle="#c9a0ff"; ctx.fillRect(px,y,3,rh);
+    ctx.fillStyle="rgba(40,34,20,0.9)"; ctx.fillRect(px+9,iy,isz,isz);
+    ctx.fillStyle=COL.textGold; ctx.font=(isz-8)+"px "+FF; ctx.textAlign="center"; ctx.fillText(n.glyph,px+9+isz/2,iy+isz-6);
+    const lbl=n.label+(n.owned>0?"  · x"+n.owned:"");
+    ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="bold 13px "+FF; ctx.fillText(lbl,px+isz+18,y+rh*0.42);
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(n.eff,px+isz+18,y+rh*0.80);
+    const bw=100, bx=px+pw-bw-8, by=y+6, bh=rh-12;
+    ctx.fillStyle="#3a2c1e"; ctx.fillRect(bx,by,bw,bh); ctx.fillStyle=COL.textGold; ctx.fillRect(bx,by,bw,2);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 11px "+FF; ctx.textAlign="center"; ctx.fillText("Elegir",bx+bw/2,by+bh/2+4);
+    ui.legacyRects.push({x:bx,y:by,w:bw,h:bh,key:n.key});
+    ctx.textAlign="left";
+  }
   function renderAltar(){
-    ui.altarRects=[];
+    ui.altarRects=[]; ui.legacyRects=[];
     ctx.fillStyle="rgba(14,10,20,0.9)"; ctx.fillRect(0,0,VW,VH);
     const snap=sim.metaSnap(), essence=snap.essence|0, cx=VW/2;
     const asc=snap.ascension||{level:0,mult:1}, showT2=!!snap.t2Unlocked;
@@ -3043,6 +3061,22 @@ export function createRenderer(ctx){
       ctx.fillStyle="rgba(40,36,46,0.95)"; ctx.fillRect(nx,byy,byw,34);
       ctx.fillStyle=COL.cream; ctx.fillText(STR.altarAscNo,nx+byw/2,byy+22);
       ui.altarRects.push({x:yx,y:byy,w:byw,h:34,act:"ascendYes"},{x:nx,y:byy,w:byw,h:34,act:"ascendNo"});
+      ctx.textAlign="left";
+    }
+    // CAS-1649: LEGACY-CHOICE modal — opened right after a confirmed sacrifice. It OWNS input (clear
+    // the underlying altar rects so only the legacy rows are tappable) and presents legacyChoices —
+    // a FORCED pick (no cancel): choosing one grants it permanently and closes the modal.
+    if(ui.legacyChoose){
+      ui.altarRects=[];
+      const choices=snap.legacyChoices||[];
+      ctx.fillStyle="rgba(0,0,0,0.78)"; ctx.fillRect(0,0,VW,VH);
+      const mw=Math.min(VW*0.9,480), rh=Math.max(40,Math.min(58,Math.floor((VH*0.62)/Math.max(1,choices.length))-8));
+      const mh=Math.min(VH*0.9, 96+choices.length*(rh+8)), mx=cx-mw/2, my=VH/2-mh/2;
+      ctx.fillStyle="#1b1526"; ctx.fillRect(mx,my,mw,mh); ctx.fillStyle="#c9a0ff"; ctx.fillRect(mx,my,mw,3);
+      ctx.textAlign="center"; ctx.fillStyle="#e6c8ff"; ctx.font="bold 18px "+FF; ctx.fillText("✦ Elige un Nodo de Legado",cx,my+30);
+      ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText("Permanente · sobrevive al sacrificio del altar",cx,my+50);
+      const px2=mx+16, pw2=mw-32; let ly=my+66;
+      for(const n of choices){ legacyRow(n,px2,pw2,ly,rh); ly+=rh+8; }
       ctx.textAlign="left";
     }
   }

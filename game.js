@@ -183,6 +183,8 @@ export function createGame(canvas, ctx, getView){
     // CAS-1565: __metaBuy accepts t2_* keys (buyMetaNode gates them on t2Unlock); __metaReset now
     // also clears Tier-2 + ascension; __metaAscend performs the opt-in prestige (full-max guarded).
     window.__meta=()=>metaSnap(); window.__metaReset=()=>resetMeta(); window.__metaBuy=(k)=>buyMetaNode(k); window.__metaAscend=()=>ascendMeta();
+    // CAS-1649: meta-v3 legacy hooks — codex, eligible pool, and grant (deterministic, 0 RNG).
+    window.__metaLegacy=()=>simDev.metaLegacy(); window.__legacyPool=()=>simDev.legacyPool(); window.__legacyChoose=(k)=>simDev.legacyChoose(k);
     // CAS-1613 (PR4): read/flip the classic-sidebar opt-in flag headlessly (default OFF). Flipping
     // re-applies the layout live (view.sbw/bbh + DOM-HUD force-off) — presentation only, RNG-neutral.
     window.__sidebar=(v)=>{ if(v!==undefined) uiLayout.setSidebar(v); return { on:uiLayout.sidebarOn(), sbw:view.sbw, bbh:view.bbh }; }; }
@@ -356,6 +358,11 @@ export function createGame(canvas, ctx, getView){
       // live harness can drive Tier-2 buys + the Ascensión flow by tapping (mirrors recapRects).
       altarRects:()=>(ui.altarRects||[]).map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,act:r.act||null,key:r.key||null})),
       altarConfirmOpen:()=>!!ui.altarAscendConfirm,
+      // CAS-1649 meta-v3 QA: legacy codex + eligible pool + choose hook, plus the live legacy-choice
+      // modal state (rects + open flag) so the harness can drive the ascension→choose flow by tapping.
+      metaLegacy:()=>simDev.metaLegacy(), legacyPool:()=>simDev.legacyPool(), legacyChoose:(k)=>simDev.legacyChoose(k),
+      legacyRects:()=>(ui.legacyRects||[]).map(r=>({x:r.x,y:r.y,w:r.w,h:r.h,key:r.key||null})),
+      legacyChooseOpen:()=>!!ui.legacyChoose,
       // CAS-127 game-feel/juice contract consumed by tools/cas127-juice.mjs — additive
       juiceState:()=>simDev.juiceState(), floaterDump:()=>simDev.floaterDump(), setReduceMotion:(v)=>simDev.setReduceMotion(v),
       clearFx:()=>simDev.clearFx(), juiceArena:(n)=>simDev.juiceArena(n), juiceSwing:()=>simDev.juiceSwing(),
