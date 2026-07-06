@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
@@ -848,7 +848,27 @@ export function createRenderer(ctx){
     // "this one is special, and WHICH special" at a glance. The bigger silhouette (tpl.size
     // bump from applyAffix) is the third cue. Skipped for elites/champions/boss (they own a
     // louder aura already). Pure render off MOB_AFFIX[e.affix] — no sim state mutated, no RNG.
-    if(e.affix && !e.elite && !e.champion && !e.isBoss){ const A=MOB_AFFIX[e.affix];
+    // CAS-1590 ÉLITE CAMPEÓN telegraph ($0 art): a bold pulsing GOLD double-ring marks the mini-boss
+    // at distance, additive halos in BOTH affix colours read its two modifiers on the body, and if it
+    // carries Aura Gélida the slow-zone footprint still draws (danger area stays legible). Reuses the
+    // affix render idiom + CHAMPION.col — no new art, no sim state mutated, no RNG. Drawn INSTEAD of the
+    // light single-affix ring below (that block is gated off for champions).
+    if(e.champElite && !e.isBoss){ const ids=e.affixes||(e.affix?[e.affix]:[]);
+      const pr=e.tpl.size*1.35 + Math.sin(G.t*4)*3; ctx.save();
+      ctx.globalAlpha=0.6; ctx.strokeStyle=CHAMPION.col; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
+      ctx.globalAlpha=0.3; ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr+8,(pr+8)*0.42,0,0,6.28); ctx.stroke();
+      ctx.globalCompositeOperation="lighter";
+      for(let i=0;i<ids.length;i++){ const A=MOB_AFFIX[ids[i]]; if(!A) continue;
+        ctx.globalAlpha=0.12+0.05*(0.5+0.5*Math.sin(G.t*5+i*2));
+        ctx.fillStyle=A.col; ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.size*(1.0+i*0.14),0,6.28); ctx.fill(); }
+      if(ids.includes("frost") && MOB_AFFIX.frost.auraR){ const A=MOB_AFFIX.frost; ctx.globalCompositeOperation="source-over";
+        ctx.globalAlpha=0.16+0.06*(0.5+0.5*Math.sin(G.t*3)); ctx.strokeStyle=A.col; ctx.lineWidth=1.5;
+        if(ctx.setLineDash) ctx.setLineDash([6,7]);
+        ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,A.auraR,A.auraR*0.5,0,0,6.28); ctx.stroke();
+        if(ctx.setLineDash) ctx.setLineDash([]); }
+      ctx.restore(); }
+    if(e.affix && !e.champElite && !e.elite && !e.champion && !e.isBoss){ const A=MOB_AFFIX[e.affix];
       if(A){ const col=A.col, pr=e.tpl.size*1.12 + Math.sin(G.t*6)*2; ctx.save();
         ctx.globalAlpha=0.5; ctx.strokeStyle=col; ctx.lineWidth=2;
         ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
@@ -1079,14 +1099,19 @@ export function createRenderer(ctx){
       }
     }
     // health bar
-    const w=e.isBoss?64:(e.champion?58:Math.max(22,e.tpl.size*1.6)); const hh=(e.isBoss||e.champion)?6:4; const yy=e.y-e.tpl.size-((e.isBoss||e.champion)?14:8);
+    const w=e.isBoss?64:(e.champion?58:(e.champElite?54:Math.max(22,e.tpl.size*1.6))); const hh=(e.isBoss||e.champion||e.champElite)?6:4; const yy=e.y-e.tpl.size-((e.isBoss||e.champion||e.champElite)?14:8); // CAS-1590: a champion gets the wide always-on bar
     ctx.fillStyle=COL.out; ctx.fillRect(e.x-w/2-1,yy-1,w+2,hh+2);
     ctx.fillStyle=COL.hpb; ctx.fillRect(e.x-w/2,yy,w,hh);
     const champCol=e.capstone?(e.enraged?"#ff4636":"#ff9a3a"):"#ffcf4d";
-    ctx.fillStyle=e.champion?champCol:(e.hostile?"#ff5a4a":COL.hpf); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
+    ctx.fillStyle=e.champion?champCol:(e.champElite?CHAMPION.col:(e.hostile?"#ff5a4a":COL.hpf)); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
     if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(e.tpl.bossLabel||"GÓLEM ANCESTRAL",e.x,yy-4); } // CAS-317: data-driven boss name (dragon = "DRAGÓN ANCESTRAL")
     else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
       ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
+    // CAS-1590: the champion nameplate names BOTH affixes in gold so its two modifiers read at a glance.
+    else if(e.champElite){ const ids=e.affixes||(e.affix?[e.affix]:[]);
+      const names=ids.map(id=>MOB_AFFIX[id]&&MOB_AFFIX[id].name).filter(Boolean).join(" + ");
+      ctx.fillStyle=CHAMPION.col; ctx.font="bold 10px 'Courier New'"; ctx.textAlign="center";
+      ctx.fillText("👑 "+CHAMPION.name+(names?" · "+names:""),e.x,yy-4); }
     else if(e.elite){ ctx.fillStyle="#ff7a4d"; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("⚔ ÉLITE",e.x,yy-3); }
     // CAS-247: name the affix above the HP bar in its colour, so the modifier is unmistakable.
     else if(e.affix && MOB_AFFIX[e.affix]){ ctx.fillStyle=MOB_AFFIX[e.affix].col; ctx.font="bold 9px 'Courier New'"; ctx.textAlign="center"; ctx.fillText("✦ "+MOB_AFFIX[e.affix].name,e.x,yy-3); }

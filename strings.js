@@ -39,6 +39,7 @@ export const STR = {
   // CAS-146 — elite ambush / pack event.
   ambush: (zone) => "¡EMBOSCADA en " + ({ forest:"Bosque del Este", ruins:"Ruinas de Eldath", caves:"Criptas Olvidadas", arena:"Arena de Sangre", abyss:"El Abismo", frost:"la Cripta Helada", trial:"el Coliseo Eterno", swamp:"la Ciénaga de Bruma" }[zone] || "la zona") + "! Una élite y su jauría te rodean.",
   eliteDown: "¡Élite abatida! Botín superior garantizado.",
+  champDown: "¡Campeón derrotado! Esencia + botín superior garantizados.", // CAS-1590
   // CAS-149 — Elite Mastery (persistent progression hook).
   masteryUp: (n) => "¡Maestría de Élite " + n + "! +Vida máx · botín de élite mejorado.",
   masteryFloater: (n) => "✦ Maestría " + n,
