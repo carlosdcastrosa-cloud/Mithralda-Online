@@ -2012,36 +2012,71 @@ export function createRenderer(ctx){
     ctx.fillStyle="#3a2c1e"; ctx.fillRect(fbx,fby,fbw,fbh); ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(fbx+0.5,fby+0.5,fbw-1,fbh-1);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 12px 'Courier New'"; ctx.fillText(STR.invForge, fbx+fbw/2, fby+15);
     ui.invForgeRect={x:fbx,y:fby,w:fbw,h:fbh};
-    // ---- right: backpack list with compare arrows ----
+    // ---- right: backpack — CAS-1594 30-slot fixed grid + scroll ----
     const rx=x+bw*0.50, rw=bw*0.46;
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(STR.backpack, rx, y+54);
     ui.invRects=[];
     const bag=h.bag; if(G.invSel==null) G.invSel=0; G.invSel=Math.max(0,Math.min(G.invSel, Math.max(0,bag.length-1)));
-    const cmpH=92; const rowH=28, listY=y+62, maxRows=Math.max(1,Math.floor((bh-120-cmpH)/rowH));
-    if(!bag.length){ ctx.fillStyle=COL.textDim; ctx.fillText(STR.bagEmpty, rx, listY+18); }
-    for(let i=0;i<bag.length && i<maxRows;i++){ const inst=bag[i]; const ay=listY+i*rowH; const sel=i===G.invSel;
-      ctx.fillStyle=sel?"#2e3647":"#20262f"; ctx.fillRect(rx,ay,rw,rowH-4);
-      if(sel){ ctx.strokeStyle=COL.textGold; ctx.lineWidth=1.5; ctx.strokeRect(rx,ay,rw,rowH-4); }
-      // CAS-1579: every backpack row LEADS with the item's icon (slot PNG, same asset the
-      // equip slots + drag-ghost use), so no valid item is text-only. Glyph is load fallback.
-      const isz=20, ix=rx+3, iy=ay+((rowH-4)-isz)/2; const gi=inst?IMG["icon_slot_"+inst.slot]:null;
-      if(gi&&gi.complete&&gi.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(gi, ix, iy, isz, isz); ctx.restore(); }
-      else { ctx.textAlign="center"; ctx.fillStyle=gearCol(inst); ctx.font="bold 15px 'Courier New'";
-        ctx.fillText(({weapon:"⚔",body:"▣",shield:"◈",head:"^",legs:"Π",feet:"▾",neck:"◆",back:"≈",ring:"○",bag:"▦"}[inst&&inst.slot]||"▪"), ix+isz/2, iy+isz*0.74); }
-      const tx=ix+isz+6;
-      ctx.textAlign="left"; ctx.fillStyle=gearCol(inst); ctx.font="12px 'Courier New'";
-      // CAS-265: prepend a per-rarity SHAPE mark (◦/◆/★) in colour-blind mode so rarity
-      // reads without depending on the name's hue (empty for common → unchanged otherwise).
-      ctx.fillText(rarityMark(inst)+gearName(inst)+" ("+gearStat(inst)+")", tx, ay+16);
-      const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="10px 'Courier New'"; ctx.fillText("◈".repeat(na), tx, ay+rowH-7); }
-      const ar=cmpArrow(inst); ctx.textAlign="right"; ctx.fillStyle=ar.c; ctx.font="bold 13px 'Courier New'"; ctx.fillText(ar.s, rx+rw-8, ay+16);
-      ui.invRects.push({x:rx,y:ay,w:rw,h:rowH-4, idx:i});
+    const cmpH=92;
+    // Grid constants — 30 fixed slots in a 5-col grid
+    const GCOLS=5, TOTAL_SLOTS=30;
+    const GROWS=Math.ceil(TOTAL_SLOTS/GCOLS); // 6 rows
+    const listY=y+62;
+    const availH=bh-62-cmpH-20; // height budget for the grid
+    const slotSz=Math.min(44, Math.floor((rw-4)/GCOLS)-2); // slot size (≤44px)
+    const slotGap=2;
+    const slotStep=slotSz+slotGap;
+    const visRows=Math.max(1,Math.floor((availH+slotGap)/slotStep)); // visible rows at a time
+    const maxScrollRow=Math.max(0, GROWS-visRows);
+    if(G.invScrollRow==null) G.invScrollRow=0;
+    G.invScrollRow=Math.max(0,Math.min(maxScrollRow, G.invScrollRow));
+    // Ensure selected item stays in view
+    if(G.invSel!=null){ const selRow=Math.floor(G.invSel/GCOLS);
+      if(selRow<G.invScrollRow) G.invScrollRow=selRow;
+      if(selRow>=G.invScrollRow+visRows) G.invScrollRow=selRow-visRows+1; }
+    const gridW=GCOLS*slotStep-slotGap, gridH=visRows*slotStep-slotGap;
+    const gx=rx+(rw-gridW)/2; // center grid horizontally in right panel
+    // Draw grid slots
+    ctx.save(); ctx.beginPath(); ctx.rect(gx-1,listY-1,gridW+2,gridH+2); ctx.clip();
+    for(let si=0;si<TOTAL_SLOTS;si++){
+      const row=Math.floor(si/GCOLS), col=si%GCOLS;
+      const visR=row-G.invScrollRow; if(visR<0||visR>=visRows) continue;
+      const sx=gx+col*slotStep, sy=listY+visR*slotStep;
+      const inst=bag[si]||null; const sel=si===G.invSel;
+      // slot background
+      ctx.fillStyle=sel?(inst?"#2e3647":"#222a38"):(inst?"#1a2030":"#12161e");
+      ctx.fillRect(sx,sy,slotSz,slotSz);
+      ctx.strokeStyle=sel?COL.textGold:(inst?"#3a4456":"#222b38");
+      ctx.lineWidth=sel?1.5:1; ctx.strokeRect(sx+0.5,sy+0.5,slotSz-1,slotSz-1);
+      if(inst){
+        const isz=Math.min(32,slotSz-4), ix=sx+(slotSz-isz)/2, iy=sy+(slotSz-isz)/2;
+        const gi=IMG["icon_slot_"+inst.slot];
+        if(gi&&gi.complete&&gi.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(gi,Math.round(ix),Math.round(iy),isz,isz); ctx.restore(); }
+        else { ctx.textAlign="center"; ctx.fillStyle=gearCol(inst); ctx.font="bold "+Math.round(isz*0.7)+"px 'Courier New'";
+          ctx.fillText(({weapon:"⚔",body:"▣",shield:"◈",head:"^",legs:"Π",feet:"▾",neck:"◆",back:"≈",ring:"○",bag:"▦"}[inst.slot]||"▪"), sx+slotSz/2, sy+slotSz*0.68); }
+        // rarity dot + affix pips
+        ctx.fillStyle=gearCol(inst); ctx.font="7px 'Courier New'"; ctx.textAlign="right";
+        ctx.fillText(String(gearStat(inst)), sx+slotSz-2, sy+slotSz-2);
+        const na=affixList(inst).length; if(na){ ctx.fillStyle="#9be7ff"; ctx.font="7px 'Courier New'"; ctx.textAlign="left"; ctx.fillText("◈".repeat(na), sx+2, sy+slotSz-2); }
+      }
+      // hit rect uses bag index (si); empty slots still register so DnD can target them later
+      ui.invRects.push({x:sx,y:sy,w:slotSz,h:slotSz, idx:si});
     }
-    // CAS-419: the visible list area is itself a drop target (bag drag → move to end;
-    // equip drag → reject: functional slots are non-nullable in the save shape).
-    ui.invBagAreaRect={x:rx,y:listY,w:rw,h:maxRows*rowH};
+    ctx.restore();
+    // Scroll indicator (only when content exceeds visible rows)
+    if(maxScrollRow>0){
+      const scrollH=gridH, trackX=gx+gridW+4, trackW=3;
+      ctx.fillStyle="#1e2530"; ctx.fillRect(trackX,listY,trackW,scrollH);
+      const thumbH=Math.max(12,scrollH*visRows/GROWS);
+      const thumbY=listY+(scrollH-thumbH)*(G.invScrollRow/maxScrollRow);
+      ctx.fillStyle=COL.textGold; ctx.fillRect(trackX,Math.round(thumbY),trackW,Math.round(thumbH));
+    }
+    // CAS-419: bag area rect for DnD drop-to-end
+    ui.invBagAreaRect={x:gx,y:listY,w:gridW,h:gridH};
+    // Store grid params for input scroll
+    ui.invGrid={x:gx,y:listY,w:gridW,h:gridH,cols:GCOLS,slotStep,visRows,maxScrollRow};
     // ---- compare box: equipped vs selected (the equip DECISION). CAS-117 ----
-    const cy=listY+Math.min(bag.length,maxRows)*rowH+6; const sel=bag[G.invSel];
+    const cy=listY+gridH+6; const sel=bag[G.invSel];
     if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
       const eq=h.equip[sel.slot];
       ctx.textAlign="left"; ctx.font="10px 'Courier New'"; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
