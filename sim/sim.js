@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -159,6 +159,10 @@ function newHero(name,cls){
     // spell state: per-slot cooldowns (slots 1-3) + timed buff/HoT amounts. dmgBonus/
     // defBonus are the buff sinks (equippedDmg/Def read them), restored on expiry.
     spellCD:[0,0,0,0], spellCDmax:[0,0,0,0],
+    // CAS-1570: class-agnostic drafted ability slots (2). Own cooldown arrays so they
+    // never collide with the class-spell slots; `loadout` holds the 2 chosen ability ids
+    // (defaulted here, overwritten by the run-start draft). Transient — never serialized.
+    abilCD:[0,0], abilCDmax:[0,0], loadout:DEFAULT_LOADOUT.slice(),
     dmgBuffT:0, dmgBuffAmt:0, defBuffT:0, defBuffAmt:0, hotT:0, hotRate:0,
     // CAS-192: short timed attack-speed bonus from the "furia" consumable. Read by the
     // attack-cooldown formula (alongside CAS-117 affix / CAS-119 talent atkspd); ticks
@@ -1562,6 +1566,21 @@ export function castSpell(i){
   resolveSpell(h,sp);
   tutMark("skill"); // CAS-128: a successful class-skill cast teaches the skill step
 }
+// CAS-1570 — cast a DRAFTED active ability (slot 0 or 1). Mirrors castSpell exactly but
+// reads the loadout + its own cooldown array, so abilities and class spells never share
+// cooldown state. Reuses the same gates (stun/roll, mana, cdr) + resolveSpell engine.
+export function castAbility(slot){
+  const h=G.hero; if(!h||h.rolling||h.stun>0) return;
+  const id=h.loadout && h.loadout[slot]; const sp=id && ABILITY_MAP[id];
+  if(!sp) return;
+  if(h.abilCD[slot]>0) return;                                  // per-slot cooldown gate
+  if(h.mp<sp.cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
+  const cd=sp.cd*(1-(h.tt?h.tt.cdr:0)/100); h.mp-=sp.cost; h.abilCD[slot]=cd; h.abilCDmax[slot]=cd;
+  h.specialAnim=SPECIAL_ANIM_DUR; h.hurtAnim=0;
+  if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
+  resolveSpell(h,sp);
+  tutMark("skill");
+}
 // CAS-120: a class skill's hit deals its base + the hero's BUILD damage — the talent
 // flat +daño (CAS-119, cached in h.tt) plus the affix +daño on equipped gear (CAS-117).
 // So a +daño build visibly empowers SKILLS, not just the basic attack; both inputs are
@@ -1630,6 +1649,23 @@ function resolveSpell(h,sp){
                col:sp.col,style:sp.style,status:sp.status||null};
       G.fields.push(f); fieldTick(f);                                     // plant + immediate first tick
       addFx(sp.fx||"novacast",cx,cy,{r:sp.range,col:sp.col,style:sp.style||"spike",life:0.5}); shakeAdd(4); break; }
+    case "chain": {
+      // CAS-1570 — lightning that ARCS between enemies: seed on the nearest foe within
+      // `range`, then hop to the nearest not-yet-hit foe within `jumpRange`, up to
+      // `jumps` links, damage decaying by `falloff` each hop. Deterministic (nearest by
+      // distance, no RNG). Draws a bolt FX along each link so the chain reads clearly.
+      const sd=spellDmg(h,sp); const hit=new Set(); let dmg=sd;
+      let px=h.x, py=h.y, links=(sp.jumps||3)+1, reach=sp.range;
+      for(let k=0;k<links;k++){
+        let best=null,bd=Infinity;
+        for(const e of G.enemies){ if(e.dead||hit.has(e)) continue;
+          const d=Math.hypot(e.x-px,e.y-py); if(d<=reach+e.tpl.size && d<bd){ bd=d; best=e; } }
+        if(!best) break;
+        addFx("chainbolt",px,py,{x2:best.x,y2:best.y-2,col:sp.col,life:0.18});   // arc to the target
+        hitEnemy(best,dmg,Math.atan2(best.y-py,best.x-px)); applySpellStatus(best,sp);
+        hit.add(best); px=best.x; py=best.y; reach=sp.jumpRange||120; dmg*=(sp.falloff||0.8);
+      }
+      addFx(sp.fx||"spellburst",h.x,h.y-2,{col:sp.col,life:0.25}); shakeAdd(hit.size?4:2); break; }
   }
 }
 // Apply ONE damage tick from a persistent field. Unlike hitEnemy this is intentionally
@@ -2030,6 +2066,7 @@ export function update(dtMs){
   h.riposte=Math.max(0,(h.riposte||0)-dt); // CAS-210: the riposte counter window decays if unused
   // spell cooldowns + timed buffs (in-place; no per-frame allocation)
   for(let s=1;s<4;s++){ if(h.spellCD[s]>0) h.spellCD[s]=Math.max(0,h.spellCD[s]-dt); }
+  if(h.abilCD) for(let s=0;s<h.abilCD.length;s++){ if(h.abilCD[s]>0) h.abilCD[s]=Math.max(0,h.abilCD[s]-dt); } // CAS-1570
   if(h.dmgBuffT>0){ h.dmgBuffT-=dt; if(h.dmgBuffT<=0){ h.dmgBonus-=h.dmgBuffAmt; h.dmgBuffAmt=0; } }
   // CAS-192: consumable timers — the "furia" atkspd buff winds down (the bonus stops
   // applying the moment the timer expires) and each per-consumable cooldown ticks.
@@ -3191,6 +3228,38 @@ export const dev = {
       mpSpent: Math.round(mp0-h.mp), dmg: Math.round(e0-e.hp),
       cd:+(h.spellCD[slot]||0).toFixed(2), cdmax:+(h.spellCDmax[slot]||0).toFixed(2),
       enemyStun:+(e.stun||0).toFixed(2), enemySlowT:+(e.slowT||0).toFixed(2), dots };
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    return r; },
+  // ---- CAS-1570 active-abilities API (draft screen + HUD + QA harness) ----
+  // The full class-agnostic pool (id/name/glyph/type/cost/cd) for the run-start draft.
+  abilityPool(){ return ACTIVE_ABILITIES.map(a=>({ id:a.id, name:a.name, glyph:a.glyph, type:a.type,
+    cost:a.cost, cd:a.cd, status:a.status?a.status.type:null, desc:a.desc })); },
+  // Read/set the 2 drafted ability ids on the live hero (draft "Listo" calls this).
+  loadout(){ return (G.hero&&G.hero.loadout)?G.hero.loadout.slice():DEFAULT_LOADOUT.slice(); },
+  setLoadout(ids){ const h=G.hero; if(!h||!Array.isArray(ids)) return h?h.loadout:null;
+    const valid=ids.filter(id=>ABILITY_MAP[id]).slice(0,2);
+    while(valid.length<2){ for(const a of ACTIVE_ABILITIES){ if(!valid.includes(a.id)){ valid.push(a.id); break; } } }
+    h.loadout=valid; h.abilCD=[0,0]; h.abilCDmax=[0,0]; return h.loadout.slice(); },
+  // Live HUD data for the 2 ability slots: current/max cooldown + mana affordability.
+  abilityBar(){ const h=G.hero; if(!h||!h.loadout) return null;
+    return h.loadout.map((id,slot)=>{ const a=ABILITY_MAP[id]||{}; return { slot, id, name:a.name, glyph:a.glyph,
+      col:a.col, cost:a.cost||0, cd:+(h.abilCD[slot]||0).toFixed(2), cdmax:+(h.abilCDmax[slot]||0).toFixed(2),
+      ready:(h.abilCD[slot]||0)<=0 && h.mp>=(a.cost||0), status:a.status?a.status.type:null }; }); },
+  // Cast a drafted ability at a live dummy and report the outcome (mirrors skillProbe) — QA AC1/AC2.
+  abilityProbe(id){ const a=ABILITY_MAP[id]; if(!a) return null;
+    const h=G.hero; h.maxMp=300; h.mp=300; h.maxHp=600; h.hp=300; h.facing=0; h.rolling=false; h.stun=0;
+    h.abilCD=[0,0]; h.abilCDmax=[0,0]; h.loadout=[id, h.loadout&&h.loadout[1]!==id?h.loadout[1]:ACTIVE_ABILITIES[0].id];
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const e=spawnEnemy("skeleton", h.x+40, h.y); e.maxHp=e.hp=6000;
+    const e2=spawnEnemy("skeleton", h.x+90, h.y); e2.maxHp=e2.hp=6000;   // 2nd dummy so chain can hop
+    const e0=e.hp, e20=e2.hp, mp0=h.mp, def0=h.defBonus||0;
+    castAbility(0);
+    for(let s=0;s<6;s++){ update(40); }
+    const r={ id, type:a.type, cost:a.cost, mpSpent:Math.round(mp0-h.mp),
+      dmg:Math.round(e0-e.hp), dmg2:Math.round(e20-e2.hp),
+      cd:+(h.abilCD[0]||0).toFixed(2), cdmax:+(h.abilCDmax[0]||0).toFixed(2),
+      enemyStun:+(e.stun||0).toFixed(2), enemySlowT:+(e.slowT||0).toFixed(2),
+      defBuff:+((h.defBonus||0)-def0).toFixed(1), statusType:a.status?a.status.type:null };
     G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
     return r; },
   // --- CAS-127 game-feel / juice harness hooks (tools/cas127-juice.mjs); additive ---

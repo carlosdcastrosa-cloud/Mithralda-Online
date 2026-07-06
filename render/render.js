@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
@@ -271,6 +271,7 @@ export function createRenderer(ctx){
     if(G.scene==="menu"){ renderMenu(); return; }
     if(G.scene==="classsel"){ renderClassSel(); return; }
     if(G.scene==="customize"){ renderCustomize(); return; }
+    if(G.scene==="abilitysel"){ renderAbilitySelect(); return; } // CAS-1570 run-start ability draft
     ctx.save(); ctx.scale(Z,Z); ctx.translate(-camX,-camY);
     renderWorld(camX,camY,Z);
     renderEntities();
@@ -1254,6 +1255,15 @@ export function createRenderer(ctx){
     if(SM && !G.settings.reduceMotion){ const size=SM.size || ((f.r||SM.rDef||80)*(SM.sizeR||1));
       const ang=SM.rot? (f.ang||0) : null;
       if(drawFxSprite(SM.s, f.x, f.y, clamp(f.t/f.life,0,1), size, ang)) return; }
+    if(f.kind==="chainbolt"){ // CAS-1570: jagged lightning arc from (f.x,f.y) → (f.x2,f.y2)
+      const x2=(f.x2!=null)?f.x2:f.x, y2=(f.y2!=null)?f.y2:f.y; const col=f.col||"#bfe6ff";
+      const seg=6, dx=(x2-f.x)/seg, dy=(y2-f.y)/seg, nx=-(y2-f.y), ny=(x2-f.x), nl=Math.hypot(nx,ny)||1;
+      ctx.save(); ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=k;
+      ctx.strokeStyle=col; ctx.lineWidth=2.5; ctx.beginPath(); ctx.moveTo(f.x,f.y);
+      for(let i=1;i<seg;i++){ const j=(((i*2654435761)>>>0)%100/100-0.5)*10*(1-Math.abs(i/seg-0.5)*2);
+        ctx.lineTo(f.x+dx*i+nx/nl*j, f.y+dy*i+ny/nl*j); }
+      ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.strokeStyle="#ffffff"; ctx.lineWidth=1; ctx.stroke(); ctx.restore(); return; }
     if(f.kind==="spark"){ const ease=sw*sw*(3-2*sw); // CAS-1545: white-hot star-burst — bloom + streaked shards
       fxGlow(f.x,f.y,sw*24,"#cfe6ff",k*0.7);
       ctx.save(); ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=k; ctx.fillStyle=COL.spark;
@@ -1547,6 +1557,7 @@ export function createRenderer(ctx){
       ctx.fillRect(qx-hw,hy-2,hw,20); ctx.fillStyle=hc; ctx.fillText(ht,qx-6,hy+13); }
     // spell bar
     renderSpellBar();
+    renderAbilityBar(); // CAS-1570: the 2 drafted active-ability slots (radial cooldown)
     // minimap
     if(!isTouch || true) renderMiniMap();
     if(auditRects){ try{ window.__uiRects=auditRects; }catch(e){} }
@@ -1642,6 +1653,40 @@ export function createRenderer(ctx){
     ctx.fillText("[Q] usar  [R] ↻",x+s/2,y+s+10);
     ctx.textAlign="left";
     AR("consumable", x-2, y-2, s+4, s+14);
+  }
+  // CAS-1570 — the two DRAFTED active-ability slots. Sits just LEFT of the class spellbar
+  // so all castable actions read in one row. Reuses the exact CAS-1539 radial-cooldown
+  // sweep. $0 art: the icon is the ability's glyph tinted by its colour (no PNG needed).
+  function renderAbilityBar(){ const h=G.hero; if(!h||!h.loadout||h.abilCD==null||isTouch) return;
+    const n=2, s=Math.min(46,VW*0.1), gap=6, sp4=4*s+3*gap, total=n*s+(n-1)*gap;
+    // Sit LEFT of the consumable quick-slot (which itself sits left of the spellbar), so
+    // the three clusters — abilities | potion | class spells — never overlap. cons=44+14.
+    const sidebar=view.sbw>0; let x0, y;
+    if(sidebar){ x0=Math.round(view.gcx()-sp4/2)-58-total-12; y=VH-view.bbh+8; }
+    else { x0=(uiLayout.cx("spellbar", VW/2-sp4/2, sp4))-58-total-12; y=uiLayout.cy("spellbar", VH-14-s, s+11); }
+    if(x0<8) x0=8; // never clip off the left edge on a narrow canvas
+    const keys=["Z","X"];
+    for(let i=0;i<n;i++){ const a=ABILITY_MAP[h.loadout[i]]||{}; const x=x0+i*(s+gap);
+      const afford=h.mp>=(a.cost||0);
+      ctx.fillStyle=COL.out; ctx.fillRect(x-2,y-2,s+4,s+4);
+      ctx.fillStyle=afford?"#2a3142":"#1a1d24"; ctx.fillRect(x,y,s,s);
+      ctx.save(); ctx.globalAlpha=afford?1:0.5; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillStyle=a.col||"#cfd6de"; ctx.font="26px 'Courier New'"; ctx.fillText(a.glyph||"?",x+s/2,y+s/2+1); ctx.restore(); ctx.textBaseline="alphabetic";
+      if(a.status && STATUS[a.status.type]){ const pc=STATUS[a.status.type].col;
+        ctx.fillStyle=COL.out; ctx.beginPath(); ctx.arc(x+s-8,y+8,4.5,0,6.28); ctx.fill();
+        ctx.fillStyle=pc; ctx.beginPath(); ctx.arc(x+s-8,y+8,3,0,6.28); ctx.fill(); }
+      if(h.abilCD[i]>0 && h.abilCDmax[i]>0){ const f=clamp(h.abilCD[i]/h.abilCDmax[i],0,1);
+        const cx=x+s/2, cy=y+s/2, top=-Math.PI/2;
+        ctx.fillStyle="rgba(8,10,14,0.42)"; ctx.fillRect(x,y,s,s);
+        ctx.fillStyle="rgba(8,10,14,0.62)"; ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,s*0.72,top,top+f*6.2832,false); ctx.closePath(); ctx.fill();
+        const secs=h.abilCD[i]; const tx=(secs>=10)?(""+Math.ceil(secs)):secs.toFixed(1);
+        ctx.font="bold 13px 'Courier New'"; ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillStyle=COL.out; ctx.fillText(tx,cx+1,cy+1); ctx.fillStyle="#ffffff"; ctx.fillText(tx,cx,cy); ctx.textBaseline="alphabetic";
+      } else if((a.cost||0)>0 && !afford){ ctx.fillStyle="rgba(150,32,32,0.30)"; ctx.fillRect(x,y,s,s); }
+      ctx.fillStyle=COL.out; ctx.font="bold 12px 'Courier New'"; ctx.textAlign="left"; ctx.fillText(keys[i],x+3,y+13);
+      ctx.fillStyle=COL.cream; ctx.font="8px 'Courier New'"; ctx.textAlign="center"; ctx.fillText(a.name||"",x+s/2,y+s-4);
+      if((a.cost||0)>0){ ctx.fillStyle=afford?"#8ab8ff":"#ff6b6b"; ctx.font="8px 'Courier New'"; ctx.fillText((a.cost)+"mp",x+s/2,y+s+9); } }
+    ctx.textAlign="left";
   }
   function renderSpellBar(){ const h=G.hero; const n=4; const s=Math.min(46,VW*0.1); const gap=6; const total=n*s+(n-1)*gap;
     if(isTouch) return; // touch uses buttons
@@ -2895,6 +2940,48 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.font="bold 24px 'Courier New'"; ctx.fillText(STR.play,VW/2,by+34);
     ctx.fillStyle=COL.textDim; ctx.font="12px 'Courier New'"; ctx.fillText(STR.controlsHintPC((a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a])),VW/2,VH-40);
     ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; ctx.fillText(STR.version,VW/2,VH-18);
+  }
+  // CAS-1570 — run-start ability draft: pick 2 of the class-agnostic pool. Full-screen
+  // scene (like class-select). Cards toggle on tap / 1-N keys; Listo confirms when 2 are
+  // chosen. Selected cards get an amber frame + order badge. $0 art (glyph icons).
+  function renderAbilitySelect(){
+    const pool=ACTIVE_ABILITIES, chosen=G.abilChosen||[], cur=G.abilCursor||0;
+    ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
+    rrng.seed(11); for(let i=0;i<50;i++){ ctx.fillStyle=i%9===0?"#2a3a2a":"#161b22"; ctx.fillRect(rr(0,VW),rr(0,VH),2,2); }
+    ctx.textAlign="center";
+    ctx.fillStyle=COL.textGold; ctx.font="bold 24px 'Courier New'"; ctx.fillText("Habilidades Activas",VW/2,VH*0.13);
+    ctx.fillStyle=COL.cream; ctx.font="12px 'Courier New'"; ctx.fillText("Elige 2 habilidades para tu partida  ·  toca / 1-"+pool.length+" · ←→ + Espacio · Enter para empezar",VW/2,VH*0.13+22);
+    ctx.fillStyle=chosen.length>=2?"#7bd44a":COL.textDim; ctx.font="bold 12px 'Courier New'"; ctx.fillText("Seleccionadas: "+chosen.length+"/2",VW/2,VH*0.13+40);
+    ui.abilRects.length=0;
+    const n=pool.length, gap=12, cw=Math.min(168,(VW-40)/n-gap), ch=Math.min(228,VH*0.5);
+    const totalW=n*cw+(n-1)*gap, x0=(VW-totalW)/2, cy=VH*0.52;
+    for(let i=0;i<n;i++){ const a=pool[i], rx=x0+i*(cw+gap), ry=cy-ch/2;
+      const pick=chosen.indexOf(a.id), on=pick>=0, foc=(cur===i);
+      ctx.fillStyle=on?"#2b313d":COL.panel; ctx.fillRect(rx,ry,cw,ch);
+      ctx.strokeStyle=on?COL.textGold:(foc?COL.cream:COL.panelB); ctx.lineWidth=(on||foc)?3:2; ctx.strokeRect(rx+0.5,ry+0.5,cw,ch);
+      ctx.fillStyle=a.col||"#cfd6de"; ctx.fillRect(rx+cw/2-16,ry+10,32,4);   // colour bar
+      // big glyph icon
+      ctx.save(); ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle=a.col||"#cfd6de";
+      ctx.font="46px 'Courier New'"; ctx.fillText(a.glyph, rx+cw/2, ry+ch*0.30); ctx.restore(); ctx.textBaseline="alphabetic";
+      ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.cream; ctx.font="bold 14px 'Courier New'"; ctx.fillText(a.name, rx+cw/2, ry+ch*0.44);
+      // type · CD · mana line
+      const meta=a.type.toUpperCase()+"  ·  CD "+a.cd+"s"+(a.cost?("  ·  "+a.cost+" MP"):"");
+      ctx.fillStyle="#9aa0aa"; ctx.font="9px 'Courier New'"; ctx.fillText(meta, rx+cw/2, ry+ch*0.44+16);
+      ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px 'Courier New'"; wrapText(a.desc, rx+12, ry+ch*0.44+36, cw-24, 15);
+      // order badge on a chosen card
+      if(on){ const bs=22, bx=rx+cw-bs-6, by=ry+6; ctx.fillStyle=COL.textGold; ctx.fillRect(bx,by,bs,bs);
+        ctx.fillStyle="#1a1d24"; ctx.font="bold 14px 'Courier New'"; ctx.textAlign="center"; ctx.fillText((pick+1), bx+bs/2, by+bs-6); }
+      ctx.textAlign="center"; ctx.fillStyle=on?COL.textGold:COL.textDim; ctx.font="bold 11px 'Courier New'"; ctx.fillText(on?"◄ SELECCIONADA":("["+(i+1)+"] elegir"), rx+cw/2, ry+ch-10);
+      ui.abilRects.push({x:rx,y:ry,w:cw,h:ch,idx:i});
+    }
+    // Listo button
+    const ready=chosen.length>=2, bw=Math.min(240,VW*0.5), bh=42, bx=VW/2-bw/2, by=cy+ch/2+22;
+    ctx.fillStyle=ready?"#2c5a2c":"#242832"; ctx.fillRect(bx,by,bw,bh);
+    ctx.strokeStyle=ready?"#7bd44a":COL.panelB; ctx.lineWidth=2; ctx.strokeRect(bx+0.5,by+0.5,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=ready?"#d6ffcf":COL.textDim; ctx.font="bold 16px 'Courier New'";
+    ctx.fillText(ready?"LISTO — ¡A la aventura!":"Elige 2 habilidades", VW/2, by+bh/2+6);
+    ui.abilConfirmRect={x:bx,y:by,w:bw,h:bh};
+    ctx.textAlign="left";
   }
   function renderClassSel(){
     const META={warrior:["Guerrero","Espada y escudo","#8d3636"], paladin:["Paladín","Arco sagrado","#e6e0cf"],

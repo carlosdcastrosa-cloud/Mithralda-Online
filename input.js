@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -25,7 +25,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], talentRects:[], customRects:[], forgeRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
   // CAS-419 inventory DnD: live drag state (render draws the ghost/highlights from it),
   // last rejected drop rect (render shakes it red until `until`, sim time), and the
   // backpack list area rect render publishes so an equip-slot drag can target empty rows.
@@ -56,6 +56,8 @@ const kbCast=(i)=>{ if(!isTouch) faceMouse(); sim.castSpell(i); };
 const ACTIONS = {
   attack:()=>kbCast(0), roll:()=>sim.doRoll(),
   skill2:()=>kbCast(1), skill3:()=>kbCast(2), skill4:()=>kbCast(3),
+  ability1:()=>{ if(!isTouch) faceMouse(); sim.castAbility(0); },   // CAS-1570 drafted ability slots
+  ability2:()=>{ if(!isTouch) faceMouse(); sim.castAbility(1); },
   pickup:()=>sim.tryPickup(), interact:()=>sim.interact(),
   useConsumable:()=>sim.doConsumable(), cycleConsumable:()=>sim.cycleConsumable(1),
   potionHP:()=>sim.doPotionHP(), potionMP:()=>sim.doPotionMP(),
@@ -90,6 +92,19 @@ function onKeyDown(e){
     else if(c==="ArrowRight"||c==="KeyD") G.classSel=(G.classSel+1)%CLASS_LIST.length;
     else if(c==="KeyC") customizeNewHero(CLASS_LIST[G.classSel]); // CAS-169: personalize before play
     else if(c==="Enter"||c==="Space") chooseClass(CLASS_LIST[G.classSel]);
+    e.preventDefault(); return; }
+  if(G.scene==="abilitysel"){ const c=e.code; const n=ACTIVE_ABILITIES.length;   // CAS-1570 run-start draft
+    const toggle=(i)=>{ if(i<0||i>=n) return; G.abilCursor=i; const id=ACTIVE_ABILITIES[i].id; const at=G.abilChosen.indexOf(id);
+      if(at>=0) G.abilChosen.splice(at,1); else if(G.abilChosen.length<2) G.abilChosen.push(id); };
+    if(c==="ArrowLeft"||c==="KeyA") G.abilCursor=(G.abilCursor+n-1)%n;
+    else if(c==="ArrowRight"||c==="KeyD") G.abilCursor=(G.abilCursor+1)%n;
+    else if(c==="Digit1"||c==="Numpad1") toggle(0);
+    else if(c==="Digit2"||c==="Numpad2") toggle(1);
+    else if(c==="Digit3"||c==="Numpad3") toggle(2);
+    else if(c==="Digit4"||c==="Numpad4") toggle(3);
+    else if(c==="Digit5"||c==="Numpad5") toggle(4);
+    else if(c==="Space") toggle(G.abilCursor);
+    else if(c==="Enter") confirmLoadout();
     e.preventDefault(); return; }
   const md=moveDir(e.code); if(md){ keys.add(md); e.preventDefault(); }
   edge(e.code);
@@ -191,7 +206,7 @@ function edge(code){
   // ↑/↓ move the focused row; ←/→ change it (cycle swatch on a color row, swap a variation);
   // R restores the class default. Pointer/touch use ui.customRects.
   if(G.scene==="customize"){ const N=6;
-    if(code==="KeyC"||code==="Escape"||code==="Enter"){ G.scene="play"; }
+    if(code==="KeyC"||code==="Escape"||code==="Enter"){ closeCustomize(); }
     else if(code==="ArrowUp"){ G.custFocus=((G.custFocus||0)-1+N)%N; }
     else if(code==="ArrowDown"){ G.custFocus=((G.custFocus||0)+1)%N; }
     else if(code==="ArrowLeft"){ custAdjust(-1); }
@@ -215,6 +230,11 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
   if(G.scene==="menu"){ if(menuPlayHit(x,y)) startGame(); return; }
   if(G.scene==="classsel"){ const pc=ui.classCustomRect; if(pc&&pc.w&&x>=pc.x&&x<=pc.x+pc.w&&y>=pc.y&&y<=pc.y+pc.h){ customizeNewHero(CLASS_LIST[G.classSel]); return; }
     for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
+  if(G.scene==="abilitysel"){ // CAS-1570: tap an ability card to toggle it, tap Listo to confirm
+    const cf=ui.abilConfirmRect; if(cf&&cf.w&&x>=cf.x&&x<=cf.x+cf.w&&y>=cf.y&&y<=cf.y+cf.h){ confirmLoadout(); return; }
+    for(const r of (ui.abilRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+      G.abilCursor=r.idx; const id=ACTIVE_ABILITIES[r.idx].id; const at=G.abilChosen.indexOf(id);
+      if(at>=0) G.abilChosen.splice(at,1); else if(G.abilChosen.length<2) G.abilChosen.push(id); return; } } return; }
   if(G.scene==="inventory"){ invDown(x,y,e.pointerId); return; } // CAS-419: arm DnD / tap-defer
   if(handleUITap(x,y)) return;
   if(G.scene==="play"){
@@ -274,9 +294,15 @@ export function tbtns(){ // returns button rects for current scene
     s4:{x:right-bs*2.4-20, y:VH-m-bs*1.1, r:bs*0.44, label:"4", act:()=>sim.castSpell(3)},
     act:{x:right-bs*2.6-20, y:VH-m-bs*0.5, r:bs*0.46, label:"E", act:sim.interact},
     pick:{x:m+bs*0.5, y:VH-m-bs*2.2, r:bs*0.4, label:"F", act:sim.tryPickup},
+    // CAS-1570: drafted-ability buttons — a distinct LEFT cluster (glyph-labelled) so the
+    // two active abilities read separately from the class-spell numbers on the right.
+    ab1:{x:m+bs*0.5,  y:VH-m-bs*3.35, r:bs*0.46, label:abilGlyph(0), act:()=>sim.castAbility(0)},
+    ab2:{x:m+bs*1.55, y:VH-m-bs*3.35, r:bs*0.46, label:abilGlyph(1), act:()=>sim.castAbility(1)},
     bs
   };
 }
+// CAS-1570: current drafted-ability glyph for a touch slot (falls back to slot number).
+function abilGlyph(slot){ const lo=(G.hero&&G.hero.loadout)||[]; const a=ABILITY_MAP[lo[slot]]; return a?a.glyph:String(slot+1); }
 export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(38,s*0.075); const y=14+b/2; return {
   inv:{x:VW-14-b*0.5, y, r:b*0.5, label:"I", act:()=>{G.scene=G.scene==="inventory"?"play":"inventory";}},
   tal:{x:VW-14-b*1.6, y, r:b*0.5, label:"T", act:()=>{G.scene=G.scene==="talents"?"play":"talents";}}, // CAS-119
@@ -482,12 +508,22 @@ function startGame(){
   audio.init(); audio.resume();
 }
 function chooseClass(cls){ sim.createHero(G.pendingName||"Héroe",cls);
-  audio.playMusic("town"); audio.setAmbient("town"); audio.start(); }
+  audio.playMusic("town"); audio.setAmbient("town"); audio.start(); openAbilityDraft(); }
+// CAS-1570 — open the run-start ability-draft scene (pick 2 of the pool). Seeds the
+// selection with the hero's current/default loadout so confirming immediately is valid.
+function openAbilityDraft(){ G.needAbilityDraft=false; G.abilCursor=0;
+  const lo=(sim.dev.loadout&&sim.dev.loadout())||[]; G.abilChosen=lo.filter(id=>ABILITY_MAP[id]).slice(0,2);
+  G.scene="abilitysel"; }
+function confirmLoadout(){ if(!G.abilChosen||G.abilChosen.length<2) return;
+  sim.dev.setLoadout(G.abilChosen.slice()); G.scene="play"; }
 // CAS-169: pick a class but open the wardrobe BEFORE play (createHero spawns the hero
 // in town + starts the run audio; we just hold on the customize scene first). "Listo"
 // in the wardrobe drops into play.
 function customizeNewHero(cls){ sim.createHero(G.pendingName||"Héroe",cls);
-  audio.playMusic("town"); audio.setAmbient("town"); audio.start(); G.scene="customize"; G.custFocus=0; }
+  audio.playMusic("town"); audio.setAmbient("town"); audio.start(); G.scene="customize"; G.custFocus=0; G.needAbilityDraft=true; }
+// CAS-1570 — leaving the wardrobe: on the NEW-hero path route into the ability draft
+// first; a mid-run wardrobe re-open (topBtns) just returns to play.
+function closeCustomize(){ if(G.needAbilityDraft){ openAbilityDraft(); } else { G.scene="play"; } }
 // CAS-169: the focus-row keys, mirroring render.js CUST_ROWS order (4 color slots, 2 vars).
 const CUST_KEYS=["hood","cloak","sash","legs","headwear","cape"];
 function isColorRow(k){ return CUST_KEYS.indexOf(k)<4; }
@@ -504,7 +540,7 @@ function custAdjust(dir){ const st=sim.customizeState(); if(!st) return;
 function customTap(x,y){ for(const r of (ui.customRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
     if(r.kind==="swatch"){ G.custFocus=CUST_KEYS.indexOf(r.slot); sim.setPartColor(r.slot, r.ci); }
     else if(r.kind==="var"){ G.custFocus=CUST_KEYS.indexOf(r.key); sim.cycleVariation(r.key, r.dir); }
-    else if(r.kind==="done"){ G.scene="play"; }
+    else if(r.kind==="done"){ closeCustomize(); }
     else if(r.kind==="reset"){ sim.resetCustomize(); }
     return true; } } return true; }
 

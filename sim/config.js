@@ -114,6 +114,28 @@ export const SPELLS = {
   ],
 };
 
+// CAS-1570 — ACTIVE ABILITIES: a CLASS-AGNOSTIC pool the player drafts 2 of at run
+// start (the ability-select scene). Deliberately data-shaped exactly like SPELLS so a
+// drafted ability runs through the SAME resolveSpell engine (dash/nova/buff/chain) with
+// its own cooldown (h.abilCD) + mana gate + radial HUD — ZERO new combat code paths
+// beyond the one new `chain` resolver. Purely additive to the class spells (slots 1-3):
+// abilities live on their own 2 slots + keys, so v2 meta saves are untouched.
+// `glyph` drives the HUD icon at $0 (no PNG art needed); `name`/`desc` label the draft.
+export const ACTIVE_ABILITIES = [
+  {id:"arremetida", name:"Arremetida",       glyph:"»", type:"dash", cost:6,  cd:4.0, dmg:34, range:78, col:"#dfe6f0", fx:"charge",   sfx:"roll",
+    desc:"Embestida corta: cierra distancia y golpea. CD bajo."},
+  {id:"escarcha",   name:"Nova de Escarcha", glyph:"❄", type:"nova", cost:12, cd:7.0, dmg:22, range:118, status:{type:"slow",amt:0.5,dur:2.6}, col:"#7fd6ff", fx:"novacast", style:"crystal", sfx:"rune",
+    desc:"Estallido de hielo en área: daña y ralentiza. CD medio."},
+  {id:"egida",      name:"Égida",            glyph:"✚", type:"buff", cost:12, cd:9.0, stat:"def", amt:12, dur:5.0, col:"#ffe39a", fx:"buffaura", sfx:"heal",
+    desc:"Ward temporal: sube defensa unos segundos. CD medio."},
+  {id:"rayo",       name:"Cadena de Rayo",   glyph:"⚡", type:"chain", cost:12, cd:6.0, dmg:26, range:150, jumps:3, jumpRange:130, falloff:0.78, status:{type:"stun",dur:0.3}, col:"#bfe6ff", fx:"spellburst", sfx:"fire",
+    desc:"Descarga que salta entre enemigos cercanos. CD medio."},
+];
+export const ABILITY_MAP = Object.fromEntries(ACTIVE_ABILITIES.map(a=>[a.id,a]));
+// Default loadout for a fresh hero (first two of the pool) so abilities always exist
+// even if the draft is skipped (respawn / test harness / legacy entry).
+export const DEFAULT_LOADOUT = [ACTIVE_ABILITIES[0].id, ACTIVE_ABILITIES[1].id];
+
 // gearChance = per-kill probability this enemy drops a gear instance (rolled on
 // the sim RNG in killEnemy). The drop's tier window is the kill ZONE (ZONE_LOOT
 // in sim/gear.js); the golem boss ignores chance and guarantees a rare+ drop.

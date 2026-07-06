@@ -33,6 +33,8 @@ export const REBINDS = [
   { a:"skill2",          def:"Digit2" },
   { a:"skill3",          def:"Digit3" },
   { a:"skill4",          def:"Digit4" },
+  { a:"ability1",        def:"KeyZ" },   // CAS-1570: drafted active-ability slots (Q/E are taken by potion/interact; rebindable here)
+  { a:"ability2",        def:"KeyX" },
   { a:"pickup",          def:"KeyF" },
   { a:"interact",        def:"KeyE" },
   { a:"useConsumable",   def:"KeyQ" },
