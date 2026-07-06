@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ABILITY_RANKS, ABILITY_RANK_MAP, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -638,15 +638,18 @@ export const META_T2 = [
   { key:"t2_xpGain",     cap:3, cost:l=>130*(l+1), per:0.08, label:"Erudición",      eff:"+8% experiencia",     glyph:"✜" },
   { key:"t2_reroll",     cap:2, cost:l=>100*(l+1), per:1,    label:"Vidente",        eff:"+1 reroll boon",      glyph:"↺" },
 ];
-const META_MAP = (()=>{ const m={}; for(const n of META_NODES) m[n.key]=n; for(const n of META_T2) m[n.key]=n; return m; })();
+// CAS-1574: ability-rank rows join the SAME lookup that buyMetaNode/metaLvl/metaNodeCost read
+// (each carries its own {cap, cost(lvl)}), so they buy/persist through the one meta store with no
+// parallel system. They are NOT added to T2_MAP → never gated by t2Unlocked().
+const META_MAP = (()=>{ const m={}; for(const n of META_NODES) m[n.key]=n; for(const n of META_T2) m[n.key]=n; for(const r of ABILITY_RANKS) m[r.key]=r; return m; })();
 const T2_MAP = (()=>{ const m={}; for(const n of META_T2) m[n.key]=n; return m; })();
 // Canonical Ascensión essence multiplier for a level (+25% per level). NEVER trust a persisted
 // mult — always recompute from the level so a tampered blob can't inflate the economy.
 function ascMult(level){ return 1 + 0.25*Math.max(0, level|0); }
-function metaDefault(){ return { v:2, essence:0,
-  nodes:{ hpMax:0,dmg:0,moveSpd:0,reroll:0,startGold:0,
-          t2_boonRare:0,t2_startBoon:0,t2_dashIframe:0,t2_xpGain:0,t2_reroll:0 },
-  ascension:{ level:0, mult:1 } }; }
+function metaDefault(){ const nodes={ hpMax:0,dmg:0,moveSpd:0,reroll:0,startGold:0,
+          t2_boonRare:0,t2_startBoon:0,t2_dashIframe:0,t2_xpGain:0,t2_reroll:0 };
+  for(const r of ABILITY_RANKS) nodes[r.key]=0; // CAS-1574: ability-rank rows default to 0
+  return { v:2, essence:0, nodes, ascension:{ level:0, mult:1 } }; }
 // Ascensión level currently banked (defensive: an old in-memory blob may predate ascension).
 function ascLevel(){ const a=ensureMeta().ascension; return (a&&a.level|0)||0; }
 // Tier-2 is visible/buyable ONLY once every v1 node is at its cap (the progress gate).
@@ -712,6 +715,7 @@ function metaDashIframe(){ return metaLvl("t2_dashIframe")*T2_MAP.t2_dashIframe.
 export function serializeMeta(){ const m=ensureMeta(); const nodes={};
   for(const n of META_NODES) nodes[n.key]=metaLvl(n.key);
   for(const n of META_T2)    nodes[n.key]=metaLvl(n.key); // CAS-1565: Tier-2 levels
+  for(const r of ABILITY_RANKS) nodes[r.key]=metaLvl(r.key); // CAS-1574: ability-rank levels
   const lvl=ascLevel();
   return { v:2, essence:Math.max(0,m.essence|0), nodes, ascension:{ level:lvl, mult:ascMult(lvl) } }; }
 // CAS-1565: retro-compatible migration (one-way door — critical). A v1 blob (v:1, no t2_*/
@@ -723,6 +727,7 @@ export function loadMeta(d){ const def=metaDefault();
     const n=(d.nodes&&typeof d.nodes==="object")?d.nodes:{};
     for(const node of META_NODES) def.nodes[node.key]=Math.max(0, Math.min(node.cap, (n[node.key]|0)));
     for(const node of META_T2)    def.nodes[node.key]=Math.max(0, Math.min(node.cap, (n[node.key]|0)));
+    for(const r of ABILITY_RANKS) def.nodes[r.key]=Math.max(0, Math.min(r.cap, (n[r.key]|0))); // CAS-1574: additive — blobs w/o rank_* load to 0
     const lvl=Math.max(0, (d.ascension&&d.ascension.level|0)||0);
     def.ascension={ level:lvl, mult:ascMult(lvl) }; }
   G.meta=def; return true; }
@@ -731,9 +736,14 @@ export function loadMeta(d){ const def=metaDefault();
 export function metaSnap(){ const m=ensureMeta();
   const view=n=>({ key:n.key, label:n.label, eff:n.eff, glyph:n.glyph, lvl:metaLvl(n.key), cap:n.cap, cost:metaNodeCost(n.key) });
   const lvl=ascLevel();
+  // CAS-1574: ability-rank rows. Shape matches altarRow's contract (label/eff/glyph/lvl/cap/cost
+  // + key) so render reuses the same row renderer; eff is the CURRENT rank's effect text.
+  const abilView=r=>{ const lvl=metaLvl(r.key), cost=metaNodeCost(r.key);
+    return { key:r.key, label:r.label, glyph:r.glyph, eff:r.eff(lvl), lvl, cap:r.cap, cost, affordable: cost!=null && (m.essence|0)>=cost }; };
   return { essence:m.essence|0,
     nodes:META_NODES.map(view),          // Tier-1 (back-compat: input.js Digit1-5 reads sim.META_NODES)
     t2:META_T2.map(view),                 // CAS-1565: Tier-2 rows
+    abilities:ABILITY_RANKS.map(abilView), // CAS-1574: ability-rank rows (never gated)
     t2Unlocked:t2Unlocked(),              // gate: every v1 node maxed
     canAscend:altarFullMax(),             // Ascender enabled: whole altar maxed
     ascension:{ level:lvl, mult:ascMult(lvl) } }; }
@@ -1571,9 +1581,15 @@ export function castSpell(i){
 // cooldown state. Reuses the same gates (stun/roll, mana, cdr) + resolveSpell engine.
 export function castAbility(slot){
   const h=G.hero; if(!h||h.rolling||h.stun>0) return;
-  const id=h.loadout && h.loadout[slot]; const sp=id && ABILITY_MAP[id];
+  const id=h.loadout && h.loadout[slot]; let sp=id && ABILITY_MAP[id];
   if(!sp) return;
   if(h.abilCD[slot]>0) return;                                  // per-slot cooldown gate
+  // CAS-1574: overlay the PERMANENT Esencia-bought rank scaling. CRÍTICO (RNG-neutral): when the
+  // bought rank is 0, `sp` stays the SAME base object — zero behaviour/RNG delta on un-upgraded
+  // runs. `apply` returns a COPY (never mutates the shared ABILITY_MAP entry) and touches no RNG.
+  // Done BEFORE the mana/cd gates so the scaled `cd` (rayo) drives h.abilCD below.
+  const rl=metaLvl("rank_"+id);
+  if(rl>0){ const rk=ABILITY_RANK_MAP[id]; if(rk) sp=rk.apply(sp, rl); }
   if(h.mp<sp.cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
   const cd=sp.cd*(1-(h.tt?h.tt.cdr:0)/100); h.mp-=sp.cost; h.abilCD[slot]=cd; h.abilCDmax[slot]=cd;
   h.specialAnim=SPECIAL_ANIM_DUR; h.hurtAnim=0;
@@ -2743,6 +2759,11 @@ export const dev = {
   // CAS-1565: dev-only Esencia grant so the live QA harness can bankroll the altar (Tier-2 +
   // Ascensión need ~thousands of Esencia to max) without grinding deaths. Additive, dev-only.
   metaGrant(n){ ensureMeta().essence=Math.max(0,(ensureMeta().essence|0)+(n|0)); G.metaDirty=true; return metaSnap(); },
+  // CAS-1574: QA hook — the bought rank of an ability + its next cost + the ABILITY_MAP entry with
+  // the rank scaling applied (lvl 0 → identical to base). Lets QA verify the in-run effect without
+  // re-deriving the formula. Pair with __dev.metaGrant + buyMetaNode("rank_<id>") to fund/buy.
+  abilityRank(id){ const rk=ABILITY_RANK_MAP[id]; if(!rk) return null; const lvl=metaLvl(rk.key);
+    return { id, lvl, cap:rk.cap, cost:metaNodeCost(rk.key), ranked:rk.apply(ABILITY_MAP[id], lvl) }; },
   // CAS-277: end-of-run recap contract consumed by tools/cas277-recap.mjs — read-only.
   // recapState = the frozen recap delta (null until a death); runBase = the live baseline.
   recapState(){ return G.recap?Object.assign({},G.recap):null; },

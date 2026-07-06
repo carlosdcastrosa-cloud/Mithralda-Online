@@ -136,6 +136,38 @@ export const ABILITY_MAP = Object.fromEntries(ACTIVE_ABILITIES.map(a=>[a.id,a]))
 // even if the draft is skipped (respawn / test harness / legacy entry).
 export const DEFAULT_LOADOUT = [ACTIVE_ABILITIES[0].id, ACTIVE_ABILITIES[1].id];
 
+// CAS-1574 — ABILITY RANKS: PERMANENT, Esencia-bought upgrades to each active ability, one
+// row per ability, ONE scaled parameter each. Purely data: the cost curve, cap, effect text
+// and the scaling FORMULA (`apply`) all live here — the single source of truth — so designers
+// retune without touching sim/render code. `apply(sp,lvl)` returns a COPY of the ability's data
+// with the one param scaled; the cast seam swaps in that copy ONLY when the bought rank > 0, so
+// a run with no purchase is 0-delta (same object, identical behaviour + RNG). `apply` NEVER
+// touches RNG. Reuses the ability's own `glyph` for the altar icon → $0 art (CAS-412 lineage).
+// Cost curve is data-driven + strictly increasing per rank (30·1.6^lvl → 30 / 48 / 77).
+export const ABILITY_RANKS = [
+  // arremetida (dash) → +daño
+  { key:"rank_arremetida", abil:"arremetida", cap:3, glyph:"»", label:"Arremetida",
+    cost:l=>Math.round(30*Math.pow(1.6,l)),
+    eff:l=>l>0?("+"+(8*l)+" daño"):"daño de embestida",
+    apply:(sp,l)=>({ ...sp, dmg:(sp.dmg||0)+8*l }) },
+  // escarcha (nova) → +radio
+  { key:"rank_escarcha", abil:"escarcha", cap:3, glyph:"❄", label:"Nova de Escarcha",
+    cost:l=>Math.round(30*Math.pow(1.6,l)),
+    eff:l=>l>0?("+"+(16*l)+" radio"):"radio del estallido",
+    apply:(sp,l)=>({ ...sp, range:(sp.range||0)+16*l }) },
+  // egida (buff) → +duración
+  { key:"rank_egida", abil:"egida", cap:3, glyph:"✚", label:"Égida",
+    cost:l=>Math.round(30*Math.pow(1.6,l)),
+    eff:l=>l>0?("+"+l+"s duración"):"duración del ward",
+    apply:(sp,l)=>({ ...sp, dur:(sp.dur||0)+1*l }) },
+  // rayo (chain) → −cooldown (piso 1s)
+  { key:"rank_rayo", abil:"rayo", cap:3, glyph:"⚡", label:"Cadena de Rayo",
+    cost:l=>Math.round(30*Math.pow(1.6,l)),
+    eff:l=>l>0?("−"+(0.6*l).toFixed(1).replace(/\.0$/,"")+"s recarga"):"recarga de la cadena",
+    apply:(sp,l)=>({ ...sp, cd:Math.max(1,(sp.cd||0)-0.6*l) }) },
+];
+export const ABILITY_RANK_MAP = Object.fromEntries(ABILITY_RANKS.map(r=>[r.abil,r]));
+
 // gearChance = per-kill probability this enemy drops a gear instance (rolled on
 // the sim RNG in killEnemy). The drop's tier window is the kill ZONE (ZONE_LOOT
 // in sim/gear.js); the golem boss ignores chance and guarantees a rare+ drop.
