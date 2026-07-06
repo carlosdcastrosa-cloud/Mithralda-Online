@@ -863,7 +863,7 @@ export const SOCKETS = {
 // (AC3 [AC-RNG-STRONG]). `types` = los 3 nuevos, appendados al pool de caves SÓLO si enabled (world.js).
 // `bonusLootRate` = la ÚNICA tirada RNG de estos mobs (killEnemy), y sale del stream dedicado mobRng
 // (nunca del srand autoritativo). El QA flip vive tras dev hook __dev.newMobsEnable / harness.
-export const NEW_MOBS = { enabled:false, zone:"caves", types:["ashwraith","ironback","thornspitter"], bonusLootRate:0.10 };
+export const NEW_MOBS = { enabled:true, zone:"caves", types:["ashwraith","ironback","thornspitter"], bonusLootRate:0.10 };
 
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
