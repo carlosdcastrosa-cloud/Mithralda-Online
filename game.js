@@ -298,6 +298,11 @@ export function createGame(canvas, ctx, getView){
       equipUnique:(id)=>simDev.equipUnique(id), uniqSnap:()=>simDev.uniqSnap(),
       forceLegendary:(id,zone)=>simDev.forceLegendary(id,zone), legendaryRollRate:(n)=>simDev.legendaryRollRate(n),
       uniqPersist:(id)=>simDev.uniqPersist(id), dropStream:(n,s)=>simDev.dropStream(n,s),
+      // CAS-1654 CONJUNTOS DE OBJETOS (Item Sets) contract consumed by tools/cas1653-sets.mjs — additive
+      setMeta:()=>simDev.setMeta(), setSetRate:(r)=>simDev.setSetRate(r), setTotals:()=>simDev.setTotals(), setCounts:()=>simDev.setCounts(),
+      equipSet:(p)=>simDev.equipSet(p), setSnap:()=>simDev.setSnap(),
+      setCritProbe:(d)=>simDev.setCritProbe(d), setReflectProbe:(d)=>simDev.setReflectProbe(d),
+      forceSetPiece:(id,zone)=>simDev.forceSetPiece(id,zone), setRollRate:(n)=>simDev.setRollRate(n), setPersist:(p)=>simDev.setPersist(p),
       // CAS-149 Elite-Mastery progression contract consumed by tools/cas149-progression.mjs — additive
       masterySnap:()=>simDev.masterySnap(), setEliteKills:(n)=>simDev.setEliteKills(n), bumpMastery:()=>simDev.bumpMastery(),
       masteryTrackSnap:()=>simDev.masteryTrackSnap(), // CAS-150 reward-track panel/harness read-out

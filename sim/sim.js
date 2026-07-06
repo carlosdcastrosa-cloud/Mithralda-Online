@@ -18,7 +18,7 @@ import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, AB
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
-import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost, UNIQUES, uniqDef, uniqById, uniqInst, uniqName, uniqTotals, uniqEmpower } from "./gear.js";
+import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost, UNIQUES, uniqDef, uniqById, uniqInst, uniqName, uniqTotals, uniqEmpower, SETS, SET_ORDER, SET_PIECES, setPieceDef, setPieceById, setInst, setCounts, setTotals } from "./gear.js";
 import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, lockReason, sanitizeTalents, talentEmpower, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
 // feedback floater palette (presentation hints carried by sim events)
@@ -47,6 +47,11 @@ const frr = (a,b)=>fxRng.rr(a,b);
 // seed at ANY legendary rate, not merely rate=0. This is the AC3 fix flagged by the CTO on
 // CAS-1631: the append-only legendary roll must not consume or shift the shared srand stream.
 const legRng = createRNG(0x1a2b3c4d);
+// CAS-1654 — DEDICATED set-piece drop stream (distinct seed from legRng). Same
+// contract: the maybeSetPiece gate + piece pick draw ONLY from this stream, never
+// the authoritative srand, so with the set pool off (setRate=0) the sim is
+// byte-identical to a build without sets — RNG-neutral by construction (AC4).
+const setRng = createRNG(0x5e75c0de);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -611,6 +616,9 @@ function safeInst(inst){ if(!(inst && inst.slot && gearDef(inst.slot,inst.defId)
   // CAS-1632: preserve the UNIQUE id (only if it resolves to a real unique) so a legendary
   // survives save→load and its mod stays live; a bad/unknown uniq is dropped (falls back to base).
   if(inst.uniq && uniqDef(inst)) o.uniq=inst.uniq;
+  // CAS-1654: preserve the SET-piece id (only if it resolves to a real piece) so set
+  // membership survives save→load and setTotals stays live; unknown → dropped (base fallback).
+  if(inst.set && setPieceDef(inst)) o.set=inst.set;
   return o; }
 function RARITY_VALID(r){ return (r==="common"||r==="uncommon"||r==="rare"||r==="epic"||r==="legendary")?r:"common"; }
 // CAS-117: validate persisted affixes — drop anything unknown/malformed so a
@@ -743,7 +751,9 @@ function essenceForRun(h, r){ if(!h) return 0;
   // Read live off the equipped instances (uniqTotals) — derived, 0 RNG; unequipped → ×1 (byte-identical).
   // CAS-1649: leg_erudito legacy (+50%/stack Esencia) scales the raw haul at the SAME point as
   // corona_ecos — before the Ascensión mult. Read-live off the meta count; 0 stacks → ×1 (byte-id).
-  const raw = raw0 * (1 + uniqTotals(h).essencePct/100) * (1 + 0.5*legacyCount("leg_erudito"));
+  // CAS-1654: Erudito set (+15% Esencia at 2pz) folds in at the SAME point as corona_ecos —
+  // read-live off the equipped instances; no set pieces → +0 → byte-identical.
+  const raw = raw0 * (1 + (uniqTotals(h).essencePct + setTotals(h).essencePct)/100) * (1 + 0.5*legacyCount("leg_erudito"));
   // CAS-1565: Ascensión/Prestigio multiplier — the permanent payoff for sacrificing the altar.
   return Math.max(1, Math.floor(raw * ascMult(ascLevel()))); }
 // Reconcile the DURABLE meta stats (HP / dmg / gold / moveSpeed) onto a hero at a run-start
@@ -1203,13 +1213,30 @@ function maybeLegendary(x, y, kindBias){
   dropGear(x, y, { slot:u.slot, defId:u.defId, rarity:"legendary", uniq:u.id });
 }
 
+// CAS-1654 — SET-PIECE drop. Slightly more common than a legendary (you must COLLECT
+// several to activate a bonus). Mirrors maybeLegendary EXACTLY: append-only, gated off
+// the DEDICATED setRng stream so the shared srand is untouched at ANY rate → RNG-neutral.
+// __dev.setSetRate forces 0 for the OFF-path determinism test; __dev.forceSetPiece drops
+// a specific piece on the next kill so the harness can build a known set.
+const SET_DROP_RATE=0.035;
+let setRate=SET_DROP_RATE, forcedSet=null;
+function maybeSetPiece(x, y, kindBias){
+  if(forcedSet){ const id=forcedSet; forcedSet=null; const inst=setInst(id); if(inst) dropGear(x, y, inst); return; }
+  const rate=setRate*(kindBias>0?kindBias:1);
+  if(!(rate>0)) return;                                    // OFF / rate 0 → early out, no RNG at all
+  if(setRng.srand()>=(rate<1?rate:1)) return;              // dedicated-stream gate — shared srand untouched
+  const p=SET_PIECES[Math.floor(setRng.srand()*SET_PIECES.length)]; // dedicated-stream uniform pick
+  dropGear(x, y, { slot:p.slot, defId:p.defId, rarity:"epic", set:p.id });
+}
+
 // CAS-197 — the ONE place the three atkspd sources (affixes CAS-117 + talents CAS-119 +
 // the "furia" consumable CAS-192) are summed, clamped to the global cohesion ceiling
 // ATKSPD_TOTAL_CAP so the independently-capped systems can't compound past intent. Both
 // the swing formula and the harness read-out call this, so they can never drift apart.
 export function heroAtkspd(h){ h=h||G.hero; if(!h) return 0;
   // CAS-1632: guante_berserker unique (+12% atkspd) joins the summed sources under the same cap.
-  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd;
+  // CAS-1654: Cazador set (+10% atkspd at 2pz) sums in at the same seam, still under the shared cap.
+  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd+setTotals(h).atkspd;
   return s>ATKSPD_TOTAL_CAP?ATKSPD_TOTAL_CAP:s; }
 
 // ------------------------------ combat ---------------------------------
@@ -1297,9 +1324,12 @@ function hitEnemy(e,dmg,ang){
   // guaranteed crushing counter — forced crit × riposteMult — and is spent immediately. No
   // srand is consumed on this path, so it stays deterministic and never double-rolls with
   // the normal crit chance below. This is the souls-like read-and-punish payoff.
+  // CAS-1654: Cazador set (+20% crit dmg at 3pz) adds to the crit multiplier — read-live off
+  // G.hero's equipped set pieces; no set → +0 → byte-identical. Shared by both crit paths below.
+  const setCritMult=(G.hero?setTotals(G.hero).critDmgPct:0)/100;
   if(G.hero && G.hero.riposte>0){ riposted=true; crit=true; G.hero.riposte=0;
-    dmg*=CFG.riposteMult*(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
-  else if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100); }
+    dmg*=CFG.riposteMult*(CRIT_BASE+((tt&&tt.critMult)||0)/100+setCritMult); }
+  else if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100+setCritMult); }
   // CAS-247 ARMORED affix: a metallic-tinted elite absorbs a fixed fraction of EVERY incoming
   // hero hit (post-crit, so even a crit is blunted) — a damage-soak that makes it a tankier kill.
   { for(const id of mobAffixes(e)){ const af=MOB_AFFIX[id]; if(af&&af.dmgReduce){ dmg=Math.max(1,dmg*(1-af.dmgReduce)); break; } } } // CAS-1590: a champion's Acorazado affix soaks the same fraction (one reduce, no double-stack)
@@ -1388,8 +1418,9 @@ function killEnemy(e){
     grantMats(3);    // CAS-237: a boss kill is a signature forge-material haul
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
     maybeLegendary(e.x, e.y+18, LEGENDARY.bossMul);       // CAS-1632: append-only unique roll (after the guaranteed boss piece)
+    maybeSetPiece(e.x, e.y+30, LEGENDARY.bossMul);        // CAS-1654: append-only set-piece roll (own setRng stream → srand untouched)
     gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
-  else if(e.champion){ onChampionKill(e); maybeLegendary(e.x, e.y-24, LEGENDARY.bossMul); } // hunt climax — clears the zone; CAS-1632 unique roll after all clear-drops
+  else if(e.champion){ onChampionKill(e); maybeLegendary(e.x, e.y-24, LEGENDARY.bossMul); maybeSetPiece(e.x, e.y-36, LEGENDARY.bossMul); } // hunt climax — clears the zone; CAS-1632 unique roll + CAS-1654 set roll after all clear-drops
   else { gainXP(tpl.xp);
     audio.sfx.mobDie&&audio.sfx.mobDie(); // CAS-447: regular kills get an audible finisher (boss/champion keep sfx.boss)
     // CAS-273: every kill now lands a subtle, size-scaled screen-shake (the requested
@@ -1415,6 +1446,7 @@ function killEnemy(e){
     // drawn their srand, so their rolls stay byte-identical. Bias climbs for elites/champions.
     const legBias=e.champElite?LEGENDARY.champMul : (e.elite?LEGENDARY.eliteMul : 1);
     maybeLegendary(e.x, e.y+14, legBias);
+    maybeSetPiece(e.x, e.y+26, legBias);                 // CAS-1654: append-only set-piece roll, same bias, own setRng stream
   }
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
@@ -1737,7 +1769,7 @@ function onNeutralKill(){ const s=G.skull; s.kills++; s.killT=90;
 // CAS-1632 — the ONE cooldown-reduction factor: talent cdr (CAS-119) + the reloj_vacio unique's
 // abilCdr, summed and clamped to 60% so the two systems can't stack a spell/ability to ~0 cd.
 // Read live off the equipped instances (0 when no unique) → un-equipped cd is byte-identical.
-function cdrFactor(h){ const c=Math.min(60, (h&&h.tt?h.tt.cdr:0) + uniqTotals(h).abilCdr); return 1 - c/100; }
+function cdrFactor(h){ const c=Math.min(60, (h&&h.tt?h.tt.cdr:0) + uniqTotals(h).abilCdr + setTotals(h).abilCdr); return 1 - c/100; } // CAS-1654: Erudito set (−10% CD at 3pz) joins under the same 60% cap
 export function castSpell(i){
   const h=G.hero; if(h.rolling||h.stun>0) return; // CAS-118: stun gates casting
   if(i===0){ heroAttack(); return; }
@@ -2760,6 +2792,12 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   if(src && src.hp>0 && !src.dead && h.bb && h.bb.reflect>0){
     const rd=Math.max(1,real*h.bb.reflect); const ra=Math.atan2(src.y-h.y,src.x-h.x);
     addFx("spark",src.x,src.y); hitEnemy(src,rd,ra); }
+  // CAS-1654: Vigía set (reflectPct% of damage TAKEN at 3pz) reflects back to the melee
+  // attacker exactly like the thorns boon — read-live off setTotals, routed through hitEnemy
+  // so it crits/procs/kills normally. Dodged/i-framed hit returned above → no reflect.
+  { const rp=(src && src.hp>0 && !src.dead)?setTotals(h).reflectPct:0;
+    if(rp>0){ const rd=Math.max(1,real*rp/100); const ra=Math.atan2(src.y-h.y,src.x-h.x);
+      addFx("spark",src.x,src.y); hitEnemy(src,rd,ra); } }
   // CAS-247 VAMPIRIC affix: when an affixed elite LANDS a hit, it leeches a fixed fraction of
   // its OWN maxHp — heals only on a connect (a dodged/i-framed hit returned above, so reading
   // the tell denies the lifesteal too). A red tick reads "it fed". Deterministic (no RNG).
@@ -3436,8 +3474,68 @@ export const dev = {
   dropStream(n, seedVal){ if(seedVal!=null) seed(seedVal); n=Math.max(1,n|0); const out=[];
     for(let i=0;i<n;i++){ const before=G.drops.length; const e=spawnEnemy("skeleton",-8000-i,-8000); if(!e) continue;
       e.hp=0; killEnemy(e);
-      for(const d of G.drops.slice(before)) out.push({kind:d.kind, rarity:d.rarity||null, tier:d.tier||0, uniq:(d.inst&&d.inst.uniq)||null}); }
+      for(const d of G.drops.slice(before)) out.push({kind:d.kind, rarity:d.rarity||null, tier:d.tier||0, uniq:(d.inst&&d.inst.uniq)||null, set:(d.inst&&d.inst.set)||null}); }
     return out; },
+  // --- CAS-1654 CONJUNTOS DE OBJETOS harness hooks (tools/cas1653-sets.mjs); additive, curated bridge ---
+  // Static config off the data (no sim step) — asserts the 3 sets (each with b2+b3), the 9 pieces,
+  // and the live drop rate. Mirrors legendaryMeta().
+  setMeta(){ return { liveRate:setRate, dropRate:SET_DROP_RATE,
+    sets:SET_ORDER.map(id=>({id, name:SETS[id].name, b2:SETS[id]&&SETS[id].b2, b3:SETS[id]&&SETS[id].b3})),
+    pieces:SET_PIECES.map(p=>({id:p.id,name:p.name,slot:p.slot,defId:p.defId,set:p.set})) }; },
+  // RNG-neutrality seam: force the live set-drop rate (0 → feature OFF). The roll draws from the
+  // dedicated setRng stream, so the shared srand is byte-identical at ANY rate (AC4 [AC-RNG-STRONG]).
+  setSetRate(r){ setRate=(r==null)?SET_DROP_RATE:Math.max(0,+r||0); return setRate; },
+  // Live set bundle read off the equipped instances (the ONLY set-bonus reader; combat routes here).
+  setTotals(){ return setTotals(G.hero); },
+  setCounts(){ return setCounts(G.hero); },
+  // Clear the 3 gear slots, then force-EQUIP the given set-piece ids through the REAL safeInst path.
+  equipSet(pieces){ const h=G.hero; if(!h) return null; h.equip.weapon=null; h.equip.body=null; h.equip.shield=null;
+    for(const id of (pieces||[])){ const p=setPieceById(id); const inst=p&&safeInst(setInst(id)); if(inst) h.equip[p.slot]=inst; }
+    return this.setSnap(); },
+  // Live combat read-outs so a test proves a set bonus moved a REAL number (maxHp/atkspd/cdr/essence).
+  setSnap(){ const h=G.hero; if(!h) return null;
+    return { equip:{ weapon:(h.equip.weapon&&h.equip.weapon.set)||null, body:(h.equip.body&&h.equip.body.set)||null, shield:(h.equip.shield&&h.equip.shield.set)||null },
+      counts:setCounts(h), totals:setTotals(h), maxHp:heroMaxHp(h), atkspd:heroAtkspd(h),
+      cdrFactor:+cdrFactor(h).toFixed(4), essence:essenceForRun(h,{elites:10}) }; },
+  // Prove critDmgPct is wired: force a RIPOSTE crit on a fresh dummy (no srand) with vs without full
+  // Cazador (3pz → +20% crit dmg) and report the damage ratio. A non-elite dummy avoids leg_cazador.
+  setCritProbe(dmg){ const h=G.hero; if(!h) return null; const D=dmg||100;
+    const hit=()=>{ G.enemies.length=0; const e=spawnEnemy("skeleton",-7000,-7000); if(!e) return 0; e.hp=1e9; e.maxHp=1e9;
+      const before=e.hp; h.riposte=CFG.riposteWindow; hitEnemy(e, D, 0); return before-e.hp; };
+    this.equipSet([]); const noSet=hit();
+    this.equipSet(["cazador_arma","cazador_cuerpo","cazador_escudo"]); const full=hit();
+    return { noSet, fullCazador:full, ratio:+(full/Math.max(1e-9,noSet)).toFixed(4), critDmgPct:setTotals(h).critDmgPct }; },
+  // Prove reflectPct is wired: full Vigía (3pz → 10% reflect) makes a melee attacker take damage back
+  // through the REAL damageHero path; no-set → 0 reflected. Attacker/hero pinned huge so nothing dies.
+  setReflectProbe(dmg){ const h=G.hero; if(!h) return null; const D=dmg||200;
+    const run=(pieces)=>{ this.equipSet(pieces); G.enemies.length=0; G.projectiles.length=0;
+      const src=spawnEnemy("skeleton", h.x+20, h.y); if(!src) return 0; src.hp=1e9; src.maxHp=1e9;
+      h.dead=false; h.rolling=false; h.iframe=0; h.stun=0; h.hp=1e9; h.maxHp=1e9; if(h.bb) h.bb.reflect=0;
+      const before=src.hp; damageHero(D, 0, null, src); return +(before-src.hp).toFixed(2); };
+    const noSet=run([]); const fullVigia=run(["vigia_arma","vigia_cuerpo","vigia_escudo"]);
+    return { noSet, fullVigia, reflectPct:setTotals(h).reflectPct }; },
+  // Force the NEXT kill to drop `id` via the REAL killEnemy loot path; reports the dropped gear so a
+  // test proves the set piece lands (append-only, carries `set`). Mirrors forceLegendary.
+  forceSetPiece(id, zone){ const h=G.hero; const before=G.drops.length; forcedSet=id;
+    const e=spawnEnemy("skeleton", h.x+40, h.y); if(e){ e.scaleZone=zone||"caves"; e.hp=0; killEnemy(e); }
+    forcedSet=null;
+    const drops=G.drops.slice(before).filter(d=>d.kind==="gear"&&d.inst).map(d=>({slot:d.inst.slot,defId:d.inst.defId,rarity:d.inst.rarity,set:d.inst.set||null,name:gearName(d.inst)}));
+    return { drops, piece:drops.find(d=>d.set)||null }; },
+  // Roll-rate probe: spawn-kill N plain mobs at the LIVE setRate and tally set-piece drops. At
+  // setRate=0 → 0 pieces (proves OFF); rate>0 → pieces drop (feature ON). Mirrors legendaryRollRate.
+  setRollRate(n){ n=Math.max(1,n|0); let pieces=0, kills=0; const tally={};
+    for(let i=0;i<n;i++){ const before=G.drops.length; const e=spawnEnemy("skeleton",-9500-i,-9500); if(!e) continue;
+      e.hp=0; killEnemy(e); kills++;
+      for(const d of G.drops.slice(before)){ if(d.kind==="gear"&&d.inst&&d.inst.set){ pieces++; tally[d.inst.set]=(tally[d.inst.set]||0)+1; } } }
+    return { n:kills, pieces, rate:+(pieces/Math.max(1,kills)).toFixed(4), tally }; },
+  // Persistence probe: equip a set, serialize→load through the REAL save path, report survival + counts
+  // (AC5: set membership persists; a set save round-trips clean).
+  setPersist(pieces){ const h=G.hero; if(!h) return null; this.equipSet(pieces);
+    const before={ counts:setCounts(h), maxHp:heroMaxHp(h) };
+    const blob=JSON.parse(JSON.stringify(serializeSave())); const ok=loadSave(blob);
+    const h2=G.hero;
+    return { ok, before, after:{ counts:setCounts(h2), maxHp:heroMaxHp(h2),
+      equip:{ weapon:(h2.equip.weapon&&h2.equip.weapon.set)||null, body:(h2.equip.body&&h2.equip.body.set)||null, shield:(h2.equip.shield&&h2.equip.shield.set)||null } } }; },
   // --- CAS-1586 AURA GÉLIDA + Esencia tie-in harness hooks (tools/cas1586-frost-live.mjs) ---
   // Clean arena, force ONE frost mob, place the FROZEN mob `dist` px from the hero, tick the REAL
   // update() a few frames, then report the hero's slow channel + resulting effective movespeed.

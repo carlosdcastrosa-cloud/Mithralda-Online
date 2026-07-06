@@ -13,7 +13,7 @@ import { zoneOf } from "../sim/world.js";
 import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
-import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost } from "../sim/gear.js";
+import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts } from "../sim/gear.js";
 import { TALENTS, talentNodes, talentNode, nodeRank, canAllocTalent, lockReason, talentSpent } from "../sim/talents.js";
 import { STR } from "../strings.js";
 import { audio } from "../audio.js";
@@ -2211,6 +2211,17 @@ export function createRenderer(ctx){
       for(const [lbl,dv] of parts){ const tk=deltaTok(dv); const seg=lbl+" "; ctx.fillStyle=COL.textDim; ctx.fillText(seg,dx,dyb); dx+=ctx.measureText(seg).width;
         ctx.fillStyle=tk.c; ctx.fillText(tk.t+"  ",dx,dyb); dx+=ctx.measureText(tk.t+"  ").width; }
     }
+    // ---- CAS-1654: SET summary — for each set with equipped pieces, show "name (x/3)" and mark
+    // active tiers (2pz/3pz). Reuses the cyan affix-line style; $0 art. Read-live off setCounts. ----
+    { const sc=setCounts(h); const setY=cy+cmpH+10; ctx.textAlign="left";
+      let sn=0; for(const id of SET_ORDER){ const n=sc[id]|0; if(n<=0) continue; const s=SETS[id]; if(!s) continue;
+        const ly=setY+sn*22; ctx.font="bold 10px "+FF; ctx.fillStyle="#9be7ff";
+        ctx.fillText("◈ "+s.name+" ("+n+"/3)", rx+6, ly);
+        // tier chips: bright when active (n>=2 / n>=3), dim otherwise
+        ctx.font="9px "+FF;
+        ctx.fillStyle=(n>=2)?"#7CFC9B":COL.textDim; ctx.fillText("2pz"+(n>=2?" ✓":""), rx+12, ly+11);
+        ctx.fillStyle=(n>=3)?"#7CFC9B":COL.textDim; ctx.fillText("3pz"+(n>=3?" ✓":""), rx+62, ly+11);
+        sn++; if(sn>=3) break; } }
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.equipHint,VW/2,y+bh-6);
     // ---- CAS-419: DnD overlays — reject flash, target highlights, cursor ghost. ----
     // Pure presentation read from input state (ui.invDrag / ui.invReject) in the same
