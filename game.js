@@ -360,6 +360,10 @@ export function createGame(canvas, ctx, getView){
       arenaState:()=>simDev.arenaState(), arenaStart:()=>simDev.arenaStart(), arenaSpawnWave:(n)=>simDev.arenaSpawnWave(n),
       arenaClearWave:()=>simDev.arenaClearWave(), arenaSetAffixRate:(r)=>simDev.arenaSetAffixRate(r), arenaBest:()=>simDev.arenaBest(),
       arenaClearReward:()=>simDev.arenaClearReward(), arenaPersist:(b)=>simDev.arenaPersist(b),
+      // CAS-1670 boss-wave telegraph + scaled payoff (tools/cas1670-bosswaves.mjs) — MUST wire HERE (curated wrapper)
+      arenaSetWave:(n)=>simDev.arenaSetWave(n), arenaForceBossWave:()=>simDev.arenaForceBossWave(),
+      arenaSetBossBonus:(x)=>simDev.arenaSetBossBonus(x), arenaLastPayoff:()=>simDev.arenaLastPayoff(),
+      arenaKillBossWave:(k)=>simDev.arenaKillBossWave(k), arenaBossSrandProbe:(k,s,p)=>simDev.arenaBossSrandProbe(k,s,p),
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

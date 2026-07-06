@@ -151,7 +151,9 @@ export const G = {
   // its OWN store (mithralda.arena.v1) via persist.js on the `arenaDirty` flush flag — the run save
   // schema is untouched (AC4). wave = highest wave REACHED (the score); resting = the between-wave breather.
   arenaMode:false, pendingArena:false, arenaDirty:false,
-  arena:{ wave:0, spawnedThisWave:0, aliveTarget:0, resting:false, restT:0, best:0 },
+  arena:{ wave:0, spawnedThisWave:0, aliveTarget:0, resting:false, restT:0, best:0,
+    // CAS-1670 boss-wave telemetry (runtime-only, NOT serialized — additive, no save bump):
+    bossIncoming:false, lastTelegraphWave:0, lastBossK:0, lastBossEssBonus:0, lastBonusDrops:0 },
 };
 // CAS-128: armed at boot by the persistence controller when this is a FIRST run
 // (no save AND the tutorial-seen flag is unset). createHero() reads it once so the
@@ -649,8 +651,22 @@ function arenaSpawnBoss(n){
   e.special=B.special||null; e.specialNow=false;
   e.rwdTier=B.tier; e.rwdMinR=B.minR; e.rwdXp=B.xp; e.rwdGold=B.gold;
   e.hp=e.maxHp=e.tpl.hp; e.isBoss=true; e.arena=true; e.zone=zone; e.state="chase";
+  e.arenaBossK=Math.max(1,(n/ARENA.bossEvery)|0);   // CAS-1670: k index carried onto the boss so killEnemy scales the bonus loot
+  e.arenaBossBaseHp=B.hp|0; e.arenaBossBaseDmg=B.dmg|0; e.arenaBossHpMul=hpMul; e.arenaBossDmgMul=dmgMul; // AC4 scaling readout (QA)
   return e;
 }
+// CAS-1670 — how many EXTRA guaranteed loot pieces a boss kill drops at index k (wave/bossEvery).
+// Pure arithmetic, no RNG. base (ARENA.bossBonusDrops) climbs by floor(k/2), capped. Base<=0 → 0
+// (the arenaSetBossBonus(0) OFF-path used by the [AC-RNG-STRONG] test).
+function arenaBonusDropCount(k){ const base=ARENA.bossBonusDrops|0; if(base<=0) return 0;
+  return Math.min(ARENA.bossBonusCap||4, base + Math.floor((k||0)/2)); }
+// CAS-1670 — legible "boss wave incoming" cue: a distinct toast + shake + boss sfx, fired ON spawn
+// of a boss wave and (as a heads-up) during the rest BEFORE one. Records the telegraphed wave so QA
+// can observe it in the sim state (arenaState/arenaLastPayoff). Pure presentation — no RNG, no balance.
+function arenaBossTelegraph(n){ const A=G.arena; const k=Math.max(1,(n/ARENA.bossEvery)|0);
+  A.lastTelegraphWave=n|0; A.bossIncoming=false;                 // the boss is HERE now, not "incoming"
+  toast("¡OLEADA DE JEFE! ×"+k, 3.2); shakeAdd(8);
+  audio&&audio.sfx&&audio.sfx.boss&&audio.sfx.boss(); }
 // Build wave n: clear any arena remnants, then spawn the roster. Boss waves (every BOSS_EVERY)
 // spawn a single wave-scaled HUNTS boss; every other wave spawns a scaled trash pack whose count,
 // types and affixes all draw from arenaRng.
@@ -658,7 +674,7 @@ function spawnWave(n){
   const A=G.arena; n=Math.max(1,n|0);
   arenaClearEnemies();                                       // limpia arena de restos (createHero/prev wave)
   const boss=(n % ARENA.bossEvery)===0;
-  if(boss){ arenaSpawnBoss(n); }
+  if(boss){ arenaSpawnBoss(n); arenaBossTelegraph(n); }  // CAS-1670: legible boss-wave cue on spawn
   else {
     const count=Math.min(ARENA.mobCap, ARENA.baseMobs + Math.floor(n*ARENA.mobStep));
     const pool=arenaMobPool(), rate=arenaAffixRate(n), hpMul=1+n*ARENA.hpStep, dmgMul=1+n*ARENA.dmgStep;
@@ -690,9 +706,20 @@ function startArena(){ const A=G.arena;
 function onWaveCleared(){ const A=G.arena, h=G.hero; if(!h) return;
   const gain=arenaEssence(A.wave);
   if(gain>0){ ensureMeta().essence=(ensureMeta().essence|0)+gain; G.metaDirty=true; } // AC7: bank to the meta tree
+  // CAS-1670 — GUARANTEED boss-wave Esencia payoff, ADDITIONAL to the base gain, scaled by k=wave/bossEvery.
+  // Pure arithmetic (0 RNG → AC5 confound-free). Fires only when the wave just cleared was a boss wave.
+  const wasBoss=(A.wave>0 && (A.wave % ARENA.bossEvery)===0);
+  if(wasBoss){ const k=Math.max(1,(A.wave/ARENA.bossEvery)|0); const bonus=Math.ceil(ARENA.bossEssBase*k);
+    if(bonus>0){ ensureMeta().essence=(ensureMeta().essence|0)+bonus; G.metaDirty=true; }
+    A.lastBossK=k; A.lastBossEssBonus=bonus;
+    toast("¡Recompensa de Jefe! +"+bonus+" Esencia", 3.0); }
   const mhp=heroMaxHp(h); if(h.hp<mhp && h.hp>0) h.hp=Math.min(mhp, h.hp+Math.round(mhp*ARENA.healFrac)); // AC3: rest heal
   A.spawnedThisWave=0; A.resting=true; A.restT=ARENA.restSeconds;
-  toast("Respiro… próxima oleada", ARENA.restSeconds);
+  // CAS-1670 — heads-up telegraph DURING the respiro when the NEXT wave will be a boss wave.
+  const nextBoss=(((A.wave+1) % ARENA.bossEvery)===0);
+  A.bossIncoming=nextBoss;
+  if(nextBoss){ toast("¡Respiro… se acerca una OLEADA DE JEFE!", ARENA.restSeconds); shakeAdd(6); }
+  else toast("Respiro… próxima oleada", ARENA.restSeconds);
   audio&&audio.sfx&&audio.sfx.levelup&&audio.sfx.levelup();
   if(A.wave>0 && (A.wave % ARENA.boonEvery)===0) openDraft("arena"); // AC3: periodic boon draft during the rest
 }
@@ -1587,7 +1614,14 @@ function killEnemy(e){
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
     maybeLegendary(e.x, e.y+18, LEGENDARY.bossMul);       // CAS-1632: append-only unique roll (after the guaranteed boss piece)
     maybeSetPiece(e.x, e.y+30, LEGENDARY.bossMul);        // CAS-1654: append-only set-piece roll (own setRng stream → srand untouched)
-    gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30)); }
+    gainXP(tpl.xp); for(let i=0,n=rmCount(8);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
+    // CAS-1670 — GUARANTEED scaled bonus loot for an ARENA boss (never a normal adventure boss: gated e.arena).
+    // Draws from the DEDICATED arenaRng, APPENDED after every existing srand/legRng/setRng draw above, so the
+    // shared srand stream is BYTE-IDENTICAL whether the bonus count is 0 or many ([AC-RNG-STRONG]). The count
+    // scales with the boss's k index; the base boss drop (guaranteed rare, line above) is untouched.
+    if(e.arena){ const k=e.arenaBossK||1; const nExtra=arenaBonusDropCount(k); const floor=ARENA.bossDropRareFloor||"rare";
+      for(let i=0;i<nExtra;i++) dropGear(e.x+(i%2?18:-18), e.y+24+i*6, rollGearInst(arenaRng.srand, 2, 3, floor));
+      G.arena.lastBonusDrops=nExtra; } }
   else if(e.champion){ onChampionKill(e); maybeLegendary(e.x, e.y-24, LEGENDARY.bossMul); maybeSetPiece(e.x, e.y-36, LEGENDARY.bossMul); } // hunt climax — clears the zone; CAS-1632 unique roll + CAS-1654 set roll after all clear-drops
   else { gainXP(tpl.xp);
     audio.sfx.mobDie&&audio.sfx.mobDie(); // CAS-447: regular kills get an audible finisher (boss/champion keep sfx.boss)
@@ -3827,7 +3861,8 @@ export const dev = {
   // Live arena state read (AC1/AC3): mode gate, current+best wave, rest flag, alive arena-enemy count, scene.
   arenaState(){ const A=G.arena, h=G.hero; return { mode:!!G.arenaMode, wave:A.wave|0, best:A.best|0,
     resting:!!A.resting, restT:+((A.restT||0).toFixed(3)), spawnedThisWave:A.spawnedThisWave|0,
-    alive:arenaAliveCount(), scene:G.scene, hp:h?Math.round(h.hp):0, maxHp:h?Math.round(heroMaxHp(h)):0 }; },
+    alive:arenaAliveCount(), scene:G.scene, hp:h?Math.round(h.hp):0, maxHp:h?Math.round(heroMaxHp(h)):0,
+    bossIncoming:!!A.bossIncoming, lastTelegraphWave:A.lastTelegraphWave|0 }; }, // CAS-1670 telegraph readout
   // Start the gauntlet on the live hero (bypasses the menu flag) → flips arenaMode on + startArena. AC1/AC3.
   arenaStart(){ const h=G.hero; if(!h) return null; G.arenaMode=true; startArena(); return this.arenaState(); },
   // Force wave n (clears remnants, spawns the roster). Reports the spawned set so QA can prove scaling
@@ -3850,6 +3885,52 @@ export const dev = {
   // AC4: serialize→load the arena best through the REAL persistence pair (mirror of ultPersist).
   arenaPersist(bestWave){ G.arena.best=Math.max(0,bestWave|0); const blob=JSON.parse(JSON.stringify(serializeArena()));
     G.arena.best=0; const after=loadArena(blob); return { wrote:bestWave|0, blob, after }; },
+  // --- CAS-1670 Boss-wave telegraph + scaled payoff harness hooks (tools/cas1670-bosswaves.mjs); additive ---
+  // Jump straight to wave n (spawns its roster through the REAL spawnWave) so QA reaches a boss wave
+  // without farming. Reports whether it's a boss wave + the spawned set (mirrors arenaSpawnWave). AC1/AC3.
+  arenaSetWave(n){ n=Math.max(1,n|0); const A=G.arena; G.arenaMode=true; A.wave=n; spawnWave(n);
+    const mobs=G.enemies.filter(e=>e.arena); const b=mobs.find(e=>e.isBoss);
+    return { wave:n, boss:(n%ARENA.bossEvery)===0, bossK:b?b.arenaBossK:0,
+      count:mobs.length, alive:arenaAliveCount(), bossCount:mobs.filter(e=>e.isBoss).length,
+      trashCount:mobs.filter(e=>!e.isBoss).length, telegraphWave:A.lastTelegraphWave|0,
+      // AC4: prove the boss HP/dmg scaling (base × wave multiplier) is intact — zone-independent.
+      boss_hp:b?Math.round(b.tpl.hp):0, boss_dmg:b?Math.round(b.tpl.dmg||0):0,
+      boss_baseHp:b?b.arenaBossBaseHp|0:0, boss_baseDmg:b?b.arenaBossBaseDmg|0:0,
+      boss_hpMul:b?+b.arenaBossHpMul.toFixed(4):0, boss_dmgMul:b?+b.arenaBossDmgMul.toFixed(4):0 }; },
+  // Force the NEXT wave to be a boss wave: jump to the next multiple of bossEvery and spawn it. AC2.
+  arenaForceBossWave(){ const A=G.arena; G.arenaMode=true; const cur=A.wave|0;
+    const next=cur - (cur%ARENA.bossEvery) + ARENA.bossEvery; A.wave=next; spawnWave(next);
+    return { wave:next, k:Math.max(1,(next/ARENA.bossEvery)|0), boss:true,
+      bossCount:G.enemies.filter(e=>e.arena&&e.isBoss).length, telegraphWave:A.lastTelegraphWave|0 }; },
+  // Runtime override of the guaranteed bonus-drop BASE count (0 → OFF, for the RNG-neutral A/B). AC5.
+  arenaSetBossBonus(x){ ARENA.bossBonusDrops=Math.max(0,x|0); return ARENA.bossBonusDrops; },
+  // Read the last banked payoff (Esencia bonus + k + bonus-drop count) + live telegraph state. AC2/AC3.
+  arenaLastPayoff(){ const A=G.arena; return { k:A.lastBossK|0, essBonus:A.lastBossEssBonus|0,
+    bonusDrops:A.lastBonusDrops|0, telegraphWave:A.lastTelegraphWave|0, bossIncoming:!!A.bossIncoming,
+    bossBonusBase:ARENA.bossBonusDrops|0, bossEssBase:ARENA.bossEssBase|0 }; },
+  // AC3: spawn a boss wave at index k, kill the boss through the REAL killEnemy (fires the base srand
+  // drop + the arenaRng bonus drops), then drive onWaveCleared to bank the scaled Esencia bonus. Reports
+  // both payoffs so QA can compare k=1 vs k=2 vs k=3 (both scale). essBonus is arithmetic; bonusDrops from arenaRng.
+  arenaKillBossWave(k){ k=Math.max(1,k|0); const A=G.arena; G.arenaMode=true; const n=k*ARENA.bossEvery;
+    A.wave=n; spawnWave(n);                                   // real boss-wave spawn (telegraph fires)
+    const boss=G.enemies.find(e=>e.arena&&e.isBoss&&!e.dead);
+    const dBefore=G.drops.length, eBefore=ensureMeta().essence|0;
+    if(boss){ boss.hp=0; killEnemy(boss); }                   // real kill → base + bonus drops
+    const gearAdded=G.drops.slice(dBefore).filter(d=>d.kind==="gear").length;
+    A.spawnedThisWave=1; onWaveCleared();                     // real wave-clear → base + boss Esencia bonus
+    return { k, wave:n, bossKilled:!!boss, essGain:(ensureMeta().essence|0)-eBefore,
+      essBonus:A.lastBossEssBonus|0, essBase:arenaEssence(n), gearDropsAdded:gearAdded,
+      bonusDrops:A.lastBonusDrops|0, expectBonusDrops:arenaBonusDropCount(k) }; },
+  // [AC-RNG-STRONG]: seed srand, spawn+kill an arena boss (draws base loot from srand, bonus from arenaRng),
+  // then sample `probeN` raw srand() outputs. Run at bossBonus>0 vs bossBonus=0 with the SAME seed → the
+  // probe is byte-identical, proving the bonus drops never touch srand. arenaRng draws NEVER perturb srand.
+  arenaBossSrandProbe(k, seedVal, probeN){ k=Math.max(1,k|0); probeN=Math.max(4,probeN|0);
+    if(seedVal!=null) seed(seedVal>>>0); G.arenaMode=true;
+    const n=k*ARENA.bossEvery; const e=arenaSpawnBoss(n);      // arenaRng-only spawn (no srand)
+    const dBefore=G.drops.length; if(e){ e.hp=0; killEnemy(e); }
+    const probe=[]; for(let i=0;i<probeN;i++) probe.push(+srand().toFixed(9));
+    return { k, bossBonus:ARENA.bossBonusDrops|0, bonusDrops:G.arena.lastBonusDrops|0,
+      gearDropsAdded:G.drops.slice(dBefore).filter(d=>d.kind==="gear").length, srandProbe:probe }; },
   // --- CAS-1586 AURA GÉLIDA + Esencia tie-in harness hooks (tools/cas1586-frost-live.mjs) ---
   // Clean arena, force ONE frost mob, place the FROZEN mob `dist` px from the hero, tick the REAL
   // update() a few frames, then report the hero's slow channel + resulting effective movespeed.
