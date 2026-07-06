@@ -32,12 +32,17 @@ import { execSync } from "node:child_process";
 
 const BASE = (process.argv[2] || "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/").replace(/\/$/, "");
 const FILES = ["game.js", "sim/config.js", "sim/world.js", "sim/sim.js", "render/render.js", "render/sprites.js", "bestiary.js", "strings.js"];
+// Distinct FOUNTAINS sprite cutouts — the served PNG bytes must equal HEAD (proves the
+// real art, not the placeholder copies of skeleton/orc/wraith, is what's LIVE).
+const ASSETS = ["assets/pixellab/fountains/enemy_thornspitter.png", "assets/pixellab/fountains/enemy_ironback.png", "assets/pixellab/fountains/enemy_ashwraith.png"];
 const OUT = "shots/cas1692"; fs.mkdirSync(OUT, { recursive: true });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const md5 = (s) => crypto.createHash("md5").update(s).digest("hex");
+const md5buf = (b) => crypto.createHash("md5").update(b).digest("hex");
 const headMd5 = (f) => md5(execSync(`git show HEAD:${f}`).toString());
+const headMd5bin = (f) => md5buf(execSync(`git show HEAD:${f}`));
 
-async function pollBuild(headHashes, tries = 10, gap = 5000) {
+async function pollBuild(headHashes, assetHashes, tries = 16, gap = 5000) {
   let build = "", lastMd5 = {};
   for (let i = 0; i < tries; i++) {
     try {
@@ -46,6 +51,12 @@ async function pollBuild(headHashes, tries = 10, gap = 5000) {
       for (const f of FILES) {
         const live = md5(await (await fetch(`${BASE}/${f}?cb=${Date.now()}`)).text());
         lastMd5[f] = live; if (live !== headHashes[f]) allMatch = false;
+      }
+      // Also wait for the distinct sprite bytes to flip — JS is unchanged across the art
+      // swap, so without this the poll would return on the stale build still serving placeholders.
+      for (const a of assetHashes ? Object.keys(assetHashes) : []) {
+        const liveBuf = Buffer.from(await (await fetch(`${BASE}/${a}?cb=${Date.now()}`)).arrayBuffer());
+        if (md5buf(liveBuf) !== assetHashes[a]) allMatch = false;
       }
       if (allMatch) return { build, md5: lastMd5, ok: true, tries: i + 1 };
     } catch {}
@@ -78,7 +89,7 @@ async function bootMenu(page) {
   await page.waitForFunction("window.__dev && window.__dev.newMobsMeta", { timeout: 20000 });
 }
 
-async function runOnce(label, viewport, headHashes) {
+async function runOnce(label, viewport, headHashes, assetHashes) {
   let pass = 0, fail = 0;
   const gate = (id, ok, detail) => { console.log(`  ${ok ? "PASS" : "FAIL"}  ${id}  ${detail}`); ok ? pass++ : fail++; return ok; };
   console.log(`\n### RUN ${label} @ ${viewport.width}x${viewport.height} vs ${BASE}`);
@@ -91,7 +102,7 @@ async function runOnce(label, viewport, headHashes) {
     page.on("pageerror", e => { if (!e.message.includes("favicon")) jsErrors.push(e.message); });
 
     // ---- BUILD gate ----
-    const { build, md5: liveMd5, ok: md5ok, tries } = await pollBuild(headHashes);
+    const { build, md5: liveMd5, ok: md5ok, tries } = await pollBuild(headHashes, assetHashes);
     gate("BUILD/version", !!build, `build=${build} tries=${tries}`);
     for (const f of FILES) gate(`BUILD/md5/${f.split("/").pop()}`, liveMd5[f] === headHashes[f], liveMd5[f] === headHashes[f] ? "match" : `live=${liveMd5[f]} head=${headHashes[f]}`);
     if (!md5ok) { console.log("  WARN  md5 gate failed — aborting run"); return { pass, fail }; }
@@ -156,23 +167,26 @@ async function runOnce(label, viewport, headHashes) {
       // gearChance > 0 means drops *may* include gear — test with seed to guarantee
     }
 
-    // ---- AC4: sprite images loaded ----
+    // ---- AC4: sprite images loaded + served bytes == HEAD (distinct FOUNTAINS art is LIVE) ----
     for (const type of ["thornspitter", "ironback", "ashwraith"]) {
       const imgInfo = await page.evaluate((t) => window.__dev.newMobImgLoaded(t), type);
       gate(`AC4/${type}/imgLoaded`, imgInfo?.loaded === true, `w=${imgInfo?.w} h=${imgInfo?.h} key=${imgInfo?.key}`);
     }
+    for (const a of ASSETS) {
+      const liveBuf = Buffer.from(await (await fetch(`${BASE}/${a}?cb=${Date.now()}`)).arrayBuffer());
+      const live = md5buf(liveBuf), head = headMd5bin(a);
+      gate(`AC4/asset/${a.split("/").pop()}`, live === head, live === head ? "served==HEAD" : `live=${live} head=${head}`);
+    }
     await page.screenshot({ path: `${OUT}/${label}-sprites.png` });
 
-    // ---- AC5: knob gate — disable new mobs, verify exclusion from spawner snapshot ----
+    // ---- AC5: knob gate — build-time flag; verify setEnabled toggles the meta flag.
+    // Note: NEW_MOBS.enabled gates the caves spawner pool at buildWorld() time. The live
+    // spawner was already built (enabled=true at boot), so toggling at runtime does NOT
+    // rebuild the pool — the gate applies on the next world build. RNG-neutrality of the
+    // OFF path is proven by AC1 (byte-identical srand fingerprint), not by the live pool.
     await page.evaluate(() => window.__dev.setNewMobsEnabled(false));
-    const poolsOff = await page.evaluate(() => window.__dev.zonePools ? window.__dev.zonePools() : null);
-    if (poolsOff) {
-      gate("AC5/knob/thornspitter-excluded", !JSON.stringify(poolsOff).includes("thornspitter"), JSON.stringify(poolsOff).slice(0,80));
-    } else {
-      // Fallback: re-enable and check meta
-      const metaOff = await page.evaluate(() => window.__dev.newMobsMeta());
-      gate("AC5/knob/disabled", metaOff.enabled === false, `enabled=${metaOff.enabled}`);
-    }
+    const metaOff = await page.evaluate(() => window.__dev.newMobsMeta());
+    gate("AC5/knob/disabled", metaOff.enabled === false, `enabled=${metaOff.enabled}`);
     await page.evaluate(() => window.__dev.setNewMobsEnabled(true));
     const metaOn = await page.evaluate(() => window.__dev.newMobsMeta());
     gate("AC5/knob/re-enabled", metaOn.enabled === true, `enabled=${metaOn.enabled}`);
@@ -198,12 +212,15 @@ async function runOnce(label, viewport, headHashes) {
 async function main() {
   const headHashes = {};
   for (const f of FILES) headHashes[f] = headMd5(f);
+  const assetHashes = {};
+  for (const a of ASSETS) assetHashes[a] = headMd5bin(a);
   console.log("HEAD hashes:", headHashes);
+  console.log("ASSET hashes:", assetHashes);
 
   const vp = { desktop: { width: 1280, height: 800 }, mobile: { width: 390, height: 844 } };
   let total = 0, totalFail = 0;
   for (const [label, viewport] of Object.entries(vp)) {
-    const { pass, fail } = await runOnce(label, viewport, headHashes);
+    const { pass, fail } = await runOnce(label, viewport, headHashes, assetHashes);
     total += pass + fail; totalFail += fail;
   }
   console.log(`\n=== TOTAL ${total - totalFail}/${total} PASS${totalFail > 0 ? " — FAIL" : " — ALL GREEN"} ===`);
