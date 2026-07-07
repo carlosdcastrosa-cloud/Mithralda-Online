@@ -383,12 +383,12 @@ export const ETPL = {
   // Arte FOUNTAINS: ENEMY_IMG side-view cutouts (mismo path que skel/bandit/orc); si el PNG falta el
   // fallback SP procedural cubre sin crash (CAS-360).
   // ashwraith — caster a distancia: CLON de `mage` (bolt ceniciento). Kitea y castea, telegrafía el windup.
-  ashwraith:   {hp:56, dmg:16, spd:62, aggro:340, range:250, windup:0.9,  recover:0.85, xp:36, gold:[11,20], sprite:"ashwraith",    size:26, knock:60,  boss:false, gearChance:0.26, ranged:true, arch:"caster", kite:170, projspd:240, proj:"bolt"},
+  ashwraith:   {hp:56, dmg:16, spd:62, aggro:340, range:250, windup:0.9,  recover:0.85, xp:36, gold:[11,20], sprite:"ashwraith",    size:26, knock:60,  boss:false, gearChance:0.26, ranged:true, arch:"caster", kite:170, projspd:240, proj:"bolt", richAnim:true},
   // ironback — bruto/tanque melee: CLON de `orc` (ground-slam AoE) con hp/dmg/knock ALTOS y spd lento.
-  ironback:    {hp:112,dmg:26, spd:58, aggro:220, range:52, windup:0.86, recover:0.74, xp:44, gold:[12,22], sprite:"ironback",     size:28, knock:200, boss:false, gearChance:0.30, arch:"brute", aoe:64},
+  ironback:    {hp:112,dmg:26, spd:58, aggro:220, range:52, windup:0.86, recover:0.74, xp:44, gold:[12,22], sprite:"ironback",     size:28, knock:200, boss:false, gearChance:0.30, arch:"brute", aoe:64, richAnim:true},
   // thornspitter — a distancia: CLON de `mage`/quillback que aplica infl (veneno) montado en el proyectil,
   // como el bolt-slow del wraith (CAS-118). Dodgear el proj evita el veneno (infl viaja con el disparo).
-  thornspitter:{hp:52, dmg:14, spd:66, aggro:320, range:230, windup:0.85, recover:0.8,  xp:34, gold:[10,18], sprite:"thornspitter", size:24, knock:55,  boss:false, gearChance:0.26, ranged:true, arch:"caster", kite:160, projspd:230, proj:"bolt", infl:{type:"poison",dmg:4,dur:3.5}},
+  thornspitter:{hp:52, dmg:14, spd:66, aggro:320, range:230, windup:0.85, recover:0.8,  xp:34, gold:[10,18], sprite:"thornspitter", size:24, knock:55,  boss:false, gearChance:0.26, ranged:true, arch:"caster", kite:160, projspd:230, proj:"bolt", infl:{type:"poison",dmg:4,dur:3.5}, richAnim:true},
 };
 
 // CAS-146 — ELITE AMBUSH / pack event. While the hero is actively fighting inside a hunt
