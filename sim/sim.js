@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -91,6 +91,14 @@ const runeRng = createRNG(0x3c9a7b21);
 // without it (AC3 [AC-RNG-STRONG]); at ANY setting the shared srand is provably untouched. Like the
 // other dedicated streams, seed() does NOT reset it — the harness neutralises via NEW_MOBS.enabled=false.
 const mobRng = createRNG(0x4d0b7e15);
+// CAS-1768 — DEDICATED weapon on-hit affix stream (distinct seed 0x0a771c5e; NOT one of the used seeds
+// 0x1a2b3c4d/0x5e75c0de/0x117a1a7e/0xa5e4a000/0xe7e40a1d/0x3c9a7b21/0x4d0b7e15). EVERY affix randomisation
+// — the drop-time roll (gate + affix pick) and the 'aturdidor' stun proc — draws ONLY from here, never the
+// authoritative srand, and the whole feature is HARD-GATED behind WEAPON_AFFIXES.enabled. So with the
+// feature off no draw happens and the sim is byte-identical to a build without it (AC1/AC3 [AC-RNG-STRONG]);
+// at ANY setting the shared srand is provably untouched. Like the other dedicated streams, seed() does NOT
+// reset it — the harness neutralises via WEAPON_AFFIXES.enabled=false (which draws ZERO from any stream).
+const affixRng = createRNG(0x0a771c5e);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -1084,6 +1092,10 @@ function safeInst(inst){
   // CAS-1654: preserve the SET-piece id (only if it resolves to a real piece) so set
   // membership survives save→load and setTotals stays live; unknown → dropped (base fallback).
   if(inst.set && setPieceDef(inst)) o.set=inst.set;
+  // CAS-1768: preserve the WEAPON on-hit affix id — ONE optional TRAILING field, written ONLY when the
+  // feature is enabled AND it resolves to a real affix on a weapon; absent/disabled/unknown ⇒ key omitted
+  // ⇒ save.v1 byte-identical for affix-less items (same shape as uniq/set/fl above). Magnitude is derived.
+  if(inst.wa && WEAPON_AFFIXES.enabled && o.slot==="weapon" && WEAPON_AFFIXES.defs.some(d=>d.id===inst.wa)) o.wa=inst.wa;
   return o; }
 function RARITY_VALID(r){ return (r==="common"||r==="uncommon"||r==="rare"||r==="epic"||r==="legendary")?r:"common"; }
 // CAS-117: validate persisted affixes — drop anything unknown/malformed so a
@@ -1754,6 +1766,26 @@ function maybeSocketRune(x, y, kindBias){
   const t=RUNE_ORDER[Math.floor(runeRng.srand()*RUNE_ORDER.length)]; // dedicated-stream uniform pick
   dropRune(x,y,t);
 }
+// CAS-1768 — roll a WEAPON on-hit affix at drop time. APPEND-ONLY, mirror of maybeAddSockets: called
+// from dropGear AFTER the instance's normal roll is fixed, gated off the DEDICATED affixRng so the shared
+// srand is byte-identical whether the feature is on or off. Writes ONE optional trailing field `inst.wa`.
+// Draw shape (when enabled + weapon + uncommon+): EXACTLY 1 affixRng draw (the gate); if it passes, 1 MORE
+// to pick the affix. common / non-weapon / uniq / set consume 0. `forcedAffix` is a one-shot for the harness.
+let forcedAffix=null;
+function maybeWeaponAffix(inst){
+  if(!WEAPON_AFFIXES.enabled) return inst;            // kill switch → 0 draws, no-op
+  if(!inst || inst.slot!=="weapon") return inst;      // weapons only
+  if(inst.uniq || inst.set) return inst;              // v1: excludes uniques/set-pieces (no proc-on-proc)
+  if(inst.wa) return inst;                            // re-drop already carries an affix — leave as-is
+  if(forcedAffix){ const id=forcedAffix; forcedAffix=null; if(WEAPON_AFFIXES.defs.some(d=>d.id===id)) inst.wa=id; return inst; }
+  if(inst.rarity==="common") return inst;             // rarity gate: uncommon+
+  const rank=rarityRank(inst.rarity);                 // uncommon=1 … legendary=4
+  const p=WEAPON_AFFIXES.dropChanceByRank[Math.max(0,rank-1)] ?? 0;
+  if(affixRng.srand()>=p) return inst;                // 1 draw ALWAYS when enabled+weapon+uncommon+
+  const defs=WEAPON_AFFIXES.defs;
+  inst.wa=defs[Math.floor(affixRng.srand()*defs.length)].id; // 2nd draw only if the gate passed
+  return inst;
+}
 function dropRune(x,y,type){ const r=runeDef(type); if(!r) return;
   G.drops.push({x,y,kind:"rune",rune:type});
   floater(x,y-18,r.name,r.tint); audio.sfx.loot(1); }
@@ -1812,7 +1844,7 @@ let heroMeleeHit=false;
 // through hitEnemy→killEnemy, which could re-trigger a nova → recursion. This flag limits it to
 // ONE ring per originating kill (no chain-reaction explosion, no stack overflow, 60fps-safe).
 let novaActive=false;
-function hitEnemy(e,dmg,ang){
+function hitEnemy(e,dmg,ang,opt){
   // CAS-117: the "on-hit ligero" affix — a small flat bonus folded into EVERY
   // hero-sourced hit (melee/nova/proj/spell all funnel here). hitEnemy is the
   // hero→enemy damage path only, so this never touches enemy→hero damage.
@@ -1860,9 +1892,19 @@ function hitEnemy(e,dmg,ang){
   if(G.hero && G.hero.riposte>0){ riposted=true; crit=true; G.hero.riposte=0;
     dmg*=CFG.riposteMult*(CRIT_BASE+((tt&&tt.critMult)||0)/100+setCritMult); }
   else if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100+setCritMult); }
+  // CAS-1768: resolve the equipped weapon's on-hit affix ONCE per hit — gated, and null unless the feature
+  // is enabled, the equipped weapon carries a `wa`, and this is NOT a chain rebound (opt.noAffix). Disabled /
+  // no-affix ⇒ this is never evaluated ⇒ byte-identical. `m` is the tier-derived magnitude (never stored).
+  let wAf=null;
+  if(WEAPON_AFFIXES.enabled && !(opt&&opt.noAffix) && G.hero){ const w=G.hero.equip&&G.hero.equip.weapon;
+    if(w&&w.wa){ const def=WEAPON_AFFIXES.defs.find(d=>d.id===w.wa);
+      if(def){ const tier=(gearDef("weapon",w.defId)||{}).tier||1; wAf={def, m:def.mag*(1+WEAPON_AFFIXES.magPerTier*Math.max(0,tier-1))}; } } }
   // CAS-247 ARMORED affix: a metallic-tinted elite absorbs a fixed fraction of EVERY incoming
   // hero hit (post-crit, so even a crit is blunted) — a damage-soak that makes it a tankier kill.
-  { for(const id of mobAffixes(e)){ const af=MOB_AFFIX[id]; if(af&&af.dmgReduce){ dmg=Math.max(1,dmg*(1-af.dmgReduce)); break; } } } // CAS-1590: a champion's Acorazado affix soaks the same fraction (one reduce, no double-stack)
+  // CAS-1768: a 'perforante' weapon IGNORES part of that reduction for THIS hit (before the dmg clamp);
+  // pierce=0 unless enabled+equipped ⇒ red==af.dmgReduce ⇒ byte-identical.
+  { const pierce=(wAf&&wAf.def.kind==="pierce")?wAf.m:0;
+    for(const id of mobAffixes(e)){ const af=MOB_AFFIX[id]; if(af&&af.dmgReduce){ const red=Math.max(0,af.dmgReduce-pierce); dmg=Math.max(1,dmg*(1-red)); break; } } } // CAS-1590: a champion's Acorazado affix soaks the same fraction (one reduce, no double-stack)
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -1900,6 +1942,9 @@ function hitEnemy(e,dmg,ang){
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
   // affix decision now changes how combat FEELS, not just the damage panel.
   if(G.hero){ const procs=weaponProcs(G.hero); if(procs) for(const pr of procs) applyStatus(e, pr.proc, {dmg:pr.amt}); }
+  // CAS-1768: the equipped WEAPON's on-hit affix (lifesteal/chain/burn/stun; pierce already applied above).
+  // Resolved once at the top of the hit; the chain rebound passes {noAffix} so it never re-procs (no cascade).
+  if(wAf) applyWeaponAffix(wAf, e, dmg, ang);
   // CAS-119: talent on-hit procs — a poison build (druid/mage 'Toque tóxico') ignites
   // veneno every hit; a stun-chance build aturde on a srand roll. Both reuse CAS-118.
   if(tt){ const tp=talentPoison(tt); if(tp) applyStatus(e,"poison",tp);
@@ -1911,10 +1956,27 @@ function hitEnemy(e,dmg,ang){
   if(e.hp<=0) killEnemy(e);
   else if(e.tpl.neutral) { /* stays hostile */ }
 }
+// CAS-1768 — apply a resolved weapon on-hit affix. `wAf={def,m}` (m = tier-derived magnitude). DETERMINISTIC
+// except the 'stun' proc, which draws from the dedicated affixRng (never srand). VFX reuse existing primitives
+// only ($0 art). pierce is handled inline in hitEnemy (before the dmg clamp), so it is a no-op here.
+function applyWeaponAffix(wAf, e, dmg, ang){
+  const af=wAf.def, m=wAf.m;
+  if(af.kind==="lifesteal"){ const h=G.hero; if(h){ const mhp=heroMaxHp(h);
+    if(h.hp<mhp){ const heal=Math.max(1,Math.round(pactHeal(m*dmg))); h.hp=Math.min(mhp,h.hp+heal); // routes through pactHeal ⇒ inherits Pacto Frágil healCut + heroMaxHp clamp (never writes h.hp raw)
+      floater(h.x,h.y-30,"+"+heal,"#5fd66a",{small:true}); addFx("spark",h.x,h.y-10,{col:af.tint}); } } }
+  else if(af.kind==="burn"){ applyStatus(e,"burn",{dmg:Math.max(1,Math.round(m*dmg))}); addFx("flame",e.x,e.y); } // reuses STATUS.burn DoT
+  else if(af.kind==="stun"){ if(affixRng.srand()<(af.chance||0)){ applyStatus(e,"stun",{}); addFx("spellburst",e.x,e.y-2,{col:af.tint}); } } // ONLY proc with RNG — dedicated affixRng
+  else if(af.kind==="chain"){ // arc to the NEAREST live enemy ≠ e within chainRange (tie-break: lowest index → replay-safe, no RNG)
+    const rangePx=(WEAPON_AFFIXES.chainRange||3.5)*TS; let best=null,bd=Infinity;
+    for(let i=0;i<G.enemies.length;i++){ const t=G.enemies[i]; if(t===e||t.dead) continue;
+      const d=Math.hypot(t.x-e.x,t.y-e.y); if(d<=rangePx && d<bd){ bd=d; best=t; } }
+    if(best){ addFx("chainbolt",e.x,e.y-2,{x2:best.x,y2:best.y-2,col:af.tint,life:0.18});
+      hitEnemy(best, Math.max(1,Math.round(m*dmg)), Math.atan2(best.y-e.y,best.x-e.x), {noAffix:true}); } } // rebound never re-procs
+}
 function makeHostile(e){ e.hostile=true; e.tpl=Object.assign({},e.tpl,{aggro:300}); }
 // Push a gear ground-drop. The instance carries resolved stat/slot/rarity so the
 // renderer + pickup never re-roll; all randomness already happened on the sim RNG.
-function dropGear(x,y,inst){ if(!inst) return; maybeAddSockets(inst); G.drops.push({x,y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst),tier:(gearDef(inst.slot,inst.defId)||{}).tier||0});
+function dropGear(x,y,inst){ if(!inst) return; maybeAddSockets(inst); maybeWeaponAffix(inst); G.drops.push({x,y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst),tier:(gearDef(inst.slot,inst.defId)||{}).tier||0});
   // CAS-116 — drop-time feedback (AC3): a rarity-coloured floater + sfx the moment
   // notable loot (uncommon+) hits the ground, so the player READS the drop before
   // walking onto it. Common trash stays quiet (no spam) — the ground gem suffices.
@@ -4556,6 +4618,79 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                               // post-segment
     const heat=pactHeat(); PACTS.enabled=savEn; G.pacts=pactsDefault();
     return { enabled:!!enabled, heat, mobHp, fingerprint:fp }; },
+  // --- CAS-1768 AFIJOS DE ARMA on-hit harness hooks (tools/cas1768-weapon-affixes.mjs); additive, drive the REAL paths ---
+  // Static config off the data (no sim step): the fixed pool of 5, the tuning knobs.
+  waMeta(){ return { enabled:WEAPON_AFFIXES.enabled, magPerTier:WEAPON_AFFIXES.magPerTier, chainRange:WEAPON_AFFIXES.chainRange,
+    dropChanceByRank:WEAPON_AFFIXES.dropChanceByRank.slice(),
+    defs:WEAPON_AFFIXES.defs.map(d=>({ id:d.id, name:d.name, glyph:d.glyph, tint:d.tint, kind:d.kind, mag:d.mag, chance:d.chance||0, hops:d.hops||0 })) }; },
+  // Master toggle: flip WEAPON_AFFIXES.enabled. Mirror of pactsEnable. Rolls/procs read live.
+  waEnable(on){ WEAPON_AFFIXES.enabled=!!on; return { enabled:WEAPON_AFFIXES.enabled }; },
+  // AC3/determinism: reseed the DEDICATED affixRng and draw N values → fingerprint. Two identical calls MUST match
+  // (deterministic stream); this is the "48-draw affixRng" determinism probe. Consumes ONLY affixRng, never srand.
+  waAffixRngProbe(seedVal, probeN){ probeN=Math.max(4,probeN|0); affixRng.seed((seedVal>>>0)||0x0a771c5e);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+affixRng.srand().toFixed(9)); return { seed:(seedVal>>>0), fingerprint:fp }; },
+  // Draw-count determinism (§3): reseed affixRng, run the REAL maybeWeaponAffix on a synthetic instance, then find
+  // how many affixRng draws it consumed by replaying the seed with k skips until the next value matches. Proves:
+  // common / non-weapon / uniq → 0 draws; uncommon+ weapon → 1 (gate) + 1 more IFF the gate passes.
+  waRollConsumes(rarity, slot, extra){ const SEED=0x1768c0de;
+    const mk=()=>Object.assign({slot:slot||"weapon",defId:"w_iron",rarity:rarity||"uncommon"}, extra||{});
+    affixRng.seed(SEED); const inst=mk(); maybeWeaponAffix(inst); const after=affixRng.srand();
+    let consumed=-1; for(let k=0;k<=3;k++){ affixRng.seed(SEED); for(let j=0;j<k;j++) affixRng.srand(); if(affixRng.srand()===after){ consumed=k; break; } }
+    return { wa:inst.wa||null, consumed }; },
+  // Force a specific affix id onto the NEXT weapon drop (one-shot), through the REAL roll path. For known setups.
+  waForce(id){ forcedAffix=id; return { forced:forcedAffix }; },
+  // AC1/AC3 [AC-RNG-STRONG]: fingerprint the gameplay srand around a REAL dropGear WEAPON roll with affixes ON vs
+  // OFF. The affix roll rides affixRng ONLY, so the raw srand stream is BYTE-IDENTICAL ON==OFF while the dropped
+  // weapon DOES/DOESN'T carry a `wa`. probeN pre+post = 2*probeN total (48 at 24).
+  waSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savEn=WEAPON_AFFIXES.enabled; WEAPON_AFFIXES.enabled=!!enabled; affixRng.seed(0x0a771c5e);
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                 // pre-segment
+    const before=G.drops.length;                                                        // WEAPON DROP INJECTION (affix roll = affixRng only)
+    dropGear(-9000,-9000, {slot:"weapon",defId:"w_iron",rarity:"epic"});
+    dropGear(-9001,-9001, {slot:"weapon",defId:"w_steel",rarity:"rare"});
+    const waCount=G.drops.slice(before).filter(d=>d.inst&&d.inst.wa).length; G.drops.length=before;
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                              // post-segment
+    WEAPON_AFFIXES.enabled=savEn;
+    return { enabled:!!enabled, waCount, fingerprint:fp }; },
+  // AC2: save.v1 byte-identity for an AFFIX-LESS weapon — serialize with the feature OFF vs ON (no wa rolled).
+  // Both must produce the SAME bytes and NEITHER may carry a `wa` key (trailing-optional field omitted).
+  waSaveByteId(){ const h=G.hero; if(!h) return null;
+    h.equip.weapon={slot:"weapon",defId:"w_steel",rarity:"epic"};                        // affix-less
+    const savEn=WEAPON_AFFIXES.enabled;
+    WEAPON_AFFIXES.enabled=false; const offStr=JSON.stringify(serializeSave());
+    WEAPON_AFFIXES.enabled=true;  const onStr =JSON.stringify(serializeSave());
+    WEAPON_AFFIXES.enabled=savEn;
+    return { byteId:offStr===onStr, hasWa:/"wa":/.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
+  // AC5: a weapon WITH `wa` round-trips byte-identically through the REAL serialize→load→serialize pair, and the
+  // affix id survives. Also reports that an equipped affix-less body/shield keep their own shape (no leak).
+  waPersist(waId){ const h=G.hero; if(!h) return null; const savEn=WEAPON_AFFIXES.enabled; WEAPON_AFFIXES.enabled=true;
+    h.equip.weapon={slot:"weapon",defId:"w_steel",rarity:"epic",wa:waId};
+    const beforeStr=JSON.stringify(serializeSave()); const ok=loadSave(JSON.parse(beforeStr)); const h2=G.hero;
+    const afterStr=JSON.stringify(serializeSave());
+    WEAPON_AFFIXES.enabled=savEn;
+    return { ok, wa:(h2.equip.weapon&&h2.equip.weapon.wa)||null, byteId:beforeStr===afterStr, hasWa:/"wa":/.test(beforeStr) }; },
+  // AC5: apply an affix in the REAL hitEnemy against a fresh dummy and observe the effect. stun draws from affixRng
+  // (reseeded → reproducible). Returns the observable per-kind signal. A 2nd enemy sits in Cadena range.
+  waHitProbe(waId, seedVal){ const h=G.hero; if(!h) return null; const savEn=WEAPON_AFFIXES.enabled; WEAPON_AFFIXES.enabled=true;
+    h.equip.weapon={slot:"weapon",defId:"w_steel",rarity:"epic",wa:waId};
+    G.enemies.length=0; const e=spawnEnemy("skeleton", h.x+40, h.y), e2=spawnEnemy("skeleton", h.x+70, h.y);
+    if(e){ e.hp=1e6; e.maxHp=1e6; } if(e2){ e2.hp=1e6; e2.maxHp=1e6; }
+    h.maxHp=Math.max(h.maxHp,1000); h.hp=1; const hp0=h.hp, ehp0=e?e.hp:0, e2hp0=e2?e2.hp:0;
+    if(seedVal!=null) affixRng.seed(seedVal>>>0);
+    hitEnemy(e, 100, 0);
+    const out={ wa:waId, heroHeal:Math.round(h.hp-hp0),
+      burn:!!(e&&e.dots&&e.dots.burn), burnDmg:(e&&e.dots&&e.dots.burn)?e.dots.burn.dmg:0,
+      stun:!!(e&&e.stun>0), chainDmg:e2?Math.round(e2hp0-e2.hp):0, eDmg:e?Math.round(ehp0-e.hp):0 };
+    G.enemies.length=0; WEAPON_AFFIXES.enabled=savEn; return out; },
+  // AC5 (pierce): pierce IGNORES part of a target's ARMORED reduction — a pierce weapon deals MORE to an armored
+  // dummy than a plain weapon. Returns both damage numbers so the harness asserts pierce > plain > 0.
+  waPierceProbe(){ const h=G.hero; if(!h) return null; const savEn=WEAPON_AFFIXES.enabled;
+    const mk=(wa)=>{ WEAPON_AFFIXES.enabled=true; h.equip.weapon={slot:"weapon",defId:"w_steel",rarity:"epic",wa};
+      G.enemies.length=0; const e=spawnEnemy("skeleton", h.x+40, h.y); if(!e) return 0; e.affix="armored"; e.hp=1e6; e.maxHp=1e6;
+      const before=e.hp; hitEnemy(e,100,0); return Math.round(before-e.hp); };
+    const plain=mk(null), pierce=mk("perforante"); G.enemies.length=0; WEAPON_AFFIXES.enabled=savEn;
+    return { plain, pierce }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

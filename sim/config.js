@@ -920,6 +920,33 @@ export const PACTS = {
   rewardHeatCap:150,     // clamp the heat used for the reward mult (defensive; effects still stack)
 };
 
+// CAS-1768 — AFIJOS DE ARMA on-hit (weapon on-hit affixes). A dropped WEAPON may roll 0–1 "on-hit"
+// affix that fires a DETERMINISTIC effect when it strikes an enemy — loot gains "build" texture (active
+// procs) on top of sockets/sets/runes (flat stats). Save-safe: the affix is ONE optional trailing field
+// `wa:"<id>"` on the weapon instance (mirror of uniq/set/fl in safeInst); the MAGNITUDE is never stored,
+// it is DERIVED from this config by (affixId, weapon tier). HARD-GATED behind WEAPON_AFFIXES.enabled:
+// false ⇒ zero affixRng draws, no `wa` written, no proc evaluation, no HUD glyph, and the srand sequence
+// + save.v1 serialization are BYTE-IDENTICAL to a build without the feature (dedicated affixRng stream —
+// the shared srand never advances differently). All tuning (drop chance, proc chance, magnitudes) lives
+// here so telemetry can retune without a logic re-deploy. FIXED table (YAGNI — not a rules engine).
+export const WEAPON_AFFIXES = {
+  enabled:true,
+  // P(a uncommon+ weapon rolls 1 affix), indexed by RARITY rank-1: uncommon⇒idx0 … legendary⇒idx3.
+  // common NEVER rolls (rarity gate). Conservative defaults; the drop roll draws from affixRng only.
+  dropChanceByRank:[0.10, 0.16, 0.24, 0.35],
+  // Pool of 5 on-hit affixes. `mag` = base magnitude, scaled by weapon tier via magPerTier. `kind`
+  // selects the deterministic hook in hitEnemy; `chance` (only 'aturdidor') is the affixRng proc prob.
+  defs:[
+    { id:"vampiric",  name:"Vampírico",  glyph:"❤", tint:"#c0304a", kind:"lifesteal", mag:0.08 },            // heal hero 8% of dmg dealt
+    { id:"cadena",    name:"Cadena",     glyph:"⚡", tint:"#4aa0e0", kind:"chain",     mag:0.45, hops:1 },     // arc to 1 nearby foe for 45% dmg
+    { id:"ardiente",  name:"Ardiente",   glyph:"🔥", tint:"#e07a2a", kind:"burn",      mag:0.30 },             // apply burn DoT (reuses STATUS.burn)
+    { id:"aturdidor", name:"Aturdidor",  glyph:"✷", tint:"#e0d24a", kind:"stun",      mag:0.35, chance:0.15 },// 15% chance to stun (affixRng)
+    { id:"perforante",name:"Perforante", glyph:"➹", tint:"#9a9aa0", kind:"pierce",    mag:0.25 },             // ignore 25% of the target's ARMORED reduction
+  ],
+  magPerTier:0.15,   // effective magnitude = mag * (1 + magPerTier*(tier-1))
+  chainRange:3.5,    // radius (tiles) to pick the Cadena rebound target
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
