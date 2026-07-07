@@ -414,7 +414,9 @@ export const hud = (()=>{
       prev=s||null; return;
     }
     deriveLog(s);
-    nodes.name.textContent=s.name||"Héroe";
+    // CAS-1758: append the equipped Título de Gesta after the hero name ("Nombre · Título"). Aditivo — with
+    // no title equipped (or the feature off), s.title is empty ⇒ the line is byte-identical to before.
+    nodes.name.textContent=(s.name||"Héroe")+(s.title?" · "+s.title:"");
     nodes.cls.textContent=s.cls||"—";
     nodes.lvl.textContent="Nv "+(s.lvl||1);
     nodes.gold.textContent=(s.gold|0)+" oro";

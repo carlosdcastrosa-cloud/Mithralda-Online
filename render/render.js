@@ -300,6 +300,7 @@ export function createRenderer(ctx){
     if(G.scene==="talents") renderTalents();
     if(G.scene==="mastery") renderMastery(); // CAS-150 elite-mastery reward track
     if(G.scene==="codex") renderCodex(); // CAS-1751 Códice de Botín (Collection Log)
+    if(G.scene==="titles") renderTitles(); // CAS-1758 Títulos de Gesta (Feat Titles)
     if(G.scene==="dialogue") renderDialogue();
     if(G.scene==="shop") renderShop();
     if(G.scene==="forge") renderForge(); // CAS-237 equipment forge
@@ -2553,6 +2554,46 @@ export function createRenderer(ctx){
       let s=txt; while(s.length>2 && ctx.measureText(s+"…").width>maxW) s=s.slice(0,-1); txt=s+"…"; } }
     ctx.fillText(txt,cx,cy); }
   const GLY_SLOT={weapon:"⚔",body:"▣",shield:"◈"};
+
+  // CAS-1758 — TÍTULOS DE GESTA (Feat Titles). A PURE VIEW over sim.titlesSnap(): a vertical list of every
+  // title. Unlocked rows show the label + met condition and are TAPPABLE to equip (the equipped one is
+  // highlighted); locked rows show "???" + the condition to earn it, with a live progress read (cur/n).
+  // $0 art — text + existing glyphs/palette only. Writes ui.titleRects so input.titleTap can equip.
+  function renderTitles(){ const snap=sim.titlesSnap();
+    const bw=Math.min(VW*0.92,560), bh=Math.min(VH*0.9,480), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText("Títulos de Gesta", VW/2, y+28);
+    ctx.fillStyle=COL.cream; ctx.font="12px "+FF;
+    ctx.fillText("Desbloqueados  "+snap.unlocked+"/"+snap.total+"   ·   toca uno para lucirlo", VW/2, y+48);
+    ui.titleRects=[];
+    const pad=20, rowH=34, gap=5; let ry=y+64;
+    for(const it of snap.items){
+      const rx=x+pad, rw=bw-2*pad;
+      // row frame — equipped highlighted, unlocked lit, locked dim
+      ctx.fillStyle= it.equipped ? "#2a3320" : it.unlocked ? "#1c2230" : "#141821";
+      ctx.fillRect(rx,ry,rw,rowH);
+      ctx.strokeStyle= it.equipped ? COL.heal : it.unlocked ? COL.textGold : "#2a3140"; ctx.lineWidth= it.equipped?2: it.unlocked?1.5:1;
+      ctx.strokeRect(rx+0.5,ry+0.5,rw-1,rowH-1);
+      // glyph
+      ctx.textAlign="center"; ctx.fillStyle= it.unlocked ? (it.equipped?COL.heal:COL.textGold) : "#39414f";
+      ctx.font="bold 17px "+FF; ctx.fillText(it.unlocked?"◈":"?", rx+22, ry+rowH/2+6);
+      // label + condition
+      ctx.textAlign="left";
+      if(it.unlocked){
+        ctx.fillStyle=COL.cream; ctx.font="bold 13px "+FF; ctx.fillText(it.label, rx+44, ry+15);
+        ctx.fillStyle= it.equipped?COL.heal:COL.textDim; ctx.font="10px "+FF;
+        ctx.fillText(it.equipped ? "Equipado ·  "+it.cond : it.cond, rx+44, ry+28);
+      } else {
+        ctx.fillStyle=COL.textDim; ctx.font="bold 13px "+FF; ctx.fillText("???", rx+44, ry+15);
+        ctx.fillStyle="#5a6472"; ctx.font="10px "+FF; ctx.fillText(it.cond+"   ("+Math.min(it.cur,it.n)+"/"+it.n+")", rx+44, ry+28);
+      }
+      // only unlocked rows are hit-targets (locked can't be equipped)
+      if(it.unlocked) ui.titleRects.push({x:rx,y:ry,w:rw,h:rowH,id:it.id,equipped:it.equipped});
+      ry += rowH+gap;
+    }
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("Y / ESC para cerrar", VW/2, y+bh-8);
+    ctx.textAlign="left";
+  }
 
   function renderShop(){ const items=sim.shopItems(); const bw=Math.min(VW*0.86,460), bh=Math.min(VH*0.82,420), x=(VW-bw)/2, y=(VH-bh)/2;
     const title=G.merchantShop?STR.merchantTitle:G.healShop?STR.npcLina:STR.shopTitle;
