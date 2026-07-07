@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -245,6 +245,10 @@ function edge(code){
   // CAS-1763: fixed KeyL alias opens the Pactos de Poder (gated — no-op when PACTS.enabled=false). L is free
   // (K=Códice, Y=Títulos, T=talentos, V=maestría, C=personaje, U=ultimate all taken); mirrors KeyK/KeyY.
   if(code==="KeyL"){ ACTIONS.pacts(); return; }
+  // CAS-1785: dedicated KeyH arms the PARADA CON TEMPO (timing parry) — gated on PARRY.enabled, so with
+  // the feature off KeyH is inert (falls through, no new state, settings snapshot byte-identical). Not a
+  // rebindable action (deliberate: never touches REBINDS/settings.binds). Mirrors the fixed KeyK/KeyY/KeyL.
+  if(code==="KeyH" && PARRY.enabled){ sim.tryParry(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }

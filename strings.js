@@ -271,6 +271,7 @@ export const STR = {
 
   perfectDodge: "¡ESQUIVA!",
   riposte: "¡CASTIGO!",                              // CAS-210: the perfect-dodge → counter payoff banner
+  parry: "¡PARADA!",                                 // CAS-1785: the timing-parry negate + counter banner
   levelUp: (n) => "¡Subiste al nivel " + n + "!",
   redSkull: "¡Calavera roja! Penalización de muerte aumentada.",
   pickedUp: (t) => "Recogiste: " + t,
