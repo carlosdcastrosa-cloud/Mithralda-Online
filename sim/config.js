@@ -16,6 +16,10 @@ export const T_ICE = 6;
 // the CAS-439 teal marsh tiles (mud/moss/puddle/water) in render/render.js; walkable
 // like grass (shallow marsh — the water tiles read as wading pools, not barriers).
 export const T_SWAMP = 7;
+// CAS-1744 — molten basalt floor for the gated Caldera de Cenizas (5th gated endgame biome).
+// Rendered by reusing the FOUNTAINS dark flagstone (like the abyss/ice path) washed with an
+// ember/molten tint in render/render.js — NO new tile art. Walkable like the abyss floor.
+export const T_CALDERA = 8;
 
 // CAS-80: data-driven town tilemap — Puerto Solana reads as a small hub built from the
 // real Ancient Ruins tiles. One glyph per 32px cell, stamped over the 18×18 town rect
@@ -389,6 +393,20 @@ export const ETPL = {
   // thornspitter — a distancia: CLON de `mage`/quillback que aplica infl (veneno) montado en el proyectil,
   // como el bolt-slow del wraith (CAS-118). Dodgear el proj evita el veneno (infl viaja con el disparo).
   thornspitter:{hp:52, dmg:14, spd:66, aggro:320, range:230, windup:0.85, recover:0.8,  xp:34, gold:[10,18], sprite:"thornspitter", size:24, knock:55,  boss:false, gearChance:0.26, ranged:true, arch:"caster", kite:160, projspd:230, proj:"bolt", infl:{type:"poison",dmg:4,dur:3.5}, richAnim:true},
+  // CAS-1744 (art CAS-1778) — los MOBS de la CALDERA (tier-5, power-gated). Cada uno CLON verbatim de un
+  // arquetipo EXISTENTE → CERO IA/rama de combate nueva; escalan por applyZoneScale("caldera"). Gated tras
+  // ZONE5.enabled (world.js caldera spawner); con enabled:false el bloque no corre ⇒ sim byte-idéntico.
+  // emberkin — "Cenizo": caster a distancia CLON de wraith/thornspitter que aplica `burn` (STATUS ya existente,
+  // CAS-118) montado en el proyectil — dodgear el bolt evita la quemadura. richAnim (5 strips FOUNTAINS).
+  emberkin:    {hp:58, dmg:16, spd:66, aggro:330, range:240, windup:0.88, recover:0.82, xp:38, gold:[12,21], sprite:"emberkin",     size:24, knock:58,  boss:false, gearChance:0.26, ranged:true, arch:"caster", kite:165, projspd:240, proj:"bolt", infl:{type:"burn",dmg:4,dur:2.6}, richAnim:true},
+  // magmabrute — "Bruto de Magma": bruto/tanque melee CLON de orc/ironback (ground-slam AoE) con hp/dmg/knock
+  // ALTOS y spd lento. richAnim (5 strips FOUNTAINS).
+  magmabrute:  {hp:132,dmg:28, spd:56, aggro:220, range:52, windup:0.88,  recover:0.76, xp:48, gold:[14,26], sprite:"magmabrute",   size:30, knock:210, boss:false, gearChance:0.30, arch:"brute", aoe:66, richAnim:true},
+  // calderatyrant — Corazón de Magma: la Caldera ZONE CAPSTONE (HUNTS.caldera.boss lee estas stats verbatim,
+  // dragon convention). Bruiser melee telegrafiado: attack1 = golpe, `special` arma la Erupción (attack2) cada
+  // 3er golpe por el canal CAS-109 radial-slam. richAnim mueve los 5 strips.
+  calderatyrant:{hp:1020,dmg:38, spd:52, aggro:380, range:78, windup:0.95, recover:0.8, xp:340,gold:[110,170],sprite:"calderatyrant",size:46, knock:90, boss:true, richAnim:true, bossLabel:"CORAZÓN DE MAGMA",
+            special:{ name:"Erupción de la Caldera", every:3, windup:1.0, slam:{ count:14, spd:180, dmg:24, life:1.2 } } },
 };
 
 // CAS-146 — ELITE AMBUSH / pack event. While the hero is actively fighting inside a hunt
@@ -606,6 +624,13 @@ export const ZONE_TIER = {
   // level → clear the ABYSS_POWER_REQ gate → unlock richer content; the persisted
   // progression (CAS-113) keeps it unlocked across reloads. Same pure-math scaling.
   abyss:  { tier:5, hpMul:2.80, dmgMul:1.90, spdMul:1.20, xpMul:2.80 },
+  // CAS-1744 — la Caldera de Cenizas: a fifth, power-gated ENDGAME biome slotted in the abyss
+  // band (tier 5) between the Abismo and the Cripta on the power curve (ABYSS < CALDERA < FROST).
+  // A parallel mid-endgame grind target with its OWN roster (emberkin/magmabrute) + capstone
+  // (Corazón de Magma). Pure-math scaling like every other zone → integrates with WORLD_TIER
+  // (CAS-450) without touching the APEX conquest cycle. Gated behind ZONE5 (world.js block runs
+  // only when ZONE5.enabled), so this row is inert data until the biome is built ON.
+  caldera:{ tier:5, hpMul:2.80, dmgMul:1.90, spdMul:1.20, xpMul:2.80 },
   // CAS-121 — the Cripta Helada: a sixth, harder-gated biome that strictly out-classes
   // the Abismo (its trash hits harder + pays more, its capstone is the new endgame). It
   // sits ABOVE the abyss on the power curve (FROST_POWER_REQ > ABYSS_POWER_REQ), so it
@@ -623,6 +648,12 @@ export const ZONE_TIER = {
 // the gate reads directly off the two things the loop rewards. heroPower() (sim.js)
 // computes it; the town portal blocks entry (with HUD feedback) until it clears REQ.
 export const ABYSS_POWER_REQ = 8;
+// CAS-1744 — power GATE for la Caldera de Cenizas, set BETWEEN the abyss and the Cripta
+// (ABYSS_POWER_REQ < CALDERA_POWER_REQ < FROST_POWER_REQ) so the molten biome is the next
+// mid-endgame unlock once the abyss is on farm, without disturbing the finale gate. Same
+// single legible heroPower() number drives it. Only reachable when ZONE5.enabled (the portal
+// does not exist otherwise), so this constant is inert until the feature is ON.
+export const CALDERA_POWER_REQ = 10;
 // CAS-121 — power GATE for the Cripta Helada, set ABOVE the abyss so the frozen biome
 // is the deeper, later unlock: clear the abyss → keep grinding upgrades + levels → the
 // town's frost gate opens. Same single legible heroPower() number drives both gates.
@@ -721,6 +752,20 @@ export const HUNTS = {
            enrageAt:0.55, enrageSpd:1.48, enrageWindup:0.6,                       // phase 2: earlier + much faster + tighter tells
            slam:{ count:18, spd:200, dmg:30, life:1.45 },                         // denser, faster radial shockwave
            tier:[4,4], minR:"epic", xp:640, gold:360 } },                         // richest guaranteed top-tier sink
+  // CAS-1744 — la Caldera de Cenizas capstone: a walk-in hunt (patrón swamp/abyss) whose kill
+  // quota summons the TRUE capstone, el Corazón de Magma (art CAS-1778: calderatyrant 5-strip
+  // richAnim volcanic brute — dragon convention: the boss block mirrors ETPL.calderatyrant
+  // verbatim, a presentation+placement layer, not a separate power build). Its Erupción de la
+  // Caldera rides the CAS-109 `special` channel — telegraphed growing-ring → radial slam every
+  // 3rd strike — and an enrage past 50% HP tightens the tells + speeds it up. Guaranteed EPIC+
+  // drop (CAS-89 payoff) via onChampionKill (minR:"epic"). The emberkin fields below are the
+  // pre-boss fallback (unused while `boss` is present — spawnChampion takes B.base).
+  caldera:{ need:16, base:"emberkin",  name:"Heraldo de Brasas", hpMul:9,  dmgMul:2.0, sizeMul:1.6,  tier:[4,4], minR:"epic",     xp:250, gold:145,
+    special:{ name:"Estallido de Ceniza", every:3, windup:0.85, slam:{ count:12, spd:175, dmg:22, life:1.2 } },
+    boss:{ base:"calderatyrant", sprite:"calderatyrant", name:"Corazón de Magma", hp:1020, dmg:38, size:46, spd:52, knock:90, windup:0.95, recover:0.8,
+           enrageAt:0.5, enrageSpd:1.3, enrageWindup:0.72,                          // phase 2: faster + tighter tells (no slam block → the eruption remains the special)
+           special:{ name:"Erupción de la Caldera", every:3, windup:1.0, slam:{ count:14, spd:180, dmg:24, life:1.2 } }, // telegraphed radial shard slam
+           tier:[4,4], minR:"epic", xp:340, gold:190 } },                          // guaranteed epic+ payoff (CAS-89)
   // CAS-121 — the Cripta Helada capstone: the THIRD capstone and the new endgame. It
   // out-classes the Tirano on raw stats AND carries a brand-new encounter mechanic on
   // top of the shared windup→strike + enrage vocabulary: the CORAZA DE ESCARCHA.
@@ -864,6 +909,15 @@ export const SOCKETS = {
 // `bonusLootRate` = la ÚNICA tirada RNG de estos mobs (killEnemy), y sale del stream dedicado mobRng
 // (nunca del srand autoritativo). El QA flip vive tras dev hook __dev.newMobsEnable / harness.
 export const NEW_MOBS = { enabled:true, zone:"caves", types:["ashwraith","ironback","thornspitter"], bonusLootRate:0.10 };
+
+// CAS-1744 — master switch for la CALDERA DE CENIZAS (5th gated endgame biome). Default true. When
+// false EVERYTHING gated hangs off this flag: the world.js caldera block does NOT run (no rect/floor/
+// spawner/portal → worldgen byte-identical), the portal gate is absent, the `emberfury` modifier stays
+// OUT of the offered pool (modifier draft identical), and `zone5Rng` takes 0 draws — so `srand` is
+// BYTE-IDENTICAL to a build without the feature (AC1 [AC-RNG-STRONG]). Static ZONE_TIER/HUNTS/ETPL
+// rows for caldera are inert data (never referenced when OFF). `bonusLootRate` = the ONLY new RNG of
+// the zone (killEnemy in caldera), drawn from the DEDICATED `zone5Rng` stream (never the authoritative srand).
+export const ZONE5 = { enabled:true, zone:"caldera", bonusLootRate:0.10 };
 
 // CAS-1751 — CÓDICE DE BOTÍN (Collection Log). A pure READ-SIDE ledger over the loot systems already
 // shipped (uniques CAS-1632 / sets CAS-1654 / runes CAS-1687): the FIRST pickup of a given
@@ -1099,7 +1153,12 @@ export const ZONE_MODIFIERS = [
   { id:"frenzy", glyph:"➹", name:"Frenesí",         desc:"Los enemigos se mueven mucho más rápido.",       spdMul:1.35 },
   { id:"swarm",  glyph:"❈", name:"Enjambre de Élite",desc:"Aparecen el doble de enemigos de élite.",        affixMul:2 },
 ];
-export const ZONE_MOD_MAP = (()=>{ const m={}; for(const z of ZONE_MODIFIERS) m[z.id]=z; return m; })();
+// CAS-1744 — el modificador de la Caldera. Data-only (mismos knobs hp/dmg/spd que el resto, SIN RNG en la
+// capa). CRÍTICO para RNG-neutral: NO va en el array ZONE_MODIFIERS de arriba (eso cambiaría el pool ofertado
+// SIEMPRE). Sólo entra al pool cuando ZONE5.enabled (offerCurse en sim.js lo appenda). Vive en el MAP para que
+// render pueda dibujar su glifo si el jugador lo acepta — añadirlo al MAP es sólo lookup, no toca RNG.
+export const ZONE5_MOD = { id:"emberfury", glyph:"♨", name:"Furia de Brasas", desc:"Enemigos +30% de daño y +10% de velocidad.", dmgMul:1.30, spdMul:1.10 };
+export const ZONE_MOD_MAP = (()=>{ const m={}; for(const z of ZONE_MODIFIERS) m[z.id]=z; m[ZONE5_MOD.id]=ZONE5_MOD; return m; })();
 // CAS-394: the cursed-zone draft bias. Clearing a cursed zone bumps the boon draft's EFFECTIVE
 // depth by this much (raises the depth-scaled rare/legendary weights in boonRarityWeight — "up one
 // tier") AND guarantees ≥1 rare+ card. Kept modest so it biases the pool without flooding

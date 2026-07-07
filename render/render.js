@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -274,9 +274,9 @@ export function createRenderer(ctx){
   // tones are now DARK frozen-stone (not bright pale-blue) so the zone reads cold even
   // before the image loads / in unit tooling.
   // index 7 = T_SWAMP (CAS-441) — teal marsh fallback tones until the CAS-439 tiles load.
-  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#2c3a48","#3a463e"];
-  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#4a6072","#4e5f52"];
-  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#1a2632","#2a342e"];
+  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#2c3a48","#3a463e","#2a1712"];   // idx 8 = T_CALDERA molten basalt (CAS-1744)
+  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#4a6072","#4e5f52","#c4562a"]; // ember light
+  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#1a2632","#2a342e","#160a07"];  // charred dark
 
   function render(alpha){
     VW=view.VW; VH=view.VH;
@@ -456,6 +456,20 @@ export function createRenderer(ctx){
           if(hash2(x,y+9)<0.20){ ctx.fillStyle="rgba(220,238,248,0.6)"; ctx.fillRect(px+((hash2(x+3,y)*22)|0)+4, py+((hash2(x,y+3)*22)|0)+4, 2,2); } // ice glint
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.4)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
+      // CAS-1744: Caldera de Cenizas floor — reuses the SAME FOUNTAINS dark flagstone as caves/abyss
+      // (no new tile art, mirrors the T_ICE approach), washed molten: a warm charred-basalt ambient +
+      // ember-orange tint, with rare cracks glowing lava and stray sparks so the biome reads volcanic.
+      if(t===T_CALDERA){ const r=hash2(x,y); const img=(r<0.58?IMG.cave_floor:IMG.cave_floor2);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
+          const dk=(0.30+hash2(x*3,y*3)*0.22).toFixed(2);                 // 0.30–0.52 per-tile charred ambient
+          ctx.fillStyle="rgba(22,8,6,"+dk+")"; ctx.fillRect(px,py,TSo,TSo); // dark basalt shadow
+          ctx.fillStyle="rgba(200,70,30,0.12)"; ctx.fillRect(px,py,TSo,TSo); // ember-orange wash
+          if(hash2(x+4,y)<0.34){ ctx.strokeStyle="rgba(255,130,40,0.6)"; ctx.lineWidth=1; // glowing lava crack
+            const ix=px+((hash2(x,y)*18)|0)+6, iy=py+((hash2(y,x)*18)|0)+6;
+            ctx.beginPath(); ctx.moveTo(ix,iy); ctx.lineTo(ix+5,iy+4); ctx.lineTo(ix+3,iy+10); ctx.stroke(); }
+          if(hash2(x,y+7)<0.16){ ctx.fillStyle="rgba(255,200,90,0.7)"; ctx.fillRect(px+((hash2(x+3,y)*22)|0)+4, py+((hash2(x,y+3)*22)|0)+4, 2,2); } // ember spark
+          if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.4)"; ctx.fillRect(px,py,TS,6); }
+          continue; } }
       // CAS-77: real EPIC RPG World — Ancient Ruins ground. Town plaza (T_COBBLE)
       // pays in flagstone; forest/ruins/field (T_GRASS) in grass. Two deterministic
       // variants per kind via hash2(); fall through to the procedural fill below when
@@ -525,7 +539,7 @@ export function createRenderer(ctx){
     // the return gate is always open. Animated from sim time only (no render RNG).
     if(world.portals) for(const p of world.portals){
       // CAS-121: each deeper gate reads its own power requirement (abyss < cripta).
-      const req = p.to==="abyss"?ABYSS_POWER_REQ : p.to==="frost"?FROST_POWER_REQ : p.to==="trial"?TRIAL_POWER_REQ : 0;
+      const req = p.to==="abyss"?ABYSS_POWER_REQ : p.to==="frost"?FROST_POWER_REQ : p.to==="trial"?TRIAL_POWER_REQ : p.to==="caldera"?CALDERA_POWER_REQ : 0;
       const locked = req>0 && sim.heroPower(G.hero) < req;
       const base = locked ? "#7a2230" : "#6a3cc0";
       const glow = locked ? "#c23a4a" : "#b07cff";

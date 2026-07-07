@@ -568,6 +568,36 @@ export const ENEMY_STRIPS={
     hurt:    _s(7,"thornspitter_hurt_strip"),
     death:   _s(9,"thornspitter_death_strip"),
   },
+  // CAS-1744 (art CAS-1778): the CALDERA mobs. Single-row east-facing FOUNTAINS strips (flip for left,
+  // feet bottom-anchored). Frame dims/counts confirmed from the committed PNGs (983457d): emberkin/
+  // magmabrute 120/124px square (idle 4 / walk 6 / attack 9 / hurt 7 / death 9), calderatyrant 188px.
+  // `richAnim:true` on each ETPL row drives the extended states; attack2 aliases the single attack
+  // strip (like ironback) so a champion/elite still shows the swing frames. The boss uses `tiles` for
+  // the imposing capstone scale (bogtyrant/dragon convention); the trash mobs scale off mob `size`.
+  emberkin:{
+    idle:    {key:"emberkin_idle_strip",   fc:4, fw:120, fh:120},
+    walk:    {key:"emberkin_walk_strip",   fc:6, fw:120, fh:120},
+    attack1: {key:"emberkin_attack_strip", fc:9, fw:120, fh:120},
+    attack2: {key:"emberkin_attack_strip", fc:9, fw:120, fh:120},
+    hurt:    {key:"emberkin_hurt_strip",   fc:7, fw:120, fh:120},
+    death:   {key:"emberkin_death_strip",  fc:9, fw:120, fh:120},
+  },
+  magmabrute:{
+    idle:    {key:"magmabrute_idle_strip",   fc:4, fw:124, fh:124},
+    walk:    {key:"magmabrute_walk_strip",   fc:6, fw:124, fh:124},
+    attack1: {key:"magmabrute_attack_strip", fc:9, fw:124, fh:124},
+    attack2: {key:"magmabrute_attack_strip", fc:9, fw:124, fh:124},
+    hurt:    {key:"magmabrute_hurt_strip",   fc:7, fw:124, fh:124},
+    death:   {key:"magmabrute_death_strip",  fc:9, fw:124, fh:124},
+  },
+  calderatyrant:{
+    idle:    {key:"calderatyrant_idle_strip",   fc:4, fw:188, fh:188, tiles:4.4},
+    walk:    {key:"calderatyrant_walk_strip",   fc:6, fw:188, fh:188, tiles:4.4},
+    attack1: {key:"calderatyrant_attack_strip", fc:9, fw:188, fh:188, tiles:4.4},
+    attack2: {key:"calderatyrant_attack_strip", fc:9, fw:188, fh:188, tiles:4.4},
+    hurt:    {key:"calderatyrant_hurt_strip",   fc:7, fw:188, fh:188, tiles:4.4},
+    death:   {key:"calderatyrant_death_strip",  fc:9, fw:188, fh:188, tiles:4.4},
+  },
 };
 // Resolve the best available strip for a mob + animState.
 // Falls back to "walk" strip if the specific state is absent or not yet loaded.
