@@ -110,6 +110,44 @@ export function rleDecodeInto(rle, out){
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// CAS-1729 — tileset slicing geometry (Tiled-style). PURE + DOM-free so both the
+// editor UI and the headless build harness derive the exact same cell rects.
+// A `slice` config describes how a tileset image is cut into a grid:
+//   { tw, th, margin, spacing, ox, oy }   (tile w/h, outer margin, inter-tile
+//   spacing, and an origin offset). All fields optional; sane defaults applied.
+// The game NEVER reads `slice` — a placed cell carries its own {sx,sy,sw,sh}
+// sub-rect in the prop, so slicing is an editor-only authoring aid.
+// ---------------------------------------------------------------------------
+// Normalize a slice config, filling defaults (tw/th default to 32, the tile px).
+export function normSlice(s){
+  s = s || {};
+  const tw = Math.max(1, s.tw|0 || 32), th = Math.max(1, s.th|0 || 32);
+  return { tw, th, margin:Math.max(0,s.margin|0), spacing:Math.max(0,s.spacing|0), ox:s.ox|0, oy:s.oy|0 };
+}
+// How many whole columns/rows fit in an image of imgW×imgH under this slice.
+export function sliceGrid(slice, imgW, imgH){
+  const s = normSlice(slice);
+  const cols = Math.max(0, Math.floor((imgW - 2*s.margin - s.ox + s.spacing) / (s.tw + s.spacing)));
+  const rows = Math.max(0, Math.floor((imgH - 2*s.margin - s.oy + s.spacing) / (s.th + s.spacing)));
+  return { cols, rows, tw:s.tw, th:s.th };
+}
+// The source sub-rect {sx,sy,sw,sh} of cell (col,row) in the tileset image.
+export function cellRect(slice, col, row){
+  const s = normSlice(slice);
+  return { sx: s.ox + s.margin + col*(s.tw + s.spacing),
+           sy: s.oy + s.margin + row*(s.th + s.spacing), sw: s.tw, sh: s.th };
+}
+// Auto-detect a sensible default slice for an image: 32px cells if both dims are
+// a multiple of 32, else 16px if both are a multiple of 16, else null (the image
+// is treated as a single whole sheet — the CAS-1716 behaviour, byte-safe).
+export function autoSlice(imgW, imgH){
+  const w=imgW|0, h=imgH|0;
+  if(w>=32 && h>=32 && w%32===0 && h%32===0) return { tw:32, th:32, margin:0, spacing:0, ox:0, oy:0 };
+  if(w>=16 && h>=16 && w%16===0 && h%16===0) return { tw:16, th:16, margin:0, spacing:0, ox:0, oy:0 };
+  return null;
+}
+
 // ===========================================================================
 // buildWorldFromMapDoc(doc, rng) → world (same shape as buildWorld()).
 // `rng` is accepted for signature-parity with buildWorld/buildTiledWorld but is
@@ -172,7 +210,12 @@ export function buildWorldFromMapDoc(doc, _rng){
     // w,h display size. They flow to deco like any prop; they only add a collision solid
     // if the author marked them solid (custom stamps default solid:false).
     if(pr.kind === "custom"){
-      deco.push({ x:pr.x, y:pr.y, kind:"custom", asset:pr.asset, w:pr.w||0, h:pr.h||0 });
+      const d = { x:pr.x, y:pr.y, kind:"custom", asset:pr.asset, w:pr.w||0, h:pr.h||0 };
+      // CAS-1729: a sliced tileset CELL carries a source sub-rect. `sw` present ⇒
+      // copy {sx,sy,sw,sh} so the renderer blits only that cell; absent ⇒ whole
+      // sheet (CAS-1716 path), so a non-sliced prop is byte-identical to before.
+      if(pr.sw){ d.sx=pr.sx|0; d.sy=pr.sy|0; d.sw=pr.sw; d.sh=pr.sh||pr.sw; }
+      deco.push(d);
       if(pr.solid) solids.push({ x:pr.x, y:pr.y, r:pr.r||10, kind:"custom" });
       continue;
     }

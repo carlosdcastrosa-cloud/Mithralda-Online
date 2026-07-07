@@ -3427,6 +3427,11 @@ export const dev = {
       zones, spawners:world.spawners.map(s=>({zone:s.zone,types:s.types.slice()})),
       heroZone: G.hero?zoneOf(world,G.hero.x,G.hero.y):null,
       tcx:world.tcx, tcy:world.tcy }; },
+  // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
+  // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset
+  // cell — not the whole sheet — reached world.deco in vivo. Pure read, no mutation.
+  customDeco(){ return world.deco.filter(d=>d.kind==="custom").map(d=>({ x:d.x, y:d.y, asset:d.asset,
+    w:d.w, h:d.h, sx:d.sx, sy:d.sy, sw:d.sw, sh:d.sh, sliced:d.sw!=null })); },
   // CAS-317: read-only boss/corpse animation observer for the QA gate (b5c10283). Lets the
   // harness assert the dracónic boss actually cycles all 6 strip states (idle/walk/attack1/
   // attack2/hurt) in vivo and leaves a death corpse. Pure read — no sim mutation.

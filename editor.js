@@ -6,7 +6,8 @@
 // the live game's sim; it only reads shared vocab + the codec from mapdoc.js.
 // ===========================================================================
 import { SLOTS, TILES, NPC_MAP, PROP_KINDS, DEFAULT_TYPES, MAPDOC_KEY, MAPDOC_VERSION,
-         rleEncode, rleDecodeInto, makeSeedMapDoc } from "./sim/mapdoc.js";
+         rleEncode, rleDecodeInto, makeSeedMapDoc,
+         normSlice, sliceGrid, cellRect, autoSlice } from "./sim/mapdoc.js";
 import { putAsset, getAllAssets, ASSET_CAP_BYTES } from "./sim/customassets.js";
 
 const TS = 32;                                    // world px per tile (matches config.TS)
@@ -20,6 +21,11 @@ const $ = id => document.getElementById(id);
 // ---------------------------------------------------------------------------
 const assets = new Map();                         // id → record (+ lazily-built .img)
 let curAsset = null;                              // selected asset id for the Sello tool
+// CAS-1729 — tileset slicing: the active CELL brush. When set (and its .asset ===
+// curAsset) the Sello tool stamps that source sub-rect instead of the whole sheet.
+// null ⇒ whole-sheet stamp (CAS-1716 behaviour, byte-safe export).
+let curCell = null;                               // { asset, col, row, sx, sy, sw, sh } | null
+let slicePanelAsset = null;                       // asset id currently shown in the right slice panel
 const BRIDGE_CAP_BYTES = 5 * 1024 * 1024;         // ~5MB localStorage bridge budget (Play/autosave)
 // A cached HTMLImageElement per record for canvas drawing (built from its dataUrl).
 function assetImg(rec){ if(rec.img) return rec.img; const im=new Image(); im.src=rec.dataUrl; rec.img=im; return im; }
@@ -139,8 +145,13 @@ function draw(){
     ctx.fillText(ch,x,y+0.5); ctx.textAlign="left"; ctx.textBaseline="alphabetic"; };
   for(const p of doc.entities.props){ const x=px2scr(p.x), y=py2scr(p.y);
     if(p.kind==="custom"){ const r=assets.get(p.asset);
-      if(r){ const im=assetImg(r); const w=(p.w||r.w||32)*zoom/TS, h=(p.h||r.h||32)*zoom/TS;
-        if(im.complete&&im.naturalWidth){ ctx.imageSmoothingEnabled=false; ctx.drawImage(im, x-w/2, y-h, w, h); }
+      if(r){ const im=assetImg(r);
+        // CAS-1729: a sliced cell (p.sw) previews its sub-rect at cell size; whole sheet otherwise.
+        const dw=p.w || (p.sw?p.sw:r.w) || 32, dh=p.h || (p.sw?p.sh:r.h) || 32;
+        const w=dw*zoom/TS, h=dh*zoom/TS;
+        if(im.complete&&im.naturalWidth){ ctx.imageSmoothingEnabled=false;
+          if(p.sw) ctx.drawImage(im, p.sx, p.sy, p.sw, p.sh, x-w/2, y-h, w, h);
+          else ctx.drawImage(im, x-w/2, y-h, w, h); }
         else { ctx.strokeStyle="#c8a24a"; ctx.strokeRect(x-w/2,y-h,w,h); } }
       else { ctx.fillStyle="#c8a24a"; ctx.fillRect(x-3,y-3,6,6); }   // missing asset marker
       continue; }
@@ -207,8 +218,10 @@ async function ingestRecord(rec){
   const delta = dataUrlBytes(rec.dataUrl) - (prev?dataUrlBytes(prev.dataUrl):0);
   if(totalAssetBytes() + delta > ASSET_CAP_BYTES){
     flash(`Límite de ~${Math.round(ASSET_CAP_BYTES/1048576)}MB de assets alcanzado — no se añadió "${rec.name}"`); return null; }
+  // CAS-1729: a re-upload of the same tileset keeps its remembered slicing config.
+  if(prev && prev.slice && !rec.slice) rec.slice = prev.slice;
   assets.set(rec.id, rec);
-  try{ await putAsset({ id:rec.id, path:rec.path, name:rec.name, type:rec.type, dataUrl:rec.dataUrl, w:rec.w, h:rec.h }); }
+  try{ await putAsset({ id:rec.id, path:rec.path, name:rec.name, type:rec.type, dataUrl:rec.dataUrl, w:rec.w, h:rec.h, slice:rec.slice }); }
   catch(e){ // QuotaExceededError or no-indexeddb: keep it in-memory for this session, warn once.
     flash("No se pudo guardar en el navegador (cuota); disponible solo esta sesión"); }
   return rec;
@@ -257,8 +270,84 @@ function referencedAssets(){
   return seen.size ? out : null;
 }
 // Place one custom prop (bottom-anchored authored size = the asset's natural px).
+// CAS-1729: when a tileset CELL is the active brush for this asset, stamp its source
+// sub-rect (sx,sy,sw,sh) and size the prop to the cell; otherwise the whole sheet.
 function placeCustom(px,py){ if(!curAsset) return; const r=assets.get(curAsset); if(!r) return;
-  doc.entities.props.push({ x:px, y:py, kind:"custom", asset:curAsset, w:r.w||32, h:r.h||32, solid:false, r:0 }); }
+  const prop={ x:px, y:py, kind:"custom", asset:curAsset, w:r.w||32, h:r.h||32, solid:false, r:0 };
+  if(curCell && curCell.asset===curAsset){
+    prop.sx=curCell.sx; prop.sy=curCell.sy; prop.sw=curCell.sw; prop.sh=curCell.sh;
+    prop.w=curCell.sw; prop.h=curCell.sh; }
+  doc.entities.props.push(prop); }
+
+// ---------------------------------------------------------------------------
+// CAS-1729 — tileset slicing config + cell selection (Tiled-style right panel).
+// The slice config lives on the asset record (rec.slice) and persists to IndexedDB
+// (editor-only; the game never reads it — a placed cell carries its own sub-rect).
+// ---------------------------------------------------------------------------
+// Get (auto-initialising) the slice config for a tileset — never null so the panel
+// always has a working grid (defaults to a single whole-sheet cell when no grid fits).
+function sliceOf(rec){
+  if(rec.slice) return rec.slice;
+  rec.slice = autoSlice(rec.w||0, rec.h||0) || { tw:rec.w||32, th:rec.h||32, margin:0, spacing:0, ox:0, oy:0 };
+  return rec.slice;
+}
+// Persist a record's slice config (full record; putAsset dedups by id).
+async function persistSlice(rec){
+  try{ await putAsset({ id:rec.id, path:rec.path, name:rec.name, type:rec.type, dataUrl:rec.dataUrl, w:rec.w, h:rec.h, slice:rec.slice }); }catch(e){}
+}
+// Lock in cell (col,row) of a tileset as the active stamp brush.
+function selectCellInternal(rec, col, row){
+  const sl = sliceOf(rec); const rect = cellRect(sl, col, row);
+  curCell = { asset:rec.id, col, row, sx:rect.sx, sy:rect.sy, sw:rect.sw, sh:rect.sh };
+}
+// Read the six numeric inputs into a slice config (interactive panel only).
+function readSliceInputs(){
+  return normSlice({ tw:+$("slTw").value, th:+$("slTh").value, margin:+$("slMargin").value,
+    spacing:+$("slSpacing").value, ox:+$("slOx").value, oy:+$("slOy").value });
+}
+// Open (or hide) the right slice panel for `id`. Populates inputs from the record's slice.
+function openSlicePanel(id){
+  const panel=$("slicePanel"); if(!panel) return;
+  const r=assets.get(id);
+  if(!r || tool!=="stamp"){ panel.style.display="none"; slicePanelAsset=null; return; }
+  slicePanelAsset=id; const s=sliceOf(r);
+  $("slTw").value=s.tw; $("slTh").value=s.th; $("slMargin").value=s.margin;
+  $("slSpacing").value=s.spacing; $("slOx").value=s.ox; $("slOy").value=s.oy;
+  panel.style.display="";
+  drawSlicePanel();
+}
+// Redraw the tileset image + grid overlay + selected-cell highlight in the panel.
+function drawSlicePanel(){
+  const cvs=$("sliceCanvas"); if(!cvs || !slicePanelAsset) return;
+  const r=assets.get(slicePanelAsset); if(!r) return;
+  const im=assetImg(r); const iw=r.w||im.naturalWidth||32, ih=r.h||im.naturalHeight||32;
+  const maxW=232; const ds = iw>maxW ? maxW/iw : Math.min(4, maxW/iw);   // fit width (down- or up-scale, ≤4×)
+  const cw=Math.max(1,Math.round(iw*ds)), ch=Math.max(1,Math.round(ih*ds));
+  cvs.width=cw; cvs.height=ch; cvs._ds=ds;
+  const x=cvs.getContext("2d"); x.imageSmoothingEnabled=false;
+  x.fillStyle="#0a0c11"; x.fillRect(0,0,cw,ch);
+  if(im.complete&&im.naturalWidth) x.drawImage(im,0,0,cw,ch);
+  const sl=sliceOf(r); const g=sliceGrid(sl, iw, ih);
+  x.strokeStyle="#ffffff55"; x.lineWidth=1;
+  for(let c=0;c<=g.cols;c++){ const px=Math.round((sl.ox+sl.margin+c*(sl.tw+sl.spacing))*ds)+0.5;
+    x.beginPath(); x.moveTo(px,0); x.lineTo(px,ch); x.stroke(); }
+  for(let rr=0;rr<=g.rows;rr++){ const py=Math.round((sl.oy+sl.margin+rr*(sl.th+sl.spacing))*ds)+0.5;
+    x.beginPath(); x.moveTo(0,py); x.lineTo(cw,py); x.stroke(); }
+  if(curCell && curCell.asset===slicePanelAsset){
+    x.fillStyle="#c8a24a44"; x.strokeStyle="#e8c060"; x.lineWidth=2;
+    const hx=curCell.sx*ds, hy=curCell.sy*ds, hw=curCell.sw*ds, hh=curCell.sh*ds;
+    x.fillRect(hx,hy,hw,hh); x.strokeRect(hx,hy,hw,hh); }
+  $("sliceInfo").textContent = `${g.cols}×${g.rows} cuadros · ${sl.tw}×${sl.th}px` + (curCell&&curCell.asset===slicePanelAsset?` · celda (${curCell.col},${curCell.row})`:" · sin celda");
+}
+// Any slice-input change → update rec.slice, re-clamp the active cell, persist, redraw.
+function onSliceInput(){
+  const r=assets.get(slicePanelAsset); if(!r) return;
+  r.slice=readSliceInputs();
+  if(curCell && curCell.asset===slicePanelAsset){ const g=sliceGrid(r.slice, r.w, r.h);
+    if(curCell.col>=g.cols || curCell.row>=g.rows) curCell=null;
+    else selectCellInternal(r, curCell.col, curCell.row); }
+  persistSlice(r); drawSlicePanel();
+}
 
 let lastStamp=null;                               // last stamp world-pos for drag spacing
 function stampAt(px,py){
@@ -269,7 +358,11 @@ function stampAt(px,py){
 }
 
 function selectAsset(id){ curAsset=id;
-  document.querySelectorAll("#assetGroups .asw").forEach(n=>n.classList.toggle("on", n.dataset.id===id)); }
+  document.querySelectorAll("#assetGroups .asw").forEach(n=>n.classList.toggle("on", n.dataset.id===id));
+  // CAS-1729: the cell brush belongs to a specific tileset — switching assets drops it,
+  // and (in the Sello tool) opens the slice panel for the newly selected tileset.
+  if(curCell && curCell.asset!==id) curCell=null;
+  if(tool==="stamp") openSlicePanel(id); }
 function buildAssetPalette(){
   const wrap=$("assetGroups"); if(!wrap) return; wrap.innerHTML="";
   const groups=new Map();
@@ -420,7 +513,7 @@ const HINTS = {
   chest:"Clic para colocar un cofre.",
   fragment:"Clic para colocar un fragmento de vitalidad/maná.",
   prop:"Clic para colocar decoración (árboles, rocas…).",
-  stamp:"Sube una carpeta de assets, elige uno y séllalo: clic=1, arrastra=serie.",
+  stamp:"Sube assets y elige uno; a la derecha recorta el tileset en su grilla y escoge un cuadro. Clic=1, arrastra=serie.",
   delete:"Clic sobre una entidad o zona para eliminarla.",
 };
 function buildTools(){ const el=$("tools"); el.innerHTML="";
@@ -433,6 +526,8 @@ function selectTool(id){ tool=id;
   $("npcPal").style.display=id==="npc"?"":"none";
   $("propPal").style.display=id==="prop"?"":"none";
   $("assetPal").style.display=id==="stamp"?"":"none";
+  // CAS-1729: the right slice panel only exists in the Sello tool with a tileset selected.
+  if(id==="stamp" && curAsset) openSlicePanel(curAsset); else { $("slicePanel").style.display="none"; slicePanelAsset=null; }
   $("hint").textContent=HINTS[id]||""; }
 function buildTiles(){ const el=$("tiles"); el.innerHTML="";
   for(const t of TILES){ const b=document.createElement("div"); b.className="sw"+(t.id===curTile?" on":"");
@@ -471,6 +566,24 @@ $("btnHelp").onclick=()=>$("help").style.display="flex";
 $("btnHelpClose").onclick=()=>$("help").style.display="none";
 $("nameF").oninput=()=>{ doc.name=$("nameF").value; autosave(); };
 
+// CAS-1729 — slice panel wiring: numeric inputs edit the grid; clicking a cell on the
+// tileset canvas picks the active brush; "hoja entera" clears it back to whole-sheet.
+for(const k of ["slTw","slTh","slMargin","slSpacing","slOx","slOy"]){ const el=$(k); if(el) el.addEventListener("input", onSliceInput); }
+(function wireSliceCanvas(){ const cvs=$("sliceCanvas"); if(!cvs) return;
+  cvs.addEventListener("pointerdown", e=>{
+    const r=assets.get(slicePanelAsset); if(!r) return;
+    const ds=cvs._ds||1, sl=sliceOf(r);
+    const ix=e.offsetX/ds, iy=e.offsetY/ds;
+    const col=Math.floor((ix - sl.ox - sl.margin)/(sl.tw+sl.spacing));
+    const row=Math.floor((iy - sl.oy - sl.margin)/(sl.th+sl.spacing));
+    const g=sliceGrid(sl, r.w, r.h);
+    if(col<0||row<0||col>=g.cols||row>=g.rows) return;
+    selectCellInternal(r, col, row); persistSlice(r); drawSlicePanel();
+    flash(`Cuadro (${col},${row}) — séllalo en el mapa`); });
+}());
+const _sliceClose=$("sliceClose"); if(_sliceClose) _sliceClose.onclick=()=>{ $("slicePanel").style.display="none"; slicePanelAsset=null; };
+const _sliceWhole=$("sliceWhole"); if(_sliceWhole) _sliceWhole.onclick=()=>{ curCell=null; drawSlicePanel(); flash("Pincel: hoja entera"); };
+
 window.addEventListener("resize", resize);
 
 // ---------------------------------------------------------------------------
@@ -502,4 +615,22 @@ window.__editor = { get doc(){ return doc; }, docToMapDoc, docFromMapDoc, setDoc
   // Place a custom prop of `assetId` at world px (px,py). Returns the placed prop.
   stampCustom(assetId, px, py){ const prev=curAsset; curAsset=assetId; placeCustom(px,py); curAsset=prev;
     draw(); autosave(); updateMapInfo(); return doc.entities.props[doc.entities.props.length-1]; },
-  selectAsset, referencedAssets, reingestEmbedded };
+  // CAS-1729 tileset slicing — headless authoring (no file picker / no canvas clicks):
+  //   setSlice   — define+persist a tileset's grid config; returns the normalized config.
+  //   sliceGrid  — how many columns/rows fit under that config.
+  //   cellRect   — the source sub-rect {sx,sy,sw,sh} of a cell.
+  //   selectCell — set the active cell brush (returns it); stampCell — place a sliced prop.
+  //   curCell    — read the active cell brush (or null).
+  setSlice(assetId, cfg){ const r=assets.get(assetId); if(!r) return null; r.slice=normSlice(cfg); persistSlice(r);
+    if(slicePanelAsset===assetId) drawSlicePanel(); return r.slice; },
+  sliceGrid(assetId){ const r=assets.get(assetId); if(!r) return null; return sliceGrid(sliceOf(r), r.w, r.h); },
+  cellRect(assetId, col, row){ const r=assets.get(assetId); if(!r) return null; return cellRect(sliceOf(r), col, row); },
+  selectCell(assetId, col, row){ const r=assets.get(assetId); if(!r) return null; selectCellInternal(r, col, row);
+    if(slicePanelAsset===assetId) drawSlicePanel(); return curCell?{...curCell}:null; },
+  clearCell(){ curCell=null; if(slicePanelAsset) drawSlicePanel(); },
+  stampCell(assetId, col, row, px, py){ const r=assets.get(assetId); if(!r) return null; selectCellInternal(r, col, row);
+    const prev=curAsset; curAsset=assetId; placeCustom(px,py); curAsset=prev; draw(); autosave(); updateMapInfo();
+    return doc.entities.props[doc.entities.props.length-1]; },
+  get curCell(){ return curCell?{...curCell}:null; },
+  sliceOf(assetId){ const r=assets.get(assetId); return r?{...sliceOf(r)}:null; },
+  selectAsset, selectTool, referencedAssets, reingestEmbedded };
