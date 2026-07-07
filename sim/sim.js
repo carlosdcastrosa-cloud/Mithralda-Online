@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -270,6 +270,12 @@ function newHero(name,cls){
     // attack-cooldown formula (alongside CAS-117 affix / CAS-119 talent atkspd); ticks
     // down in update(). Transient — never serialized (a fresh boot starts clean).
     atkspdBuffT:0, atkspdBuffAmt:0,
+    // CAS-1773: MEDIDOR DE FRENESÍ (kill-streak / momentum). Same transient pattern as
+    // atkspdBuffT — killing within FRENZY.window s of the last kill adds a stack (up to
+    // maxStacks); decays 1 stack every decayEvery s once the window lapses. Read in
+    // heroAtkspd (additive atk-speed) + hitEnemy (dmg mul). NO RNG (100% derived from kill
+    // timing). Transient — never serialized (a fresh boot / new run starts at 0).
+    frenzyStacks:0, frenzyT:0, _frenzyDecayT:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -1798,8 +1804,20 @@ export function heroAtkspd(h){ h=h||G.hero; if(!h) return 0;
   // CAS-1632: guante_berserker unique (+12% atkspd) joins the summed sources under the same cap.
   // CAS-1654: Cazador set (+10% atkspd at 2pz) sums in at the same seam, still under the shared cap.
   // CAS-1687: Esmeralda runes (+atkspd from filled sockets) sum in at the same seam, still under the shared cap.
-  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd+setTotals(h).atkspd+socketTotals(h).atkspd;
+  // CAS-1773: Frenesí adds frenzyStacks*perStack.atkspd (additive) BEFORE the shared cap, so
+  // it can't runaway past ATKSPD_TOTAL_CAP. enabled:false ⇒ +0 ⇒ byte-identical.
+  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd+setTotals(h).atkspd+socketTotals(h).atkspd+(FRENZY.enabled?h.frenzyStacks*FRENZY.perStack.atkspd:0);
   return s>ATKSPD_TOTAL_CAP?ATKSPD_TOTAL_CAP:s; }
+
+// CAS-1773: MEDIDOR DE FRENESÍ decay tick — single source of truth (called from update(dt) and the
+// harness step hook). Within the window the timer winds down; once it lapses the meter loses 1 stack
+// every decayEvery s (gradual, not a hard reset). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
+function tickFrenzy(h,dt){ if(!FRENZY.enabled||!h||h.frenzyStacks<=0) return;
+  if(h.frenzyT>0){ h.frenzyT-=dt; return; }
+  h._frenzyDecayT=(h._frenzyDecayT||0)+dt;
+  while(h._frenzyDecayT>=FRENZY.decayEvery && h.frenzyStacks>0){ h._frenzyDecayT-=FRENZY.decayEvery; h.frenzyStacks--; }
+  if(h.frenzyStacks<=0) h._frenzyDecayT=0;
+}
 
 // ------------------------------ combat ---------------------------------
 function heroAttack(){
@@ -1877,6 +1895,9 @@ function hitEnemy(e,dmg,ang,opt){
   // élite-campeones, bosses). Deterministic multiply on the damage number — consumes NO srand, so
   // 0 stacks → byte-identical hit sequence.
   { const cz=legacyCount("leg_cazador"); if(cz>0 && (e.elite||e.champion||e.champElite||e.isBoss||mobAffixes(e).length>0)) dmg*=(1+0.10*cz); }
+  // CAS-1773: Frenesí — +perStack.dmgPct% damage per active stack. Deterministic multiply, consumes
+  // NO srand, so 0 stacks (or disabled) → ×1 → byte-identical hit sequence. The one dmg choke.
+  if(FRENZY.enabled && G.hero && G.hero.frenzyStacks>0) dmg*=(1+G.hero.frenzyStacks*FRENZY.perStack.dmgPct/100);
   // Crit chance = talents + the "Instinto Asesino" milestone (mk.crit). RNG is consumed only
   // when the combined chance is >0, so a fresh hero (no talents, no milestones) stays byte-
   // identical for the determinism baseline.
@@ -1985,6 +2006,14 @@ function killEnemy(e){
   if(e.dead) return; e.dead=true;
   freeze(e.isBoss?9:(e.champion?8:5)); // kill confirm — boss/champion deaths land heaviest
   const tpl=e.tpl; const zone=zoneOf(world,e.x,e.y);
+  // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
+  // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
+  if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
+    const h=G.hero;
+    if(h.frenzyT>0) h.frenzyStacks=Math.min(FRENZY.maxStacks, h.frenzyStacks+1);
+    else h.frenzyStacks=Math.max(h.frenzyStacks,1);
+    h.frenzyT=FRENZY.window;
+  }
   // CAS-1659: flat Ultimate-charge bump on a real kill (arithmetic, no RNG; gated on a drafted
   // ultimate so a no-Ultimate run is byte-identical). Neutral (non-hostile) deaths don't count.
   if(G.hero && G.hero.ultId && !tpl.neutral) G.hero.ultCharge=Math.min(1, (G.hero.ultCharge||0) + ULT_CHARGE_PER_KILL);
@@ -3020,6 +3049,7 @@ export function update(dtMs){
   // CAS-192: consumable timers — the "furia" atkspd buff winds down (the bonus stops
   // applying the moment the timer expires) and each per-consumable cooldown ticks.
   if(h.atkspdBuffT>0){ h.atkspdBuffT-=dt; if(h.atkspdBuffT<=0){ h.atkspdBuffT=0; h.atkspdBuffAmt=0; } }
+  tickFrenzy(h,dt); // CAS-1773: window wind-down + gradual stack decay (arithmetic, no RNG, gated)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+pactHeal(h.hotRate*dt)); if(h.hotT<=0) h.hotRate=0; } // CAS-1763: Pacto Frágil cuts the HoT tick (×1.0 at heat=0 ⇒ byte-identical)
@@ -4691,6 +4721,59 @@ export const dev = {
       const before=e.hp; hitEnemy(e,100,0); return Math.round(before-e.hp); };
     const plain=mk(null), pierce=mk("perforante"); G.enemies.length=0; WEAPON_AFFIXES.enabled=savEn;
     return { plain, pierce }; },
+  // --- CAS-1773 MEDIDOR DE FRENESÍ harness hooks (tools/cas1773-frenzy.mjs); additive, drive the REAL paths ---
+  // Static config off the data (no sim step): the knobs.
+  frenzyMeta(){ return { enabled:FRENZY.enabled, window:FRENZY.window, decayEvery:FRENZY.decayEvery,
+    maxStacks:FRENZY.maxStacks, perStack:{...FRENZY.perStack} }; },
+  // Master toggle: flip FRENZY.enabled. Mirror of waEnable. Reads live at every choke.
+  frenzyEnable(on){ FRENZY.enabled=!!on; return { enabled:FRENZY.enabled }; },
+  // Zero the transient meter (mirror of a fresh newHero) so a probe starts clean.
+  frenzyReset(){ const h=G.hero; if(!h) return null; h.frenzyStacks=0; h.frenzyT=0; h._frenzyDecayT=0; return this.frenzyState(); },
+  // Live meter read + the two derived combat numbers: heroAtkspd (frenzy sums into it under the cap)
+  // and the deterministic hitEnemy dmg multiplier for the current stack count.
+  frenzyState(){ const h=G.hero; if(!h) return null;
+    const st=h.frenzyStacks|0;
+    return { enabled:FRENZY.enabled, stacks:st, t:+((h.frenzyT||0).toFixed(3)), decayT:+((h._frenzyDecayT||0).toFixed(3)),
+      atkspd:heroAtkspd(h), atkspdContrib:(FRENZY.enabled?st*FRENZY.perStack.atkspd:0),
+      dmgMul:(FRENZY.enabled&&st>0)?+(1+st*FRENZY.perStack.dmgPct/100).toFixed(4):1 }; },
+  // Drive a REAL non-neutral kill through killEnemy → exercises the increment choke (add a stack if
+  // within window, else re-arm at 1). Spawns a fresh dummy at 0 HP so no combat RNG branches on it.
+  frenzyKill(){ const h=G.hero; if(!h) return null;
+    const e=spawnEnemy("skeleton", h.x+40, h.y); if(e){ e.hp=0; killEnemy(e); } G.enemies.length=0;
+    return this.frenzyState(); },
+  // Advance ONLY the frenzy timer by dt through the SAME tickFrenzy the game loop uses (window
+  // wind-down then gradual decay). No world step, no RNG — deterministic decay probe (AC3).
+  frenzyStep(dt){ const h=G.hero; if(!h) return null; tickFrenzy(h,+dt||0); return this.frenzyState(); },
+  // AC3 (dmg): set an exact stack count and read the damage a REAL hitEnemy deals to a huge-HP dummy,
+  // so the harness asserts the per-stack % vs the stacks=0 baseline. Fresh hero (no crit) ⇒ 0 srand.
+  frenzyHitProbe(stacks){ const h=G.hero; if(!h) return null;
+    const sav=FRENZY.enabled; FRENZY.enabled=true; h.frenzyStacks=Math.max(0,stacks|0); h.frenzyT=FRENZY.window;
+    G.enemies.length=0; const e=spawnEnemy("skeleton", h.x+40, h.y);
+    if(!e){ FRENZY.enabled=sav; return null; } e.hp=1e7; e.maxHp=1e7; const before=e.hp;
+    hitEnemy(e, 100, 0); const dmg=Math.round(before-e.hp);
+    G.enemies.length=0; FRENZY.enabled=sav; return { stacks:h.frenzyStacks, dmg, dmgMul:this.frenzyState().dmgMul }; },
+  // AC1/AC2 [AC-RNG-STRONG]: fingerprint the gameplay srand around a run of REAL kills (which consume
+  // drop RNG) with frenzy ON vs OFF. Frenzy touches NO srand, so the fingerprint is BYTE-IDENTICAL
+  // ON==OFF while the stacks climb only when ON. probeN pre+post = 2*probeN (48 at 24).
+  frenzySrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const sav=FRENZY.enabled; FRENZY.enabled=!!enabled; const h=G.hero;
+    if(h){ h.frenzyStacks=0; h.frenzyT=0; h._frenzyDecayT=0; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));           // pre-segment
+    G.enemies.length=0; let kills=0;                                               // REAL kills (drop RNG)
+    for(let i=0;i<6;i++){ const e=spawnEnemy("skeleton", (h?h.x:0)+40+i, (h?h.y:0)); if(e){ e.hp=0; killEnemy(e); kills++; } }
+    G.enemies.length=0;
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                        // post-segment
+    const stacks=h?h.frenzyStacks:0; FRENZY.enabled=sav;
+    return { enabled:!!enabled, stacks, kills, fingerprint:fp }; },
+  // AC4: the meter is NOT persisted. Serialize with stacks>0 vs a clean save (stacks=0): bytes MUST
+  // match and NO frenzy key may appear; then loadSave → frenzyStacks==0 (reset on load/new run).
+  frenzySaveByteId(){ const h=G.hero; if(!h) return null;
+    h.frenzyStacks=0; h.frenzyT=0; h._frenzyDecayT=0; const cleanStr=JSON.stringify(serializeSave());
+    h.frenzyStacks=6; h.frenzyT=FRENZY.window; h._frenzyDecayT=0.3; const hotStr=JSON.stringify(serializeSave());
+    const ok=loadSave(JSON.parse(hotStr)); const h2=G.hero;
+    return { byteId:cleanStr===hotStr, hasKey:/"_?frenzy[a-z]*":/i.test(hotStr), afterLoadStacks:h2.frenzyStacks|0,
+      cleanLen:cleanStr.length, hotLen:hotStr.length }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

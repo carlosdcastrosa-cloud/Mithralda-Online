@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -1710,6 +1710,7 @@ export function createRenderer(ctx){
     renderSpellBar();
     renderAbilityBar(); // CAS-1570: the 2 drafted active-ability slots (radial cooldown)
     renderUltimateMeter(h); // CAS-1659: HABILIDAD DEFINITIVA charge meter + "listo" indicator
+    renderFrenzyMeter(h);   // CAS-1773: MEDIDOR DE FRENESÍ pip bar (kill-streak momentum)
     renderVitalsShoulders(h, mhp); // CAS-1611: HP/MP "hombreras" flanking the action bar
     // minimap
     if(!isTouch || true) renderMiniMap();
@@ -1919,6 +1920,27 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.out; ctx.fillText(ready?("¡DEFINITIVA LISTA!  [C]"):(u.name+"  "+Math.round(f*100)+"%"), x+w/2+1, y+bh-2);
     ctx.fillStyle=ready?"#0a0c10":COL.cream; ctx.fillText(ready?("¡DEFINITIVA LISTA!  [C]"):(u.name+"  "+Math.round(f*100)+"%"), x+w/2, y+bh-3);
     ctx.textAlign="left";
+  }
+  // CAS-1773 — MEDIDOR DE FRENESÍ HUD ($0 art, pure canvas): a compact pip strip above the action
+  // bar showing frenzyStacks/maxStacks + an "xN FRENESÍ" counter. At high stacks (≥ maxStacks*0.75)
+  // the frame gets a pulsing hot edge-glow. Hard-gated behind FRENZY.enabled AND only drawn while a
+  // streak is live (frenzyStacks>0), so an idle/disabled run draws nothing.
+  function renderFrenzyMeter(h){ if(!FRENZY.enabled||!h||!h.frenzyStacks) return;
+    const g=actionBarGeom(); const max=FRENZY.maxStacks||1, st=Math.min(max,h.frenzyStacks|0);
+    const pipGap=3, pipW=Math.max(6,Math.round((g.total*0.62 - (max-1)*pipGap)/max));
+    const barW=max*pipW+(max-1)*pipGap, ph=9;
+    const x=Math.round(g.x0+g.total/2-barW/2), y=g.y-(isTouch?52:46);
+    const hot=st>=Math.ceil(max*0.75);
+    const col=hot?"#ff5a2a":"#ff9a3c"; // ember → deep ember as the streak climbs
+    ctx.fillStyle=COL.out; ctx.fillRect(x-3,y-3,barW+6,ph+6);      // frame
+    for(let i=0;i<max;i++){ const px=x+i*(pipW+pipGap);
+      ctx.fillStyle="#1a1410"; ctx.fillRect(px,y,pipW,ph);        // empty pip
+      if(i<st){ ctx.fillStyle=col; ctx.fillRect(px,y,pipW,ph); } }
+    if(hot){ const p=0.5+0.5*Math.sin((G.t||0)*7); ctx.globalAlpha=0.45*p; ctx.fillStyle=col;
+      ctx.fillRect(x,y,barW,ph); ctx.globalAlpha=1; ctx.strokeStyle=col; ctx.lineWidth=2; ctx.strokeRect(x-3.5,y-3.5,barW+7,ph+7); }
+    ctx.save(); ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 10px "+FF;
+    const lbl="×"+st+" FRENESÍ"; ctx.fillStyle=COL.out; ctx.fillText(lbl,x+barW/2+1,y-9);
+    ctx.fillStyle=col; ctx.fillText(lbl,x+barW/2,y-10); ctx.restore(); ctx.textBaseline="alphabetic"; ctx.textAlign="left";
   }
   function renderSpellBar(){ const h=G.hero; const n=4;
     if(isTouch) return; // touch uses buttons
