@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -2148,6 +2148,12 @@ export function createRenderer(ctx){
   // One affix line, e.g. "+8% vel. ataque" in a soft cyan. CAS-117.
   function drawAffixLines(inst,ax,ay,lh){ const list=affixList(inst); ctx.font="10px "+FF; ctx.textAlign="left";
     for(let k=0;k<list.length;k++){ ctx.fillStyle="#9be7ff"; ctx.fillText("• "+affixLabel(list[k]), ax, ay+k*lh); } return list.length; }
+  // CAS-1768: the equipped/candidate WEAPON's on-hit affix as a tinted glyph+name badge, anchored after the
+  // item's headline. Only when the feature is enabled and the instance carries a resolved `wa` (weapons only);
+  // absent/disabled ⇒ no draw ⇒ no layout change. $0 art (glyph + tint from config).
+  function drawWeaponAffixTag(inst, ax, ay){ if(!WEAPON_AFFIXES.enabled) return; const id=inst&&inst.wa; if(!id) return;
+    const def=WEAPON_AFFIXES.defs.find(d=>d.id===id); if(!def) return;
+    ctx.textAlign="left"; ctx.font="bold 10px "+FF; ctx.fillStyle=def.tint||"#fff"; ctx.fillText(def.glyph+" "+def.name, ax, ay); }
   // A signed coloured delta token ("+12", "-3", "—"). CAS-117 equip-decision diff.
   function deltaTok(d){ if(!d) return {t:"—",c:COL.textDim}; return d>0?{t:"+"+d,c:COL.heal}:{t:""+d,c:"#d05555"}; }
   // CAS-1687: draw an instance's sockets as small pips — ◇ empty (dim) / ◆ filled (rune tint).
@@ -2321,11 +2327,13 @@ export function createRenderer(ctx){
     } else if(sel){ ctx.fillStyle="#161b22"; ctx.fillRect(rx,cy,rw,cmpH); ctx.strokeStyle="#3a4456"; ctx.lineWidth=1; ctx.strokeRect(rx,cy,rw,cmpH);
       const eq=h.equip[sel.slot];
       ctx.textAlign="left"; ctx.font="10px "+FF; ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpEquipped, rx+6, cy+13);
-      ctx.fillStyle=gearCol(eq); ctx.fillText(rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")", rx+6, cy+25);
+      ctx.fillStyle=gearCol(eq); const eqTxt=rarityMark(eq)+gearName(eq)+" ("+gearStat(eq)+")"; ctx.fillText(eqTxt, rx+6, cy+25);
+      drawWeaponAffixTag(eq, rx+6+ctx.measureText(eqTxt).width+6, cy+25); // CAS-1768: on-hit affix badge (equipped)
       drawAffixLines(eq, rx+10, cy+36, 10);
       const midX=rx+rw*0.52;
       ctx.fillStyle=COL.textDim; ctx.fillText(STR.cmpNew, midX, cy+13);
-      ctx.fillStyle=gearCol(sel); ctx.fillText("("+gearStat(sel)+")", midX, cy+25);
+      ctx.fillStyle=gearCol(sel); const selTxt="("+gearStat(sel)+")"; ctx.fillText(selTxt, midX, cy+25);
+      drawWeaponAffixTag(sel, midX+ctx.measureText(selTxt).width+6, cy+25); // CAS-1768: on-hit affix badge (candidate in bag)
       drawAffixLines(sel, midX+4, cy+36, 10);
       drawSocketLine(eq, rx+6, cy+58); // CAS-1687: sockets on the EQUIPPED piece (engarce target)
       // net combat deltas if equipped (the tradeoff at a glance)
