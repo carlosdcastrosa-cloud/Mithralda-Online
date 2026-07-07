@@ -253,6 +253,22 @@ export function createRenderer(ctx){
   let VW = view.VW, VH = view.VH;      // synced from the viewport each frame
   const rr = (a,b)=>rrng.rr(a,b);
 
+  // CAS-1716: custom uploaded sprites (map editor). world.customAssets is an
+  // id→{dataUrl,...} table embedded SYNC in the MapDoc (no IndexedDB in the game).
+  // Build the Image cache lazily on first reference; a missing asset or a not-yet-
+  // decoded image is cached and skipped silently every frame (no crash, no console
+  // error). Absent world.customAssets ⇒ this never runs (byte-safe default world).
+  const CUSTOM_IMG = {};
+  function customImg(id){
+    if(!id) return null;
+    if(id in CUSTOM_IMG) return CUSTOM_IMG[id];
+    const ca = world.customAssets && world.customAssets[id];
+    if(!ca || !ca.dataUrl){ CUSTOM_IMG[id]=null; return null; }
+    const im = new Image(); im.src = ca.dataUrl; CUSTOM_IMG[id]=im; return im;
+  }
+  // QA hook (via game.js __dev): true once the custom Image has decoded and is drawable.
+  function customImgReady(id){ const im=customImg(id); return !!(im && im.complete && im.naturalWidth); }
+
   // CAS-121/224: T_ICE (index 6) — frozen Cripta Helada floor. Primary path draws the
   // hi-fi FOUNTAINS dark flagstone with a cold wash (see renderWorld); these fallback
   // tones are now DARK frozen-stone (not bright pale-blue) so the zone reads cold even
@@ -537,6 +553,13 @@ export function createRenderer(ctx){
         const fr=TDECO.anim&&TDECO.anim[ei]; if(fr&&fr.length) ei=fr[((G.t*7)|0)%fr.length]; // CAS-463
         const e=TDECO.entries[ei], pa=IMG.tiled_props;
         if(e&&pa&&pa.complete&&pa.naturalWidth) ctx.drawImage(pa,e[0],e[1],e[2],e[3],Math.round(d.x-e[2]/2),Math.round(d.y-e[3]),e[2],e[3]);
+        return; }
+      // CAS-1716: custom uploaded sprite (map editor stamp). Bottom-anchored at authored
+      // w,h (falls back to the image's natural size). Guard skips a missing / not-yet-
+      // decoded image silently — no crash, no console noise.
+      if(d.kind==="custom"){ const img=customImg(d.asset); if(img&&img.complete&&img.naturalWidth){
+          const w=d.w||img.naturalWidth, h=d.h||img.naturalHeight;
+          ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h)); }
         return; }
       if(d.kind && d.kind.startsWith("prop_")){ const img=IMG[d.kind]; if(img&&img.complete&&img.naturalWidth){
           const s=PROP_SCALE[d.kind]||1, w=img.naturalWidth*s, h=img.naturalHeight*s; ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h));
@@ -3562,5 +3585,5 @@ export function createRenderer(ctx){
     ctx.strokeStyle="#cdd4dc"; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(-18,-18); ctx.lineTo(18,18); ctx.moveTo(18,-18); ctx.lineTo(-18,18); ctx.stroke();
     ctx.strokeStyle=COL.out; ctx.lineWidth=1.5; ctx.stroke(); ctx.restore(); }
 
-  return { render };
+  return { render, customImgReady };
 }
