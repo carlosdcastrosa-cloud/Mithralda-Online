@@ -519,6 +519,7 @@ export function buildTiledWorld(rng){
   return { terr, town, tiledVisual:true,
     forest:shR(proc.forest), caves:shR(proc.caves), arena:shR(proc.arena), ruins:shR(proc.ruins),
     abyss:shR(proc.abyss), frost:shR(proc.frost), trial:shR(proc.trial), swamp:shR(proc.swamp),
+    ...(proc.caldera ? { caldera:shR(proc.caldera) } : {}),  // CAS-1784: export translated caldera rect (ZONE5 ON only) so zoneOf resolves "caldera" in the tiled world; absent OFF ⇒ byte-identical
     solids, deco, chests, fragments, fountains, npcs, spawners, portals,
     templeF, tcx, tcy, wallSet, buildings, blockSet };
 }
