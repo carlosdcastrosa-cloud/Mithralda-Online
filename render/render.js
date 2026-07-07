@@ -558,8 +558,13 @@ export function createRenderer(ctx){
       // w,h (falls back to the image's natural size). Guard skips a missing / not-yet-
       // decoded image silently — no crash, no console noise.
       if(d.kind==="custom"){ const img=customImg(d.asset); if(img&&img.complete&&img.naturalWidth){
-          const w=d.w||img.naturalWidth, h=d.h||img.naturalHeight;
-          ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h)); }
+          // CAS-1729: a sliced tileset cell carries a source sub-rect (d.sw). Blit only
+          // that cell with the 9-arg drawImage; without d.sw fall back to the whole sheet
+          // (CAS-1716 path) so a non-sliced stamp is byte-identical.
+          if(d.sw){ const w=d.w||d.sw, h=d.h||d.sh;
+            ctx.drawImage(img, d.sx, d.sy, d.sw, d.sh, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h)); }
+          else { const w=d.w||img.naturalWidth, h=d.h||img.naturalHeight;
+            ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h)); } }
         return; }
       if(d.kind && d.kind.startsWith("prop_")){ const img=IMG[d.kind]; if(img&&img.complete&&img.naturalWidth){
           const s=PROP_SCALE[d.kind]||1, w=img.naturalWidth*s, h=img.naturalHeight*s; ctx.drawImage(img, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h));

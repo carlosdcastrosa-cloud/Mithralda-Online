@@ -211,6 +211,7 @@ export function createGame(canvas, ctx, getView){
         animState:e.animState||null,arch:e.tpl.arch||null,champion:!!e.champion,specialNow:!!e.specialNow})),
       mapInfo:()=>simDev.mapInfo(), // CAS-1702: read-only Map-Editor / MapDoc load probe for QA
       customImgReady:(id)=>renderer.customImgReady(id), // CAS-1716: true once a custom uploaded sprite's Image has decoded (QA headless probe)
+      customDeco:()=>simDev.customDeco(), // CAS-1729: read-only custom deco snapshot incl. sliced-cell sub-rect (sx..sh)
       bossAnim:()=>simDev.bossAnim(), // CAS-317: dracónic boss 6-anim QA observer
       hitBoss:(n)=>simDev.hitBoss(n), // CAS-317: deterministic hurt/death driver for QA
 
