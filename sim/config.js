@@ -894,6 +894,32 @@ export const TITLES = { enabled:true, defs:[
   { id:"asc_3",          label:"Conquistador de Ascensión", src:"meta.ascension",     n:3  },
 ]};
 
+// CAS-1763: PACTOS DE PODER (Power Pacts). An OPT-IN, stackable difficulty covenant. Each pact the
+// player ranks up raises a derived HEAT and, in exchange, scales the endgame rewards (Esencia +
+// loot/unique/rune chance). It is a PURE READ-SIDE config layer (own store mithralda.pacts.v1, save.v1
+// untouched): the chosen ranks persist as a cross-run PREFERENCE and their effects are DERIVED IN THE
+// SEAM each run — a pact is a deterministic multiplier on an already-existing stat/heal/essence value,
+// or a threshold shift on a roll that ALREADY happens. It adds/removes NO RNG draw (RNG-neutral STRONG).
+// HARD-GATED behind PACTS.enabled: false ⇒ zero store I/O, zero evaluation, no HUD/panel, and the
+// srand sequence + save.v1 serialization are BYTE-IDENTICAL to a build without the feature. Enabled but
+// heat=0 (no ranks) is ALSO a total no-op (every multiplier defaults to 1.0; no threshold moves).
+// The table is FIXED config (YAGNI — not a generic rules engine); all heat→reward tuning lives in the
+// three balance knobs below so telemetry can retune without a logic re-deploy. `mag` is per-rank.
+export const PACTS = {
+  enabled:true,
+  defs:[
+    { id:"cruento",   name:"Pacto Cruento",      max:5, heat:10, effect:{kind:"enemyDmg",  mag:0.10} }, // +10% daño enemigo / rango
+    { id:"vigor",     name:"Pacto de Vigor",     max:5, heat:8,  effect:{kind:"enemyHp",   mag:0.15} }, // +15% HP enemigo / rango
+    { id:"celeridad", name:"Pacto de Celeridad", max:3, heat:12, effect:{kind:"enemySpd",  mag:0.08} }, // +8% velocidad enemigo / rango
+    { id:"jauria",    name:"Pacto de Jauría",    max:3, heat:15, effect:{kind:"eliteRate", mag:0.25} }, // +25% prob. promoción élite / rango
+    { id:"fragil",    name:"Pacto Frágil",       max:3, heat:12, effect:{kind:"healCut",   mag:0.20} }, // -20% curación jugador / rango
+  ],
+  // ── HEAT → REWARD tuning (the ONLY balance knobs; keep conservative) ─────────────
+  essencePerHeat:0.004,  // Esencia mult = 1 + essencePerHeat*heat   (heat 100 ⇒ +40%)
+  dropPerHeat:0.003,     // drop/unique/rune chance mult = 1 + dropPerHeat*heat (heat 100 ⇒ +30%)
+  rewardHeatCap:150,     // clamp the heat used for the reward mult (defensive; effects still stack)
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

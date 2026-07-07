@@ -10,7 +10,7 @@
 // so the latest gold / XP / upgrades survive a refresh. All storage calls are
 // wrapped — private-mode / quota failures degrade silently, the game still runs.
 // ===========================================================================
-import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena, serializeCodex, loadCodex, serializeTitles, loadTitles } from "./sim/sim.js";
+import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena, serializeCodex, loadCodex, serializeTitles, loadTitles, serializePacts, loadPacts } from "./sim/sim.js";
 
 const KEY = "mithralda.save.v1";
 // CAS-1557: the ACCOUNT-WIDE meta-progression store — deliberately SEPARATE from the run save
@@ -35,6 +35,11 @@ const KEY_CODEX = "mithralda.codex.v1";
 // + codex (additive persistence; save.v1 is untouched). Same medium-ownership split: the sim owns the shape
 // (serializeTitles / loadTitles), this controller owns localStorage + the titlesDirty flush.
 const KEY_TITLES = "mithralda.titles.v1";
+// CAS-1763: the PACTOS DE PODER (Power Pacts) preference store — its OWN key, SEPARATE from the run save +
+// meta + arena + codex + titles (additive persistence; save.v1 is untouched). The player's chosen pact ranks
+// persist as a cross-run PREFERENCE. Same medium-ownership split: the sim owns the shape (serializePacts /
+// loadPacts), this controller owns localStorage + the pactsDirty flush.
+const KEY_PACTS = "mithralda.pacts.v1";
 const SAVE_THROTTLE = 2.0;      // seconds between throttled autosaves while in a run
 let acc = 0;
 let suppressed = false;         // once true, ALL writes are no-ops until the page reloads
@@ -102,6 +107,17 @@ export function saveTitles(){ if(suppressed) return false;
 // reconcileMeta caches the equipped title from the live ledger.
 export function bootTitles(){ loadTitles(readTitles()); G.titlesDirty=false; }
 
+// CAS-1763: Pactos de Poder I/O (isolated from run save + meta + arena + codex + titles above). Wrapped — a
+// private-mode / quota failure degrades silently; the game still runs with an in-memory empty pact preference.
+function readPacts(){ try{ const raw=localStorage.getItem(KEY_PACTS); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+export function savePacts(){ if(suppressed) return false;
+  try{ const blob=serializePacts(); if(!blob) return false; localStorage.setItem(KEY_PACTS, JSON.stringify(blob)); return true; }
+  catch(e){ return false; } }
+// Rehydrate the account pact preference at boot (independent of any run save — a brand-new player has no pacts).
+// A corrupt/absent blob → loadPacts installs the empty default. Harmless read even when the feature is disabled
+// (the preference is simply never evaluated afterward). Called AFTER bootTitles() in the boot sequence.
+export function bootPacts(){ loadPacts(readPacts()); G.pactsDirty=false; }
+
 // Boot: if a VALID save exists, rehydrate straight into play (skipping the name /
 // class flow); otherwise leave the normal menu flow untouched. A corrupt, old or
 // invalid save is discarded (cleared) and the player starts clean — never crashes.
@@ -135,6 +151,9 @@ export function tick(dtSec){
   // CAS-1758: flush the titles ledger the instant a new title unlocks or the equipped choice changes —
   // BEFORE the run-save scene gate, so it persists even off a run. One-shot: the flag clears on write.
   if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; }
+  // CAS-1763: flush the pact preference the instant the player changes a rank in the panel — BEFORE the
+  // run-save scene gate, so a covenant edit persists even off a run. One-shot: the flag clears on write.
+  if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; }
   if(!G.started || G.scene==="menu" || G.scene==="classsel") return;
   // CAS-128: the moment the tutorial is finished/skipped, write the one-time seen marker
   // so it never auto-starts for this player again. flushed gates it to a single write.
@@ -151,7 +170,7 @@ export function resetGame(){ suppress(); clear(); try{ if(typeof location!=="und
 // few seconds of progress between throttled autosaves.
 export function initFlush(){
   if(typeof window==="undefined") return;
-  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1751 codex + CAS-1758 titles ride the same unload flush
+  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; } if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1751 codex + CAS-1758 titles + CAS-1763 pacts ride the same unload flush
   window.addEventListener("beforeunload", flush);
   window.addEventListener("pagehide", flush);
   if(typeof document!=="undefined")
