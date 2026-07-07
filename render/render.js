@@ -301,6 +301,7 @@ export function createRenderer(ctx){
     if(G.scene==="mastery") renderMastery(); // CAS-150 elite-mastery reward track
     if(G.scene==="codex") renderCodex(); // CAS-1751 Códice de Botín (Collection Log)
     if(G.scene==="titles") renderTitles(); // CAS-1758 Títulos de Gesta (Feat Titles)
+    if(G.scene==="pacts") renderPacts(); // CAS-1763 Pactos de Poder (Power Pacts)
     if(G.scene==="dialogue") renderDialogue();
     if(G.scene==="shop") renderShop();
     if(G.scene==="forge") renderForge(); // CAS-237 equipment forge
@@ -2592,6 +2593,47 @@ export function createRenderer(ctx){
       ry += rowH+gap;
     }
     ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("Y / ESC para cerrar", VW/2, y+bh-8);
+    ctx.textAlign="left";
+  }
+
+  // CAS-1763 — PACTOS DE PODER (Power Pacts). A view over sim.pactsSnap(): one row per pact (name, current
+  // rank/max, per-rank effect, heat contribution). Rows are INTERACTIVE — tap to +1 rank (wraps at max) so the
+  // player builds their covenant here (writes ui.pactRects; input.pactTap drives sim.cyclePactRank). The footer
+  // shows total Heat + the current reward multipliers (Esencia ×, botín ×). $0 art — text + ⚔/palette only.
+  function renderPacts(){ const snap=sim.pactsSnap();
+    const bw=Math.min(VW*0.92,560), bh=Math.min(VH*0.9,480), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText("Pactos de Poder", VW/2, y+28);
+    ctx.fillStyle=COL.cream; ctx.font="12px "+FF;
+    ctx.fillText("Sube el rango de un pacto para aumentar el Ardor y el botín · toca para +1", VW/2, y+48);
+    ui.pactRects=[];
+    const pad=20, rowH=40, gap=5; let ry=y+64;
+    for(const it of snap.items){
+      const rx=x+pad, rw=bw-2*pad; const active=it.rank>0;
+      // row frame — active pacts lit gold, dormant dim
+      ctx.fillStyle= active ? "#2f2418" : "#141821";
+      ctx.fillRect(rx,ry,rw,rowH);
+      ctx.strokeStyle= active ? COL.textGold : "#2a3140"; ctx.lineWidth= active?1.5:1;
+      ctx.strokeRect(rx+0.5,ry+0.5,rw-1,rowH-1);
+      // glyph
+      ctx.textAlign="center"; ctx.fillStyle= active ? COL.textGold : "#39414f";
+      ctx.font="bold 17px "+FF; ctx.fillText("⚔", rx+22, ry+rowH/2+6);
+      // name + effect
+      ctx.textAlign="left";
+      ctx.fillStyle= active?COL.cream:COL.textDim; ctx.font="bold 13px "+FF; ctx.fillText(it.name, rx+44, ry+17);
+      ctx.fillStyle= active?COL.textGold:"#5a6472"; ctx.font="10px "+FF; ctx.fillText(it.effect, rx+44, ry+31);
+      // rank pips + heat (right side)
+      ctx.textAlign="right";
+      ctx.fillStyle= active?COL.cream:COL.textDim; ctx.font="bold 13px "+FF; ctx.fillText("Rango "+it.rank+"/"+it.max, rx+rw-14, ry+17);
+      ctx.fillStyle= active?"#e0813f":"#5a6472"; ctx.font="10px "+FF; ctx.fillText(active?("Ardor +"+it.heatNow):("+"+it.heat+"/rango"), rx+rw-14, ry+31);
+      ui.pactRects.push({x:rx,y:ry,w:rw,h:rowH,id:it.id});
+      ry += rowH+gap;
+    }
+    // footer — total heat + live reward multipliers
+    ctx.textAlign="center"; ctx.font="bold 12px "+FF;
+    ctx.fillStyle= snap.heat>0 ? "#e0813f" : COL.textDim;
+    ctx.fillText("Ardor total "+snap.heat+"   ·   Esencia ×"+snap.essMul.toFixed(2)+"   ·   Botín ×"+snap.dropMul.toFixed(2), VW/2, y+bh-26);
+    ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("L / ESC para cerrar", VW/2, y+bh-8);
     ctx.textAlign="left";
   }
 

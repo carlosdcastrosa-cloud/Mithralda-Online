@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -951,6 +951,74 @@ export function titlesSnap(){ const t=ensureTitles();
   return { enabled:!!TITLES.enabled, equipped:t.equipped||null, items, unlocked, total:TITLES.defs.length }; }
 // ================== end CAS-1758 Títulos de Gesta ==================
 
+// --------------------- CAS-1763: PACTOS DE PODER (Power Pacts) ---------------------
+// An OPT-IN, stackable difficulty covenant. The player ranks up pacts (own store mithralda.pacts.v1),
+// each contributing HEAT + a per-rank effect; heat scales the endgame rewards (Esencia + drop chance).
+// PURE READ-SIDE: the ranks persist as a cross-run PREFERENCE and their effects are DERIVED IN THE SEAM
+// each run — a pact is deterministic arithmetic on an already-existing stat/heal/essence value, or a
+// threshold shift on a roll that ALREADY happens. It adds/removes NO RNG draw (RNG-neutral STRONG). The
+// sim owns the SHAPE (serializePacts / loadPacts); persist.js owns the localStorage medium + the
+// pactsDirty flush; its OWN key ⇒ save.v1 untouched. HARD-GATED behind PACTS.enabled: false ⇒ no store
+// I/O, no evaluation, no HUD/panel; enabled + heat=0 (no ranks) ⇒ every multiplier defaults to 1.0 and
+// no threshold moves ⇒ the srand sequence + save.v1 bytes are BYTE-IDENTICAL to a build without the feature.
+function pactsDefault(){ return { v:1, ranks:{} }; }
+function ensurePacts(){ if(!G.pacts) G.pacts=pactsDefault(); return G.pacts; }
+function pactRanks(){ return (G.pacts && G.pacts.ranks) || null; }
+export function serializePacts(){ const p=ensurePacts();
+  // shallow-copy the ranks map so the persisted blob never aliases live state
+  return { v:1, ranks:Object.assign({},p.ranks) }; }
+export function loadPacts(d){ const def=pactsDefault();
+  if(d && typeof d==="object" && d.ranks && typeof d.ranks==="object"){
+    // only accept KNOWN pact ids (untrusted-blob guardrail like loadCodex/loadTitles) + clamp rank to [1,max]:
+    // a tampered blob can't inject phantom pacts or an out-of-range rank that would inflate heat/effects.
+    for(const dd of PACTS.defs){ const r=d.ranks[dd.id]|0; if(r>0) def.ranks[dd.id]=Math.min(r, dd.max); } }
+  G.pacts=def; return true; }
+// derived HEAT: Σ rank×def.heat over ranked pacts. 0 when disabled or no ranks (byte-identical no-op).
+function pactHeat(){ if(!PACTS.enabled) return 0; const r=pactRanks(); if(!r) return 0;
+  let h=0; for(const d of PACTS.defs){ const rk=r[d.id]|0; if(rk>0) h+=rk*d.heat; } return h; }
+// stat multiplier for an effect kind (enemyHp/enemyDmg/enemySpd/eliteRate): 1 + Σ(rank×mag). Returns
+// EXACTLY 1.0 when disabled / no matching ranks ⇒ Math.round(x*1)===x ⇒ byte-identical.
+function pactStatMul(kind){ if(!PACTS.enabled) return 1; const r=pactRanks(); if(!r) return 1;
+  let add=0; for(const d of PACTS.defs){ if(d.effect.kind!==kind) continue; const rk=r[d.id]|0; if(rk>0) add+=rk*d.effect.mag; }
+  return 1+add; }
+// INVERSE stat multiplier for a reduction kind (healCut): max(0, 1 - Σ(rank×mag)). 1.0 when none.
+function pactStatMulInv(kind){ if(!PACTS.enabled) return 1; const r=pactRanks(); if(!r) return 1;
+  let sub=0; for(const d of PACTS.defs){ if(d.effect.kind!==kind) continue; const rk=r[d.id]|0; if(rk>0) sub+=rk*d.effect.mag; }
+  return Math.max(0, 1-sub); }
+// apply the healCut pact to a player heal amount (pure arithmetic; 1.0 ⇒ unchanged).
+function pactHeal(amt){ if(!PACTS.enabled) return amt; const m=pactStatMulInv("healCut"); return m===1?amt:amt*m; }
+// reward multiplier for kind∈{essence,drop}: 1 + perHeat×min(heat,cap). 1.0 when disabled / heat=0.
+function pactRewardMul(kind){ if(!PACTS.enabled) return 1; const heat=pactHeat(); if(heat<=0) return 1;
+  const cap=Math.min(heat, PACTS.rewardHeatCap|0);
+  const per = kind==="essence" ? PACTS.essencePerHeat : PACTS.dropPerHeat;
+  return 1 + per*cap; }
+// Player sets/raises a pact rank (tap in the panel → +1, wrap to 0 at max). Clamps to [0,max]; rank 0
+// drops the entry so the map stays clean (heat=0 ⇒ byte-identical). Marks the store dirty for a flush.
+// No-op (returns false) when disabled. Effects are read live in the seam — nothing is baked onto the hero.
+export function setPactRank(id, rank){ if(!PACTS.enabled) return false;
+  const def=PACTS.defs.find(d=>d.id===id); if(!def) return false;
+  const p=ensurePacts(); let rk=rank|0; if(rk<0) rk=0; if(rk>def.max) rk=def.max;
+  const cur=p.ranks[id]|0; if(cur===rk) return true;
+  if(rk<=0) delete p.ranks[id]; else p.ranks[id]=rk;
+  G.pactsDirty=true; return true; }
+// Tap a pact row → advance its rank by 1, wrapping past max back to 0 (build/tear-down the covenant here).
+export function cyclePactRank(id){ if(!PACTS.enabled) return false;
+  const def=PACTS.defs.find(d=>d.id===id); if(!def) return false;
+  const cur=(ensurePacts().ranks[id]|0); return setPactRank(id, cur>=def.max ? 0 : cur+1); }
+// human-readable per-rank effect text for the panel (pure presentation).
+const PACT_EFFECT_LABEL={ enemyDmg:"daño enemigo", enemyHp:"HP enemigo", enemySpd:"velocidad enemiga",
+  eliteRate:"prob. de élite", healCut:"curación propia" };
+function pactEffectText(d){ const pct=Math.round(d.effect.mag*100); const sign=d.effect.kind==="healCut"?"−":"+";
+  return sign+pct+"% "+(PACT_EFFECT_LABEL[d.effect.kind]||d.effect.kind)+" / rango"; }
+// View model for renderPacts (PURE read; render adds no logic). Every def with its live rank + heat
+// contribution, plus the total heat and the current reward multipliers. Does NOT mutate.
+export function pactsSnap(){ const p=ensurePacts(); const heat=pactHeat();
+  const items=PACTS.defs.map(d=>{ const rank=p.ranks[d.id]|0;
+    return { id:d.id, name:d.name, rank, max:d.max, effect:pactEffectText(d), heat:d.heat, heatNow:rank*d.heat }; });
+  return { enabled:!!PACTS.enabled, heat, essMul:pactRewardMul("essence"), dropMul:pactRewardMul("drop"),
+    items, active:items.filter(i=>i.rank>0).length, total:PACTS.defs.length }; }
+// ================== end CAS-1763 Pactos de Poder ==================
+
 // --------------------- CAS-128: onboarding tutorial ---------------------
 // A pure, deterministic step machine layered ON TOP of the existing game (no balance
 // or mechanic change). Each step advances when the sim OBSERVES the player perform the
@@ -1150,7 +1218,9 @@ function essenceForRun(h, r){ if(!h) return 0;
   // corona_ecos — before the Ascensión mult. Read-live off the meta count; 0 stacks → ×1 (byte-id).
   // CAS-1654: Erudito set (+15% Esencia at 2pz) folds in at the SAME point as corona_ecos —
   // read-live off the equipped instances; no set pieces → +0 → byte-identical.
-  const raw = raw0 * (1 + (uniqTotals(h).essencePct + setTotals(h).essencePct)/100) * (1 + 0.5*legacyCount("leg_erudito"));
+  // CAS-1763: PACTOS DE PODER — heat scales the Esencia haul at the SAME point as the unique/set/legacy
+  // bonuses (before the Ascensión mult). Pure arithmetic (0 RNG); pactRewardMul=1.0 at heat=0 ⇒ byte-identical.
+  const raw = raw0 * (1 + (uniqTotals(h).essencePct + setTotals(h).essencePct)/100) * (1 + 0.5*legacyCount("leg_erudito")) * pactRewardMul("essence");
   // CAS-1565: Ascensión/Prestigio multiplier — the permanent payoff for sacrificing the altar.
   return Math.max(1, Math.floor(raw * ascMult(ascLevel()))); }
 // Reconcile the DURABLE meta stats (HP / dmg / gold / moveSpeed) onto a hero at a run-start
@@ -1524,6 +1594,14 @@ function applyZoneScale(e, zone){
   if(wtm){ const b3=e.tpl;
     e.tpl=Object.assign({},b3,{ hp:Math.round(b3.hp*wtm.hpMul), dmg:Math.round(b3.dmg*wtm.dmgMul) });
     e.hp=e.maxHp=e.tpl.hp; }
+  // CAS-1763: PACTOS DE PODER — the opt-in difficulty covenant layers ON TOP of every tier/curse/world
+  // scaling with the SAME hp/dmg/spd knobs (pure arithmetic on the already-scaled clone → 0 new RNG →
+  // the srand/loot stream is byte-identical). All muls default 1.0 (disabled / heat=0), and the guard
+  // skips the clone entirely when nothing is active, so a build with no pact ranked is byte-identical here.
+  if(PACTS.enabled){ const hpM=pactStatMul("enemyHp"), dgM=pactStatMul("enemyDmg"), spM=pactStatMul("enemySpd");
+    if(hpM!==1||dgM!==1||spM!==1){ const bp=e.tpl;
+      e.tpl=Object.assign({},bp,{ hp:Math.round(bp.hp*hpM), dmg:Math.round(bp.dmg*dgM), spd:Math.max(1,Math.round(bp.spd*spM)) });
+      e.hp=e.maxHp=e.tpl.hp; } }
   return e;
 }
 
@@ -1546,6 +1624,10 @@ function maybeAffix(e){
   // srand() below draws UNCONDITIONALLY either way — only the threshold moves — so the sim RNG
   // stream is identical at every tier and byte-identical at tier 1.
   const wtm=worldTierMods(); if(wtm) rate=Math.min(1,rate*wtm.affixMul);
+  // CAS-1763: the Pacto de Jauría raises the élite PROMOTION threshold the SAME way World Tier does —
+  // it multiplies the rate of the srand roll that ALREADY fires below, it does NOT spawn an extra body
+  // or an extra draw (extra bodies ⇒ extra draws ⇒ breaks RNG-neutral). 1.0 (disabled / heat=0) ⇒ no move.
+  { const em=pactStatMul("eliteRate"); if(em!==1) rate=Math.min(1,rate*em); }
   if(srand()>=rate) return e;                                      // one srand per eligible spawn (only on the live world path, never in buildWorld → determinism fingerprint untouched)
   let pool=MOB_AFFIX_IDS;
   if(e.tpl.ranged) pool=MOB_AFFIX_IDS.filter(id=>!MOB_AFFIX[id].melee); // Vampiric needs contact → ranged kiters can't carry it
@@ -1570,6 +1652,7 @@ let champRate=CHAMPION_RATE;
 function maybeChampion(e, pool, firstId){
   let rate=champRate; if(!(rate>0)) return e;                        // OFF → zero RNG, byte-identical
   const wtm=worldTierMods(); if(wtm) rate=Math.min(1,rate*wtm.affixMul); // World Tier nudges champion rarity the SAME way it nudges affixes (trivial reuse)
+  { const em=pactStatMul("eliteRate"); if(em!==1) rate=Math.min(1,rate*em); } // CAS-1763: Jauría nudges champion promotion the SAME way — threshold-only on the roll that already fires
   if(srand()>=rate) return e;                                       // one srand ONLY on the live champion path
   const others=pool.filter(id=>id!==firstId); if(!others.length) return e; // need a DISTINCT 2nd affix
   return applyChampion(e, firstId, others[ri(0,others.length-1)]);
@@ -1620,7 +1703,7 @@ let legRate=LEGENDARY.rate, forcedLeg=null;
 // sequence is byte-identical for a seed at ANY rate (the shared stream is provably untouched).
 function maybeLegendary(x, y, kindBias){
   if(forcedLeg){ const id=forcedLeg; forcedLeg=null; const inst=uniqInst(id); if(inst) dropGear(x, y, inst); return; }
-  const rate=legRate*(kindBias>0?kindBias:1);
+  const rate=legRate*(kindBias>0?kindBias:1)*pactRewardMul("drop"); // CAS-1763: heat lifts the unique-drop threshold (×1.0 at heat=0 ⇒ byte-identical); the legRng roll below already fires
   if(!(rate>0)) return;                                    // OFF / rate 0 → early out, no RNG at all
   if(legRng.srand()>=(rate<1?rate:1)) return;              // dedicated-stream gate — shared srand untouched
   const u=UNIQUES[Math.floor(legRng.srand()*UNIQUES.length)]; // dedicated-stream uniform pick
@@ -1636,7 +1719,7 @@ const SET_DROP_RATE=0.035;
 let setRate=SET_DROP_RATE, forcedSet=null;
 function maybeSetPiece(x, y, kindBias){
   if(forcedSet){ const id=forcedSet; forcedSet=null; const inst=setInst(id); if(inst) dropGear(x, y, inst); return; }
-  const rate=setRate*(kindBias>0?kindBias:1);
+  const rate=setRate*(kindBias>0?kindBias:1)*pactRewardMul("drop"); // CAS-1763: heat lifts the set-piece threshold (×1.0 at heat=0 ⇒ byte-identical); the setRng roll below already fires
   if(!(rate>0)) return;                                    // OFF / rate 0 → early out, no RNG at all
   if(setRng.srand()>=(rate<1?rate:1)) return;              // dedicated-stream gate — shared srand untouched
   const p=SET_PIECES[Math.floor(setRng.srand()*SET_PIECES.length)]; // dedicated-stream uniform pick
@@ -1665,7 +1748,7 @@ function maybeAddSockets(inst){
 function maybeSocketRune(x, y, kindBias){
   if(!SOCKETS.enabled) return;
   if(forcedRune){ const t=forcedRune; forcedRune=null; dropRune(x,y,t); return; }
-  const rate=runeRate*(kindBias>0?kindBias:1);
+  const rate=runeRate*(kindBias>0?kindBias:1)*pactRewardMul("drop"); // CAS-1763: heat lifts the rune-drop threshold (×1.0 at heat=0 ⇒ byte-identical); the runeRng roll below already fires
   if(!(rate>0)) return;                                    // OFF / rate 0 → early out, no RNG at all
   if(runeRng.srand()>=(rate<1?rate:1)) return;             // dedicated-stream gate — shared srand untouched
   const t=RUNE_ORDER[Math.floor(runeRng.srand()*RUNE_ORDER.length)]; // dedicated-stream uniform pick
@@ -1700,7 +1783,7 @@ function heroAttack(){
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
   else if(cfg.type==="nova"){ h.atkT=0; audio.sfx.rune();
     for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d<=cfg.range+e.tpl.size){ hitEnemy(e,dmg,Math.atan2(e.y-h.y,e.x-h.x)); } }
-    if(cfg.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+cfg.heal); floater(h.x,h.y-30,"+"+cfg.heal,"#5fd66a"); }
+    if(cfg.heal){ const hh=Math.round(pactHeal(cfg.heal)); h.hp=Math.min(heroMaxHp(h),h.hp+hh); floater(h.x,h.y-30,"+"+hh,"#5fd66a"); } // CAS-1763: Pacto Frágil cuts the heal (×1.0 at heat=0 ⇒ byte-identical)
     addFx("holynova",h.x,h.y,{r:cfg.range,life:0.5}); addFx("shockring",h.x,h.y,{r:cfg.range*0.8,life:0.4}); shakeAdd(6); }
   else { h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(2.6);
     addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.26}); }
@@ -1789,7 +1872,7 @@ function hitEnemy(e,dmg,ang){
     if(bb.burn>0)   applyStatus(e,"burn",  {dmg:Math.max(1,Math.round(dmg*bb.burn))});
     if(bb.poison>0) applyStatus(e,"poison",{dmg:Math.max(1,Math.round(dmg*bb.poison))});
     if(heroMeleeHit && bb.lifesteal>0){ const h=G.hero; const mhp=heroMaxHp(h);
-      if(h.hp<mhp){ const heal=Math.max(1,Math.round(dmg*bb.lifesteal)); h.hp=Math.min(mhp,h.hp+heal);
+      if(h.hp<mhp){ const heal=Math.max(1,Math.round(pactHeal(dmg*bb.lifesteal))); h.hp=Math.min(mhp,h.hp+heal); // CAS-1763: Pacto Frágil cuts lifesteal (×1.0 at heat=0 ⇒ byte-identical)
         floater(h.x,h.y-30,"+"+heal,"#ff5d8a",{small:true}); } }
   }
   // CAS-317: a rich-anim boss (dragon) plays a brief one-shot HURT flinch on a non-lethal
@@ -1853,7 +1936,7 @@ function killEnemy(e){
   // never becomes an infinite-sustain loop; haste rides the existing atkspd buff sink (which is
   // itself ATKSPD_TOTAL_CAP-capped at the swing formula). Deterministic (no RNG).
   { const h=G.hero, bb=h&&h.bb; if(h&&!h.dead&&!tpl.neutral&&bb&&(bb.onKillHeal>0||bb.onKillHaste>0)){
-      if(bb.onKillHeal>0){ const mhp=heroMaxHp(h); if(h.hp<mhp){ const heal=Math.max(1,Math.round(mhp*bb.onKillHeal));
+      if(bb.onKillHeal>0){ const mhp=heroMaxHp(h); if(h.hp<mhp){ const heal=Math.max(1,Math.round(pactHeal(mhp*bb.onKillHeal))); // CAS-1763: Pacto Frágil cuts on-kill heal (×1.0 at heat=0 ⇒ byte-identical)
         h.hp=Math.min(mhp,h.hp+heal); floater(h.x,h.y-30,"+"+heal,"#5fd66a",{small:true}); } }
       if(bb.onKillHaste>0){ h.atkspdBuffT=Math.max(h.atkspdBuffT,bb.onKillHaste); h.atkspdBuffAmt=Math.max(h.atkspdBuffAmt,35); } } }
   // CAS-388: Núcleo Detonante legendary — a real kill detonates a nova that damages nearby
@@ -1901,7 +1984,7 @@ function killEnemy(e){
     // mob rolls its gearChance as before (non-elites take the unchanged RNG path → baselines hold).
     if(e.elite){ onEliteKill(e, zone); }
     else if(e.champElite){ onChampElite(e, zone); } // CAS-1590: guaranteed superior loot + unique roll + banked Esencia (champion path only → RNG untouched at rate=0)
-    else if(srand()<(tpl.gearChance||0)){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
+    else if(srand()<((tpl.gearChance||0)*pactRewardMul("drop"))){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier; // CAS-1763: heat lifts the trash-gear threshold — the gate srand() already fires unconditionally (×1.0 at heat=0 ⇒ byte-identical)
       dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1])); }
     // CAS-1586: an AFFIXED trash kill also ticks the lifetime affix-kill counter (feeds the Esencia
     // tie-in via the run recap). Rides the SAME branch that already paid the affix xp/gold/gear, so
@@ -2349,10 +2432,10 @@ function resolveSpell(h,sp){
       const sd=spellDmg(h,sp);
       for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d<=sp.range+e.tpl.size){
         hitEnemy(e,sd,Math.atan2(e.y-h.y,e.x-h.x)); applySpellStatus(e,sp); } }
-      if(sp.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a"); }
+      if(sp.heal){ const hh=Math.round(pactHeal(sp.heal)); h.hp=Math.min(heroMaxHp(h),h.hp+hh); floater(h.x,h.y-30,"+"+hh,"#5fd66a"); } // CAS-1763: Pacto Frágil cuts the spell heal (×1.0 at heat=0 ⇒ byte-identical)
       addFx(sp.fx||"novacast",h.x,h.y,{r:sp.range,col:sp.col,style:sp.style,life:0.5}); addFx("shockring",h.x,h.y,{r:sp.range*0.85,life:0.4}); shakeAdd(6); break; }
-    case "heal":
-      h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-30,"+"+sp.heal,"#5fd66a");
+    case "heal": { const hh=Math.round(pactHeal(sp.heal)); // CAS-1763: Pacto Frágil cuts the heal (×1.0 at heat=0 ⇒ byte-identical)
+      h.hp=Math.min(heroMaxHp(h),h.hp+hh); floater(h.x,h.y-30,"+"+hh,"#5fd66a"); }
       addFx(sp.fx||"healburst",h.x,h.y,{col:sp.col,life:0.5}); for(let k=0;k<6;k++) addFx("heal",h.x+frr(-14,14),h.y+frr(-18,6)); break;
     case "hot":
       h.hotT=sp.dur; h.hotRate=sp.heal; floater(h.x,h.y-30,STR.spellRegen,sp.col||"#7bd44a");
@@ -2361,7 +2444,7 @@ function resolveSpell(h,sp){
       applyBuff(h,sp.stat,sp.amt,sp.dur); floater(h.x,h.y-30, sp.stat==="dmg"?STR.spellAtkUp:STR.spellDefUp, sp.col||"#ffd24d");
       // CAS-1659: a buff may ALSO carry an instant heal (Bastión ultimate = def buff + big heal).
       // Additive/optional — un-healed buffs (Égida/Furia have no sp.heal) are unchanged. No RNG.
-      if(sp.heal){ h.hp=Math.min(heroMaxHp(h),h.hp+sp.heal); floater(h.x,h.y-46,"+"+sp.heal,"#5fd66a"); }
+      if(sp.heal){ const hh=Math.round(pactHeal(sp.heal)); h.hp=Math.min(heroMaxHp(h),h.hp+hh); floater(h.x,h.y-46,"+"+hh,"#5fd66a"); } // CAS-1763: Pacto Frágil cuts the buff-heal (×1.0 at heat=0 ⇒ byte-identical)
       addFx(sp.fx||"buffaura",h.x,h.y,{col:sp.col,life:0.5}); break;
     case "dash": {
       const sd=spellDmg(h,sp);
@@ -2760,7 +2843,7 @@ export function buyItem(idx){ const h=G.hero; const it=shopItems()[idx]; if(!it)
   h.gold-=it.price; it.act(h); audio.sfx.buy(); toast(STR.bought(it.name)); }
 
 // --------------------- player commands (driven by input) ---------------
-export function doPotionHP(){ const h=G.hero; if(h.potHP>0&&h.hp<heroMaxHp(h)){ h.potHP--; h.hp=Math.min(heroMaxHp(h),h.hp+50); audio.sfx.heal(); floater(h.x,h.y-30,"+50","#5fd66a"); } }
+export function doPotionHP(){ const h=G.hero; if(h.potHP>0&&h.hp<heroMaxHp(h)){ h.potHP--; const hh=Math.round(pactHeal(50)); h.hp=Math.min(heroMaxHp(h),h.hp+hh); audio.sfx.heal(); floater(h.x,h.y-30,"+"+hh,"#5fd66a"); } } // CAS-1763: Pacto Frágil cuts the potion heal (×1.0 at heat=0 ⇒ byte-identical)
 export function doPotionMP(){ const h=G.hero; if(h.potMP>0&&h.mp<h.maxMp){ h.potMP--; h.mp=Math.min(h.maxMp,h.mp+30); audio.sfx.cast(); floater(h.x,h.y-30,"+30","#7fb8e6"); } }
 // CAS-192: the consumable in the selected slot. The shared cooldown (h.consumCD) gates
 // spam; every effect is deterministic (no RNG) and reads/writes only sim state so it is
@@ -2877,10 +2960,10 @@ export function update(dtMs){
   if(h.atkspdBuffT>0){ h.atkspdBuffT-=dt; if(h.atkspdBuffT<=0){ h.atkspdBuffT=0; h.atkspdBuffAmt=0; } }
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
-  if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+h.hotRate*dt); if(h.hotT<=0) h.hotRate=0; }
+  if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+pactHeal(h.hotRate*dt)); if(h.hotT<=0) h.hotRate=0; } // CAS-1763: Pacto Frágil cuts the HoT tick (×1.0 at heat=0 ⇒ byte-identical)
   // CAS-119: passive talent regeneration (regen build) — a slow always-on heal that
   // makes survivability builds observably outlast a glass build between fights.
-  if(h.tt&&h.tt.regen>0 && h.hp>0){ const mhp=heroMaxHp(h); if(h.hp<mhp) h.hp=Math.min(mhp,h.hp+h.tt.regen*dt); }
+  if(h.tt&&h.tt.regen>0 && h.hp>0){ const mhp=heroMaxHp(h); if(h.hp<mhp) h.hp=Math.min(mhp,h.hp+pactHeal(h.tt.regen*dt)); } // CAS-1763: Pacto Frágil cuts passive regen (×1.0 at heat=0 ⇒ byte-identical)
   // CAS-118: the hero SUFFERS statuses too — slow/stun timers wind down and DoTs tick.
   if(h.slowT>0) h.slowT-=dt; if(h.stun>0) h.stun-=dt;
   if(h.dots) tickDots(h,dt,true);
@@ -4436,6 +4519,43 @@ export const dev = {
     const unlocked=Object.keys(ensureTitles().unlocked).length;
     TITLES.enabled=savT; CODEX.enabled=savC;
     return { enabled:!!enabled, unlockedCount:unlocked, fingerprint:fp }; },
+  // --- CAS-1763 PACTOS DE PODER harness hooks (tools/cas1763-pacts.mjs); additive, drive the REAL paths ---
+  // Master toggle: flip PACTS.enabled. Mirror of codexEnable/titlesEnable. Effects are read live in the seam.
+  pactsEnable(on){ PACTS.enabled=!!on; return { enabled:PACTS.enabled }; },
+  // Wipe every ranked pact (own key) → heat 0. For the A/B baseline + a clean round-trip.
+  pactsReset(){ G.pacts=pactsDefault(); G.pactsDirty=false; return this.pactsState(); },
+  // Live snapshot: the full view model (every def + live rank + heat) plus the derived heat + reward muls.
+  pactsState(){ const s=pactsSnap(); return { enabled:PACTS.enabled, heat:s.heat, essMul:+s.essMul.toFixed(6), dropMul:+s.dropMul.toFixed(6),
+    items:s.items.map(i=>({ id:i.id, rank:i.rank, max:i.max, heat:i.heat, heatNow:i.heatNow })), active:s.active, total:s.total, dirty:!!G.pactsDirty }; },
+  // Set a pact's rank DIRECTLY through the REAL setPactRank (clamps [0,max]; rank 0 clears). Reports the state.
+  pactsSetRank(id, rank){ const ok=setPactRank(id, rank); return { ok, state:this.pactsState() }; },
+  // Advance a pact's rank by 1 through the REAL cyclePactRank (wraps past max→0) — the panel-tap path.
+  pactsCycle(id){ const ok=cyclePactRank(id); return { ok, state:this.pactsState() }; },
+  // AC1/persistence: serialize→load the pacts through the REAL persistence pair (mirror of codexPersist).
+  pactsPersist(){ const before=this.pactsState(); const blob=JSON.parse(JSON.stringify(serializePacts()));
+    G.pacts=pactsDefault(); const cleared=Object.keys(ensurePacts().ranks).length===0; loadPacts(blob);
+    return { blob, clearedFirst:cleared, before:{ items:before.items, heat:before.heat }, after:this.pactsState() }; },
+  // Read the derived enemy stat multipliers (proves a stat pact moves a REAL enemy stat via applyZoneScale).
+  // Spawns a throwaway mob OFF-SCREEN, scales it under the live pacts, and returns its resulting hp/dmg/spd.
+  pactMobScale(type, zone){ const e=applyZoneScale(spawnEnemy(type||"skeleton", -9999, -9999), zone||"forest");
+    const out=e?{ hp:e.maxHp, dmg:e.tpl.dmg, spd:e.tpl.spd }:null; if(e){ const i=G.enemies.indexOf(e); if(i>=0) G.enemies.splice(i,1); } return out; },
+  // Deterministic Esencia readout (drives AC2: heat scales essenceForRun). Fixed synthetic run recap → pure arithmetic.
+  pactEssence(lvl, elites){ const h=G.hero; if(!h) return null; const savLvl=h.lvl; h.lvl=lvl|0;
+    const e=essenceForRun(h, { elites:elites|0, affixKills:0, champElites:0 }); h.lvl=savLvl; return e; },
+  // AC-RNG-STRONG (iii): fingerprint the gameplay srand around a FIXED spawn/scale script with a STAT pact
+  // active vs OFF. A stat pact is PURE arithmetic in applyZoneScale (draws 0 srand), so the raw srand stream is
+  // BYTE-IDENTICAL ON==OFF while the scaled mob hp DIFFERS — RNG-neutral STRONG proven by construction. `ranks`
+  // is a {id:rank} map applied through the REAL setPactRank. probeN draws pre + post = 2*probeN total (48 at 24).
+  pactsSrandProbe(enabled, ranks, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savEn=PACTS.enabled; PACTS.enabled=!!enabled; G.pacts=pactsDefault();
+    if(ranks && enabled) for(const k in ranks) setPactRank(k, ranks[k]|0);
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                 // pre-segment
+    const e=applyZoneScale(spawnEnemy("skeleton", -9999, -9999), "frost");               // SCALE INJECTION (pact arithmetic, 0 srand)
+    const mobHp=e?e.maxHp:0; if(e){ const i=G.enemies.indexOf(e); if(i>=0) G.enemies.splice(i,1); }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                               // post-segment
+    const heat=pactHeat(); PACTS.enabled=savEn; G.pacts=pactsDefault();
+    return { enabled:!!enabled, heat, mobHp, fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

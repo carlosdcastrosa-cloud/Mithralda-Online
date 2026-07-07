@@ -115,6 +115,7 @@ export function createGame(canvas, ctx, getView){
   persist.bootArena();  // CAS-1664: rehydrate the Arena de Oleadas best wave from its OWN store (independent of any character)
   persist.bootCodex(); // CAS-1751: rehydrate the account-wide Códice de Botín ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile reads the live codex bonus (account-wide, independent of any character)
   persist.bootTitles(); // CAS-1758: rehydrate the account-wide Títulos de Gesta ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile caches the equipped title (account-wide, independent of any character)
+  persist.bootPacts(); // CAS-1763: rehydrate the Pactos de Poder (Power Pacts) preference from its OWN store (account-wide, independent of any character; effects derive live in the seam each run)
   persist.boot();
   persist.initFlush();
   // CAS-132: privacy-light retention/funnel analytics. boot() opens the anonymous
@@ -409,6 +410,11 @@ export function createGame(canvas, ctx, getView){
       titlesSrandProbe:(en,s,p)=>simDev.titlesSrandProbe(en,s,p),
       titlesBtns:()=>{ const t=topBtns(), s=sidebarBtns(); return { top:!!(t&&t.ttl), sidebar:!!(s&&s.ttl) }; }, // CAS-1758: prove the HUD affordance appears (enabled) / is absent (disabled)
       titlesHudName:()=>{ const s=hudSnapshot(); return { name:s.name||"", title:s.title||"", display: s.title ? (s.name+" · "+s.title) : (s.name||"") }; }, // CAS-1758: the HUD name line (name · title)
+      // CAS-1763 PACTOS DE PODER — dev probes consumed by tools/cas1763-pacts.mjs — additive, drive REAL paths
+      pactsEnable:(on)=>simDev.pactsEnable(on), pactsReset:()=>simDev.pactsReset(), pactsState:()=>simDev.pactsState(),
+      pactsSetRank:(id,r)=>simDev.pactsSetRank(id,r), pactsCycle:(id)=>simDev.pactsCycle(id), pactsPersist:()=>simDev.pactsPersist(),
+      pactMobScale:(t,z)=>simDev.pactMobScale(t,z), pactEssence:(l,e)=>simDev.pactEssence(l,e), pactsSrandProbe:(en,rk,s,p)=>simDev.pactsSrandProbe(en,rk,s,p),
+      pactsBtns:()=>{ const t=topBtns(), s=sidebarBtns(); return { top:!!(t&&t.pct), sidebar:!!(s&&s.pct) }; }, // CAS-1763: prove the ⚔ HUD affordance appears (enabled) / is absent (disabled)
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive
