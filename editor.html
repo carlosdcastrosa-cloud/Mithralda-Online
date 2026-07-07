@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mithralda — Editor de Mapas</title>
+<style>
+  :root{ --bg:#12141b; --panel:#1c202b; --panel2:#242a38; --ink:#e8e0d0; --mut:#8a8674; --accent:#c8a24a; --line:#3a4152; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; background:var(--bg); color:var(--ink);
+    font-family:system-ui,'Segoe UI',Roboto,monospace; -webkit-tap-highlight-color:transparent; user-select:none; }
+  #app{ display:grid; grid-template-rows:auto 1fr; grid-template-columns:224px 1fr; height:100%;
+    grid-template-areas:"top top" "side canvas"; }
+  #top{ grid-area:top; display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--panel);
+    border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  #top h1{ font-size:14px; margin:0 8px 0 0; color:var(--accent); letter-spacing:.5px; }
+  #top .sp{ flex:1; }
+  input,select,button{ font-family:inherit; }
+  button{ background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:5px;
+    padding:6px 10px; cursor:pointer; font-size:12px; }
+  button:hover{ border-color:var(--accent); }
+  button.primary{ background:var(--accent); color:#1a1206; border-color:var(--accent); font-weight:700; }
+  #nameF{ background:var(--panel2); border:1px solid var(--line); border-radius:5px; color:var(--ink);
+    padding:6px 8px; font-size:12px; width:180px; }
+  #side{ grid-area:side; background:var(--panel); border-right:1px solid var(--line); overflow-y:auto; padding:8px; }
+  #side h3{ font-size:11px; text-transform:uppercase; letter-spacing:.7px; color:var(--mut); margin:12px 0 6px; }
+  #side h3:first-child{ margin-top:2px; }
+  .tools,.palette{ display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  .tool,.sw{ padding:7px 6px; text-align:center; border:1px solid var(--line); border-radius:5px; background:var(--panel2);
+    cursor:pointer; font-size:11px; }
+  .tool.on,.sw.on{ border-color:var(--accent); background:#3a3320; color:#fff; box-shadow:0 0 0 1px var(--accent) inset; }
+  .sw{ display:flex; align-items:center; gap:6px; text-align:left; }
+  .chip{ width:14px; height:14px; border-radius:3px; border:1px solid #0006; flex:0 0 auto; }
+  #canvasWrap{ grid-area:canvas; position:relative; overflow:hidden; background:#0a0c11; }
+  #c{ position:absolute; left:0; top:0; image-rendering:pixelated; cursor:crosshair; }
+  #hint{ position:absolute; left:10px; bottom:10px; background:#000a; padding:6px 9px; border-radius:6px;
+    font-size:11px; color:var(--mut); max-width:60%; line-height:1.45; pointer-events:none; }
+  #status{ position:absolute; right:10px; top:8px; background:#000a; padding:5px 9px; border-radius:6px; font-size:11px; color:var(--mut); }
+  #help{ position:fixed; inset:0; background:#000c; display:none; align-items:center; justify-content:center; z-index:20; }
+  #help .box{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:22px 26px; max-width:520px; line-height:1.6; font-size:13px; }
+  #help h2{ color:var(--accent); margin-top:0; }
+  #help kbd{ background:var(--panel2); border:1px solid var(--line); border-radius:4px; padding:1px 6px; font-size:11px; }
+  .row{ display:flex; gap:6px; margin-bottom:6px; }
+  .row select{ flex:1; background:var(--panel2); color:var(--ink); border:1px solid var(--line); border-radius:5px; padding:6px; font-size:12px; }
+  small.mut{ color:var(--mut); font-size:10px; display:block; margin-top:4px; line-height:1.4; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <h1>◈ Editor de Mapas</h1>
+    <input id="nameF" placeholder="Nombre del mapa" value="Mi Mundo">
+    <button id="btnSeed">Nuevo (plantilla)</button>
+    <button id="btnBlank">Vacío</button>
+    <button id="btnExport">Exportar JSON</button>
+    <button id="btnImport">Importar JSON</button>
+    <input id="fileIn" type="file" accept="application/json" style="display:none">
+    <span class="sp"></span>
+    <button id="btnHelp">? Ayuda</button>
+    <button id="btnPlay" class="primary">▶ Jugar esta zona</button>
+  </div>
+
+  <div id="side">
+    <h3>Herramienta</h3>
+    <div class="tools" id="tools"></div>
+
+    <div id="terrainPal">
+      <h3>Terreno</h3>
+      <div class="palette" id="tiles"></div>
+    </div>
+
+    <div id="zonePal" style="display:none">
+      <h3>Zona (arrastra un rectángulo)</h3>
+      <div class="row"><select id="slotSel"></select></div>
+      <input id="zoneName" class="nameF" placeholder="Nombre de la zona"
+        style="width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:5px;color:var(--ink);padding:6px;font-size:12px">
+      <small class="mut">El <b>slot</b> decide el tier, jefe, botín y mobs — reusa el contenido del juego.</small>
+    </div>
+
+    <div id="npcPal" style="display:none">
+      <h3>NPC</h3>
+      <div class="palette" id="npcs"></div>
+    </div>
+
+    <div id="propPal" style="display:none">
+      <h3>Prop</h3>
+      <div class="palette" id="props"></div>
+    </div>
+
+    <h3>Mapa</h3>
+    <small class="mut" id="mapInfo"></small>
+    <div class="row" style="margin-top:8px">
+      <button id="btnSave" style="flex:1">Guardar</button>
+      <button id="btnLoad" style="flex:1">Cargar</button>
+    </div>
+    <small class="mut">Se guarda solo cada cambio. <b>Jugar</b> abre el juego con tu mapa.</small>
+  </div>
+
+  <div id="canvasWrap">
+    <canvas id="c"></canvas>
+    <div id="status">—</div>
+    <div id="hint"></div>
+  </div>
+</div>
+
+<div id="help"><div class="box">
+  <h2>Cómo usarlo en 2 minutos</h2>
+  <ol style="padding-left:18px;margin:8px 0">
+    <li><b>Terreno:</b> elige un color (Hierba, Adoquín, Agua…) y <b>pinta</b> arrastrando. <kbd>Relleno</kbd> pinta áreas cerradas.</li>
+    <li><b>Zonas:</b> con la herramienta <b>Zona</b>, elige un <i>slot</i> (Bosque, Ruinas, Cavernas…), escribe un nombre y <b>arrastra un rectángulo</b>. Ese slot le da tier, jefe, botín y enemigos automáticamente.</li>
+    <li><b>Entidades:</b> coloca <b>NPCs</b>, <b>cofres</b>, <b>fragmentos</b> y <b>props</b> (árboles, rocas) haciendo clic.</li>
+    <li><b>Borrar:</b> herramienta <b>Borrar</b> → clic sobre una entidad/zona para quitarla.</li>
+    <li><b>Mover/zoom:</b> arrastra con botón <b>derecho</b> (o <kbd>espacio</kbd>+arrastrar); rueda para zoom.</li>
+    <li><b>▶ Jugar esta zona:</b> guarda tu mapa y abre el juego jugándolo — round-trip real.</li>
+  </ol>
+  <div style="text-align:right"><button id="btnHelpClose" class="primary">¡Entendido!</button></div>
+</div></div>
+
+<script type="module" src="./editor.js"></script>
+</body>
+</html>

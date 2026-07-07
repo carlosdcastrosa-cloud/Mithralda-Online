@@ -18,6 +18,7 @@ import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, AB
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
+import { buildWorldFromMapDoc, readMapDoc } from "./mapdoc.js";
 import { ZONE_LOOT, gearStat, gearName, gearDef, gearCol, rarityRank, rollGearInst, equippedDmg, equippedDef, affixTotals, heroMaxHp, AFFIXES, weaponProcs, RARITY_ORDER, FORGE, forgeLevel, forgeNextCost, UNIQUES, uniqDef, uniqById, uniqInst, uniqName, uniqTotals, uniqEmpower, SETS, SET_ORDER, SET_PIECES, setPieceDef, setPieceById, setInst, setCounts, setTotals, RUNES, RUNE_ORDER, runeDef, runeName, safeSockets, socketTotals } from "./gear.js";
 import { TALENTS, talentNode, talentNodes, talentTotals, talentSpent, canAllocTalent, lockReason, sanitizeTalents, talentEmpower, talentPoison, zeroTT, CRIT_BASE } from "./talents.js";
 
@@ -95,7 +96,13 @@ const mobRng = createRNG(0x4d0b7e15);
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
 // determinism self-test drives buildWorld() directly, so it stays unaffected either way.
 const USE_CLASSIC = typeof location!=="undefined" && /[?&]world=classic/.test(location.search||"");
-const world = USE_CLASSIC ? buildWorld(rng) : buildTiledWorld(rng);
+// CAS-1702 — Visual Map Editor round-trip: when the URL carries ?map= the world is built from an
+// authored MapDoc (editor export / bundled seed) instead of the procedural/Tiled world. readMapDoc()
+// returns null without ?map, so the default path is UNTOUCHED and byte-identical; the loader draws
+// ZERO from `rng`, so even a loaded map leaves the srand fingerprint identical (additive, RNG-neutral).
+const MAPDOC = readMapDoc();
+const world = MAPDOC ? buildWorldFromMapDoc(MAPDOC, rng)
+                     : (USE_CLASSIC ? buildWorld(rng) : buildTiledWorld(rng));
 
 // CAS-397: spatial hash over world.solids. Making the wilderness trees/rocks solid pushes the
 // solid count from ~200 to ~1400; solidBlocked runs 2×/entity/frame, so the old O(n) linear scan
@@ -3410,6 +3417,16 @@ export const dev = {
     // CAS-317: any boss-flagged template (golem, dragon) spawns boss-ified + special armed,
     // matching spawnBoss(), so the QA harness can summon the dracónic boss directly.
     if(e&&e.tpl.boss){ e.isBoss=true; e.special=e.tpl.special||null; e.atkCount=0; e.specialNow=false; } return type; },
+  // CAS-1702: read-only Map-Editor probe for the QA gate (b5c10283). Proves the world was built
+  // from an authored MapDoc (?map=), reports its name/dims, the zone slots present with their rects,
+  // and the live zone under the hero — so QA can assert an EDITED zone actually loads + plays. Pure
+  // read (no sim mutation, no RNG). Absent/null fields when the default (procedural/Tiled) world runs.
+  mapInfo(){ const slots=["town","forest","caves","arena","ruins","abyss","frost","trial","swamp"];
+    const zones={}; for(const s of slots){ const r=world[s]; if(r && r.w>0) zones[s]={x:r.x,y:r.y,w:r.w,h:r.h,name:r.name||""}; }
+    return { fromMapDoc:!!world.fromMapDoc, name:world.mapName||null, w:MAP_W, h:MAP_H,
+      zones, spawners:world.spawners.map(s=>({zone:s.zone,types:s.types.slice()})),
+      heroZone: G.hero?zoneOf(world,G.hero.x,G.hero.y):null,
+      tcx:world.tcx, tcy:world.tcy }; },
   // CAS-317: read-only boss/corpse animation observer for the QA gate (b5c10283). Lets the
   // harness assert the dracónic boss actually cycles all 6 strip states (idle/walk/attack1/
   // attack2/hurt) in vivo and leaves a death corpse. Pure read — no sim mutation.
