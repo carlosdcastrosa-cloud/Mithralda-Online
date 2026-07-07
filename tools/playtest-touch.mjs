@@ -42,6 +42,17 @@ try {
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })); });
   await fr.waitForFunction("window.__dev.scene()==='classsel'", { timeout: 8000 });
   await fr.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true })));
+  // CAS-169 wardrobe (customize) + CAS-1570 ability draft (abilitysel) now sit between
+  // class selection and play. Pass through whichever the build routes into: confirm the
+  // wardrobe with Enter, then accept the pre-seeded default loadout with Enter.
+  await fr.waitForFunction("['customize','abilitysel','play'].includes(window.__dev.scene())", { timeout: 8000 });
+  if (await fr.evaluate(() => window.__dev.scene()) === "customize") {
+    await fr.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
+    await fr.waitForFunction("['abilitysel','play'].includes(window.__dev.scene())", { timeout: 8000 });
+  }
+  if (await fr.evaluate(() => window.__dev.scene()) === "abilitysel") {
+    await fr.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
+  }
   await fr.waitForFunction("window.__dev.scene()==='play'", { timeout: 8000 });
 
   // 1) flip isTouch with a real tap on the move (left) side of the screen
