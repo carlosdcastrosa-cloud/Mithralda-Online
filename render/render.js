@@ -387,6 +387,16 @@ export function createRenderer(ctx){
     ctx.restore();
   }
   function renderWorld(camX,camY,Z){
+    // CAS-1708: floor-tile SEAMS. The world is drawn inside ctx.scale(Z) (Z=1.55/1.7) × dpr(≤1.5),
+    // so the tile stride TS*Z*dpr is non-integer → adjacent floor tiles rasterize their shared edge
+    // to different device pixels, leaving a 1px grid ("cuadros") between tiles. imageSmoothing is
+    // already off (no texel bleed) and camera-snapping can't fix a non-integer stride, so we draw
+    // each GROUND tile 1 world-unit larger toward bottom-right (TSo). Draw order is ascending y,x,
+    // so the top-left neighbor (drawn first) underlaps the potential gap of the tile drawn on top of
+    // it → the seam pixel is always covered. Render-only, RNG-neutral, no save bump.
+    // CAS-1709 AC4: BLEED is the single kill-switch constant — BLEED=0 ⇒ TSo===TS ⇒ every
+    // ground drawImage/fill reverts to byte-identical pre-fix output (trivial A/B & rollback).
+    const BLEED=1, TSo=TS+BLEED;
     const x0=Math.max(0,Math.floor(camX/TS)-1), y0=Math.max(0,Math.floor(camY/TS)-1);
     const x1=Math.min(MAP_W-1,Math.ceil((camX+VW/Z)/TS)+1), y1=Math.min(MAP_H-1,Math.ceil((camY+VH/Z)/TS)+1);
     for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
@@ -395,7 +405,7 @@ export function createRenderer(ctx){
       if(world.tiledVisual && x<GROUND.W && y<GROUND.H){ const ga=IMG.tiled_ground;
         if(ga&&ga.complete&&ga.naturalWidth){ let gi=GROUND.grid[y*GROUND.W+x];
           if(gi>=GROUND.animStart) gi+=((G.t*8)|0)%GROUND.animFrames;   // CAS-463: agua animada
-          ctx.drawImage(ga,(gi%GROUND.cols)*TS,((gi/GROUND.cols)|0)*TS,TS,TS,px,py,TS,TS); continue; } }
+          ctx.drawImage(ga,(gi%GROUND.cols)*TS,((gi/GROUND.cols)|0)*TS,TS,TS,px,py,TSo,TSo); continue; } }
       if(world.wallSet && world.wallSet.has(y*MAP_W+x)){
         // CAS: the CENTRAL WALLED CITY rampart is re-skinned with real ERW Ancient Ruins wall
         // art — mossy sandstone crown (erw_wall_h) along the N/S runs + corners, stone-brick
@@ -409,7 +419,7 @@ export function createRenderer(ctx){
         if(wimg&&wimg.complete&&wimg.naturalWidth) ctx.drawImage(wimg,px,py,TS,TS); else { ctx.fillStyle="#2b313a"; ctx.fillRect(px,py,TS,TS); }
         continue; }
       if(t===T_STONE){ const r=hash2(x,y); const img = (r<0.10?IMG.cave_blood:(r<0.65?IMG.cave_floor:IMG.cave_floor2)); // CAS-217: flagstone-dominant + void + rare war-torn blood accent
-        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
       // CAS-224 (Art): Cripta Helada floor — was a flat bright-grey grid. Re-source the
@@ -417,10 +427,10 @@ export function createRenderer(ctx){
       // it cold: an UNEVEN near-black ambient (torch-pool falloff) + rime-blue tint so the
       // crypt reads frozen-and-dark, not bright. Rime cracks/glints carry icy zone identity.
       if(t===T_ICE){ const r=hash2(x,y); const img=(r<0.58?IMG.cave_floor:IMG.cave_floor2);
-        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
           const dk=(0.30+hash2(x*3,y*3)*0.24).toFixed(2);                 // 0.30–0.54 per-tile = torch falloff
-          ctx.fillStyle="rgba(8,16,28,"+dk+")"; ctx.fillRect(px,py,TS,TS); // near-black cold ambient
-          ctx.fillStyle="rgba(120,170,205,0.12)"; ctx.fillRect(px,py,TS,TS); // rime-blue chill tint
+          ctx.fillStyle="rgba(8,16,28,"+dk+")"; ctx.fillRect(px,py,TSo,TSo); // near-black cold ambient (match TSo so the seam-overlap strip is tinted too)
+          ctx.fillStyle="rgba(120,170,205,0.12)"; ctx.fillRect(px,py,TSo,TSo); // rime-blue chill tint
           if(hash2(x+5,y)<0.42){ ctx.strokeStyle="rgba(196,224,238,0.45)"; ctx.lineWidth=1; // frozen crack
             const ix=px+((hash2(x,y)*18)|0)+6, iy=py+((hash2(y,x)*18)|0)+6;
             ctx.beginPath(); ctx.moveTo(ix,iy); ctx.lineTo(ix+5,iy+4); ctx.lineTo(ix+3,iy+10); ctx.stroke(); }
@@ -438,19 +448,19 @@ export function createRenderer(ctx){
         const T=world.town, inTown=T&&x>=T.x&&x<T.x+T.w&&y>=T.y&&y<T.y+T.h;
         let img=inTown ? (hash2(x,y)<0.5?IMG.erw_flag:IMG.erw_flag2) : null;
         if(!(img&&img.complete&&img.naturalWidth)) img=(hash2(x,y)<0.5?IMG.ruins_floor:IMG.ruins_floor2);
-        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
       if(t===T_GRASS){ const img=(hash2(x,y)<0.5?IMG.ruins_grass:IMG.ruins_grass2);
-        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS); continue; } }
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo); continue; } }
       // CAS-441: Ciénaga de Bruma floor (CAS-439 teal marsh tiles). A LOW-frequency hash
       // (x>>1,y>>1) gates the water so pools clump into 2×2-ish ponds instead of lone
       // speckles; puddles + the two mud variants alternate per-tile. All walkable —
       // the marsh is shallow (wading), depth reads from the props, not collision.
       if(t===T_SWAMP){ const pool=hash2(x>>1,y>>1), r=hash2(x,y);
         const img=(pool<0.08?IMG.swamp_water:(r<0.12?IMG.swamp_puddle:(r<0.66?IMG.swamp_mud:IMG.swamp_mud2)));
-        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TS,TS); continue; } }
-      ctx.fillStyle=tileBase[t]; ctx.fillRect(px,py,TS,TS);
+        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo); continue; } }
+      ctx.fillStyle=tileBase[t]; ctx.fillRect(px,py,TSo,TSo);
       const hv=hash2(x,y);
       // texture flecks (deterministic)
       ctx.fillStyle = hv<0.5? tileDark[t]: tileLight[t];
