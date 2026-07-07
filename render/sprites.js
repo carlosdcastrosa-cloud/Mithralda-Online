@@ -533,6 +533,41 @@ export const ENEMY_STRIPS={
     hurt:    {key:"bogtyrant_hurt_strip",    fc:7,  fw:96, fh:96, tiles:3.6},
     death:   {key:"bogtyrant_death_strip",   fc:9,  fw:96, fh:96, tiles:3.6},
   },
+  // CAS-1706 (art CAS-1699 / board CAS-1692): the 3 CAVES mobs get their 8-dir base baked
+  // into single-row 64×64 FOUNTAINS strips (east-facing, flip for left, feet bottom-anchored
+  // per the cas356 union-bbox bake → no footPad; standard mob scale size*2.4, no `tiles`).
+  // Frame counts confirmed from the committed PNG dims (idle 4 / walk 6 / attack 9 / hurt 7 /
+  // death 9). `richAnim:true` on each ETPL row (sim/config.js) drives the extended states:
+  // attack1/hurt play ONE-SHOT (synced to e.animT), death plays on the presentation-only
+  // corpse. attack2 aliases the single attack strip so a champion/elite still shows the cast/
+  // swing frames. Crash-guard: these mobs KEEP their ENEMY_IMG cutout, so the richAnim path
+  // falls through to the single-frame cutout while a strip is still loading (render.js draw
+  // chain: resolveStrip → ENEMY_IMG → procedural). ashwraith/thornspitter = casters, ironback
+  // = brute — all reach e.state windup/strike so the generic richAnim resolver plays attack.
+  ashwraith:{
+    idle:    _s(4,"ashwraith_idle_strip"),
+    walk:    _s(6,"ashwraith_walk_strip"),
+    attack1: _s(9,"ashwraith_attack_strip"),
+    attack2: _s(9,"ashwraith_attack_strip"),
+    hurt:    _s(7,"ashwraith_hurt_strip"),
+    death:   _s(9,"ashwraith_death_strip"),
+  },
+  ironback:{
+    idle:    _s(4,"ironback_idle_strip"),
+    walk:    _s(6,"ironback_walk_strip"),
+    attack1: _s(9,"ironback_attack_strip"),
+    attack2: _s(9,"ironback_attack_strip"),
+    hurt:    _s(7,"ironback_hurt_strip"),
+    death:   _s(9,"ironback_death_strip"),
+  },
+  thornspitter:{
+    idle:    _s(4,"thornspitter_idle_strip"),
+    walk:    _s(6,"thornspitter_walk_strip"),
+    attack1: _s(9,"thornspitter_attack_strip"),
+    attack2: _s(9,"thornspitter_attack_strip"),
+    hurt:    _s(7,"thornspitter_hurt_strip"),
+    death:   _s(9,"thornspitter_death_strip"),
+  },
 };
 // Resolve the best available strip for a mob + animState.
 // Falls back to "walk" strip if the specific state is absent or not yet loaded.

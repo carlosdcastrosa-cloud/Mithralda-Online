@@ -1141,7 +1141,12 @@ export function createRenderer(ctx){
         drew=true;
       }
     }
-    if(!drew){
+    // CAS-1706 crash-guard: the richAnim CAVES mobs (ashwraith/ironback/thornspitter) have an
+    // ENEMY_IMG cutout but NO procedural SP blob (unlike quillback/wendigo/mudlurker). The draw
+    // chain above already covers them (resolveStrip → ENEMY_IMG); this `&& spr` keeps the last
+    // procedural fallback from dereferencing an undefined SP entry in the pathological window
+    // where BOTH the strip and the cutout are still loading. Existing mobs all have SP → no-op.
+    if(!drew && spr){
       const rows=spr.rows, pal=(e.hurtFlash>0)?whiten(spr.pal):spr.pal;
       // CAS-203: every procedural mob now breathes / walk-bobs so nothing renders frozen.
       // Render-time squash-stretch anchored at the FEET, driven by sim time G.t + a stable
