@@ -875,6 +875,25 @@ export const NEW_MOBS = { enabled:true, zone:"caves", types:["ashwraith","ironba
 // `bonus`: dmgPerUniq per discovered unique; hpPerSet per set piece; hpPerRune per rune type. Tunable.
 export const CODEX = { enabled:true, bonus:{ dmgPerUniq:2, hpPerSet:15, hpPerRune:10 } };
 
+// CAS-1758: TÍTULOS DE GESTA (Feat Titles). A PURE READ-SIDE cosmetic layer over milestones the player
+// ALREADY accumulates (Códice counts, Arena best waves, Ascensión level). Each `def` names a live source
+// counter (`src`) + a threshold (`n`); crossing it unlocks an account-wide, choosable title shown next to
+// the hero name. It draws NO RNG stream and writes NOTHING to combat/sim state (h.title is a derived,
+// cached string for the HUD only). `enabled:false` ⇒ no store I/O, no evaluation, no HUD/panel affordance,
+// and the srand/sim sequence + save.v1 serialization are BYTE-IDENTICAL to a build without the feature.
+// The table is FIXED config (YAGNI — not a generic rules engine); a new title is a 1-line entry here.
+export const TITLES = { enabled:true, defs:[
+  { id:"codex_uniq_5",   label:"Cazador de Leyendas",       src:"codex.uniq",         n:5  },
+  { id:"codex_uniq_15",  label:"Maestro de Reliquias",      src:"codex.uniq",         n:15 },
+  { id:"codex_set_3",    label:"Coleccionista",             src:"codex.set",          n:3  },
+  { id:"codex_rune_4",   label:"Rúnico",                    src:"codex.rune",         n:4  },
+  { id:"arena_wave_5",   label:"Superviviente de la Arena", src:"arena.bestWave",     n:5  },
+  { id:"arena_wave_10",  label:"Gladiador Eterno",          src:"arena.bestWave",     n:10 },
+  { id:"arena_boss_3",   label:"Verdugo de Coloso",         src:"arena.bestBossWave", n:3  },
+  { id:"asc_1",          label:"Ascendido",                 src:"meta.ascension",     n:1  },
+  { id:"asc_3",          label:"Conquistador de Ascensión", src:"meta.ascension",     n:3  },
+]};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -183,6 +183,12 @@ export const G = {
   // `codexDirty` is the one-shot flush flag persist.js consumes on each new discovery (durable without
   // waiting for the throttled autosave). When CODEX.enabled=false it is never mutated ⇒ 0 observable effect.
   codex:null, codexDirty:false,
+  // CAS-1758: account-wide TÍTULOS DE GESTA ledger — { v, unlocked{}, equipped }. null until persist.bootTitles()
+  // rehydrates it from its OWN store (mithralda.titles.v1 — never the run save). Derives PURELY from milestones
+  // already tracked (codex counts / arena bests / ascension); touches NO RNG and no combat state beyond the
+  // cached, derived h.title string read by the HUD. `titlesDirty` is the one-shot flush flag persist.js consumes
+  // on each new unlock / equip change. When TITLES.enabled=false it is never mutated ⇒ 0 observable effect.
+  titles:null, titlesDirty:false,
   // CAS-1664: Arena de Oleadas (Wave Survival) endgame MODE. `arenaMode` is the master gate —
   // false for every normal adventure, so no arena code runs and the sim/RNG is byte-identical to
   // a build without the mode. `pendingArena` is set by the menu "Arena de Oleadas" entry and
@@ -803,7 +809,9 @@ function tickArena(dt){ const A=G.arena, h=G.hero; if(!h) return;
 function arenaOnDeath(){ const A=G.arena;
   if(A.wave>A.best){ A.best=A.wave; G.arenaDirty=true; }
   // CAS-1675 — bank the run's highest boss wave as the new record if it beats the stored best.
-  if((A.runBestBossWave|0)>(A.bestBossWave|0)){ A.bestBossWave=A.runBestBossWave|0; G.arenaDirty=true; } }
+  if((A.runBestBossWave|0)>(A.bestBossWave|0)){ A.bestBossWave=A.runBestBossWave|0; G.arenaDirty=true; }
+  // CAS-1758: a new arena best (wave / boss-wave) can cross a title threshold — reevaluate + refresh HUD cache.
+  applyTitles(G.hero); }
 // Additive Arena persistence (mirror of serializeMeta/loadMeta): the sim owns the shape, persist.js
 // owns the localStorage medium + the arenaDirty flush. bestWave + bestBossWave (CAS-1675) are the
 // durable arena state. NOTE: the shape stays v:1 — bestBossWave is additive (absent ⇒ 0 on load).
@@ -860,6 +868,9 @@ function recordCodex(cat,id){ if(!CODEX.enabled || !id) return false;
                    : cat==="set"  ? "+"+CODEX.bonus.hpPerSet+" vida"
                    :                 "+"+CODEX.bonus.hpPerRune+" vida";
     floater(h.x, h.y-40, "¡Nuevo en el Códice! "+bonusTxt, C_GOLD, {pop:1.3, life:1.4}); }
+  // CAS-1758: a fresh codex discovery may cross a title threshold (codex.uniq/set/rune) — reevaluate
+  // + refresh the HUD cache. No-op when TITLES disabled; draws 0 RNG.
+  applyTitles(G.hero);
   return true; }
 // View model for renderCodex (pure read; render adds no logic). Each section lists EVERY content id
 // (discovered flag + name/glyph) so the panel draws discovered vs locked, plus the totals + live bonus.
@@ -875,6 +886,70 @@ export function codexSnap(){ const c=ensureCodex(); const b=codexBonus();
       { key:"rune", title:"Runas",     items:rune, found:n.rune, total:RUNE_ORDER.length },
     ] }; }
 // ================== end CAS-1751 Códice de Botín ==================
+
+// --------------------- CAS-1758: TÍTULOS DE GESTA (Feat Titles) ---------------------
+// A PURE READ-SIDE cosmetic layer that derives unlockable, choosable account titles from milestones the
+// player ALREADY accumulates. Mirrors the Códice ownership split exactly: the sim owns the SHAPE
+// (serializeTitles / loadTitles); persist.js owns the localStorage medium + the titlesDirty flush; the
+// store is its OWN key (mithralda.titles.v1) so save.v1 is untouched. It draws NO RNG and writes NOTHING
+// to combat/sim state beyond the derived, cached h.title (a HUD-only label). HARD-GATED behind
+// TITLES.enabled: false ⇒ evalTitles/applyTitles are no-ops, no store is read/written, h.title="" ⇒ the
+// srand sequence + save.v1 bytes are identical to a build without the feature (RNG-neutral by construction).
+function titlesDefault(){ return { v:1, unlocked:{}, equipped:null }; }
+function ensureTitles(){ if(!G.titles) G.titles=titlesDefault(); return G.titles; }
+export function serializeTitles(){ const t=ensureTitles();
+  // shallow-copy the unlocked set so the persisted blob never aliases live state
+  return { v:1, unlocked:Object.assign({},t.unlocked), equipped:t.equipped||null }; }
+export function loadTitles(d){ const def=titlesDefault();
+  if(d && typeof d==="object"){
+    // only accept KNOWN title ids (untrusted-blob guardrail like loadCodex): a tampered blob can't inject
+    // phantom titles or an equipped id that isn't a real def.
+    if(d.unlocked&&typeof d.unlocked==="object") for(const dd of TITLES.defs) if(d.unlocked[dd.id]) def.unlocked[dd.id]=1;
+    if(d.equipped && def.unlocked[d.equipped]) def.equipped=d.equipped; } // equipped must be a KNOWN + unlocked id
+  G.titles=def; return true; }
+// resolve a def's `src` string → its LIVE source counter (never baked — read fresh each eval).
+function titleSrcVal(src){ switch(src){
+    case "codex.uniq": return codexCounts().uniq;
+    case "codex.set":  return codexCounts().set;
+    case "codex.rune": return codexCounts().rune;
+    case "arena.bestWave":     return (G.arena&&G.arena.best)|0;
+    case "arena.bestBossWave": return (G.arena&&G.arena.bestBossWave)|0;
+    case "meta.ascension":     return ascLevel();
+    default: return 0; } }
+// Evaluate every def against its live source; INSERT (one-way) any id whose threshold is met. Idempotent
+// (an already-unlocked id is skipped), 0 RNG, no game effect. Marks the store dirty on a genuine new unlock.
+// No-op when disabled ⇒ ledger untouched.
+function evalTitles(){ if(!TITLES.enabled) return false;
+  const t=ensureTitles(); let changed=false;
+  for(const d of TITLES.defs){ if(t.unlocked[d.id]) continue; if(titleSrcVal(d.src)>=d.n){ t.unlocked[d.id]=1; changed=true; } }
+  if(changed) G.titlesDirty=true;
+  return changed; }
+// Cache the equipped title's label onto the hero for the HUD (h.title). Re-evaluates unlocks first so a
+// milestone crossed at this seam is reflected. Validates the equipped id against `unlocked` (a stale/removed
+// equip falls back to none). Derived, never baked — 0 when disabled.
+function applyTitles(h){ if(!h) return; if(!TITLES.enabled){ h.title=""; return; }
+  evalTitles(); const t=ensureTitles();
+  if(t.equipped && !t.unlocked[t.equipped]) t.equipped=null;   // equipped must validate against unlocked
+  const def = t.equipped ? TITLES.defs.find(d=>d.id===t.equipped) : null;
+  h.title = def ? def.label : ""; }
+// Player chooses the active title (tap on an unlocked entry in the panel). Equipping a locked/unknown id is
+// impossible (returns false). null clears the equip. Marks dirty + refreshes the HUD cache.
+export function equipTitle(id){ if(!TITLES.enabled) return false; const t=ensureTitles();
+  if(id==null){ if(t.equipped!==null){ t.equipped=null; G.titlesDirty=true; } applyTitles(G.hero); return true; }
+  if(!t.unlocked[id]) return false;                             // can't equip a title you haven't earned
+  if(t.equipped!==id){ t.equipped=id; G.titlesDirty=true; } applyTitles(G.hero); return true; }
+// human-readable condition text for the panel (e.g. "5 × Únicos del Códice"). Pure presentation.
+const TITLE_SRC_LABEL={ "codex.uniq":"Únicos del Códice", "codex.set":"Conjuntos del Códice", "codex.rune":"Runas del Códice",
+  "arena.bestWave":"oleada de Arena", "arena.bestBossWave":"oleada-jefe de Arena", "meta.ascension":"Ascensión" };
+function titleCondText(d){ return d.n+" × "+(TITLE_SRC_LABEL[d.src]||d.src); }
+// View model for renderTitles (PURE read; render adds no logic). Lists every def with unlocked/equipped flags
+// + condition text + the live progress (cur/n). Does NOT mutate — the seams keep unlocks current.
+export function titlesSnap(){ const t=ensureTitles();
+  const items=TITLES.defs.map(d=>({ id:d.id, label:d.label, cond:titleCondText(d), n:d.n, cur:titleSrcVal(d.src),
+    unlocked:!!t.unlocked[d.id], equipped:t.equipped===d.id }));
+  const unlocked=items.filter(i=>i.unlocked).length;
+  return { enabled:!!TITLES.enabled, equipped:t.equipped||null, items, unlocked, total:TITLES.defs.length }; }
+// ================== end CAS-1758 Títulos de Gesta ==================
 
 // --------------------- CAS-128: onboarding tutorial ---------------------
 // A pure, deterministic step machine layered ON TOP of the existing game (no balance
@@ -1099,6 +1174,9 @@ function reconcileMeta(h){ if(!h) return; ensureMeta();
   // CAS-1751: refresh the cached Códice bonus onto the hero at every run-start/load/respawn seam
   // (reconcileMeta is called from createHero, loadSave, and respawn). Derived, never baked — 0 when disabled.
   applyCodex(h);
+  // CAS-1758: cache the equipped Títulos de Gesta label onto the hero at the same run-start/load/respawn
+  // seams (after applyCodex). Derived, never baked — h.title="" when disabled ⇒ HUD byte-identical.
+  applyTitles(h);
 }
 // Re-apply the per-run REROLL charges from meta ON TOP of the freshly-reset budget. Called
 // ONLY at true run-start seams (createHero / respawn) AFTER rerollLeft is reset to its base,
@@ -1191,6 +1269,8 @@ export function ascendMeta(){ if(!altarFullMax()) return false;
   for(const n of META_NODES) m.nodes[n.key]=0;
   for(const n of META_T2)    m.nodes[n.key]=0;
   m.essence=0; m.ascension={ level:lvl, mult:ascMult(lvl) }; G.metaDirty=true;
+  // CAS-1758: an ascension can cross a title threshold (meta.ascension) — reevaluate + refresh HUD cache.
+  applyTitles(G.hero);
   return true; }
 // QA / dev hook (window.__metaReset): wipe the account meta back to zero (mirrors the run
 // resets). Also clears the hero's baked-in baseline so a live hero re-reconciles cleanly.
@@ -4312,6 +4392,50 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                    // post-segment
     const found=codexCounts().uniq; CODEX.enabled=savEn;
     return { enabled:!!enabled, uniqFound:found, fingerprint:fp }; },
+  // --- CAS-1758 TÍTULOS DE GESTA harness hooks (tools/cas1758-titles.mjs); additive, drive the REAL paths ---
+  // Master toggle: flip TITLES.enabled + refresh the cached hero title (""=none when off). Mirror of codexEnable.
+  titlesEnable(on){ TITLES.enabled=!!on; applyTitles(G.hero); return { enabled:TITLES.enabled }; },
+  // Wipe the ledger to empty (own key) + refresh the hero cache. For the A/B baseline + a clean round-trip.
+  titlesReset(){ G.titles=titlesDefault(); G.titlesDirty=false; applyTitles(G.hero); return this.titlesState(); },
+  // Live snapshot: the full view model (every def, unlocked/equipped/cur/n) + the hero's cached h.title so a
+  // test proves an unlock/equip moved a REAL string. Read-only.
+  titlesState(){ const h=G.hero; const snap=titlesSnap();
+    return { enabled:TITLES.enabled, equipped:snap.equipped, unlocked:snap.unlocked, total:snap.total,
+      items:snap.items.map(i=>({ id:i.id, unlocked:i.unlocked, equipped:i.equipped, cur:i.cur, n:i.n })),
+      hero: h ? { title:h.title||"" } : null, dirty:!!G.titlesDirty }; },
+  // Re-run the REAL evaluator (idempotent) + refresh the cache. Reports whether a NEW unlock landed.
+  titlesEval(){ const changed=evalTitles(); applyTitles(G.hero); return { changed, state:this.titlesState() }; },
+  // Equip through the REAL equipTitle (validates against unlocked). Reports success + resulting state.
+  titlesEquip(id){ const ok=equipTitle(id); return { ok, state:this.titlesState() }; },
+  // Seed a codex count DIRECTLY (0 RNG) then eval — drives AC3 threshold-crossing without a live drop.
+  // `cat`=uniq|set|rune, `n`=how many distinct ids to mark discovered (capped at the content total).
+  titlesSeedCodex(cat,n){ const c=ensureCodex(); const set=c[cat]; if(!set) return null;
+    const pool = cat==="uniq"?UNIQUES.map(u=>u.id) : cat==="set"?SET_PIECES.map(p=>p.id) : RUNE_ORDER.slice();
+    for(let i=0;i<Math.min(n|0,pool.length);i++) set[pool[i]]=1;
+    applyTitles(G.hero); return { count:Object.keys(set).length, state:this.titlesState() }; },
+  // Seed the arena bests / ascension level DIRECTLY (0 RNG) then eval — drives AC3 for the non-codex sources.
+  titlesSeedArena(bestWave,bestBossWave){ if(!G.arena) return null;
+    if(bestWave!=null) G.arena.best=bestWave|0; if(bestBossWave!=null) G.arena.bestBossWave=bestBossWave|0;
+    applyTitles(G.hero); return { best:G.arena.best, bestBossWave:G.arena.bestBossWave, state:this.titlesState() }; },
+  titlesSeedAscension(lvl){ const m=ensureMeta(); m.ascension={ level:Math.max(0,lvl|0), mult:ascMult(Math.max(0,lvl|0)) };
+    applyTitles(G.hero); return { ascension:ascLevel(), state:this.titlesState() }; },
+  // AC1/persistence: serialize→load the ledger through the REAL persistence pair (mirror of codexPersist).
+  titlesPersist(){ const before=this.titlesState(); const blob=JSON.parse(JSON.stringify(serializeTitles()));
+    G.titles=titlesDefault(); const cleared=Object.keys(ensureTitles().unlocked).length===0; loadTitles(blob); applyTitles(G.hero);
+    return { blob, clearedFirst:cleared, before:{ items:before.items, equipped:before.equipped }, after:this.titlesState() }; },
+  // AC5 [AC-RNG-STRONG]: fingerprint gameplay-srand around a title UNLOCK with the feature ON vs OFF. The
+  // unlock path (seed codex counts + evalTitles) draws ZERO srand, so the fingerprint is BYTE-IDENTICAL either
+  // way, while ON records the unlock (unlockedCount>0) and OFF records none — RNG-neutral by construction.
+  titlesSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savT=TITLES.enabled, savC=CODEX.enabled; TITLES.enabled=!!enabled; CODEX.enabled=true;
+    G.titles=titlesDefault(); const c=ensureCodex(); c.uniq={}; for(const u of UNIQUES.slice(0,5)) c.uniq[u.id]=1; // 5 uniques ⇒ codex_uniq_5 eligible (no RNG)
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    evalTitles(); applyTitles(G.hero);                                     // UNLOCK INJECTION (no srand)
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                // post-segment
+    const unlocked=Object.keys(ensureTitles().unlocked).length;
+    TITLES.enabled=savT; CODEX.enabled=savC;
+    return { enabled:!!enabled, unlockedCount:unlocked, fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

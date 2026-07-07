@@ -114,6 +114,7 @@ export function createGame(canvas, ctx, getView){
   persist.bootMeta();
   persist.bootArena();  // CAS-1664: rehydrate the Arena de Oleadas best wave from its OWN store (independent of any character)
   persist.bootCodex(); // CAS-1751: rehydrate the account-wide Códice de Botín ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile reads the live codex bonus (account-wide, independent of any character)
+  persist.bootTitles(); // CAS-1758: rehydrate the account-wide Títulos de Gesta ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile caches the equipped title (account-wide, independent of any character)
   persist.boot();
   persist.initFlush();
   // CAS-132: privacy-light retention/funnel analytics. boot() opens the anonymous
@@ -147,6 +148,8 @@ export function createGame(canvas, ctx, getView){
     const h=G.hero; if(!h) return Object.assign({ scene:G.scene, zone:G.zone||G.scene }, a11y);
     return Object.assign({
       scene:G.scene, zone:G.zone||G.scene, name:h.name, cls:h.cls, lvl:h.lvl|0, gold:h.gold|0,
+      // CAS-1758: equipped Título de Gesta (derived h.title). Empty/absent ⇒ HUD shows just the name (aditivo).
+      title:h.title||"",
       hp:h.hp, maxHp:h.maxHp, mp:h.mp, maxMp:h.maxMp, xp:h.xp, xpNext:h.xpNext,
       // CAS-297: rarity is a STRING key ("common"/"uncommon"/"rare"/"epic") in the sim, but the
       // HUD's colour-blind shape-cue (hud.js cue()) keys off a NUMERIC rank. Resolve it here via
@@ -399,6 +402,13 @@ export function createGame(canvas, ctx, getView){
       codexRecord:(cat,id)=>simDev.codexRecord(cat,id), codexPickup:(cat,id)=>simDev.codexPickup(cat,id),
       codexPersist:()=>simDev.codexPersist(), codexSrandProbe:(en,s,p)=>simDev.codexSrandProbe(en,s,p),
       codexBtns:()=>{ const t=topBtns(), s=sidebarBtns(); return { top:!!(t&&t.cdx), sidebar:!!(s&&s.cdx) }; }, // CAS-1751: prove the HUD affordance appears (enabled) / is absent (disabled)
+      // CAS-1758 TÍTULOS DE GESTA — dev probes consumed by tools/cas1758-titles.mjs — additive, drive REAL paths
+      titlesEnable:(on)=>simDev.titlesEnable(on), titlesReset:()=>simDev.titlesReset(), titlesState:()=>simDev.titlesState(),
+      titlesEval:()=>simDev.titlesEval(), titlesEquip:(id)=>simDev.titlesEquip(id), titlesPersist:()=>simDev.titlesPersist(),
+      titlesSeedCodex:(cat,n)=>simDev.titlesSeedCodex(cat,n), titlesSeedArena:(w,b)=>simDev.titlesSeedArena(w,b), titlesSeedAscension:(l)=>simDev.titlesSeedAscension(l),
+      titlesSrandProbe:(en,s,p)=>simDev.titlesSrandProbe(en,s,p),
+      titlesBtns:()=>{ const t=topBtns(), s=sidebarBtns(); return { top:!!(t&&t.ttl), sidebar:!!(s&&s.ttl) }; }, // CAS-1758: prove the HUD affordance appears (enabled) / is absent (disabled)
+      titlesHudName:()=>{ const s=hudSnapshot(); return { name:s.name||"", title:s.title||"", display: s.title ? (s.name+" · "+s.title) : (s.name||"") }; }, // CAS-1758: the HUD name line (name · title)
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive
