@@ -1015,6 +1015,24 @@ export const FRENZY = {
   perStack:{ atkspd:4, dmgPct:3 },  // por stack: +4 atk-speed (aditivo, entra al ATKSPD_TOTAL_CAP) y +3% daño
 };
 
+// CAS-1785 — Parada con Tempo (timing parry). Pulsar la tecla de parada (KeyH) arma una ventana
+// estrecha (`windowMs`); recibir un golpe CUERPO-A-CUERPO dentro de ella lo niega por completo y
+// dispara un contraataque (daño + empuje) al atacante, más un buff de 1 golpe (`riposteMul`).
+// Melee-only NATURAL: los proyectiles pasan `src=null` a damageHero ⇒ nunca parables. HARD-GATED
+// tras `enabled`: false ⇒ 0 lectura de input de parada, 0 estado nuevo en el héroe, 0 ramas nuevas
+// ⇒ sim + save.v1 byte-idénticos. Timing PURO: CERO draws de RNG incluso con enabled:true (la parada
+// no abre stream nuevo; el contra rutea por hitEnemy y sólo consume srand si el build tiene crit —
+// igual que cualquier golpe — pero eso es una ACCIÓN del jugador, no lo añade el flag). Run-state
+// transitorio (mirror `atkspdBuff`/`frenzyT`): NO se serializa.
+export const PARRY = {
+  enabled:true,
+  windowMs:150,     // ventana activa tras pulsar (spec 120–180ms; 150 = punto medio)
+  cooldownS:0.55,   // cooldown tras cualquier pulsación (anti-spam; fuera de ventana = whiff)
+  counterDmg:26,    // daño del contraataque al atacante melee parado (ruteado por hitEnemy ⇒ crit/procs)
+  knockback:230,    // empuje aplicado al atacante parado
+  riposteMul:1.5,   // buff de 1 golpe: el PRÓXIMO hitEnemy del héroe ×este mult (consumible, transitorio)
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

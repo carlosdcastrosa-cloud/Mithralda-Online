@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -283,6 +283,11 @@ function newHero(name,cls){
     // heroAtkspd (additive atk-speed) + hitEnemy (dmg mul). NO RNG (100% derived from kill
     // timing). Transient — never serialized (a fresh boot / new run starts at 0).
     frenzyStacks:0, frenzyT:0, _frenzyDecayT:0,
+    // CAS-1785: PARADA CON TEMPO (timing parry). Same transient pattern as atkspdBuffT/frenzyT —
+    // parryT = active parry window (s) armed by tryParry, parryCD = anti-spam cooldown (s),
+    // _parryRiposte = consumable 1-hit counter-buff. NO RNG. Transient — never serialized (a fresh
+    // boot / new run / load starts at 0 ⇒ save.v1 byte-identical with the feature on or off).
+    parryT:0, parryCD:0, _parryRiposte:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -1830,6 +1835,25 @@ function tickFrenzy(h,dt){ if(!FRENZY.enabled||!h||h.frenzyStacks<=0) return;
   if(h.frenzyStacks<=0) h._frenzyDecayT=0;
 }
 
+// CAS-1785: PARADA CON TEMPO tick — single source of truth (called from update(dt) and the harness
+// step hook). Winds down the active parry window and the anti-spam cooldown. Pure arithmetic, 0 RNG,
+// gated on PARRY.enabled ⇒ when off these fields stay 0 (byte-identical). Mirror of tickFrenzy.
+function tickParry(h,dt){ if(!PARRY.enabled||!h) return;
+  if(h.parryT>0) h.parryT=Math.max(0,h.parryT-dt);
+  if(h.parryCD>0) h.parryCD=Math.max(0,h.parryCD-dt);
+}
+
+// CAS-1785: arm the parry window. Dedicated KeyH (input.js) → this export, mirroring how KeyK/KeyY/KeyL
+// call read-side actions outside the rebindable `binds` table. Gated on PARRY.enabled + play scene +
+// alive + off-cooldown. Arms parryT (active window) and parryCD (whiff cooldown), plus a subtle $0
+// windup glint. In cooldown ⇒ whiff (no effect). CERO RNG (timing only). Idempotent-safe re-press.
+export function tryParry(){ const h=G.hero;
+  if(!PARRY.enabled || G.scene!=="play" || !h || h.dead || h.parryCD>0) return false;
+  h.parryT=PARRY.windowMs/1000; h.parryCD=PARRY.cooldownS;
+  addFx("dodgering",h.x,h.y,{life:0.20}); audio.sfx.roll();
+  return true;
+}
+
 // ------------------------------ combat ---------------------------------
 function heroAttack(){
   const h=G.hero; if(h.atkCD>0||h.rolling||h.stun>0) return; // CAS-118: stun gates the swing
@@ -1909,6 +1933,11 @@ function hitEnemy(e,dmg,ang,opt){
   // CAS-1773: Frenesí — +perStack.dmgPct% damage per active stack. Deterministic multiply, consumes
   // NO srand, so 0 stacks (or disabled) → ×1 → byte-identical hit sequence. The one dmg choke.
   if(FRENZY.enabled && G.hero && G.hero.frenzyStacks>0) dmg*=(1+G.hero.frenzyStacks*FRENZY.perStack.dmgPct/100);
+  // CAS-1785: PARADA CON TEMPO riposte — a successful parry arms a consumable 1-hit buff; the NEXT hero
+  // hit lands ×riposteMul, then it's spent. Deterministic multiply, consumes NO srand ⇒ no riposte (or
+  // disabled) → ×1 → byte-identical. The counter hit itself sets the buff AFTER its own hitEnemy, so the
+  // counter is not self-boosted; the player's follow-up swing is.
+  if(PARRY.enabled && G.hero && G.hero._parryRiposte>0){ dmg*=PARRY.riposteMul; G.hero._parryRiposte=0; }
   // Crit chance = talents + the "Instinto Asesino" milestone (mk.crit). RNG is consumed only
   // when the combined chance is >0, so a fresh hero (no talents, no milestones) stays byte-
   // identical for the determinism baseline.
@@ -3071,6 +3100,7 @@ export function update(dtMs){
   // applying the moment the timer expires) and each per-consumable cooldown ticks.
   if(h.atkspdBuffT>0){ h.atkspdBuffT-=dt; if(h.atkspdBuffT<=0){ h.atkspdBuffT=0; h.atkspdBuffAmt=0; } }
   tickFrenzy(h,dt); // CAS-1773: window wind-down + gradual stack decay (arithmetic, no RNG, gated)
+  tickParry(h,dt);  // CAS-1785: parry window + cooldown wind-down (arithmetic, no RNG, gated on PARRY.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+pactHeal(h.hotRate*dt)); if(h.hotT<=0) h.hotRate=0; } // CAS-1763: Pacto Frágil cuts the HoT tick (×1.0 at heat=0 ⇒ byte-identical)
@@ -3697,6 +3727,22 @@ function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0
   floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.36});
   addFx("shockring",h.x,h.y,{r:30,life:0.34}); audio.sfx.roll(); }
 function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
+  // CAS-1785: PARADA CON TEMPO. A live parry window (armed by tryParry) that catches a CONTACT
+  // (melee) strike negates it entirely and fires a short counter. `src` is present ONLY for contact
+  // hits — projectiles pass null (see thorns/reflect below) — so the parry is melee-only WITHOUT any
+  // extra logic, matching "golpe cuerpo-a-cuerpo". Gated + timing-pure: consumes NO srand (the counter
+  // routes through hitEnemy, which rolls crit only if the build has crit — same as any hero hit).
+  if(PARRY.enabled && src && src.hp>0 && !src.dead && h.parryT>0){
+    h.parryT=0;                                    // consume the window
+    h.iframe=Math.max(h.iframe,0.18);              // brief reward i-frame (0 status: infl ignored)
+    const ra=Math.atan2(src.y-h.y,src.x-h.x);
+    hitEnemy(src, PARRY.counterDmg, ra);           // counter — crit/procs/kill route normally
+    src.vx=(src.vx||0)+Math.cos(ra)*PARRY.knockback; src.vy=(src.vy||0)+Math.sin(ra)*PARRY.knockback;
+    h._parryRiposte=1;                             // arm the 1-hit riposte buff (consumed by next hitEnemy)
+    addFx("dodgering",h.x,h.y,{life:0.34}); addFx("spark",src.x,src.y);
+    floater(h.x,h.y-38,STR.parry||"¡Parada!","#ffe27a"); shakeAdd(7); freeze(6); audio.sfx.roll();
+    return false;                                  // hit COMPLETELY negated
+  }
   if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return false; } // only an active roll earns the dodge, not mercy i-frames
   // CAS-119: a dodge build (esquiva) can fully negate a connecting telegraphed strike
   // on a srand roll — reading the tell still beats it for free, this rewards investing
@@ -4795,6 +4841,76 @@ export const dev = {
     const ok=loadSave(JSON.parse(hotStr)); const h2=G.hero;
     return { byteId:cleanStr===hotStr, hasKey:/"_?frenzy[a-z]*":/i.test(hotStr), afterLoadStacks:h2.frenzyStacks|0,
       cleanLen:cleanStr.length, hotLen:hotStr.length }; },
+  // --- CAS-1785 PARADA CON TEMPO harness hooks (tools/cas1785-parry.mjs); additive, drive the REAL paths ---
+  parryMeta(){ return { enabled:PARRY.enabled, windowMs:PARRY.windowMs, cooldownS:PARRY.cooldownS,
+    counterDmg:PARRY.counterDmg, knockback:PARRY.knockback, riposteMul:PARRY.riposteMul }; },
+  parryEnabled(){ return PARRY.enabled; },
+  parryEnable(on){ PARRY.enabled=!!on; return { enabled:PARRY.enabled }; },
+  // Zero the transient parry run-state (mirror a fresh newHero) + clear iframe/rolling so damage probes
+  // hit the intended branch, not a stale mercy i-frame.
+  parryReset(){ const h=G.hero; if(!h) return null; h.parryT=0; h.parryCD=0; h._parryRiposte=0; h.iframe=0; h.rolling=false; return this.parryState(); },
+  parryState(){ const h=G.hero; if(!h) return null;
+    return { enabled:PARRY.enabled, parryT:+((h.parryT||0).toFixed(4)), parryCD:+((h.parryCD||0).toFixed(4)), riposte:h._parryRiposte|0 }; },
+  // Equivalent to sim.tryParry() — arms the window if the cooldown allows.
+  parryPress(){ return tryParry(); },
+  // Advance ONLY the parry timers by dt through the SAME tickParry the game loop uses.
+  parryStep(dt){ const h=G.hero; if(!h) return null; tickParry(h,+dt||0); return this.parryState(); },
+  // Drive a REAL melee hit (src = adjacent enemy) through damageHero. When `arm` the window is armed
+  // first (inside ⇒ negate+counter); otherwise it's a normal hit (out-of-window no-op). Returns whether
+  // the hit was negated, the counter damage dealt to the attacker, the hero HP delta, and post-state.
+  parryMeleeProbe(arm){ const h=G.hero; if(!h) return null;
+    this.parryReset(); h.hp=h.maxHp; G.enemies.length=0;
+    const e=spawnEnemy("skeleton", h.x+30, h.y); if(!e) return null; e.hp=500; e.maxHp=500;
+    if(arm){ h.parryT=PARRY.windowMs/1000; }
+    const eHp0=e.hp, hHp0=h.hp; const ang=Math.atan2(h.y-e.y,h.x-e.x);
+    const ret=damageHero(40, ang, null, e);
+    const out={ negated:ret===false, enemyDmg:Math.round(eHp0-e.hp), heroDmg:Math.round(hHp0-h.hp),
+      parryTAfter:+((h.parryT||0).toFixed(4)), riposteAfter:h._parryRiposte|0, knockApplied:!!(e.vx||e.vy) };
+    G.enemies.length=0; return out; },
+  // Drive a REAL RANGED hit (src=null) through damageHero with the window armed — must NOT be parried
+  // (parry is melee-only: null src can't be caught). Returns negated + hero HP delta + window intact.
+  parryRangedProbe(){ const h=G.hero; if(!h) return null;
+    this.parryReset(); h.hp=h.maxHp; h.parryT=PARRY.windowMs/1000;
+    const hHp0=h.hp; const ret=damageHero(40, 0, null, null);
+    return { negated:ret===false, heroDmg:Math.round(hHp0-h.hp), parryTAfter:+((h.parryT||0).toFixed(4)) }; },
+  // AC-riposte: prove the 1-hit riposte buff multiplies the NEXT hero hit by riposteMul, then is spent.
+  // Fresh warrior (no crit) ⇒ hitEnemy consumes 0 srand, so the ratio is exact/deterministic.
+  parryRiposteProbe(){ const h=G.hero; if(!h) return null;
+    this.parryReset(); G.enemies.length=0; const e=spawnEnemy("skeleton", h.x+40, h.y); if(!e) return null;
+    e.hp=1e7; e.maxHp=1e7; const b0=e.hp; hitEnemy(e,100,0); const base=b0-e.hp;      // no riposte
+    h._parryRiposte=1; const b1=e.hp; hitEnemy(e,100,0); const boosted=b1-e.hp;        // riposte armed
+    const riposteAfter=h._parryRiposte|0;
+    const b2=e.hp; hitEnemy(e,100,0); const after=b2-e.hp;                             // spent ⇒ back to base
+    G.enemies.length=0;
+    return { base:Math.round(base), boosted:Math.round(boosted), after:Math.round(after),
+      ratio:+(boosted/base).toFixed(4), riposteAfter, mul:PARRY.riposteMul }; },
+  // AC-RNG-STRONG: fingerprint the gameplay srand around a run of REAL kills (drop RNG) with PARRY ON vs
+  // OFF, FIRING a real parry-negation (+counter) in the middle. The parry opens NO stream and the counter
+  // (fresh hero, no crit) consumes 0 srand, so the fingerprint is BYTE-IDENTICAL ON==OFF. 2*probeN draws.
+  parrySrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const sav=PARRY.enabled; PARRY.enabled=!!enabled; const h=G.hero;
+    if(h){ h.parryT=0; h.parryCD=0; h._parryRiposte=0; h.iframe=0; h.rolling=false; h.dead=false; if(h.hp<=0) h.hp=h.maxHp; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    // fire a REAL parry-negation: arm the window, take a melee hit from an adjacent enemy
+    G.enemies.length=0; const pe=spawnEnemy("skeleton",(h?h.x:0)+30,(h?h.y:0)); let parried=false;
+    if(pe && h){ pe.hp=500; pe.maxHp=500; h.parryT=PARRY.windowMs/1000;
+      parried=(damageHero(40,Math.atan2(h.y-pe.y,h.x-pe.x),null,pe)===false); }
+    G.enemies.length=0;
+    let kills=0; for(let i=0;i<6;i++){ const e=spawnEnemy("skeleton",(h?h.x:0)+40+i,(h?h.y:0)); if(e){ e.hp=0; killEnemy(e); kills++; } }
+    G.enemies.length=0;
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    PARRY.enabled=sav;
+    return { enabled:!!enabled, parried:(enabled?parried:false), kills, fingerprint:fp }; },
+  // AC-SAVE: the parry run-state is NOT persisted. Serialize with hot parry fields vs a clean state:
+  // bytes MUST match and NO parry key may appear; then loadSave → fields rehydrate at 0 (reset per run).
+  parrySaveByteId(){ const h=G.hero; if(!h) return null;
+    h.parryT=0; h.parryCD=0; h._parryRiposte=0; const cleanStr=JSON.stringify(serializeSave());
+    h.parryT=0.15; h.parryCD=0.55; h._parryRiposte=1; const hotStr=JSON.stringify(serializeSave());
+    const ok2=loadSave(JSON.parse(hotStr)); const h2=G.hero;
+    return { byteId:cleanStr===hotStr, hasKey:/"_?parry[a-z]*":/i.test(hotStr),
+      afterLoad:{ parryT:h2.parryT|0, parryCD:h2.parryCD|0, riposte:h2._parryRiposte|0 },
+      cleanLen:cleanStr.length, hotLen:hotStr.length, loaded:!!ok2 }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

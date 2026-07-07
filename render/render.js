@@ -702,6 +702,18 @@ export function createRenderer(ctx){
         ctx.restore();
       }
     }
+    // CAS-1785: PARADA CON TEMPO — a subtle golden glint ring around the hero while the parry window is
+    // LIVE (h.parryT>0), so the read is legible ($0 art, procedural). Additive-lit, gated on !reduceMotion;
+    // derived only from parryT (no RNG, no sim mutation) → Stage-2 safe. Absent when the feature is off
+    // (parryT stays 0) or the window has lapsed.
+    if(h.parryT>0 && !h.dead && !G.settings.reduceMotion){
+      const a=clamp(h.parryT/0.15,0,1);             // 1→0 across the window (brightest at the read)
+      ctx.save(); ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=0.5*a+0.2;
+      ctx.strokeStyle="#ffe27a"; ctx.lineWidth=2; ctx.beginPath();
+      ctx.arc(h.x,h.y+2,15+3*(1-a),0,6.28); ctx.stroke();
+      ctx.globalAlpha=0.28*a; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(h.x,h.y+2,15+3*(1-a),0,6.28); ctx.stroke();
+      ctx.restore();
+    }
     if(h.iframe>0 && !h.dead && Math.floor(G.t*20)%2===0) ctx.globalAlpha=0.45;
     const flip=Math.cos(ang)<0, tint=h.hurtFlash>0?"#ffffff":null;
     const bob=(state==="idle")?Math.sin(G.t*2)*1.2:0;   // gentle idle breathing only
