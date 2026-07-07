@@ -209,6 +209,7 @@ export function createGame(canvas, ctx, getView){
       // harness can watch the richAnim strip states cycle in vivo — tools/cas442-swamp-mobs.mjs
       enemies:()=>G.enemies.map(e=>({x:Math.round(e.x),y:Math.round(e.y),type:e.type,
         animState:e.animState||null,arch:e.tpl.arch||null,champion:!!e.champion,specialNow:!!e.specialNow})),
+      mapInfo:()=>simDev.mapInfo(), // CAS-1702: read-only Map-Editor / MapDoc load probe for QA
       bossAnim:()=>simDev.bossAnim(), // CAS-317: dracónic boss 6-anim QA observer
       hitBoss:(n)=>simDev.hitBoss(n), // CAS-317: deterministic hurt/death driver for QA
 
