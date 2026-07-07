@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -99,6 +99,13 @@ const mobRng = createRNG(0x4d0b7e15);
 // at ANY setting the shared srand is provably untouched. Like the other dedicated streams, seed() does NOT
 // reset it — the harness neutralises via WEAPON_AFFIXES.enabled=false (which draws ZERO from any stream).
 const affixRng = createRNG(0x0a771c5e);
+// CAS-1744 — DEDICATED Caldera stream (distinct seed 0xca1de5a0; NOT one of the used seeds above). The
+// Caldera's ONLY new random draw — a small bonus-loot roll on a caldera-zone kill (killEnemy) — comes
+// ONLY from here, never the authoritative srand, and the whole feature is HARD-GATED behind ZONE5.enabled.
+// So with the feature off no caldera zone exists → no draw happens → the sim is byte-identical to a build
+// without it (AC1 [AC-RNG-STRONG]); at ANY setting the shared srand is provably untouched. Like the other
+// dedicated streams, seed() does NOT reset it — the harness neutralises via ZONE5.enabled=false.
+const zone5Rng = createRNG(0xca1de5a0);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -591,7 +598,11 @@ function curseMods(zone){ const h=G.hero; if(!h||!h.curses||!zone) return null; 
 // accept or skip, the zone is offered exactly once per run.
 function offerCurse(zone){ const h=G.hero; if(!h) return;
   if(!h.curseSeen) h.curseSeen=[]; if(h.curseSeen.indexOf(zone)<0) h.curseSeen.push(zone);
-  const mod=ZONE_MODIFIERS[ri(0,ZONE_MODIFIERS.length-1)];
+  // CAS-1744: the Caldera modifier (`emberfury`) enters the offered pool ONLY when ZONE5.enabled — so
+  // with the feature OFF the pool is the historical 3-entry array (byte-identical draft). `ri` draws
+  // exactly ONE srand regardless of pool size, so the srand stream position is unchanged either way.
+  const pool=ZONE5.enabled?[...ZONE_MODIFIERS, ZONE5_MOD]:ZONE_MODIFIERS;
+  const mod=pool[ri(0,pool.length-1)];
   G.curse={ zone, mod:mod.id }; G.scene="curse";
   audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
 }
@@ -2090,6 +2101,14 @@ function killEnemy(e){
     maybeSetPiece(e.x, e.y+26, legBias);                 // CAS-1654: append-only set-piece roll, same bias, own setRng stream
     maybeSocketRune(e.x, e.y+38, legBias);               // CAS-1687: append-only rune roll, same bias, own runeRng stream
   }
+  // CAS-1744: bonus-loot fan-out for a Caldera kill. The ONLY new RNG of the zone — drawn from the
+  // DEDICATED zone5Rng, APPENDED after every srand/legRng/setRng/runeRng draw above, so the shared
+  // srand stream is BYTE-IDENTICAL whether the feature is on or off ([AC-RNG-STRONG]). Gated on
+  // ZONE5.enabled AND zone==="caldera" (a zone that only EXISTS when the feature is on), so no draw
+  // ever happens with the feature off. Guaranteed-epic boss payoff is untouched (onChampionKill above).
+  if(ZONE5.enabled && zone==="caldera" && !tpl.neutral && !e.eventGuard && !e.eventGoblin){
+    if(zone5Rng.srand() < (ZONE5.bonusLootRate||0)){ const win=(ZONE_LOOT.caldera||ZONE_LOOT.abyss).tier;
+      dropGear(e.x+frr(-10,10), e.y+12, rollGearInst(zone5Rng.srand, win[0], win[1])); } }
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
   addFx("poof",e.x,e.y);
@@ -2792,8 +2811,10 @@ function usePortal(p){ const h=G.hero;
     if(pw<FROST_POWER_REQ){ toast(STR.frostLocked(pw,FROST_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
   else if(p.to==="trial"){ const pw=heroPower(h);  // CAS-196: the deepest gate (the challenge arena)
     if(pw<TRIAL_POWER_REQ){ toast(STR.trialLocked(pw,TRIAL_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
+  else if(p.to==="caldera"){ const pw=heroPower(h);  // CAS-1744: mid-endgame gate (abyss < caldera < cripta)
+    if(pw<CALDERA_POWER_REQ){ toast(STR.calderaLocked(pw,CALDERA_POWER_REQ),3.4); audio.sfx.deny(); return false; } }
   h.x=p.dx; h.y=p.dy; h.vx=h.vy=0; h.rolling=false; h.rollT=0; h.iframe=0.6;
-  audio.sfx.roll(); toast(p.to==="abyss"?STR.enteredAbyss:p.to==="frost"?STR.enteredFrost:p.to==="trial"?STR.enteredTrial:STR.leftAbyss,3.0); return true;
+  audio.sfx.roll(); toast(p.to==="abyss"?STR.enteredAbyss:p.to==="frost"?STR.enteredFrost:p.to==="trial"?STR.enteredTrial:p.to==="caldera"?STR.enteredCaldera:STR.leftAbyss,3.0); return true;
 }
 export function interact(){
   // CAS-1681: a Santuario Maldito in range activates on the SAME interact key (opt-in). Checked first
@@ -5313,4 +5334,47 @@ export const dev = {
   newMobSpawnKill(type){ const before=G.drops.length; const e=spawnEnemy(type, G.hero.x, G.hero.y);
     if(!e) return { type, spawned:false }; e.hp=0; killEnemy(e);
     return { type, spawned:true, drops:G.drops.slice(before).map(d=>({kind:d.kind,slot:d.inst?d.inst.slot:null})) }; },
+  // ---- CAS-1744 Caldera (ZONE5) harness hooks. All additive, REAL paths, DOM-free-friendly. ----
+  // Static config read: the ZONE5 flag + the caldera roster/boss/modifier/gate.
+  zone5Meta(){ return { enabled:ZONE5.enabled, zone:ZONE5.zone, bonusLootRate:ZONE5.bonusLootRate,
+    powerReq:CALDERA_POWER_REQ, gateOrder:(ABYSS_POWER_REQ<CALDERA_POWER_REQ && CALDERA_POWER_REQ<FROST_POWER_REQ),
+    mobs:["emberkin","magmabrute"].map(k=>({ id:k, hp:ETPL[k]?.hp||0, arch:ETPL[k]?.arch||null, sprite:ETPL[k]?.sprite||null, richAnim:!!ETPL[k]?.richAnim, infl:ETPL[k]?.infl?.type||null })),
+    boss:{ base:HUNTS.caldera?.boss?.base||null, minR:HUNTS.caldera?.boss?.minR||null, enrageAt:HUNTS.caldera?.boss?.enrageAt||0, slam:HUNTS.caldera?.boss?.special?.slam?.count||0, richAnim:!!ETPL.calderatyrant?.richAnim },
+    modifier:{ id:ZONE5_MOD.id, glyph:ZONE5_MOD.glyph, dmgMul:ZONE5_MOD.dmgMul, spdMul:ZONE5_MOD.spdMul, inMap:!!ZONE_MOD_MAP[ZONE5_MOD.id], inBaseArray:ZONE_MODIFIERS.some(m=>m.id===ZONE5_MOD.id) } }; },
+  // Toggle the feature gate (QA: byte-identity checks when disabled).
+  setZone5Enabled(b){ ZONE5.enabled=!!b; return ZONE5.enabled; },
+  // The modifier pool offerCurse would draw from RIGHT NOW (ids). OFF ⇒ historical 3; ON ⇒ +emberfury.
+  zone5ModPoolIds(){ return (ZONE5.enabled?[...ZONE_MODIFIERS, ZONE5_MOD]:ZONE_MODIFIERS).map(m=>m.id); },
+  // Draw n floats from the DEDICATED zone5Rng (proves the stream is live + isolated). Reseeds it
+  // directly (global seed() does NOT reset it — that's the whole isolation point). Mirror of socketRngProbe.
+  zone5RngProbe(n, seedVal){ n=Math.max(1,n|0); if(seedVal!=null) zone5Rng.seed(seedVal>>>0);
+    const out=[]; for(let i=0;i<n;i++) out.push(+zone5Rng.srand().toFixed(9)); return out; },
+  // AC1 stream isolation: srand tail is IDENTICAL before/after hammering zone5Rng (the caldera loot
+  // stream never perturbs the authoritative srand). Proves the dedicated-stream guarantee directly.
+  zone5StreamIsolationProbe(seedVal, n){ n=Math.max(4,n|0);
+    if(seedVal!=null) seed(seedVal>>>0); const a=[]; for(let i=0;i<n;i++) a.push(+srand().toFixed(9));
+    for(let i=0;i<64;i++) zone5Rng.srand();
+    if(seedVal!=null) seed(seedVal>>>0); const b=[]; for(let i=0;i<n;i++) b.push(+srand().toFixed(9));
+    return { a, b, identical:a.every((v,i)=>v===b[i]) }; },
+  // AC1 worldgen neutrality: build the world OFF and ON from the SAME seed and diff them. The caldera
+  // block is fully gated + appended LAST, so ON only ADDS the caldera — every tile OUTSIDE the caldera
+  // rect and every non-caldera portal must be byte-identical (outsideDiffs===0), OFF has zero T_CALDERA
+  // tiles / no world.caldera / no caldera portal, ON has the rect + 1 down-portal to caldera (+ its return).
+  caldWorldNeutralProbe(seedVal){ const sav=ZONE5.enabled;
+    const mk=(en)=>{ ZONE5.enabled=en; const rng=createRNG(); if(seedVal!=null) rng.seed(seedVal>>>0); return buildWorld(rng); };
+    const off=mk(false), on=mk(true); ZONE5.enabled=sav;
+    const ca=on.caldera; const inCa=(i)=>{ if(!ca) return false; const x=i%MAP_W, y=(i/MAP_W)|0; return x>=ca.x&&x<ca.x+ca.w&&y>=ca.y&&y<ca.y+ca.h; };
+    let outsideDiffs=0, tOff=0, tOn=0;
+    for(let i=0;i<off.terr.length;i++){ if(off.terr[i]===T_CALDERA) tOff++; if(on.terr[i]===T_CALDERA) tOn++; if(!inCa(i)&&off.terr[i]!==on.terr[i]) outsideDiffs++; }
+    return { offHasCaldera:!!off.caldera, onHasCaldera:!!on.caldera, calderaTilesOff:tOff, calderaTilesOn:tOn,
+      outsideDiffs, offCalderaPortals:off.portals.filter(p=>p.to==="caldera").length, onCalderaPortals:on.portals.filter(p=>p.to==="caldera").length,
+      offPortals:off.portals.length, onPortals:on.portals.length, calderaZoneOfVestibule: ca? zoneOf(on, (ca.x+5)*TS, (ca.y+ca.h-3)*TS) : null }; },
+  // AC4/bonus-loot: spawn a caldera mob INSIDE the live caldera rect and kill it through the REAL
+  // killEnemy path (zoneOf → "caldera"), returning the drops. Needs a ZONE5-on world (world.caldera).
+  caldSpawnKill(type){ const sp=world.spawners&&world.spawners.find(s=>s.zone==="caldera");
+    if(!sp) return { ok:false, reason:"no caldera spawner (ZONE5 off / world not rebuilt)" };
+    const x=(sp.rect.x+sp.rect.w/2)*TS, y=(sp.rect.y+sp.rect.h/2)*TS;
+    const e=spawnEnemy(type,x,y); if(!e) return { ok:false, reason:"spawn failed" };
+    e.x=x; e.y=y; applyZoneScale(e,"caldera"); const before=G.drops.length; e.hp=0; killEnemy(e);
+    return { ok:true, zone:zoneOf(world,e.x,e.y), drops:G.drops.slice(before).map(d=>({kind:d.kind,slot:d.inst?d.inst.slot:null,rarity:d.inst?d.inst.rarity:null,tier:d.tier})) }; },
 };

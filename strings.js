@@ -28,6 +28,9 @@ export const STR = {
   // CAS-121 — the power-gated Cripta Helada (third gated biome, harder than the Abismo).
   frostLocked: (pw, req) => "La Cripta Helada está sellada. Necesitas más poder (" + pw + "/" + req + "): supera el Abismo, mejora y sube de nivel.",
   enteredFrost: "Entras en la Cripta Helada. El frío muerde y el Guardián vigila…",
+  // CAS-1744 — the power-gated Caldera de Cenizas (5th gated biome, between el Abismo y la Cripta).
+  calderaLocked: (pw, req) => "La Caldera de Cenizas te repele. Necesitas más poder (" + pw + "/" + req + "): supera el Abismo, mejora y sube de nivel.",
+  enteredCaldera: "Desciendes a la Caldera de Cenizas. La ceniza quema y el Corazón de Magma late…",
   // CAS-196 — the deepest gate: el Coliseo Eterno (the post-finale challenge arena + world-boss).
   trialLocked: (pw, req) => "El Coliseo Eterno permanece cerrado. Necesitas más poder (" + pw + "/" + req + "): vence al Guardián, mejora y sube de nivel.",
   enteredTrial: "Cruzas al Coliseo Eterno. La arena ruge: sobrevive y el Avatar del Coliseo despertará…",

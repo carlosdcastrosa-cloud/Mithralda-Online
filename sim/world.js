@@ -5,7 +5,7 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_WATER, T_ICE, T_SWAMP, TOWN_MAP, TOWN_LEGEND, setMapDims, NEW_MOBS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_WATER, T_ICE, T_SWAMP, T_CALDERA, TOWN_MAP, TOWN_LEGEND, setMapDims, NEW_MOBS, ZONE5 } from "./config.js";
 import { inRect } from "./math.js";
 import { TDECO } from "./tiled-deco-data.js";  // CAS-462: props visuales del mapa Tiled
 import { MAP as TILED_MAP } from "./tiled-map-data.js";
@@ -395,7 +395,49 @@ export function buildWorld(rng){
   spawners.push({rect:swamp,types:["mudlurker","mudlurker","wisp","toadbrute"],max:12,cool:4,t:0,zone:"swamp"});
   chests.push({x:(swamp.x+swamp.w-4)*TS,y:(swamp.y+swamp.h-4)*TS,opened:false,loot:"gold60"});
   fragments.push({x:(swamp.x+swamp.w-3)*TS,y:(swamp.y+3)*TS,taken:false,kind:"hp"});
-  return { terr, town, forest, caves, arena, ruins, abyss, frost, trial, swamp, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet, buildings, blockSet };
+  // ---- CAS-1744: la Caldera de Cenizas — the 5th, power-gated ENDGAME biome ----
+  // Same shared machinery as the abyss/Cripta: a tier-5 mob pool (emberkin casters + magmabrute
+  // brutes, ZONE_TIER.caldera scaling) + the capstone Corazón de Magma via HUNTS.caldera. A
+  // self-contained molten dungeon in the SW outer ring, reached ONLY by the gated town portal
+  // (CALDERA_POWER_REQ, checked in usePortal) — no walking path.
+  //
+  // RNG-neutral (AC1): the WHOLE block is gated on ZONE5.enabled and appended AFTER every prior
+  // zone/spawn/prop/wilderness draw (like the swamp block), so with the feature OFF nothing here
+  // runs → terr/spawners/portals + the srand fingerprint are byte-identical to the pre-feature
+  // build. `caldera` is exported in the return ONLY when enabled. The molten floor reuses the
+  // FOUNTAINS flagstone path (render.js) washed with an ember tint — no new tile art.
+  let caldera=null;
+  if(ZONE5.enabled){
+    caldera = {x:60,y:250,w:28,h:26};
+    // paint the molten floor in-place (mirrors the swamp T_SWAMP paint — deterministic, no rng)
+    for(let ty=caldera.y; ty<caldera.y+caldera.h; ty++) for(let tx=caldera.x; tx<caldera.x+caldera.w; tx++) terr[ty*MAP_W+tx]=T_CALDERA;
+    // compact any wilderness props that landed on the rect while it was still grass (pure filter, no rng)
+    const inCa=(px,py)=>{ const tx=px/TS, ty=py/TS; return tx>=caldera.x-1 && tx<caldera.x+caldera.w+1 && ty>=caldera.y-1 && ty<caldera.y+caldera.h+1; };
+    { let w=0; for(let i=0;i<solids.length;i++){ const it=solids[i]; if(!inCa(it.x,it.y)) solids[w++]=it; } solids.length=w; }
+    { let w=0; for(let i=0;i<deco.length;i++){ const it=deco[i]; if(!inCa(it.x,it.y)) deco[w++]=it; } deco.length=w; }
+    // dressing — charred pillars, bones, rocks & braziers for an oppressive volcanic ruin (abyss pattern)
+    for(let i=0;i<22;i++){ const tx=caldera.x+rr(2,caldera.w-2), ty=caldera.y+rr(2,caldera.h-2);
+      const x=tx*TS, y=ty*TS, k=srand();
+      if(k<0.28) prop("prop_pillar",x,y,true,9);
+      else if(k<0.46) prop("prop_bones",x,y,false);
+      else if(k<0.64) prop("prop_rock",x,y,true,11);
+      else if(k<0.80) prop("prop_barrel",x,y,true,9);
+      else prop("prop_ruin_pillar2",x,y,true,9); }
+    for(let i=0;i<5;i++){ prop("prop_torch",(caldera.x+2)*TS,(caldera.y+4+i*4)*TS,false);
+      prop("prop_torch",(caldera.x+caldera.w-2)*TS,(caldera.y+4+i*4)*TS,false); }
+    // spawner: emberkin casters + magmabrute brutes (weighted 2× emberkin as the zone's signature caster)
+    spawners.push({rect:caldera,types:["emberkin","emberkin","magmabrute","emberkin","magmabrute"],max:13,cool:3,t:0,zone:"caldera"});
+    chests.push({x:(caldera.x+3)*TS,y:(caldera.y+3)*TS,opened:false,loot:"gold60"});
+    fragments.push({x:(caldera.x+caldera.w-3)*TS,y:(caldera.y+3)*TS,taken:false,kind:"mp"});
+    // ---- portal: a power-gated town gate (SE of plaza) down to the Caldera + a return gate up ----
+    const cacx=(caldera.x+5)*TS, cacy=(caldera.y+caldera.h-3)*TS;   // caldera vestibule (near return gate)
+    const capx=tcx+5*TS, capy=tcy+6*TS;                              // town gate, SE of plaza (clear of the N abyss/frost/trial gates)
+    portals.push({x:capx, y:capy, to:"caldera", dx:cacx, dy:cacy-TS*2, kind:"down"});
+    portals.push({x:cacx, y:cacy, to:"town",    dx:capx, dy:capy+TS*2, kind:"up"});
+  }
+  const ret = { terr, town, forest, caves, arena, ruins, abyss, frost, trial, swamp, solids, deco, chests, fragments, fountains, npcs, spawners, portals, templeF, tcx, tcy, wallSet, buildings, blockSet };
+  if(caldera) ret.caldera=caldera;   // CAS-1744: exported ONLY when ZONE5 ON → zoneOf's `world.caldera &&` guard is a no-op when OFF
+  return ret;
 }
 
 // ---- Tiled continent loader (the hand-built 760×570 world) ------------------------------------
@@ -490,5 +532,6 @@ export function zoneOf(world,x,y){ const tx=x/TS,ty=y/TS;
   if(world.frost && inRect(tx,ty,world.frost)) return "frost";  // CAS-121
   if(world.trial && inRect(tx,ty,world.trial)) return "trial";  // CAS-196
   if(world.swamp && inRect(tx,ty,world.swamp)) return "swamp";  // CAS-441
+  if(world.caldera && inRect(tx,ty,world.caldera)) return "caldera"; // CAS-1744 (world.caldera absent when ZONE5 OFF → no-op)
   if(inRect(tx,ty,world.forest)) return "forest";
   return "field"; }
