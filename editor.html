@@ -58,8 +58,14 @@
   #slicePanel .sphead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
   #slicePanel .sphead span{ font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:var(--accent); }
   #slicePanel .sphead button{ padding:2px 8px; font-size:12px; }
-  #sliceCanvas{ width:100%; image-rendering:pixelated; background:#0a0c11; border:1px solid var(--line);
-    border-radius:5px; cursor:crosshair; display:block; }
+  /* CAS-1735 zoom controls + scrollable picker viewport */
+  #slicePanel .szrow{ display:flex; align-items:center; gap:6px; margin-bottom:7px; }
+  #slicePanel .szrow button{ padding:3px 9px; font-size:13px; line-height:1; }
+  #slicePanel .szrow #slZoomFit{ font-size:11px; padding:4px 8px; }
+  #sliceZoomLbl{ font-size:11px; color:var(--mut); min-width:40px; text-align:center; font-variant-numeric:tabular-nums; }
+  #sliceView{ max-height:48vh; overflow:auto; background:#0a0c11; border:1px solid var(--line);
+    border-radius:5px; overscroll-behavior:contain; }
+  #sliceCanvas{ image-rendering:pixelated; background:#0a0c11; cursor:crosshair; display:block; }
   .sgrid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; margin-top:8px; }
   .sgrid label{ font-size:9px; color:var(--mut); display:flex; flex-direction:column; gap:2px; text-transform:uppercase; letter-spacing:.4px; }
   .sgrid input{ background:var(--panel2); border:1px solid var(--line); border-radius:4px; color:var(--ink);
@@ -137,7 +143,13 @@
     <!-- CAS-1729: tileset slicing / cell selector (shown only in the Sello tool) -->
     <div id="slicePanel" style="display:none">
       <div class="sphead"><span>◱ Tileset — elige un cuadro</span><button id="sliceClose" title="Cerrar">✕</button></div>
-      <canvas id="sliceCanvas"></canvas>
+      <div class="szrow">
+        <button id="slZoomOut" title="Alejar (−)">−</button>
+        <span id="sliceZoomLbl" title="Zoom relativo al ajuste">100%</span>
+        <button id="slZoomIn" title="Acercar (+)">＋</button>
+        <button id="slZoomFit" title="Ajustar al ancho">Ajustar</button>
+      </div>
+      <div id="sliceView"><canvas id="sliceCanvas"></canvas></div>
       <div class="sgrid">
         <label>Ancho<input id="slTw" type="number" min="1" step="1"></label>
         <label>Alto<input id="slTh" type="number" min="1" step="1"></label>

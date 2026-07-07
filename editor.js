@@ -26,6 +26,10 @@ let curAsset = null;                              // selected asset id for the S
 // null ⇒ whole-sheet stamp (CAS-1716 behaviour, byte-safe export).
 let curCell = null;                               // { asset, col, row, sx, sy, sw, sh } | null
 let slicePanelAsset = null;                       // asset id currently shown in the right slice panel
+// CAS-1735 — picker zoom. PURE viewport transform: multiplier over the fit scale.
+// `1` == fit-width (byte-identical to CAS-1729). Never serialized (UI-only view pref);
+// resets to 1 when the panel opens for a NEW asset. drawSlicePanel() re-clamps it.
+let sliceZoom = 1;
 const BRIDGE_CAP_BYTES = 5 * 1024 * 1024;         // ~5MB localStorage bridge budget (Play/autosave)
 // A cached HTMLImageElement per record for canvas drawing (built from its dataUrl).
 function assetImg(rec){ if(rec.img) return rec.img; const im=new Image(); im.src=rec.dataUrl; rec.img=im; return im; }
@@ -310,6 +314,8 @@ function openSlicePanel(id){
   const panel=$("slicePanel"); if(!panel) return;
   const r=assets.get(id);
   if(!r || tool!=="stamp"){ panel.style.display="none"; slicePanelAsset=null; return; }
+  // CAS-1735: opening a DIFFERENT tileset resets the picker view (zoom→fit, scroll→0).
+  if(slicePanelAsset!==id){ sliceZoom=1; const v=$("sliceView"); if(v){ v.scrollLeft=0; v.scrollTop=0; } }
   slicePanelAsset=id; const s=sliceOf(r);
   $("slTw").value=s.tw; $("slTh").value=s.th; $("slMargin").value=s.margin;
   $("slSpacing").value=s.spacing; $("slOx").value=s.ox; $("slOy").value=s.oy;
@@ -321,9 +327,18 @@ function drawSlicePanel(){
   const cvs=$("sliceCanvas"); if(!cvs || !slicePanelAsset) return;
   const r=assets.get(slicePanelAsset); if(!r) return;
   const im=assetImg(r); const iw=r.w||im.naturalWidth||32, ih=r.h||im.naturalHeight||32;
-  const maxW=232; const ds = iw>maxW ? maxW/iw : Math.min(4, maxW/iw);   // fit width (down- or up-scale, ≤4×)
+  const maxW=232; const dsFit = iw>maxW ? maxW/iw : Math.min(4, maxW/iw);   // fit width (down- or up-scale, ≤4×)
+  // CAS-1735: effective scale = fit × user zoom. Spec clamp is [0.5,12]; also cap so the
+  // picker canvas never exceeds a memory limit (~4096px/side). sliceZoom==1 ⇒ byte-id to fit.
+  const MAXCV=4096, maxZoom=Math.max(1, Math.min(12, MAXCV/(iw*dsFit), MAXCV/(ih*dsFit)));
+  sliceZoom=Math.max(0.5, Math.min(maxZoom, sliceZoom||1));
+  const ds=dsFit*sliceZoom;
   const cw=Math.max(1,Math.round(iw*ds)), ch=Math.max(1,Math.round(ih*ds));
   cvs.width=cw; cvs.height=ch; cvs._ds=ds;
+  // Size the element to its buffer so 1 CSS px == 1 canvas px → clicks map dead-on
+  // (fixes a latent CAS-1729 offset from the old width:100% CSS stretch).
+  cvs.style.width=cw+"px"; cvs.style.height=ch+"px";
+  const zl=$("sliceZoomLbl"); if(zl) zl.textContent=Math.round(sliceZoom*100)+"%";
   const x=cvs.getContext("2d"); x.imageSmoothingEnabled=false;
   x.fillStyle="#0a0c11"; x.fillRect(0,0,cw,ch);
   if(im.complete&&im.naturalWidth) x.drawImage(im,0,0,cw,ch);
@@ -340,6 +355,7 @@ function drawSlicePanel(){
   $("sliceInfo").textContent = `${g.cols}×${g.rows} cuadros · ${sl.tw}×${sl.th}px` + (curCell&&curCell.asset===slicePanelAsset?` · celda (${curCell.col},${curCell.row})`:" · sin celda");
 }
 // Any slice-input change → update rec.slice, re-clamp the active cell, persist, redraw.
+// CAS-1735: sliceZoom SURVIVES a tw/th change (re-clamped inside drawSlicePanel).
 function onSliceInput(){
   const r=assets.get(slicePanelAsset); if(!r) return;
   r.slice=readSliceInputs();
@@ -347,6 +363,31 @@ function onSliceInput(){
     if(curCell.col>=g.cols || curCell.row>=g.rows) curCell=null;
     else selectCellInternal(r, curCell.col, curCell.row); }
   persistSlice(r); drawSlicePanel();
+}
+// CAS-1735 — resolve the grid cell under a canvas-space pixel (buffer coords, so it is
+// zoom/scroll-independent: `ds` already folds the zoom in). Returns {col,row} or null.
+// Shared by the pointer handler AND the QA hook so both agree at every zoom level.
+function pickAtCanvasPx(x,y){
+  const r=assets.get(slicePanelAsset); if(!r) return null;
+  const cvs=$("sliceCanvas"); if(!cvs) return null; const ds=cvs._ds||1; const sl=sliceOf(r);
+  const ix=x/ds, iy=y/ds;
+  const col=Math.floor((ix - sl.ox - sl.margin)/(sl.tw+sl.spacing));
+  const row=Math.floor((iy - sl.oy - sl.margin)/(sl.th+sl.spacing));
+  const g=sliceGrid(sl, r.w, r.h);
+  if(col<0||row<0||col>=g.cols||row>=g.rows) return null;
+  return { col, row };
+}
+// Set the picker zoom (clamped + redrawn inside drawSlicePanel). Returns the effective zoom.
+function setSliceZoom(z){ sliceZoom=(+z||1); drawSlicePanel(); return sliceZoom; }
+// After a high-zoom selection, scroll the viewport so the gold highlight is visible.
+function scrollCellIntoView(){
+  const cvs=$("sliceCanvas"), view=$("sliceView"); if(!cvs||!view||!curCell||curCell.asset!==slicePanelAsset) return;
+  const ds=cvs._ds||1;
+  const x0=curCell.sx*ds, y0=curCell.sy*ds, x1=(curCell.sx+curCell.sw)*ds, y1=(curCell.sy+curCell.sh)*ds;
+  if(x0<view.scrollLeft) view.scrollLeft=Math.max(0,x0-8);
+  else if(x1>view.scrollLeft+view.clientWidth) view.scrollLeft=x1-view.clientWidth+8;
+  if(y0<view.scrollTop) view.scrollTop=Math.max(0,y0-8);
+  else if(y1>view.scrollTop+view.clientHeight) view.scrollTop=y1-view.clientHeight+8;
 }
 
 let lastStamp=null;                               // last stamp world-pos for drag spacing
@@ -569,18 +610,62 @@ $("nameF").oninput=()=>{ doc.name=$("nameF").value; autosave(); };
 // CAS-1729 — slice panel wiring: numeric inputs edit the grid; clicking a cell on the
 // tileset canvas picks the active brush; "hoja entera" clears it back to whole-sheet.
 for(const k of ["slTw","slTh","slMargin","slSpacing","slOx","slOy"]){ const el=$(k); if(el) el.addEventListener("input", onSliceInput); }
+// CAS-1735 — pointer on the picker: a click (no move) selects a cell; a drag pans the
+// zoomed viewport. Threshold keeps the two from fighting (mirrors the map canvas pattern).
 (function wireSliceCanvas(){ const cvs=$("sliceCanvas"); if(!cvs) return;
+  let dwn=null, moved=false;
   cvs.addEventListener("pointerdown", e=>{
+    if(!assets.get(slicePanelAsset)) return;
+    try{ cvs.setPointerCapture(e.pointerId); }catch(_){}
+    const v=$("sliceView");
+    dwn={ ox:e.offsetX, oy:e.offsetY, cx:e.clientX, cy:e.clientY, sl:v?v.scrollLeft:0, st:v?v.scrollTop:0 };
+    moved=false; });
+  cvs.addEventListener("pointermove", e=>{
+    if(!dwn) return; const v=$("sliceView"); if(!v) return;
+    const dx=e.clientX-dwn.cx, dy=e.clientY-dwn.cy;
+    if(!moved && (Math.abs(dx)>3 || Math.abs(dy)>3)){ moved=true; cvs.style.cursor="grabbing"; }
+    if(moved){ v.scrollLeft=dwn.sl-dx; v.scrollTop=dwn.st-dy; } });
+  const end=e=>{ if(!dwn) return; const wasMoved=moved; const ox=dwn.ox, oy=dwn.oy; dwn=null; cvs.style.cursor="crosshair";
+    if(wasMoved) return;                                   // was a pan, not a pick
     const r=assets.get(slicePanelAsset); if(!r) return;
-    const ds=cvs._ds||1, sl=sliceOf(r);
-    const ix=e.offsetX/ds, iy=e.offsetY/ds;
-    const col=Math.floor((ix - sl.ox - sl.margin)/(sl.tw+sl.spacing));
-    const row=Math.floor((iy - sl.oy - sl.margin)/(sl.th+sl.spacing));
-    const g=sliceGrid(sl, r.w, r.h);
-    if(col<0||row<0||col>=g.cols||row>=g.rows) return;
-    selectCellInternal(r, col, row); persistSlice(r); drawSlicePanel();
-    flash(`Cuadro (${col},${row}) — séllalo en el mapa`); });
+    const c=pickAtCanvasPx(ox,oy); if(!c) return;
+    selectCellInternal(r, c.col, c.row); persistSlice(r); drawSlicePanel(); scrollCellIntoView();
+    flash(`Cuadro (${c.col},${c.row}) — séllalo en el mapa`); };
+  cvs.addEventListener("pointerup", end);
+  cvs.addEventListener("pointercancel", ()=>{ dwn=null; moved=false; cvs.style.cursor="crosshair"; });
+  // Wheel over the picker → zoom, ANCHORED to the cursor (the buffer point under the
+  // pointer stays put). preventDefault so the page/panel doesn't scroll. offsetX/Y are
+  // buffer px because the canvas CSS size == its backing store (no stretch).
+  cvs.addEventListener("wheel", e=>{ if(!slicePanelAsset) return; e.preventDefault();
+    const view=$("sliceView"); const oldDs=cvs._ds||1, ox=e.offsetX, oy=e.offsetY;
+    const oldSL=view?view.scrollLeft:0, oldST=view?view.scrollTop:0;
+    setSliceZoom(sliceZoom * (e.deltaY<0 ? 1.15 : 0.87));
+    if(view){ const ratio=(cvs._ds||1)/oldDs;                 // keep image point under cursor fixed
+      view.scrollLeft=ox*(ratio-1)+oldSL; view.scrollTop=oy*(ratio-1)+oldST; } }, { passive:false });
 }());
+// CAS-1735 — zoom control buttons.
+{ const zi=$("slZoomIn"), zo=$("slZoomOut"), zf=$("slZoomFit");
+  if(zi) zi.onclick=()=>setSliceZoom(sliceZoom*1.25);
+  if(zo) zo.onclick=()=>setSliceZoom(sliceZoom*0.8);
+  if(zf) zf.onclick=()=>{ const v=$("sliceView"); if(v){ v.scrollLeft=0; v.scrollTop=0; } setSliceZoom(1); flash("Zoom ajustado"); }
+}
+// CAS-1735 — picker keyboard shortcuts (panel open, focus not in a numeric input):
+//   +/= zoom-in, - zoom-out, 0 fit; arrows nudge the selected cell (precision picking).
+window.addEventListener("keydown", e=>{
+  const panel=$("slicePanel"); if(!panel || panel.style.display==="none" || !slicePanelAsset) return;
+  const ae=document.activeElement; if(ae && ae.tagName==="INPUT") return;
+  if(e.key==="+"||e.key==="="){ e.preventDefault(); setSliceZoom(sliceZoom*1.25); return; }
+  if(e.key==="-"||e.key==="_"){ e.preventDefault(); setSliceZoom(sliceZoom*0.8); return; }
+  if(e.key==="0"){ e.preventDefault(); const v=$("sliceView"); if(v){ v.scrollLeft=0; v.scrollTop=0; } setSliceZoom(1); return; }
+  if(!curCell || curCell.asset!==slicePanelAsset) return;
+  if(!/^Arrow(Left|Right|Up|Down)$/.test(e.key)) return;
+  e.preventDefault();
+  const r=assets.get(slicePanelAsset); if(!r) return; const g=sliceGrid(sliceOf(r), r.w, r.h);
+  let c=curCell.col, rr=curCell.row;
+  if(e.key==="ArrowLeft")c--; else if(e.key==="ArrowRight")c++; else if(e.key==="ArrowUp")rr--; else rr++;
+  c=Math.max(0,Math.min(g.cols-1,c)); rr=Math.max(0,Math.min(g.rows-1,rr));
+  selectCellInternal(r, c, rr); persistSlice(r); drawSlicePanel(); scrollCellIntoView();
+});
 const _sliceClose=$("sliceClose"); if(_sliceClose) _sliceClose.onclick=()=>{ $("slicePanel").style.display="none"; slicePanelAsset=null; };
 const _sliceWhole=$("sliceWhole"); if(_sliceWhole) _sliceWhole.onclick=()=>{ curCell=null; drawSlicePanel(); flash("Pincel: hoja entera"); };
 
@@ -633,4 +718,12 @@ window.__editor = { get doc(){ return doc; }, docToMapDoc, docFromMapDoc, setDoc
     return doc.entities.props[doc.entities.props.length-1]; },
   get curCell(){ return curCell?{...curCell}:null; },
   sliceOf(assetId){ const r=assets.get(assetId); return r?{...sliceOf(r)}:null; },
+  // CAS-1735 picker zoom (UI-only view transform) — probes for the QA harness.
+  //   setSliceZoom(z) — clamp+redraw, returns effective zoom;  get sliceZoom — current.
+  //   pickAtCanvasPx(x,y) — {col,row}|null the pointer handler resolves at the current
+  //   zoom (proves click-mapping is zoom-neutral without synthesising DOM events).
+  setSliceZoom(z){ return setSliceZoom(z); },
+  sliceZoomFit(){ const v=$("sliceView"); if(v){ v.scrollLeft=0; v.scrollTop=0; } return setSliceZoom(1); },
+  get sliceZoom(){ return sliceZoom; },
+  pickAtCanvasPx(x,y){ return pickAtCanvasPx(x,y); },
   selectAsset, selectTool, referencedAssets, reingestEmbedded };
