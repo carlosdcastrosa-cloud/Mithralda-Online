@@ -208,14 +208,14 @@ export function rollGearInst(srand,tmin,tmax,minR,luck){ const slots=["weapon","
 // CAS-119: talent flat +daño / +vida fold in here too, read off the cached bundle
 // h.tt (built in sim.recalcTalents) so combat + UI route through one place and a
 // talentless hero (h.tt zero/absent) is unchanged — no import cycle into talents.js.
-export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus + affixTotals(h).dmg + socketTotals(h).dmg + ((h.tt&&h.tt.dmg)||0); } // CAS-1687: engarzada +daño runes fold in here (derived, never baked)
+export function equippedDmg(h){ return h.baseDmg + gearStat(h.equip.weapon) + h.dmgBonus + affixTotals(h).dmg + socketTotals(h).dmg + ((h.tt&&h.tt.dmg)||0) + (h.codexDmg||0); } // CAS-1687: engarzada +daño runes fold in here (derived, never baked) · CAS-1751: Códice per-unique +daño (cached from the ledger, 0 when disabled)
 export function equippedDef(h){ return gearStat(h.equip.body) + gearStat(h.equip.shield) + h.defBonus + ((h.bb&&h.bb.defAdd)||0); } // CAS-383: Piel de Piedra flat def
 // Effective max HP = the stored base pool (class+level+shop+shards) plus any
 // +vida affixes currently equipped. Never baked into h.maxHp, so persistence
 // and leveling stay clean (mirrors how timed buffs stay out of permDmg/permDef).
 // CAS-150: Elite-Mastery reward-track +maxHp milestones fold in here too (h.mperk.hp,
 // built in sim.recalcMastery) — derived, never baked, so reload reproduces it from the count.
-export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + socketTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0)) * ((h.bb&&h.bb.hpMul)||1) * uniqTotals(h).hpMul * setTotals(h).hpMul); } // CAS-383 boon hpMul + CAS-1632 corazon_titan (uniqTotals.hpMul) + CAS-1654 Vigía set (setTotals.hpMul) + CAS-1687 socketTotals.hp (Zafiro runes) scale/add to the effective pool (derived, never baked → reload/reset clean)
+export function heroMaxHp(h){ return Math.round((h.maxHp + affixTotals(h).hp + socketTotals(h).hp + ((h.tt&&h.tt.hp)||0) + ((h.mperk&&h.mperk.hp)||0) + (h.codexHp||0)) * ((h.bb&&h.bb.hpMul)||1) * uniqTotals(h).hpMul * setTotals(h).hpMul); } // CAS-1751: Códice +vida (per set piece + per rune type) folds into the ADDITIVE group before the mults — derived, never baked, 0 when disabled // CAS-383 boon hpMul + CAS-1632 corazon_titan (uniqTotals.hpMul) + CAS-1654 Vigía set (setTotals.hpMul) + CAS-1687 socketTotals.hp (Zafiro runes) scale/add to the effective pool (derived, never baked → reload/reset clean)
 
 // ===========================================================================
 // CAS-1687 — RUNAS Y ENGARCES (sockets). A gear instance may carry `sockets`: an

@@ -865,6 +865,16 @@ export const SOCKETS = {
 // (nunca del srand autoritativo). El QA flip vive tras dev hook __dev.newMobsEnable / harness.
 export const NEW_MOBS = { enabled:true, zone:"caves", types:["ashwraith","ironback","thornspitter"], bonusLootRate:0.10 };
 
+// CAS-1751 — CÓDICE DE BOTÍN (Collection Log). A pure READ-SIDE ledger over the loot systems already
+// shipped (uniques CAS-1632 / sets CAS-1654 / runes CAS-1687): the FIRST pickup of a given
+// unique/set-piece/rune is recorded forever in its OWN store (mithralda.codex.v1) and grants a small
+// PERMANENT account-wide bonus. It touches NO RNG stream (RNG-neutral by construction) and writes
+// nothing to combat/sim state beyond the derived, cached codexDmg/codexHp read live by
+// equippedDmg/heroMaxHp. `enabled:false` ⇒ no ledger writes, 0 stat contribution, no HUD/panel, and the
+// srand/sim sequence + save.v1 serialization are BYTE-IDENTICAL to a build without the feature.
+// `bonus`: dmgPerUniq per discovered unique; hpPerSet per set piece; hpPerRune per rune type. Tunable.
+export const CODEX = { enabled:true, bonus:{ dmgPerUniq:2, hpPerSet:15, hpPerRune:10 } };
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
