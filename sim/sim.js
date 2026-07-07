@@ -3773,7 +3773,7 @@ export const dev = {
   // from an authored MapDoc (?map=), reports its name/dims, the zone slots present with their rects,
   // and the live zone under the hero — so QA can assert an EDITED zone actually loads + plays. Pure
   // read (no sim mutation, no RNG). Absent/null fields when the default (procedural/Tiled) world runs.
-  mapInfo(){ const slots=["town","forest","caves","arena","ruins","abyss","frost","trial","swamp"];
+  mapInfo(){ const slots=["town","forest","caves","arena","ruins","abyss","frost","trial","swamp","caldera"];  // CAS-1784: caldera present only when ZONE5 ON
     const zones={}; for(const s of slots){ const r=world[s]; if(r && r.w>0) zones[s]={x:r.x,y:r.y,w:r.w,h:r.h,name:r.name||""}; }
     return { fromMapDoc:!!world.fromMapDoc, name:world.mapName||null, w:MAP_W, h:MAP_H,
       zones, spawners:world.spawners.map(s=>({zone:s.zone,types:s.types.slice()})),
