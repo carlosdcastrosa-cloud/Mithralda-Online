@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -65,6 +65,7 @@ const ACTIONS = {
   inventory:()=>{ G.scene="inventory"; }, forge:()=>{ G.scene="forge"; G.forgeSel=G.forgeSel||0; },
   talents:()=>{ G.scene="talents"; G.talFocus=G.talFocus||0; }, mastery:()=>{ G.scene="mastery"; },
   customize:()=>{ G.scene="customize"; G.custFocus=G.custFocus||0; }, map:()=>{ G.showMap=!G.showMap; },
+  codex:()=>{ if(CODEX.enabled) G.scene="codex"; }, // CAS-1751: open the Códice de Botín (gated — no-op when disabled)
   pause:()=>{ G.scene="pause"; },
 };
 // Reverse-resolve a keydown code → its bound play-scene action verb (or null).
@@ -212,6 +213,7 @@ function edge(code){
     else if(code==="KeyR"){ sim.respecTalents(); } return; }
   // CAS-150: elite-mastery reward-track panel — V/Escape close (read-only screen).
   if(G.scene==="mastery"){ if(code==="KeyV"||code==="Escape"){ G.scene="play"; } return; }
+  if(G.scene==="codex"){ if(code==="KeyK"||code==="Escape"){ G.scene="play"; } return; } // CAS-1751: Códice toggle/close
   // CAS-169: wardrobe / customization — C/Escape/Enter close (changes are live + autosaved).
   // ↑/↓ move the focused row; ←/→ change it (cycle swatch on a color row, swap a variation);
   // R restores the class default. Pointer/touch use ui.customRects.
@@ -230,6 +232,9 @@ function edge(code){
   if(G.scene!=="play") return;
   // CAS-265: rebindable play-scene actions resolve from G.settings.binds first.
   const act=playAction(code); if(act){ ACTIONS[act](); return; }
+  // CAS-1751: fixed KeyK alias opens the Códice de Botín (gated — no-op when CODEX.enabled=false). The
+  // codex scene's own handler closes it on KeyK/ESC, so K toggles. Not a rebindable action (a read-only panel).
+  if(code==="KeyK"){ ACTIONS.codex(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
@@ -322,13 +327,19 @@ export function tbtns(){ // returns button rects for current scene
 function abilGlyph(slot){ const lo=(G.hero&&G.hero.loadout)||[]; const a=ABILITY_MAP[lo[slot]]; return a?a.glyph:String(slot+1); }
 // CAS-1659: current drafted-ultimate glyph for the touch button (falls back to ★).
 function ultGlyph(){ const u=G.hero&&ULTIMATE_MAP[G.hero.ultId]; return u?u.glyph:"★"; }
-export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(38,s*0.075); const y=14+b/2; return {
+export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(38,s*0.075); const y=14+b/2;
+  // CAS-1751: the Códice button only exists when the feature is enabled — with it OFF there is NO HUD
+  // affordance at all (byte-identical HUD to a build without the feature). Its presence shifts the row.
+  const cdx=CODEX.enabled?1:0;
+  const out={
   inv:{x:VW-14-b*0.5, y, r:b*0.5, label:"I", act:()=>{G.scene=G.scene==="inventory"?"play":"inventory";}},
   tal:{x:VW-14-b*1.6, y, r:b*0.5, label:"T", act:()=>{G.scene=G.scene==="talents"?"play":"talents";}}, // CAS-119
   mst:{x:VW-14-b*2.7, y, r:b*0.5, label:"✦", act:()=>{G.scene=G.scene==="mastery"?"play":"mastery";}}, // CAS-150 mastery track
   cst:{x:VW-14-b*3.8, y, r:b*0.5, label:"♟", act:()=>{G.scene=G.scene==="customize"?"play":"customize"; G.custFocus=G.custFocus||0;}}, // CAS-169 wardrobe
   map:{x:VW-14-b*4.9, y, r:b*0.5, label:"M", act:()=>{G.showMap=!G.showMap;}},
-  pause:{x:VW-14-b*6.0, y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b }; }
+  pause:{x:VW-14-b*(6.0+cdx), y, r:b*0.5, label:"❚❚", act:()=>{G.scene="pause";}}, b };
+  if(cdx) out.cdx={x:VW-14-b*6.0, y, r:b*0.5, label:"◆", act:()=>{G.scene=G.scene==="codex"?"play":"codex";}}; // CAS-1751
+  return out; }
 
 // CAS: fixed-sidebar action buttons (desktop, RIGHT side). Single source of the button rects —
 // render.js reads this to DRAW them and input hit-tests it to dispatch. Rects are canvas-space
@@ -345,6 +356,9 @@ export function sidebarBtns(){ if(!view.sbw) return null;
     ["map","🗺","Mapa",        ()=>{ G.showMap=!G.showMap; }],
     ["menu","❚❚","Menú",      ()=>{ G.scene="pause"; }],
   ];
+  // CAS-1751: insert the Códice row (before "Menú") ONLY when the feature is enabled — with it OFF the
+  // sidebar has no Códice affordance (byte-identical chrome to a build without the feature).
+  if(CODEX.enabled) items.splice(items.length-1, 0, ["cdx","◆","Códice", ()=>{ G.scene=G.scene==="codex"?"play":"codex"; }]);
   const out={};
   items.forEach(([id,icon,label,act],i)=>{ out[id]={x, y:SIDEBAR_BTN_TOP+i*(SIDEBAR_BTN_H+SIDEBAR_BTN_GAP), w, h:SIDEBAR_BTN_H, icon, label, act}; });
   return out;
@@ -402,6 +416,7 @@ function handleUITap(x,y){
   if(G.scene==="inventory"){ return invTap(x,y); }
   if(G.scene==="talents"){ return talentTap(x,y); }
   if(G.scene==="mastery"){ G.scene="play"; return true; } // CAS-150: tap anywhere closes the read-only track
+  if(G.scene==="codex"){ G.scene="play"; return true; } // CAS-1751: tap anywhere closes the read-only Códice
   if(G.scene==="customize"){ return customTap(x,y); } // CAS-169 wardrobe
   if(G.scene==="shop"){ return shopTap(x,y); }
   if(G.scene==="forge"){ return forgeTap(x,y); } // CAS-237

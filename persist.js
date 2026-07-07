@@ -10,7 +10,7 @@
 // so the latest gold / XP / upgrades survive a refresh. All storage calls are
 // wrapped — private-mode / quota failures degrade silently, the game still runs.
 // ===========================================================================
-import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena } from "./sim/sim.js";
+import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena, serializeCodex, loadCodex } from "./sim/sim.js";
 
 const KEY = "mithralda.save.v1";
 // CAS-1557: the ACCOUNT-WIDE meta-progression store — deliberately SEPARATE from the run save
@@ -27,6 +27,10 @@ const KEY_TUT = "mithralda.tut.v1";
 // (additive persistence; the run save schema is untouched). Same medium-ownership split: the sim
 // owns the shape (serializeArena / loadArena), this controller owns localStorage + the flush.
 const KEY_ARENA = "mithralda.arena.v1";
+// CAS-1751: the account-wide CÓDICE DE BOTÍN (Collection Log) store — its OWN key, SEPARATE from the run
+// save + meta + arena (additive persistence; save.v1 is untouched). Same medium-ownership split: the sim
+// owns the shape (serializeCodex / loadCodex), this controller owns localStorage + the codexDirty flush.
+const KEY_CODEX = "mithralda.codex.v1";
 const SAVE_THROTTLE = 2.0;      // seconds between throttled autosaves while in a run
 let acc = 0;
 let suppressed = false;         // once true, ALL writes are no-ops until the page reloads
@@ -72,6 +76,17 @@ export function saveArena(){ if(suppressed) return false;
 // corrupt/absent blob → loadArena installs 0.
 export function bootArena(){ loadArena(readArena()); G.arenaDirty=false; }
 
+// CAS-1751: Códice de Botín I/O (isolated from run save + meta + arena above). Wrapped — a private-mode /
+// quota failure degrades silently; the game still runs with an in-memory empty codex (0 bonus).
+function readCodex(){ try{ const raw=localStorage.getItem(KEY_CODEX); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+export function saveCodex(){ if(suppressed) return false;
+  try{ const blob=serializeCodex(); if(!blob) return false; localStorage.setItem(KEY_CODEX, JSON.stringify(blob)); return true; }
+  catch(e){ return false; } }
+// Rehydrate the account codex at boot (independent of any run save — a brand-new player has an empty
+// codex). A corrupt/absent blob → loadCodex installs the empty default. Harmless read even when the
+// feature is disabled (the ledger is simply never mutated afterward).
+export function bootCodex(){ loadCodex(readCodex()); G.codexDirty=false; }
+
 // Boot: if a VALID save exists, rehydrate straight into play (skipping the name /
 // class flow); otherwise leave the normal menu flow untouched. A corrupt, old or
 // invalid save is discarded (cleared) and the player starts clean — never crashes.
@@ -98,6 +113,10 @@ export function tick(dtSec){
   // CAS-1664: flush the Arena best the instant it is beaten (set on arena death) — like the meta,
   // BEFORE the run-save scene gate, so a new record persists even on the death screen. One-shot.
   if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; }
+  // CAS-1751: flush the codex the instant a new entry is discovered (set on the first pickup of a
+  // unique/set/rune) — BEFORE the run-save scene gate, so a discovery persists even if the tab closes
+  // immediately. One-shot: the flag clears on write. Cheap (tiny flat blob, rare).
+  if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; }
   if(!G.started || G.scene==="menu" || G.scene==="classsel") return;
   // CAS-128: the moment the tutorial is finished/skipped, write the one-time seen marker
   // so it never auto-starts for this player again. flushed gates it to a single write.
@@ -114,7 +133,7 @@ export function resetGame(){ suppress(); clear(); try{ if(typeof location!=="und
 // few seconds of progress between throttled autosaves.
 export function initFlush(){
   if(typeof window==="undefined") return;
-  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best ride the same unload flush
+  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1751 codex ride the same unload flush
   window.addEventListener("beforeunload", flush);
   window.addEventListener("pagehide", flush);
   if(typeof document!=="undefined")

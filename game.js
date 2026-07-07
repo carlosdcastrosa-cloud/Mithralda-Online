@@ -17,7 +17,7 @@ import { configure as configureSim, G, update as simUpdate, dev as simDev, seria
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { uiLayout } from "./ui/layout.js"; // CAS-1613: classic-sidebar opt-in flag (default OFF)
-import { io, initInput, syncMenuDom, positionNameInput, ui } from "./input.js";
+import { io, initInput, syncMenuDom, positionNameInput, ui, topBtns, sidebarBtns } from "./input.js";
 import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
 import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
@@ -113,6 +113,7 @@ export function createGame(canvas, ctx, getView){
   // reads the live meta, and a fresh createHero applies it. Independent of any character.
   persist.bootMeta();
   persist.bootArena();  // CAS-1664: rehydrate the Arena de Oleadas best wave from its OWN store (independent of any character)
+  persist.bootCodex(); // CAS-1751: rehydrate the account-wide Códice de Botín ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile reads the live codex bonus (account-wide, independent of any character)
   persist.boot();
   persist.initFlush();
   // CAS-132: privacy-light retention/funnel analytics. boot() opens the anonymous
@@ -393,6 +394,11 @@ export function createGame(canvas, ctx, getView){
       spawnNewMob:(type,zone)=>simDev.spawnNewMob(type,zone),
       newMobSpawnKill:(type)=>simDev.newMobSpawnKill(type),
       newMobImgLoaded:(type)=>{ const key="enemy_"+type; const im=IMG[key]; return { type, key, loaded:!!(im&&im.complete&&im.naturalWidth), w:im?im.naturalWidth:0, h:im?im.naturalHeight:0 }; },
+      // CAS-1751 CÓDICE DE BOTÍN — dev probes consumed by tools/cas1752-codex.mjs — additive, drive REAL paths
+      codexEnable:(on)=>simDev.codexEnable(on), codexReset:()=>simDev.codexReset(), codexState:()=>simDev.codexState(),
+      codexRecord:(cat,id)=>simDev.codexRecord(cat,id), codexPickup:(cat,id)=>simDev.codexPickup(cat,id),
+      codexPersist:()=>simDev.codexPersist(), codexSrandProbe:(en,s,p)=>simDev.codexSrandProbe(en,s,p),
+      codexBtns:()=>{ const t=topBtns(), s=sidebarBtns(); return { top:!!(t&&t.cdx), sidebar:!!(s&&s.cdx) }; }, // CAS-1751: prove the HUD affordance appears (enabled) / is absent (disabled)
       // CAS-123 Stage-1 finale/win-condition contract consumed by tools/cas123-finale.mjs — additive
       stage1State:()=>simDev.stage1State(), armFinalBoss:()=>simDev.armFinalBoss(), ackVictory:()=>simDev.ackVictory(),
       // CAS-342 zone-capstone arming (any hunt zone) consumed by tools/cas342-dragon-capstone.mjs — additive

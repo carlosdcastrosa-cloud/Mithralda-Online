@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -176,6 +176,13 @@ export const G = {
   // one-shot flush flag the persistence controller consumes to write the store the instant
   // essence is banked or a node bought (durable without waiting for the throttled autosave).
   meta:null, metaDirty:false,
+  // CAS-1751: account-wide CÓDICE DE BOTÍN (Collection Log). A pure read-side ledger of the FIRST-EVER
+  // pickup of each unique/set-piece/rune ({v,uniq,set,rune} flat sets). null until persist.bootCodex()
+  // rehydrates it from its OWN store (mithralda.codex.v1 — never the run save). Touches NO RNG and no
+  // combat state beyond the derived, cached codexDmg/codexHp read live by equippedDmg/heroMaxHp.
+  // `codexDirty` is the one-shot flush flag persist.js consumes on each new discovery (durable without
+  // waiting for the throttled autosave). When CODEX.enabled=false it is never mutated ⇒ 0 observable effect.
+  codex:null, codexDirty:false,
   // CAS-1664: Arena de Oleadas (Wave Survival) endgame MODE. `arenaMode` is the master gate —
   // false for every normal adventure, so no arena code runs and the sim/RNG is byte-identical to
   // a build without the mode. `pendingArena` is set by the menu "Arena de Oleadas" entry and
@@ -807,6 +814,68 @@ export function loadArena(d){
   return G.arena.best; }
 // ================== end CAS-1664 Arena de Oleadas ==================
 
+// --------------------- CAS-1751: CÓDICE DE BOTÍN (Collection Log) ---------------------
+// A PURE READ-SIDE ledger over the shipped loot systems. It NEVER draws from any RNG stream and
+// NEVER writes combat/sim state beyond the derived, cached codexDmg/codexHp (read live by
+// equippedDmg/heroMaxHp — never baked, so reload/reset reproduce it from the ledger counts). The
+// whole feature is HARD-GATED behind CODEX.enabled: when false, recordCodex is a no-op, applyCodex
+// zeroes the cache, and no HUD/panel exists ⇒ the sim/srand sequence + save.v1 bytes are identical
+// to a build without the feature (RNG-neutral by construction — there is no stream to gate). The
+// sim owns the SHAPE (serializeCodex/loadCodex); persist.js owns the localStorage medium + the
+// codexDirty flush (mirror of the meta/arena ownership split). Its own key ⇒ save.v1 untouched.
+function codexDefault(){ return { v:1, uniq:{}, set:{}, rune:{} }; }
+function ensureCodex(){ if(!G.codex) G.codex=codexDefault(); return G.codex; }
+export function serializeCodex(){ const c=ensureCodex();
+  // shallow-copy the three flat sets so the persisted blob never aliases live state
+  return { v:1, uniq:Object.assign({},c.uniq), set:Object.assign({},c.set), rune:Object.assign({},c.rune) }; }
+export function loadCodex(d){ const def=codexDefault();
+  if(d && typeof d==="object"){
+    // only accept KNOWN ids (untrusted-blob guardrail like safeAffixes/legacyNodes): a tampered blob
+    // can't inject phantom entries that would inflate the bonus or break the discovered/total math.
+    if(d.uniq&&typeof d.uniq==="object") for(const u of UNIQUES) if(d.uniq[u.id]) def.uniq[u.id]=1;
+    if(d.set &&typeof d.set ==="object") for(const p of SET_PIECES) if(d.set[p.id]) def.set[p.id]=1;
+    if(d.rune&&typeof d.rune==="object") for(const t of RUNE_ORDER) if(d.rune[t]) def.rune[t]=1; }
+  G.codex=def; return true; }
+// counts of DISCOVERED entries per category (pure read).
+function codexCounts(){ const c=ensureCodex();
+  return { uniq:Object.keys(c.uniq).length, set:Object.keys(c.set).length, rune:Object.keys(c.rune).length }; }
+// derive the permanent {dmg,hp} bonus from the counts × the tunable magnitudes. 0 when disabled.
+export function codexBonus(){ if(!CODEX.enabled) return { dmg:0, hp:0 };
+  const n=codexCounts(); const b=CODEX.bonus;
+  return { dmg: n.uniq*b.dmgPerUniq, hp: n.set*b.hpPerSet + n.rune*b.hpPerRune }; }
+// cache the derived bonus onto the hero so equippedDmg/heroMaxHp read it live (never baked). Guarded
+// by the flag: disabled ⇒ codexDmg/codexHp=0 ⇒ zero contribution. Called at every hero seam + discovery.
+function applyCodex(h){ if(!h) return; const b=codexBonus(); h.codexDmg=b.dmg; h.codexHp=b.hp; }
+// Discovery: record the FIRST-EVER pickup of an id in a category. One-way set-insert, idempotent on
+// repeats. No-op (and NO ledger touch) when disabled ⇒ RNG/state untouched. On a genuine new entry it
+// recomputes the cached hero bonus, marks the store dirty for an immediate flush, and pops a floater.
+function recordCodex(cat,id){ if(!CODEX.enabled || !id) return false;
+  const c=ensureCodex(); const set=c[cat]; if(!set || set[id]) return false; // unknown cat or already discovered
+  set[id]=1; G.codexDirty=true;
+  const h=G.hero; if(h){ const before=codexBonus(); applyCodex(h);
+    // a new discovery lifts effective maxHp instantly (heroMaxHp reads codexHp live); top up current HP by
+    // the gained amount so the reward reads immediately (never above the new max).
+    const gainedHp=h.codexHp-(before.hp); if(gainedHp>0){ h.hp=Math.min(heroMaxHp(h), h.hp+gainedHp); }
+    const bonusTxt = cat==="uniq" ? "+"+CODEX.bonus.dmgPerUniq+" daño"
+                   : cat==="set"  ? "+"+CODEX.bonus.hpPerSet+" vida"
+                   :                 "+"+CODEX.bonus.hpPerRune+" vida";
+    floater(h.x, h.y-40, "¡Nuevo en el Códice! "+bonusTxt, C_GOLD, {pop:1.3, life:1.4}); }
+  return true; }
+// View model for renderCodex (pure read; render adds no logic). Each section lists EVERY content id
+// (discovered flag + name/glyph) so the panel draws discovered vs locked, plus the totals + live bonus.
+export function codexSnap(){ const c=ensureCodex(); const b=codexBonus();
+  const uniq=UNIQUES.map(u=>({ id:u.id, name:u.name, slot:u.slot, found:!!c.uniq[u.id] }));
+  const set =SET_PIECES.map(p=>({ id:p.id, name:p.name, slot:p.slot, found:!!c.set[p.id] }));
+  const rune=RUNE_ORDER.map(t=>{ const r=RUNES[t]; return { id:t, name:r.name, tint:r.tint, found:!!c.rune[t] }; });
+  const n=codexCounts();
+  return { enabled:!!CODEX.enabled, bonus:b,
+    sections:[
+      { key:"uniq", title:"Únicos",    items:uniq, found:n.uniq, total:UNIQUES.length },
+      { key:"set",  title:"Conjuntos", items:set,  found:n.set,  total:SET_PIECES.length },
+      { key:"rune", title:"Runas",     items:rune, found:n.rune, total:RUNE_ORDER.length },
+    ] }; }
+// ================== end CAS-1751 Códice de Botín ==================
+
 // --------------------- CAS-128: onboarding tutorial ---------------------
 // A pure, deterministic step machine layered ON TOP of the existing game (no balance
 // or mechanic change). Each step advances when the sim OBSERVES the player perform the
@@ -1027,6 +1096,9 @@ function reconcileMeta(h){ if(!h) return; ensureMeta();
     h.moveSpeed = h.moveSpeed * (1+META_MAP.moveSpd.per*wantSpdLv) / (1+META_MAP.moveSpd.per*had.spdLv);
   }
   h.metaApplied={hp:wantHp, dmg:wantDmg, gold:wantGold, spdLv:wantSpdLv};
+  // CAS-1751: refresh the cached Códice bonus onto the hero at every run-start/load/respawn seam
+  // (reconcileMeta is called from createHero, loadSave, and respawn). Derived, never baked — 0 when disabled.
+  applyCodex(h);
 }
 // Re-apply the per-run REROLL charges from meta ON TOP of the freshly-reset budget. Called
 // ONLY at true run-start seams (createHero / respawn) AFTER rerollLeft is reset to its base,
@@ -2355,8 +2427,12 @@ export function tryPickup(){
     if(d.kind==="gold"){ const g=d.amt||ri(3,8); h.gold+=g; audio.sfx.coin(); floater(h.x,h.y-26,"+"+g+" oro",C_GOLD); }
     else if(d.kind==="potionhp"){ h.potHP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de vida")); }
     else if(d.kind==="potionmp"){ h.potMP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de maná")); }
-    else if(d.kind==="gear"){ takeGear(d.inst); }
-    else if(d.kind==="rune"){ takeRune(d.rune); } // CAS-1687: a rune enters the bag as {rune:type}
+    else if(d.kind==="gear"){ takeGear(d.inst);
+      // CAS-1751: read-only Códice discovery AFTER the item is taken. A unique/set piece records its
+      // named id the first time it is ever picked up (idempotent, no-op when CODEX.enabled=false).
+      if(d.inst){ if(d.inst.uniq) recordCodex("uniq", d.inst.uniq); if(d.inst.set) recordCodex("set", d.inst.set); } }
+    else if(d.kind==="rune"){ takeRune(d.rune); // CAS-1687: a rune enters the bag as {rune:type}
+      recordCodex("rune", d.rune); } // CAS-1751: first pickup of a rune TYPE records it in the codex
     d.taken=true; tutMark("looted"); // CAS-128: first collected drop teaches the loot step
   }}
   G.drops=G.drops.filter(d=>!d.taken);
@@ -4197,6 +4273,45 @@ export const dev = {
     const runesDropped=G.drops.filter(d=>d.kind==="rune").length;
     SOCKETS.enabled=savEn; runeRate=savR;
     return { enabled:!!enabled, rate:usedR, socketsOn, runesDropped, fingerprint:fp }; },
+  // --- CAS-1751 CÓDICE DE BOTÍN harness hooks (tools/cas1752-codex.mjs); additive, drive the REAL paths ---
+  // Master toggle: flip CODEX.enabled and re-apply the cached hero bonus (0 when off). Mirror of newMobsEnable.
+  codexEnable(on){ CODEX.enabled=!!on; applyCodex(G.hero); return { enabled:CODEX.enabled, bonus:codexBonus() }; },
+  // Wipe the ledger to empty (own key) + refresh the hero cache. For the A/B baseline + a clean round-trip.
+  codexReset(){ G.codex=codexDefault(); G.codexDirty=false; applyCodex(G.hero); return this.codexState(); },
+  // Live snapshot: the full view model (sections + per-section found/total + bonus) plus the hero's cached
+  // codexDmg/codexHp and the live combat read-outs so a test proves a discovery moved a REAL number.
+  codexState(){ const h=G.hero; const snap=codexSnap();
+    return { enabled:CODEX.enabled, bonus:snap.bonus,
+      sections:snap.sections.map(s=>({ key:s.key, found:s.found, total:s.total, ids:s.items.filter(i=>i.found).map(i=>i.id) })),
+      hero: h ? { codexDmg:h.codexDmg||0, codexHp:h.codexHp||0, dmg:equippedDmg(h), maxHp:heroMaxHp(h), hp:h.hp } : null,
+      dirty:!!G.codexDirty }; },
+  // Record a discovery DIRECTLY through the real recordCodex (idempotent). Reports whether it was NEW
+  // + the resulting state (drives AC2 idempotency + AC3 bonus application without needing a live drop).
+  codexRecord(cat,id){ const was=recordCodex(cat,id); return { recorded:!!was, state:this.codexState() }; },
+  // Drive the FULL pickup path: spawn the exact item as a drop AT the hero and call the REAL tryPickup so
+  // the discovery hook fires from where it lives. `cat` = uniq|set|rune, `id` = uniq/set-piece id or rune type.
+  codexPickup(cat,id){ const h=G.hero; if(!h) return null; G.codexDirty=false;
+    if(cat==="rune"){ if(!RUNES[id]) return null; G.drops.push({x:h.x,y:h.y,kind:"rune",rune:id}); }
+    else { const inst = cat==="uniq" ? uniqInst(id) : setInst(id); if(!inst) return null;
+      G.drops.push({x:h.x,y:h.y,kind:"gear",inst,slot:inst.slot,rarity:inst.rarity,stat:gearStat(inst)}); }
+    tryPickup();
+    return { dirtiedForFlush:!!G.codexDirty, state:this.codexState() }; },
+  // AC1/persistence: serialize→load the codex through the REAL persistence pair (mirror of arenaPersist).
+  // Proves the ledger round-trips through its OWN blob and reconstitutes the same discovered set + bonus.
+  codexPersist(){ const before=this.codexState(); const blob=JSON.parse(JSON.stringify(serializeCodex()));
+    G.codex=codexDefault(); const okReset=codexCounts().uniq===0; loadCodex(blob); applyCodex(G.hero);
+    return { blob, clearedFirst:okReset, before:{ sections:before.sections, bonus:before.bonus }, after:this.codexState() }; },
+  // AC5 [AC-RNG-STRONG]: fingerprint gameplay-srand around a FULL unique-pickup with the codex ON vs OFF.
+  // recordCodex + tryPickup draw ZERO srand, so the fingerprint is BYTE-IDENTICAL either way, while the ON
+  // run records a discovery (found>0) and the OFF run records none — proving RNG-neutrality by construction.
+  codexSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savEn=CODEX.enabled; CODEX.enabled=!!enabled; G.codex=codexDefault(); applyCodex(G.hero);
+    G.drops.length=0; if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));      // pre-segment
+    const h=G.hero; if(h){ G.drops.push({x:h.x,y:h.y,kind:"gear",inst:uniqInst("reloj_vacio"),slot:"weapon",rarity:"legendary"}); tryPickup(); } // DISCOVERY INJECTION (no srand)
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                    // post-segment
+    const found=codexCounts().uniq; CODEX.enabled=savEn;
+    return { enabled:!!enabled, uniqFound:found, fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

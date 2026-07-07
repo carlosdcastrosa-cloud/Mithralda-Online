@@ -299,6 +299,7 @@ export function createRenderer(ctx){
     if(G.scene==="inventory") renderInventory();
     if(G.scene==="talents") renderTalents();
     if(G.scene==="mastery") renderMastery(); // CAS-150 elite-mastery reward track
+    if(G.scene==="codex") renderCodex(); // CAS-1751 Códice de Botín (Collection Log)
     if(G.scene==="dialogue") renderDialogue();
     if(G.scene==="shop") renderShop();
     if(G.scene==="forge") renderForge(); // CAS-237 equipment forge
@@ -2496,6 +2497,63 @@ export function createRenderer(ctx){
     ctx.textAlign="left";
   }
 
+  // CAS-1751 — CÓDICE DE BOTÍN (Collection Log). A PURE VIEW over sim.codexSnap(): three sections
+  // (Únicos / Conjuntos / Runas), each entry discovered (full-colour icon + name) or locked (dim
+  // silhouette + "???"). Reuses the existing icon_slot_<slot> assets (0 new art); rune cells fall back
+  // to the tinted ◆ glyph the sockets already use. Read-only — no game logic, no click rects (tap/ESC closes).
+  function renderCodex(){ const snap=sim.codexSnap();
+    const bw=Math.min(VW*0.92,600), bh=Math.min(VH*0.9,480), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText("Códice de Botín", VW/2, y+28);
+    // accumulated bonus header — the payoff for collecting
+    const b=snap.bonus;
+    ctx.fillStyle=COL.cream; ctx.font="12px "+FF;
+    ctx.fillText("Bono del Códice:  +"+b.dmg+" daño   ·   +"+b.hp+" vida", VW/2, y+48);
+    // three sections stacked; each a wrapped grid of icon cells
+    const pad=24, cell=44, gap=10, labelH=13;
+    let sy=y+72;
+    for(const sec of snap.sections){
+      // section header + progress
+      ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF;
+      ctx.fillText(sec.title, x+pad, sy);
+      ctx.textAlign="right"; ctx.fillStyle= sec.found>=sec.total ? COL.heal : COL.textDim; ctx.font="bold 12px "+FF;
+      ctx.fillText(sec.found+"/"+sec.total+(sec.found>=sec.total?"  ✦":""), x+bw-pad, sy);
+      sy+=10;
+      // cells
+      const gx0=x+pad; const cols=Math.max(1,Math.floor((bw-2*pad+gap)/(cell+gap)));
+      for(let i=0;i<sec.items.length;i++){ const it=sec.items[i];
+        const cx=gx0+(i%cols)*(cell+gap); const cy=sy+Math.floor(i/cols)*(cell+labelH+gap+8);
+        // cell frame
+        ctx.fillStyle= it.found ? "#1c2230" : "#141821"; ctx.fillRect(cx,cy,cell,cell);
+        ctx.strokeStyle= it.found ? (sec.key==="rune"? it.tint : COL.textGold) : "#2a3140"; ctx.lineWidth= it.found?2:1; ctx.strokeRect(cx+0.5,cy+0.5,cell-1,cell-1);
+        if(it.found){
+          if(sec.key==="rune"){ // rune → tinted ◆ glyph (mirrors the socket pips; 0 art)
+            ctx.textAlign="center"; ctx.fillStyle=it.tint; ctx.font="bold "+Math.round(cell*0.55)+"px "+FF; ctx.fillText("◆", cx+cell/2, cy+cell*0.66);
+          } else { const gi=IMG["icon_slot_"+it.slot];
+            if(gi&&gi.complete&&gi.naturalWidth){ ctx.save(); ctx.imageSmoothingEnabled=false; ctx.drawImage(gi, cx+6, cy+6, cell-12, cell-12); ctx.restore(); }
+            else { ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold "+Math.round(cell*0.5)+"px "+FF; ctx.fillText(GLY_SLOT[it.slot]||"◆", cx+cell/2, cy+cell*0.64); } }
+          // name under the cell
+          ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="9px "+FF;
+          fitLabel(it.name, cx+cell/2, cy+cell+labelH-2, cell+gap-2);
+        } else {
+          // locked silhouette + "???"
+          ctx.textAlign="center"; ctx.fillStyle="#39414f"; ctx.font="bold "+Math.round(cell*0.5)+"px "+FF; ctx.fillText("?", cx+cell/2, cy+cell*0.66);
+          ctx.fillStyle=COL.textDim; ctx.font="9px "+FF; ctx.fillText("???", cx+cell/2, cy+cell+labelH-2);
+        }
+      }
+      const rows=Math.ceil(sec.items.length/cols);
+      sy += rows*(cell+labelH+gap+8) + 8;
+    }
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("K / ESC para cerrar", VW/2, y+bh-8);
+    ctx.textAlign="left";
+  }
+  // small helper: draw a label, shrinking the font once if it overflows the cell width (keeps names legible).
+  function fitLabel(txt,cx,cy,maxW){ if(ctx.measureText(txt).width>maxW){ ctx.font="8px "+FF; if(ctx.measureText(txt).width>maxW){
+      // hard clip with an ellipsis as a last resort
+      let s=txt; while(s.length>2 && ctx.measureText(s+"…").width>maxW) s=s.slice(0,-1); txt=s+"…"; } }
+    ctx.fillText(txt,cx,cy); }
+  const GLY_SLOT={weapon:"⚔",body:"▣",shield:"◈"};
+
   function renderShop(){ const items=sim.shopItems(); const bw=Math.min(VW*0.86,460), bh=Math.min(VH*0.82,420), x=(VW-bw)/2, y=(VH-bh)/2;
     const title=G.merchantShop?STR.merchantTitle:G.healShop?STR.npcLina:STR.shopTitle;
     panel(x,y,bw,bh); ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(title,VW/2,y+30);
@@ -3315,6 +3373,7 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.out; ctx.fillText(b.label,b.x+1,ly+1); ctx.fillStyle=kc; ctx.fillText(b.label,b.x,ly); }
     btn(tb.attack,COL.textGold,true); btn(tb.roll,COL.cream); btn(tb.s2,COL.flame); btn(tb.s3,COL.heal); btn(tb.s4,COL.rune); btn(tb.act,COL.cream); btn(tb.pick,COL.cream);
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
+    if(top.cdx) btn(top.cdx,COL.textGold); // CAS-1751: Códice touch button (present only when enabled)
     // CAS-1659: Ultimate touch button + charge ring — only when the run has a drafted ultimate.
     if(G.hero&&G.hero.ultId&&tb.ult&&tb.ult.r){ const b=tb.ult, u=ULTIMATE_MAP[G.hero.ultId]||{}, f=clamp(G.hero.ultCharge||0,0,1), ready=f>=1, col=u.col||COL.textGold;
       btn(b, ready?col:COL.rune, true);
