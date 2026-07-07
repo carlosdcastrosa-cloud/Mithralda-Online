@@ -234,7 +234,11 @@ function flash(msg){ const s=$("status"); s.textContent=msg; }
 function setDoc(d){ doc=d; $("nameF").value=doc.name;
   // frame the whole map to fit
   const wrap=$("canvasWrap"); zoom=Math.max(4,Math.min(20, Math.floor(Math.min(wrap.clientWidth/(doc.w+4), wrap.clientHeight/(doc.h+4)))));
-  panX=(wrap.clientWidth-doc.w*zoom)/2; panY=(wrap.clientHeight-doc.h*zoom)/2; updateMapInfo(); draw(); autosave(); }
+  panX=(wrap.clientWidth-doc.w*zoom)/2; panY=(wrap.clientHeight-doc.h*zoom)/2; updateMapInfo(); resize(); autosave(); }
+  // CAS-1693 fix: resize() sizes the canvas to the pane BEFORE drawing. Previously setDoc
+  // called draw() directly, but the canvas kept its default 300×150 (resize was only bound to
+  // the window 'resize' event, which never fires at boot) — so the map, centered in the ~1000px
+  // pane, was drawn entirely outside the tiny canvas → fully black screen.
 
 function updateMapInfo(){
   const nZ=doc.zones.length, nE=doc.entities.npcs.length+doc.entities.chests.length+doc.entities.fragments.length;
