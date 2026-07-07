@@ -167,6 +167,15 @@ export function buildWorldFromMapDoc(doc, _rng){
   for(const f of (E.fragments||[])) fragments.push({ x:f.x, y:f.y, taken:false, kind:f.kind||"hp" });
   for(const p of (E.portals||[]))   portals.push({ x:p.x, y:p.y, to:p.to, dx:p.dx, dy:p.dy, kind:p.kind||"down" });
   for(const pr of (E.props||[])){
+    // CAS-1716: custom uploaded sprites are decorative props with kind:"custom" that
+    // carry an `asset` id (resolved against world.customAssets at render) plus authored
+    // w,h display size. They flow to deco like any prop; they only add a collision solid
+    // if the author marked them solid (custom stamps default solid:false).
+    if(pr.kind === "custom"){
+      deco.push({ x:pr.x, y:pr.y, kind:"custom", asset:pr.asset, w:pr.w||0, h:pr.h||0 });
+      if(pr.solid) solids.push({ x:pr.x, y:pr.y, r:pr.r||10, kind:"custom" });
+      continue;
+    }
     deco.push({ x:pr.x, y:pr.y, kind:pr.kind });
     if(pr.solid) solids.push({ x:pr.x, y:pr.y, r:pr.r||10, kind:pr.kind });
   }
@@ -176,6 +185,10 @@ export function buildWorldFromMapDoc(doc, _rng){
     ruins:world.ruins, abyss:world.abyss, frost:world.frost, trial:world.trial, swamp:world.swamp,
     solids, deco, chests, fragments, fountains, npcs, spawners, portals,
     templeF, tcx, tcy, wallSet:new Set(), buildings:[], blockSet:new Set(),
+    // CAS-1716: embedded custom-asset table (id→{path,name,type,dataUrl}) read SYNC by the
+    // renderer to build its Image cache. Absent (undefined) when the MapDoc has no md.assets,
+    // so the render branch stays inert and the world shape is unchanged (byte-safe).
+    customAssets: doc.assets || null,
     fromMapDoc:true, mapName: doc.name || "Mapa",
   };
 }

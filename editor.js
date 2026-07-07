@@ -7,9 +7,26 @@
 // ===========================================================================
 import { SLOTS, TILES, NPC_MAP, PROP_KINDS, DEFAULT_TYPES, MAPDOC_KEY, MAPDOC_VERSION,
          rleEncode, rleDecodeInto, makeSeedMapDoc } from "./sim/mapdoc.js";
+import { putAsset, getAllAssets, ASSET_CAP_BYTES } from "./sim/customassets.js";
 
 const TS = 32;                                    // world px per tile (matches config.TS)
 const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------------------
+// CAS-1716 — custom uploaded assets (client-side). `assets` is the live palette
+// (id→record{id,path,name,type,dataUrl,w,h,img}); IndexedDB (customassets.js) is
+// the durable copy that survives reload. The game NEVER reads IndexedDB — on
+// Play/Export we embed only the referenced assets' data URLs into md.assets.
+// ---------------------------------------------------------------------------
+const assets = new Map();                         // id → record (+ lazily-built .img)
+let curAsset = null;                              // selected asset id for the Sello tool
+const BRIDGE_CAP_BYTES = 5 * 1024 * 1024;         // ~5MB localStorage bridge budget (Play/autosave)
+// A cached HTMLImageElement per record for canvas drawing (built from its dataUrl).
+function assetImg(rec){ if(rec.img) return rec.img; const im=new Image(); im.src=rec.dataUrl; rec.img=im; return im; }
+const dataUrlBytes = (u)=> u ? Math.ceil((u.length - (u.indexOf(",")+1)) * 0.75) : 0; // ~base64→bytes
+function totalAssetBytes(){ let n=0; for(const r of assets.values()) n+=dataUrlBytes(r.dataUrl); return n; }
+// First-level folder of a relative path ("mobs/orc.png" → "mobs"; bare file → "raíz").
+function groupOf(path){ const i=(path||"").indexOf("/"); return i>0 ? path.slice(0,i) : "raíz"; }
 
 // ---- terrain colour lookup ----
 const TILE_COLOR = {}; for(const t of TILES) TILE_COLOR[t.id] = t.color;
@@ -52,9 +69,12 @@ function docFromMapDoc(md){
       props:(e.props||[]).map(p=>({...p})),
     } };
 }
-// Convert editor doc → MapDoc (rle terrain) for export / play.
-function docToMapDoc(){
-  return { v:MAPDOC_VERSION, name:doc.name, w:doc.w, h:doc.h,
+// Convert editor doc → MapDoc (rle terrain) for export / play. When `embedAssets`
+// is true AND custom props are placed, embed ONLY the referenced assets' data URLs
+// under md.assets (so the game reads them SYNC). With no custom props the `assets`
+// key is never added and the props array is unchanged → byte-identical output (AC7).
+function docToMapDoc(embedAssets){
+  const md = { v:MAPDOC_VERSION, name:doc.name, w:doc.w, h:doc.h,
     terrain:{ rle: rleEncode(doc.grid) },
     zones: doc.zones.map(z=>({...z})),
     entities:{
@@ -62,6 +82,8 @@ function docToMapDoc(){
       fragments:doc.entities.fragments.map(f=>({...f})), portals:doc.entities.portals.map(p=>({...p})),
       props:doc.entities.props.map(p=>({...p})),
     } };
+  if(embedAssets){ const refs=referencedAssets(); if(refs) md.assets=refs; }
+  return md;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +138,12 @@ function draw(){
     ctx.fillStyle="#000"; ctx.font="bold "+Math.max(8,zoom*0.4)+"px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(ch,x,y+0.5); ctx.textAlign="left"; ctx.textBaseline="alphabetic"; };
   for(const p of doc.entities.props){ const x=px2scr(p.x), y=py2scr(p.y);
+    if(p.kind==="custom"){ const r=assets.get(p.asset);
+      if(r){ const im=assetImg(r); const w=(p.w||r.w||32)*zoom/TS, h=(p.h||r.h||32)*zoom/TS;
+        if(im.complete&&im.naturalWidth){ ctx.imageSmoothingEnabled=false; ctx.drawImage(im, x-w/2, y-h, w, h); }
+        else { ctx.strokeStyle="#c8a24a"; ctx.strokeRect(x-w/2,y-h,w,h); } }
+      else { ctx.fillStyle="#c8a24a"; ctx.fillRect(x-3,y-3,6,6); }   // missing asset marker
+      continue; }
     ctx.fillStyle=p.solid?"#2f7d32":"#6f8f4f"; ctx.fillRect(x-2,y-2,4,4); }
   for(const c of doc.entities.chests)    dot(c.x,c.y,"#e0b040","$");
   for(const f of doc.entities.fragments) dot(f.x,f.y, f.kind==="mp"?"#5090e0":"#e05070","✦");
@@ -164,6 +192,104 @@ function deleteAt(px,py){
 }
 
 // ---------------------------------------------------------------------------
+// CAS-1716 — custom-asset ingest, palette, and the Sello (stamp) tool
+// ---------------------------------------------------------------------------
+// Decode a data URL into {w,h} via a throwaway Image (async).
+function dimsOf(dataUrl){ return new Promise(res=>{ const im=new Image();
+  im.onload=()=>res({w:im.naturalWidth||0,h:im.naturalHeight||0}); im.onerror=()=>res({w:0,h:0}); im.src=dataUrl; }); }
+// Read a File → data URL (async).
+function fileToDataUrl(file){ return new Promise((res,rej)=>{ const rd=new FileReader();
+  rd.onload=()=>res(rd.result); rd.onerror=()=>rej(rd.error); rd.readAsDataURL(file); }); }
+// Insert/replace a record in the palette + IndexedDB, enforcing the total cap. Returns
+// the record or null if the cap would be exceeded (caller flashes; never throws).
+async function ingestRecord(rec){
+  const prev = assets.get(rec.id);
+  const delta = dataUrlBytes(rec.dataUrl) - (prev?dataUrlBytes(prev.dataUrl):0);
+  if(totalAssetBytes() + delta > ASSET_CAP_BYTES){
+    flash(`Límite de ~${Math.round(ASSET_CAP_BYTES/1048576)}MB de assets alcanzado — no se añadió "${rec.name}"`); return null; }
+  assets.set(rec.id, rec);
+  try{ await putAsset({ id:rec.id, path:rec.path, name:rec.name, type:rec.type, dataUrl:rec.dataUrl, w:rec.w, h:rec.h }); }
+  catch(e){ // QuotaExceededError or no-indexeddb: keep it in-memory for this session, warn once.
+    flash("No se pudo guardar en el navegador (cuota); disponible solo esta sesión"); }
+  return rec;
+}
+// Ingest one uploaded File (recursive folder uploads arrive as a flat File list whose
+// webkitRelativePath carries the folder structure). Non-images are skipped silently.
+async function ingestFile(file){
+  if(!file || !(file.type||"").startsWith("image/")) return null;
+  const path = file.webkitRelativePath || file.name;
+  const dataUrl = await fileToDataUrl(file);
+  const { w, h } = await dimsOf(dataUrl);
+  return ingestRecord({ id:path, path, name:file.name, type:file.type, dataUrl, w, h });
+}
+// Ingest a batch of File objects; report the loaded count.
+async function ingestFiles(fileList){
+  const files = Array.from(fileList||[]);
+  let ok=0, skipped=0;
+  for(const f of files){ const r = await ingestFile(f); if(r) ok++; else if(!(f.type||"").startsWith("image/")) skipped++; }
+  buildAssetPalette();
+  if(!curAsset){ const first=assets.keys().next(); if(!first.done) selectAsset(first.value); }
+  draw();
+  flash(`${ok} imagen(es) cargada(s)${skipped?` · ${skipped} no-imagen ignorada(s)`:""}`);
+  return ok;
+}
+// Re-hydrate the palette from IndexedDB at boot (assets survive reloads).
+async function reingestFromDB(){
+  try{ const recs = await getAllAssets();
+    for(const r of recs) assets.set(r.id, { ...r });
+    buildAssetPalette(); draw();
+  }catch(e){ /* no IndexedDB (private mode / headless): palette just starts empty */ }
+}
+// Re-hydrate assets embedded in an imported MapDoc's md.assets block (→ palette + IndexedDB).
+async function reingestEmbedded(mdAssets){
+  if(!mdAssets) return;
+  for(const id in mdAssets){ const a=mdAssets[id]; if(!a||!a.dataUrl) continue;
+    const { w, h } = await dimsOf(a.dataUrl);
+    await ingestRecord({ id, path:a.path||id, name:a.name||id, type:a.type||"image/png", dataUrl:a.dataUrl, w, h }); }
+  buildAssetPalette(); draw();
+}
+// Collect the md.assets table for ONLY the custom props actually placed (referenced ids).
+function referencedAssets(){
+  const out={}; const seen=new Set();
+  for(const p of doc.entities.props){ if(p.kind!=="custom"||!p.asset||seen.has(p.asset)) continue;
+    const r=assets.get(p.asset); if(!r) continue; seen.add(p.asset);
+    out[p.asset]={ path:r.path, name:r.name, type:r.type, dataUrl:r.dataUrl }; }
+  return seen.size ? out : null;
+}
+// Place one custom prop (bottom-anchored authored size = the asset's natural px).
+function placeCustom(px,py){ if(!curAsset) return; const r=assets.get(curAsset); if(!r) return;
+  doc.entities.props.push({ x:px, y:py, kind:"custom", asset:curAsset, w:r.w||32, h:r.h||32, solid:false, r:0 }); }
+
+let lastStamp=null;                               // last stamp world-pos for drag spacing
+function stampAt(px,py){
+  if(!curAsset) return; const r=assets.get(curAsset); if(!r) return;
+  const spacing=Math.max(12, Math.min(r.w||24, r.h||24)*0.75);   // continuous-stamp spacing (world px)
+  if(lastStamp && Math.hypot(px-lastStamp[0],py-lastStamp[1])<spacing) return;
+  placeCustom(px,py); lastStamp=[px,py];
+}
+
+function selectAsset(id){ curAsset=id;
+  document.querySelectorAll("#assetGroups .asw").forEach(n=>n.classList.toggle("on", n.dataset.id===id)); }
+function buildAssetPalette(){
+  const wrap=$("assetGroups"); if(!wrap) return; wrap.innerHTML="";
+  const groups=new Map();
+  for(const r of assets.values()){ const g=groupOf(r.path); (groups.get(g)||groups.set(g,[]).get(g)).push(r); }
+  $("assetEmpty").style.display = assets.size ? "none" : "";
+  for(const [g,list] of groups){
+    const gd=document.createElement("div"); gd.className="agroup";
+    const gh=document.createElement("div"); gh.className="ghead"; gh.textContent=`${g} (${list.length})`; gd.appendChild(gh);
+    const sw=document.createElement("div"); sw.className="aswatches"; gd.appendChild(sw);
+    for(const r of list){ const b=document.createElement("div"); b.className="asw"+(r.id===curAsset?" on":""); b.dataset.id=r.id;
+      b.title=r.path;
+      const im=document.createElement("img"); im.src=r.dataUrl; im.alt=r.name;
+      const nm=document.createElement("span"); nm.textContent=r.name;
+      b.appendChild(im); b.appendChild(nm);
+      b.onclick=()=>selectAsset(r.id); sw.appendChild(b); }
+    wrap.appendChild(gd);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // pointer handling
 // ---------------------------------------------------------------------------
 let dragging=false, panning=false, spaceDown=false, dragStart=null, lastPan=null;
@@ -179,6 +305,7 @@ canvas.addEventListener("pointerdown", e=>{
   else if(tool==="erase"){ if(inBounds(tx,ty)) doc.grid[ty*doc.w+tx]=TILES[0].id; }
   else if(tool==="fill") floodFill(tx,ty);
   else if(tool==="npc"||tool==="chest"||tool==="fragment"||tool==="prop") placeEntity(px,py);
+  else if(tool==="stamp"){ lastStamp=null; stampAt(px,py); }
   else if(tool==="delete") deleteAt((tx+0.5)*TS,(ty+0.5)*TS);
   // "zone" handled on pointerup (drag rect)
   draw(); autosave();
@@ -191,6 +318,7 @@ canvas.addEventListener("pointermove", e=>{
   if(!dragging) return;
   if(tool==="paint"){ paintTile(tx,ty); draw(); }
   else if(tool==="erase"){ if(inBounds(tx,ty)) doc.grid[ty*doc.w+tx]=TILES[0].id; draw(); }
+  else if(tool==="stamp"){ stampAt((tx+0.5)*TS,(ty+0.5)*TS); draw(); }
   else if(tool==="zone"){ draw(); // preview rect
     const [ax,ay]=dragStart; ctx.strokeStyle="#e8c060"; ctx.lineWidth=2; ctx.setLineDash([5,4]);
     ctx.strokeRect(Math.min(ax,sx),Math.min(ay,sy),Math.abs(sx-ax),Math.abs(sy-ay)); ctx.setLineDash([]); }
@@ -250,17 +378,25 @@ function updateMapInfo(){
 // ---------------------------------------------------------------------------
 function exportJSON(){
   doc.name=$("nameF").value||"Mi Mundo";
-  const blob=new Blob([JSON.stringify(docToMapDoc(),null,0)],{type:"application/json"});
+  // Embed referenced custom assets so the exported file is self-contained (round-trip).
+  const blob=new Blob([JSON.stringify(docToMapDoc(true),null,0)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download=(doc.name.replace(/[^\w-]+/g,"_")||"mapa")+".mapdoc.json"; a.click();
   URL.revokeObjectURL(a.href); flash("JSON exportado ✓");
 }
 function importJSON(file){ const rd=new FileReader();
-  rd.onload=()=>{ try{ setDoc(docFromMapDoc(JSON.parse(rd.result))); flash("Importado ✓"); }catch(e){ flash("JSON inválido"); } };
+  rd.onload=()=>{ try{ const md=JSON.parse(rd.result); setDoc(docFromMapDoc(md));
+      if(md.assets) reingestEmbedded(md.assets);   // re-hydrate embedded custom assets → palette + IndexedDB
+      flash("Importado ✓"); }catch(e){ flash("JSON inválido"); } };
   rd.readAsText(file); }
 function play(){
   doc.name=$("nameF").value||"Mi Mundo";
-  try{ localStorage.setItem(MAPDOC_KEY, JSON.stringify(docToMapDoc())); }catch(e){ flash("No se pudo guardar para jugar"); return; }
+  const md=docToMapDoc(true);                       // embed referenced custom assets for the game (sync bridge)
+  const json=JSON.stringify(md);
+  if(json.length > BRIDGE_CAP_BYTES){
+    flash(`El mapa con sus assets supera ~${Math.round(BRIDGE_CAP_BYTES/1048576)}MB — reduce/optimiza imágenes para Jugar`); return; }
+  try{ localStorage.setItem(MAPDOC_KEY, json); }
+  catch(e){ flash("No se pudo guardar para jugar (cuota del navegador)"); return; }
   window.open("./index.html?map=local","_blank");
 }
 
@@ -272,6 +408,7 @@ const TOOLS = [
   { id:"erase",   label:"⌫ Borrar terreno" }, { id:"zone", label:"▢ Zona" },
   { id:"npc",     label:"☻ NPC" }, { id:"chest", label:"$ Cofre" },
   { id:"fragment",label:"✦ Fragmento" }, { id:"prop", label:"♣ Prop" },
+  { id:"stamp",   label:"🔖 Sello" },
   { id:"delete",  label:"✕ Borrar ent." },
 ];
 const HINTS = {
@@ -283,6 +420,7 @@ const HINTS = {
   chest:"Clic para colocar un cofre.",
   fragment:"Clic para colocar un fragmento de vitalidad/maná.",
   prop:"Clic para colocar decoración (árboles, rocas…).",
+  stamp:"Sube una carpeta de assets, elige uno y séllalo: clic=1, arrastra=serie.",
   delete:"Clic sobre una entidad o zona para eliminarla.",
 };
 function buildTools(){ const el=$("tools"); el.innerHTML="";
@@ -294,6 +432,7 @@ function selectTool(id){ tool=id;
   $("zonePal").style.display=id==="zone"?"":"none";
   $("npcPal").style.display=id==="npc"?"":"none";
   $("propPal").style.display=id==="prop"?"":"none";
+  $("assetPal").style.display=id==="stamp"?"":"none";
   $("hint").textContent=HINTS[id]||""; }
 function buildTiles(){ const el=$("tiles"); el.innerHTML="";
   for(const t of TILES){ const b=document.createElement("div"); b.className="sw"+(t.id===curTile?" on":"");
@@ -320,6 +459,11 @@ $("btnBlank").onclick=()=>{ setDoc(blankDoc($("nameF").value)); flash("Mapa vac�
 $("btnExport").onclick=exportJSON;
 $("btnImport").onclick=()=>$("fileIn").click();
 $("fileIn").onchange=e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=""; };
+// CAS-1716: folder upload — prefer webkitdirectory; fall back to multi-file when unsupported.
+$("btnUpload").onclick=()=>{ const di=$("dirIn");
+  if("webkitdirectory" in di) di.click(); else $("filesIn").click(); };
+$("dirIn").onchange=e=>{ if(e.target.files&&e.target.files.length){ selectTool("stamp"); ingestFiles(e.target.files); } e.target.value=""; };
+$("filesIn").onchange=e=>{ if(e.target.files&&e.target.files.length){ selectTool("stamp"); ingestFiles(e.target.files); } e.target.value=""; };
 $("btnPlay").onclick=play;
 $("btnSave").onclick=saveNow;
 $("btnLoad").onclick=loadFromStorage;
@@ -340,5 +484,22 @@ buildTools(); buildTiles(); buildSlots(); buildNpcs(); buildProps(); selectTool(
   setDoc(start);
   if(!localStorage.getItem("mithralda.editor.seen")){ $("help").style.display="flex"; try{localStorage.setItem("mithralda.editor.seen","1");}catch(e){} }
 })();
-// expose for the live QA harness (headless assertions on round-trip)
-window.__editor = { get doc(){ return doc; }, docToMapDoc, docFromMapDoc, setDoc, makeSeedMapDoc };
+reingestFromDB();   // CAS-1716: re-hydrate uploaded assets from IndexedDB (async; palette fills when ready)
+
+// expose for the live QA harness (headless assertions on round-trip). CAS-1716 adds
+// headless asset helpers because there is no file-picker in headless: ingestAsset
+// simulates one uploaded file, listAssets reads the palette, stampCustom places a prop.
+window.__editor = { get doc(){ return doc; }, docToMapDoc, docFromMapDoc, setDoc, makeSeedMapDoc,
+  // Simulate one uploaded file (name + data URL). Non-image data URLs are ignored
+  // (mirrors the real folder-upload filter). Returns the record (or null if capped/ignored).
+  async ingestAsset(name, dataUrl){
+    const mime=(/^data:([^;,]+)/.exec(dataUrl||"")||[])[1]||"";
+    if(!mime.startsWith("image/")) return null;
+    const { w, h } = await dimsOf(dataUrl);
+    const path=name; const rec=await ingestRecord({ id:path, path, name, type:mime, dataUrl, w, h });
+    buildAssetPalette(); if(rec && !curAsset) selectAsset(rec.id); draw(); return rec; },
+  listAssets(){ return Array.from(assets.values()).map(r=>({ id:r.id, path:r.path, name:r.name, w:r.w, h:r.h, group:groupOf(r.path) })); },
+  // Place a custom prop of `assetId` at world px (px,py). Returns the placed prop.
+  stampCustom(assetId, px, py){ const prev=curAsset; curAsset=assetId; placeCustom(px,py); curAsset=prev;
+    draw(); autosave(); updateMapInfo(); return doc.entities.props[doc.entities.props.length-1]; },
+  selectAsset, referencedAssets, reingestEmbedded };
