@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3185,6 +3185,40 @@ export function update(dtMs){
 export const CORPSE_LIFE=2.6;
 function updateCorpses(dt){ const C=G.corpses;
   for(let i=C.length-1;i>=0;i--){ C[i].t+=dt; if(C[i].t>=CORPSE_LIFE) C.splice(i,1); } }
+// CAS-1790: "pesado" = jefe/campeón/capstone/élite. heavyOnly v1 sólo afecta a estas unidades;
+// los mobs básicos quedan EXACTOS (mismo windup, sin cue). Pura lectura de flags, 0 efectos.
+function isHeavy(e){ return !!(e.isBoss||e.champion||e.capstone||e.elite); }
+// CAS-1790 M1+M2: al ENTRAR a windup, un pesado reserva un piso de lead-time (timing, 0-RNG) y
+// emite el cue procedural cosmético. Todo HARD-GATED tras TELEGRAPH.enabled ⇒ con el knob OFF esta
+// función NO se llama (guarda en el call-site) y el sim queda byte-idéntico a HEAD. El cue usa sólo
+// addFx (sin RNG de combate ni fxRng), así que el stream srand es idéntico ON vs OFF. NO toca daño,
+// cooldowns ni IA de movimiento: sólo alarga la fase de aviso (e.st) y dibuja marcas.
+function armTelegraph(e){
+  // M1 — piso de lead-time para el impacto pesado (aritmética determinista, 0 draws).
+  e.st = Math.max(e.st, TELEGRAPH.leadMs/1000);
+  const life = e.st;
+  // M2(a) — anillo único que se contrae sobre la unidad pesada durante el windup ("pesado incoming").
+  addFx("telegraphmark", e.x, e.y, { life, r:(e.tpl.size||16)*1.7+6, heavy:1 });
+  // M2(b) — marca de suelo anticipatoria SÓLO para las ráfagas radiales que hoy estallan sin aviso
+  // (boss ground-wave en strikes alternos, capstone enraged slam, champion special slam). El radio
+  // dimensiona "sal del anillo / rueda". La ráfaga resuelve EXACTAMENTE igual (mismos proyectiles).
+  const burstR =
+      (e.isBoss && ((e.phase+1)%2===0)) ? 118 :               // boss alt-strike ground-wave
+      (e.capstone && e.enraged && e.slam) ? 108 :             // capstone enraged slam
+      (e.specialNow && e.special && e.special.slam) ? 96 : 0; // champion special slam
+  if(burstR>0) addFx("telegraphmark", e.x, e.y, { life, r:burstR, ground:1, oy:(e.tpl.size||16)*0.4 });
+}
+// CAS-1790 harness helper: clean arena + one enemy parked INSIDE its own range so the REAL AI commits
+// chase→windup on the next tick(s). `heavy` = flags to graft (elite/isBoss/…). Drives updateEnemies (the
+// real wired path) so the M1 floor + M2 cue fire exactly as in-game. Returns the enemy at windup entry.
+function teleArmWindup(type, heavy){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+  const h=G.hero; if(!h) return null; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=1e6; h.hp=1e6; h.cls="warrior";
+  const e=spawnEnemy(type||"orc", h.x+20, h.y); if(!e) return null;
+  e.maxHp=e.hp=1e9; if(heavy) Object.assign(e, heavy); e.state="chase";
+  const R=Math.max(8,(e.tpl.range||40)-4);
+  let steps=0; while(e.state!=="windup" && steps++<40){ e.x=h.x+R; e.y=h.y; e.knockX=0; e.knockY=0; updateEnemies(1/60); if(e.hp<=0) break; }
+  return e;
+}
 function updateEnemies(dt){ const h=G.hero;
   for(const e of G.enemies){
     e.hurtFlash=Math.max(0,e.hurtFlash-dt);
@@ -3285,6 +3319,9 @@ function updateEnemies(dt){ const h=G.hero;
             // follow-up swings re-enter windup directly from strike (below), never via chase.
             if(e.tpl.arch==="punisher") e.comboLeft=(e.tpl.combo||2)-1;
             e.state="windup"; e.st=e.specialNow ? (e.special.windup || e.tpl.windup*1.6) : e.tpl.windup; e.hitDone=false;
+            // CAS-1790: piso de lead-time + cue de aviso para PESADOS. HARD-GATED (OFF ⇒ no-op,
+            // sim byte-idéntico). Va DESPUÉS de fijar e.st para poder pisarlo; antes del sfx.
+            if(TELEGRAPH.enabled && (!TELEGRAPH.heavyOnly || isHeavy(e))) armTelegraph(e);
             if(e.specialNow){ audio.sfx.boss(); }
           }
         }
@@ -4911,6 +4948,63 @@ export const dev = {
     return { byteId:cleanStr===hotStr, hasKey:/"_?parry[a-z]*":/i.test(hotStr),
       afterLoad:{ parryT:h2.parryT|0, parryCD:h2.parryCD|0, riposte:h2._parryRiposte|0 },
       cleanLen:cleanStr.length, hotLen:hotStr.length, loaded:!!ok2 }; },
+  // --- CAS-1790 TELEGRAFÍA DE ATAQUE ENEMIGO (heavy wind-ups) harness hooks (tools/cas1790-telegraph.mjs); additive, drive the REAL paths ---
+  // Static config off the data (no sim step): the single knob's live values.
+  telegraphMeta(){ return { enabled:TELEGRAPH.enabled, leadMs:TELEGRAPH.leadMs, heavyOnly:TELEGRAPH.heavyOnly }; },
+  // Master toggle: flip TELEGRAPH.enabled. Mirror of frenzyEnable/parry — the sim reads it live at windup entry.
+  telegraphEnabled(){ return TELEGRAPH.enabled; },
+  telegraphEnable(on){ TELEGRAPH.enabled=!!on; return { enabled:TELEGRAPH.enabled }; },
+  // AC-floor + AC-cue for a PESADO: the native windup gets floored to ≥leadMs and the cosmetic cue + (for a
+  // burst-armed boss) the ground mark spawn. Drives the REAL updateEnemies path.
+  telegraphHeavyProbe(type){ const e=teleArmWindup(type||"orc", { elite:true });
+    if(!e) return null;
+    return { isHeavy:isHeavy(e), state:e.state, windupBefore:+(+e.tpl.windup||0).toFixed(4), windupAfter:+(+e.st||0).toFixed(4),
+      floorS:+(TELEGRAPH.leadMs/1000).toFixed(4),
+      cueSpawned:G.fx.some(f=>f.kind==="telegraphmark"&&!f.ground), markSpawned:G.fx.some(f=>f.kind==="telegraphmark"&&f.ground) }; },
+  // AC-floor negative: a BASIC mob (not heavy) is EXACT — windup untouched (heavyOnly), no cue spawned.
+  telegraphBasicProbe(type){ const e=teleArmWindup(type||"orc", null);
+    if(!e) return null;
+    return { isHeavy:isHeavy(e), state:e.state, windupBefore:+(+e.tpl.windup||0).toFixed(4), windupAfter:+(+e.st||0).toFixed(4),
+      windupUnchanged:Math.abs((+e.st||0)-(+e.tpl.windup||0))<1e-9, cueSpawned:G.fx.some(f=>f.kind==="telegraphmark") }; },
+  // AC-burst-neutral: an isBoss with phase pre-armed so the NEXT strike fires the ground-wave. Confirms a pre-warn
+  // mark spawns at windup AND the burst still emits the SAME projectiles (count/kind/dmg) at the strike instant.
+  telegraphBurstProbe(){ const e=teleArmWindup("orc", { isBoss:true, phase:1 });
+    if(!e) return null;
+    const markSpawned=G.fx.some(f=>f.kind==="telegraphmark"&&f.ground);
+    const h=G.hero, R=Math.max(8,(e.tpl.range||40)-4);
+    let steps=0; while(e.state==="windup" && steps++<200){ e.x=h.x+R; e.y=h.y; e.knockX=0; e.knockY=0; updateEnemies(1/60); }
+    const runes=G.projectiles.filter(p=>p.kind==="rune"&&p.enemy);
+    const out={ markSpawned, phaseAfter:e.phase, state:e.state, runeCount:runes.length,
+      runeDmg:runes.length?runes[0].dmg:0, allRune:runes.every(p=>p.kind==="rune") };
+    G.projectiles.length=0; G.enemies.length=0; G.fx.length=0; return out; },
+  // AC-RNG-STRONG: fingerprint the gameplay srand around a REAL heavy wind-up FIRING (windup→strike,
+  // boss ground-wave included), TELEGRAPH ON vs OFF. The cue rides addFx only (no srand, no seeded fxRng
+  // draw), and the M1 floor is pure arithmetic, so the raw srand stream is BYTE-IDENTICAL ON==OFF while the
+  // cue does/doesn't render. `fire=false` skips the injection to fingerprint a clean baseline: injection ON
+  // == baseline proves the wind-up firing consumes 0 srand (not just "same as OFF"). The drive uses only a
+  // single scripted boss (no loot kills), so the stream is fully deterministic across calls.
+  telegraphSrandProbe(enabled, seedVal, probeN, fire){ probeN=Math.max(4,probeN|0);
+    const sav=TELEGRAPH.enabled; TELEGRAPH.enabled=!!enabled; const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=1e6; h.hp=1e6; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    let fired=false;
+    if(fire!==false && h){ const e0=G.enemies.length, p0=G.projectiles.length, f0=G.fx.length;
+      const e=spawnEnemy("orc", h.x+20, h.y);
+      if(e){ e.maxHp=e.hp=1e9; e.isBoss=true; e.phase=1; e.state="chase"; const R=Math.max(8,(e.tpl.range||40)-4);
+        let steps=0; while(steps++<200){ e.x=h.x+R; e.y=h.y; e.knockX=0; e.knockY=0; updateEnemies(1/60); if(e.state==="strike"){ fired=true; break; } }
+      }
+      G.enemies.length=e0; G.projectiles.length=p0; G.fx.length=f0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    TELEGRAPH.enabled=sav;
+    return { enabled:!!enabled, fired, fingerprint:fp }; },
+  // AC-SAVE: telegraph is presentation + transient (e.st + fx), NEVER serialized. Serialize with the knob ON vs
+  // a clean HEAD-style state and assert byte-identity + NO telegraph key. Mirror of parrySaveByteId.
+  telegraphSaveByteId(){ const sav=TELEGRAPH.enabled;
+    TELEGRAPH.enabled=false; const offStr=JSON.stringify(serializeSave());
+    TELEGRAPH.enabled=true;  const onStr=JSON.stringify(serializeSave());
+    TELEGRAPH.enabled=sav;
+    return { byteId:offStr===onStr, hasKey:/"?telegraph"?:/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,
