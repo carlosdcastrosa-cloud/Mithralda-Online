@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3120,7 +3120,52 @@ export function interact(){
   const f=nearestFountain();
   const n=nearestNPC();
   if(n){ openDialogue(n); return; }
-  if(f){ const h=G.hero; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.respawn={x:f.x,y:f.y+TS}; toast(STR.fountainRest); audio.sfx.heal(); return; }   // CAS-1841: la fuente restaura vigor
+  if(f){ const h=G.hero;
+    // CAS-1879: HOGUERA — la fuente se vuelve un rest site gateado por BONFIRE.enabled. OFF ⇒ esta guarda + rama no
+    // existen ⇒ el descanso es byte-idéntico a HEAD (heal + ancla + STR.fountainRest). El safe-gate corre ANTES de
+    // curar/recargar/resetear: un no-jefe en aggro dentro de safeRadius deniega el descanso (toast unsafe + sfx.deny),
+    // sin efecto alguno. Geometría pura ⇒ 0 RNG.
+    if(BONFIRE.enabled && bonfireUnsafe(f)){ toast(STR.bonfireUnsafe); audio.sfx.deny(); return; }
+    h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.respawn={x:f.x,y:f.y+TS};   // CAS-1841: la fuente restaura vigor
+    if(BONFIRE.enabled){                                            // CAS-1879: la hoguera AÑADE recarga Estus + world reset
+      if(BONFIRE.refillFlasks && FLASK.enabled) h.flaskCharges=FLASK.charges;   // recarga Estus (reusa CAS-1854, misma asignación que el refill de zona)
+      if(BONFIRE.respawnEnemies) bonfireRespawn(f);                 // world reset DETERMINISTA 0-draw de los no-jefes de la zona (jefes intactos)
+      toast(STR.bonfireRest); audio.sfx.heal(); return;
+    }
+    toast(STR.fountainRest); audio.sfx.heal(); return; }
+}
+// CAS-1879: safe-gate de la HOGUERA — deniega el descanso si algún NO-jefe alive está EN AGGRO (persiguiendo/atacando)
+// dentro de BONFIRE.safeRadius del sitio. Geometría/lectura de estado pura ⇒ 0 RNG, determinista. Suprimido en Arena
+// (allí el reset no aplica). Excluye jefes (nunca bloquean el descanso) y neutrales.
+function bonfireUnsafe(f){
+  if(G.arenaMode) return false;
+  const r2=BONFIRE.safeRadius*BONFIRE.safeRadius;
+  for(const e of G.enemies){ if(!e || e.hp<=0 || e.isBoss || (e.tpl&&e.tpl.neutral)) continue;
+    const engaged=(e.state==="chase"||e.state==="windup"||e.state==="strike"||e.state==="recover"||e.state==="shield");
+    if(engaged && dist2(e.x,e.y,f.x,f.y)<r2) return true; }
+  return false;
+}
+// CAS-1879: WORLD RESET DETERMINISTA (0-draw) — al descansar, para la zona del sitio: remover los no-jefes vivos y
+// re-crear a cap desde las definiciones de spawner existentes con colocación DETERMINISTA (grid por índice, tipo por
+// índice, applyZoneScale = aritmética pura). PROHIBIDO rr()/ri()/srand()/maybeAffix ⇒ srand ON==OFF byte-idéntico.
+// Jefes (isBoss/campeones) EXCLUIDOS — no revuelven (Souls). Suprimido en Arena (mirror del spawner natural sim.js:3459
+// que hace if(!G.arenaMode)) para no romper la Arena de Oleadas / ciclo APEX.
+function bonfireRespawn(f){
+  if(G.arenaMode) return;
+  const zone=zoneOf(world,f.x,f.y);
+  // remover no-jefes vivos de la zona (jefes/campeones/neutrales intactos)
+  for(let i=G.enemies.length-1;i>=0;i--){ const e=G.enemies[i];
+    if(e && !e.isBoss && e.hp>0 && !(e.tpl&&e.tpl.neutral) && zoneOf(world,e.x,e.y)===zone) G.enemies.splice(i,1); }
+  // re-crear a cap desde los spawners de la zona, colocación por índice (0 RNG)
+  for(const sp of world.spawners){ if(sp.zone!==zone) continue;
+    const N=sp.max|0; if(N<=0) continue;
+    const cols=Math.max(1,Math.ceil(Math.sqrt(N))), rows=Math.max(1,Math.ceil(N/cols));
+    for(let i=0;i<N;i++){ const col=i%cols, row=(i/cols)|0;
+      const tx=(sp.rect.x+2+(sp.rect.w-4)*((col+0.5)/cols))*TS;
+      const ty=(sp.rect.y+2+(sp.rect.h-4)*((row+0.5)/rows))*TS;
+      if(world.wallSet && world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS))) continue;   // saltar muros (determinista, no reintenta con dado)
+      const tp=sp.types[i%sp.types.length];                                        // tipo por índice (NO ri())
+      applyZoneScale(spawnEnemy(tp,tx,ty), sp.zone); } }                           // hp/escala aritmética pura (NO maybeAffix ⇒ 0 draws)
 }
 function openDialogue(n){
   // CAS-319: Maren la Sanadora — faithful port of the removed central fountain's rest-heal.
@@ -6416,6 +6461,106 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; if(h){ h.blocking=false; h.stun=0; }
     return { enabled:!!enabled, blockFired:(enabled?(blocked&&broke):false), fingerprint:fp }; },
+  // --- CAS-1879 HOGUERA / REST SITE (Bonfire) harness hooks (tools/cas1879-bonfire.mjs); additive, drive the REAL
+  // rama de descanso de interact() (heal + ancla + recarga Estus + world reset) + los helpers bonfireUnsafe/bonfireRespawn.
+  // Todo geometría/aritmética + spawnEnemy/applyZoneScale (0-RNG) ⇒ sin bonfireRng ⇒ srand ON==OFF byte-idéntico. El
+  // ancla reusa h.respawn (ya en save.v1) ⇒ sin clave nueva. La QA live (hija) re-verifica el descanso sobre el build servido. ---
+  bonfireMeta(){ return { enabled:BONFIRE.enabled, key:BONFIRE.key, healFull:BONFIRE.healFull, refillFlasks:BONFIRE.refillFlasks,
+    respawnEnemies:BONFIRE.respawnEnemies, setCheckpoint:BONFIRE.setCheckpoint, safeRadius:BONFIRE.safeRadius, glowColor:BONFIRE.glowColor }; },
+  // Elige un spawner cuyo CENTRO cae en su propia zona (zoneOf(center)===sp.zone) ⇒ el world reset repuebla esa zona;
+  // fallback al primer spawner con cap>0. Determinista (primer match en orden de world.spawners).
+  _bonfireSpawner(){ return world.spawners.find(s=> s&&s.rect&&(s.max|0)>0 && zoneOf(world,(s.rect.x+s.rect.w/2)*TS,(s.rect.y+s.rect.h/2)*TS)===s.zone)
+      || world.spawners.find(s=> s&&s.rect&&(s.max|0)>0) || null; },
+  // Héroe limpio en play, colocado en el CENTRO del spawner elegido (dentro de su zona), arrays vacíos, sin combate/cooldown,
+  // vida/maná/estamina a tope, Estus lleno. Devuelve {h, sp, f, zone}. El nombre del héroe NO contiene "bonfire" ⇒ el grep de
+  // clave (AC SAVE) no falsea. f = sitio de descanso sintético (empujado a world.fountains por las probes que llaman interact()).
+  _bonfireArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h.parryT=0; h.hurtFlash=0; h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null;
+    const sp=this._bonfireSpawner(); const cx=(sp.rect.x+sp.rect.w/2)*TS, cy=(sp.rect.y+sp.rect.h/2)*TS;
+    h.x=cx; h.y=cy; h.maxHp=1000; h.hp=1000; h.maxMp=200; h.mp=200; h.stam=STAMINA.max; h.flaskCharges=FLASK.charges; h.respawn=null;
+    return { h, sp, f:{x:cx,y:cy}, zone:zoneOf(world,cx,cy) }; },
+  // AC1 (cura+recarga) + AC2 (ancla) + AC3 (world reset no-jefe): descanso en sitio SEGURO ⇒ HP/MP/stam a tope,
+  // h.flaskCharges==FLASK.charges (recarga Estus), h.respawn fijado al sitio, no-jefes viejos REEMPLAZADOS y repoblados,
+  // JEFE intacto (no revuelve). Ejercita la REAL rama de interact() vía una fuente sintética empujada a world.fountains.
+  bonfireRestProbe(){ const savE=BONFIRE.enabled, savF=FLASK.enabled; BONFIRE.enabled=true; FLASK.enabled=true;
+    const arm=this._bonfireArm(); const h=arm.h, f=arm.f, sp=arm.sp;
+    h.hp=1; h.mp=0; h.stam=0; h.flaskCharges=0; h.respawn=null;
+    G.enemies.length=0;
+    const old=spawnEnemy(sp.types[0], f.x+8, f.y); if(old){ old.hp=old.maxHp=30; old._probeOld=true; }
+    const boss=spawnEnemy(sp.types[0], f.x, f.y+8); if(boss){ boss.isBoss=true; boss.hp=boss.maxHp=1e6; boss._probeBoss=true; }
+    world.fountains.push(f); const fi=world.fountains.length-1; interact(); world.fountains.splice(fi,1);
+    const healed=(h.hp===heroMaxHp(h) && h.mp===h.maxMp && h.stam===STAMINA.max);
+    const refilled=(h.flaskCharges===FLASK.charges);
+    const anchored=!!(h.respawn && Math.abs(h.respawn.x-f.x)<1e-6 && Math.abs(h.respawn.y-(f.y+TS))<1e-6);
+    const oldGone=!G.enemies.some(e=>e._probeOld);
+    const bossAlive=G.enemies.some(e=>e._probeBoss);
+    const repop=G.enemies.filter(e=>!e.isBoss).length;
+    BONFIRE.enabled=savE; FLASK.enabled=savF; G.enemies.length=0;
+    return { zone:arm.zone, healed, refilled, anchored, oldGone, bossAlive, repop, ok:(healed&&refilled&&anchored&&oldGone&&bossAlive&&repop>0) }; },
+  // AC4 GATE DE SEGURIDAD: bonfireUnsafe(f) = true si un NO-jefe en aggro está dentro de safeRadius; false fuera de rango,
+  // false si está idle (no en aggro), false para jefes. Además verifica la DENEGACIÓN de comportamiento en interact():
+  // con un enemigo unsafe cerca, el descanso NO cura/recarga/resetea (hp/estus intactos) y NO fija ancla.
+  bonfireSafeGateProbe(){ const savE=BONFIRE.enabled, savF=FLASK.enabled; BONFIRE.enabled=true; FLASK.enabled=true;
+    const arm=this._bonfireArm(); const h=arm.h, f=arm.f, sp=arm.sp; const R=BONFIRE.safeRadius;
+    G.enemies.length=0;
+    const e=spawnEnemy(sp.types[0], f.x+R*0.5, f.y); if(e){ e.hp=e.maxHp=100; e.state="chase"; }
+    const unsafeNear=bonfireUnsafe(f);                    // dentro + en aggro ⇒ unsafe
+    e.x=f.x+R*3; const safeFar=!bonfireUnsafe(f);          // fuera de radio ⇒ seguro
+    e.x=f.x+R*0.5; e.state="idle"; const safeIdle=!bonfireUnsafe(f);  // dentro pero NO en aggro ⇒ seguro
+    e.state="chase"; e.isBoss=true; const safeBoss=!bonfireUnsafe(f); // jefe en aggro NO bloquea ⇒ seguro
+    // DENEGACIÓN de comportamiento: enemigo unsafe ⇒ interact() no debe curar/recargar/resetear ni fijar ancla.
+    e.isBoss=false; e.x=f.x+R*0.5; e.state="chase";
+    h.hp=1; h.flaskCharges=0; h.respawn=null; const hp0=h.hp;
+    world.fountains.push(f); const fi=world.fountains.length-1; interact(); world.fountains.splice(fi,1);
+    const denied=(h.hp===hp0 && h.flaskCharges===0 && h.respawn===null);
+    BONFIRE.enabled=savE; FLASK.enabled=savF; G.enemies.length=0;
+    return { unsafeNear, safeFar, safeIdle, safeBoss, denied, ok:(unsafeNear&&safeFar&&safeIdle&&safeBoss&&denied) }; },
+  // AC6 OFF byte-id: BONFIRE.enabled=false ⇒ interact() ejecuta la rama de fuente de HEAD ⇒ SIGUE curando + fijando
+  // ancla (contrato de la fuente) pero NO recarga Estus y NO repuebla no-jefes ⇒ comportamiento byte-idéntico a HEAD.
+  bonfireOffProbe(){ const savE=BONFIRE.enabled, savF=FLASK.enabled; BONFIRE.enabled=false; FLASK.enabled=true;
+    const arm=this._bonfireArm(); const h=arm.h, f=arm.f, sp=arm.sp;
+    h.hp=1; h.flaskCharges=0; h.respawn=null;
+    G.enemies.length=0;
+    const old=spawnEnemy(sp.types[0], f.x+8, f.y); if(old){ old.hp=old.maxHp=30; old._probeOld=true; }
+    const n0=G.enemies.filter(e=>!e.isBoss).length;
+    world.fountains.push(f); const fi=world.fountains.length-1; interact(); world.fountains.splice(fi,1);
+    const healed=(h.hp===heroMaxHp(h));                   // la fuente SIGUE curando (HEAD)
+    const noRefill=(h.flaskCharges===0);                  // OFF ⇒ NO recarga Estus
+    const noReset=(G.enemies.some(e=>e._probeOld) && G.enemies.filter(e=>!e.isBoss).length===n0); // OFF ⇒ NO repuebla
+    const anchored=!!(h.respawn && Math.abs(h.respawn.x-f.x)<1e-6);  // la fuente SIGUE fijando ancla (HEAD)
+    BONFIRE.enabled=savE; FLASK.enabled=savF; G.enemies.length=0;
+    return { healed, noRefill, noReset, anchored, ok:(healed&&noRefill&&noReset&&anchored) }; },
+  // AC7 SAVE byte-id: el ancla reusa h.respawn (ya en save.v1) ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave bonfire*.
+  bonfireSaveByteId(){ const savE=BONFIRE.enabled;
+    BONFIRE.enabled=true; const arm=this._bonfireArm(); const h=arm.h; h.respawn={x:100,y:200};
+    const onStr=JSON.stringify(serializeSave());
+    BONFIRE.enabled=false; const offStr=JSON.stringify(serializeSave());
+    BONFIRE.enabled=savE; this._bonfireArm();
+    return { byteId:(offStr===onStr), hasKey:/"_?bonfire[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !/"_?bonfire[a-zA-Z]*":/i.test(onStr)) }; },
+  // AC5 0-RNG STRONG: fingerprint del srand alrededor del DESCANSO REAL (heal + recarga Estus + world reset repoblando) —
+  // ON vs OFF. La ruta de descanso/reset es geometría/aritmética + spawnEnemy/applyZoneScale (NO ri()/rr()/maybeAffix) ⇒
+  // 0 srand draws ⇒ stream BYTE-IDÉNTICO ON==OFF incluso con el reset repoblando de verdad. Los 3 kills mantienen el
+  // stream de loot compartido alineado (mismo consumo ON/OFF).
+  bonfireSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savE=BONFIRE.enabled, savF=FLASK.enabled; BONFIRE.enabled=!!enabled; FLASK.enabled=true;
+    const arm=this._bonfireArm(); const h=arm.h, f=arm.f; if(h){ h.flaskCharges=0; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let fired=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const before=G.enemies.filter(e=>!e.isBoss).length;
+      world.fountains.push(f); const fi=world.fountains.length-1; interact(); world.fountains.splice(fi,1);   // descanso REAL (0 draws)
+      const after=G.enemies.filter(e=>!e.isBoss).length;
+      fired=(enabled ? (after>before || h.flaskCharges===FLASK.charges) : (after===before && h.flaskCharges===0));
+      G.enemies.length=0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // shared loot stream alignment
+      G.enemies.length=0; G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    BONFIRE.enabled=savE; FLASK.enabled=savF;
+    return { enabled:!!enabled, bonfireFired:(enabled?fired:false), fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,
