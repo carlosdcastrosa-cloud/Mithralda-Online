@@ -42,6 +42,7 @@
 // ===========================================================================
 
 import { uiLayout } from "./ui/layout.js"; // CAS-418: draggable panels + persistent layout (single position owner)
+import { STAMINA } from "./sim/config.js"; // CAS-1841: gated VIGOR bar — created ONLY when STAMINA.enabled (OFF ⇒ DOM byte-identical)
 
 export const hud = (()=>{
   const KEY="mithralda.hud.v1";   // own key — never the save / settings / analytics blob
@@ -66,6 +67,8 @@ export const hud = (()=>{
     textGold:"#d8b25e", goldL:"#ffe39a", goldD:"#a87f2e", gold:"#e0b94a",
     cream:"#d8d3c4", textDim:"#8a8678",
     hpf:"#b3242a", hpb:"#2e1012", mpf:"#3f6bd0", mpb:"#101a30", xpf:"#d0aa44", xpb:"#231d0e",
+    stamf:"#3fae55", stamb:"#0f2413",   // CAS-1841: verde-vigor (fill + groove) — $0 arte
+
     // signal hues — status chips / alerts ONLY (§4)
     poison:"#8be04a", slow:"#7fd0ff", stun:"#ffe066", burn:"#ff8a3a", heal:"#4fbf6a", rune:"#5a8aff",
   };
@@ -166,6 +169,13 @@ export const hud = (()=>{
       "#hud .fill::after{ content:''; position:absolute; left:0; right:0; top:0; height:1px; background:rgba(255,255,255,.22); }",
       "#hud:not(.rm) .spec{ animation:hudshimmer 2.4s linear infinite; }",
       "@keyframes hudshimmer{ 0%{opacity:.10} 50%{opacity:.28} 100%{opacity:.10} }",
+      // CAS-1841: deny flash on the vigor bar (armed when spendStam denies) — a brief red rim, no new art.
+      // Gated on STAMINA.enabled so with the knob OFF the injected <style> text is byte-identical to HEAD.
+      ...(STAMINA.enabled ? [
+        "#hud .groove.flash{ box-shadow:0 0 0 1px rgba(255,90,90,.95), 0 0 7px 2px rgba(255,70,70,.6); }",
+        "#hud:not(.rm) .groove.flash{ animation:hudstamflash .4s ease-out; }",
+        "@keyframes hudstamflash{ 0%{ box-shadow:0 0 0 2px rgba(255,120,120,1), 0 0 10px 3px rgba(255,80,80,.85); } 100%{ box-shadow:none; } }",
+      ] : []),
       "#hud .bnum{ position:absolute; right:4px; top:0; bottom:0; display:flex; align-items:center; }",
       "#hud .bicon{ position:absolute; left:3px; top:0; bottom:0; display:flex; align-items:center; font-size:calc(10px*var(--s)); }",
       // slots + §6 interaction states (defined now; HUD becomes interactive in a follow-up)
@@ -265,6 +275,7 @@ export const hud = (()=>{
     const sw=mk("div",null,stat); sw.className="w-statBars";
     nodes.hp=bar(sw, C.hpf, C.hpb, "♥");
     nodes.mp=bar(sw, C.mpf, C.mpb, "✦");
+    if(STAMINA.enabled) nodes.stam=bar(sw, C.stamf, C.stamb, "⚡");   // CAS-1841: vigor bar (gated ⇒ OFF: not created, DOM byte-id)
     nodes.xp=bar(sw, C.xpf, C.xpb, "XP");
     // caption (name · class · Nv · gold) — the statframe art bakes no text region
     const cap=mk("div",null,tl); cap.className="cap";
@@ -407,7 +418,7 @@ export const hud = (()=>{
     const cue = (it)=>{ const r=it&&(it.rarity|0); if(!cb||!r) return ""; const g=RARITY_CUE[Math.min(4,r)]; return g?(g+" "):""; };
     if(!s || s.hp==null){ // menu / no hero — placeholders, never throw
       nodes.name.textContent="—"; nodes.cls.textContent="—"; nodes.lvl.textContent="Nv —"; nodes.gold.textContent="0 oro";
-      fillBar(nodes.hp,0,1); fillBar(nodes.mp,0,1); fillBar(nodes.xp,0,1);
+      fillBar(nodes.hp,0,1); fillBar(nodes.mp,0,1); fillBar(nodes.xp,0,1); if(nodes.stam) fillBar(nodes.stam,0,1);
       paintSlots(nodes.equip,[],3); paintSlots(nodes.inv,[],36);
       if(nodes.minimap) nodes.minimap.textContent=(s&&s.zone)?String(s.zone):"—";
       nodes.chips.textContent=""; paintLog();
@@ -423,6 +434,8 @@ export const hud = (()=>{
     if(nodes.portrait) nodes.portrait.textContent=(s.name||s.cls||"H").slice(0,1).toUpperCase();
     fillBar(nodes.hp, s.hp, s.maxHp);
     fillBar(nodes.mp, s.mp, s.maxMp);
+    // CAS-1841: vigor bar (present only when STAMINA.enabled fed s.stam). Toggle the deny-flash rim on the groove.
+    if(nodes.stam){ fillBar(nodes.stam, s.stam, s.stamMax); const g=nodes.stam.fill&&nodes.stam.fill.parentNode; if(g) g.classList.toggle("flash", (s.stamFlash||0)>0); }
     fillBar(nodes.xp, s.xp, s.xpNext);
     paintSlots(nodes.equip, s.equip||[], 3, cue);
     paintSlots(nodes.inv, s.bag||[], 36, cue);

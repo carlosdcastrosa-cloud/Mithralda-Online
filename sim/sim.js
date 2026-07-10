@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -301,6 +301,10 @@ function newHero(name,cls){
     // (>0 = chain still alive). _comboFin flags the swing that is the finisher. NO RNG (100% input/timing).
     // Transient — never serialized (out of serializeSave's allowlist ⇒ save.v1 byte-identical on/off).
     comboCount:0, comboT:0, _comboFin:false,
+    // CAS-1841: ESTAMINA/VIGOR — recurso transitorio (mirror comboCount/mp). stam = pool actual (refill a tope cada
+    // run como h.mp), _stamFlash = timer del flash de la barra en un deny, _stamRegenPauseT = pausa breve de regen
+    // tras gastar. Nunca serializado (fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off). 0 RNG.
+    stam:STAMINA.max, _stamFlash:0, _stamRegenPauseT:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -1539,7 +1543,7 @@ export function loadSave(d){
     if(d.metaApplied && typeof d.metaApplied==="object"){ const ma=d.metaApplied;
       h.metaApplied={ hp:Math.max(0,num(ma.hp,0)), dmg:Math.max(0,num(ma.dmg,0)), gold:Math.max(0,num(ma.gold,0)), spdLv:Math.max(0,Math.floor(num(ma.spdLv,0))) }; }
     reconcileMeta(h);
-    h.hp=heroMaxHp(h); h.mp=h.maxMp;                       // always respawn at full
+    h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max;   // always respawn at full (CAS-1841: vigor a tope, mirror mp)
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -1874,12 +1878,30 @@ function tickCombo(h,dt){ if(!COMBO.enabled||!h) return;
   if(h.comboT>0){ h.comboT-=dt; if(h.comboT<=0){ h.comboT=0; h.comboCount=0; } }
 }
 
+// CAS-1841: the SINGLE decision point for the estamina economy — 100% arithmetic (compare + subtract), 0 RNG.
+// OFF ⇒ return true INSTANTLY without touching h.stam/_stamFlash/_stamRegenPauseT ⇒ every gated action runs exactly
+// as HEAD (byte-identical). Not enough ⇒ DENY (arm the bar flash + the existing deny sfx), do NOT execute, do NOT
+// fall through to a cost-0 action ⇒ the caller early-returns. No draws, NO staminaRng ⇒ srand ON==OFF trivially.
+function spendStam(h, cost){
+  if(!STAMINA.enabled || !h) return true;                     // knob OFF ⇒ never gate
+  if((h.stam||0) < cost){ h._stamFlash=STAMINA.flashS; audio.sfx.deny(); return false; }
+  h.stam -= cost; h._stamRegenPauseT = STAMINA.regenDelay; return true;
+}
+// CAS-1841: regen tick (transient, 0 RNG). Winds down the deny-flash, then — after a brief post-spend pause — regens
+// stam toward max at STAMINA.regen/s. OFF ⇒ return immediately ⇒ byte-identical.
+function tickStamina(h,dt){ if(!STAMINA.enabled||!h) return;
+  if(h._stamFlash>0) h._stamFlash=Math.max(0,h._stamFlash-dt);
+  if(h._stamRegenPauseT>0){ h._stamRegenPauseT=Math.max(0,h._stamRegenPauseT-dt); return; }   // pausa breve tras gastar
+  if(h.stam<STAMINA.max) h.stam=Math.min(STAMINA.max,(h.stam||0)+STAMINA.regen*dt);
+}
+
 // CAS-1785: arm the parry window. Dedicated KeyH (input.js) → this export, mirroring how KeyK/KeyY/KeyL
 // call read-side actions outside the rebindable `binds` table. Gated on PARRY.enabled + play scene +
 // alive + off-cooldown. Arms parryT (active window) and parryCD (whiff cooldown), plus a subtle $0
 // windup glint. In cooldown ⇒ whiff (no effect). CERO RNG (timing only). Idempotent-safe re-press.
 export function tryParry(){ const h=G.hero;
   if(!PARRY.enabled || G.scene!=="play" || !h || h.dead || h.parryCD>0) return false;
+  if(!spendStam(h,STAMINA.cost.parry)) return false;   // CAS-1841: la parada cuesta vigor (OFF ⇒ true, byte-id)
   h.parryT=PARRY.windowMs/1000; h.parryCD=PARRY.cooldownS;
   addFx("dodgering",h.x,h.y,{life:0.20}); audio.sfx.roll();
   return true;
@@ -1905,7 +1927,10 @@ function heroAttack(){
     h.comboCount = (h.comboT>0) ? Math.min(COMBO.chainLen, h.comboCount+1) : 1;
     h.comboT = COMBO.windowMs/1000;
     h._comboFin = (h.comboCount>=COMBO.chainLen);   // this swing is the finisher
-    if(h._comboFin) h.comboCount=0;                 // reset after firing the finisher
+    // CAS-1841: the finisher is a PODER action — it costs vigor. Sin estamina el golpe SIGUE aterrizando (el ligero
+    // nunca se bloquea) pero DEGRADA a un swing normal: pierde el bonus finisher. OFF ⇒ spendStam true ⇒ el finisher
+    // siempre dispara + comboCount se resetea exactamente como HEAD (byte-idéntico con COMBO).
+    if(h._comboFin){ if(spendStam(h,STAMINA.cost.finisher)){ h.comboCount=0; } else { h._comboFin=false; } }
   } else { h._comboFin=false; }
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
@@ -1925,6 +1950,7 @@ function heroAttack(){
 export function heavyAttack(){
   const h=G.hero; if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0) return; // CAS-118 stun gate, same as heroAttack
   const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                        // v1: heavy is a melee-only power swing
+  if(!spendStam(h,STAMINA.cost.heavy)) return;   // CAS-1841: el pesado cuesta vigor (OFF ⇒ true, byte-id)
   tutMark("atk");
   const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const atkspd=heroAtkspd(h);
@@ -2611,6 +2637,7 @@ export function castAbility(slot){
   if(rl>0){ const rk=ABILITY_RANK_MAP[id]; if(rk) sp=rk.apply(sp, rl); }
   sp=uniqEmpower(h, sp);  // CAS-1632: prisma_fracturado overlays chain-jumps/nova-range (copy-on-write, before gates)
   if(h.mp<sp.cost){ toast(STR.notEnoughMP); audio.sfx.deny(); return; }
+  if(!spendStam(h,STAMINA.cost.ability)) return;   // CAS-1841: la habilidad cuesta vigor (tras el gate de maná, antes de gastarlo; OFF ⇒ true, byte-id)
   const cd=sp.cd*cdrFactor(h); h.mp-=sp.cost; h.abilCD[slot]=cd; h.abilCDmax[slot]=cd;  // CAS-1632: reloj_vacio abilCdr via cdrFactor
   h.specialAnim=SPECIAL_ANIM_DUR; h.hurtAnim=0;
   if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
@@ -2626,6 +2653,7 @@ export function castUltimate(){
   if(!h.ultId) return false;                                     // no drafted ultimate → nothing to cast
   const sp=ULTIMATE_MAP[h.ultId]; if(!sp) return false;
   if((h.ultCharge||0)<1){ toast("Definitiva cargando… "+Math.round((h.ultCharge||0)*100)+"%"); if(audio.sfx.deny) audio.sfx.deny(); return false; }
+  if(!spendStam(h,STAMINA.cost.ultimate)) return false;   // CAS-1841: la definitiva cuesta vigor (tras el gate de carga, antes de consumirla; OFF ⇒ true, byte-id)
   h.ultCharge=0;                                                 // consume the full meter (CD-by-charge)
   h.specialAnim=SPECIAL_ANIM_DUR; h.hurtAnim=0;
   if(sp.sfx && audio.sfx[sp.sfx]) audio.sfx[sp.sfx]();
@@ -2912,7 +2940,7 @@ export function respawn(){
   // applyMetaReroll re-adds the reroll charges ON TOP of the rerollLeft:1 just reset above — the
   // CRÍTICO seam, since respawn wiped the meta reroll along with the per-run budget. HP fills below.
   reconcileMeta(h); applyMetaReroll(h); applyMetaStartBoons(h); // CAS-1565: Vanguardia start-boons re-granted after the death boon-wipe (per-run)
-  h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.x=h.respawn.x; h.y=h.respawn.y;
+  h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.x=h.respawn.x; h.y=h.respawn.y;   // CAS-1841: vigor a tope al reaparecer
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.arenaMode=false; // CAS-1664: leaving the death screen exits Arena de Oleadas → back to the normal world (no-op in a normal run)
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
@@ -2970,14 +2998,14 @@ export function interact(){
   const f=nearestFountain();
   const n=nearestNPC();
   if(n){ openDialogue(n); return; }
-  if(f){ const h=G.hero; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.respawn={x:f.x,y:f.y+TS}; toast(STR.fountainRest); audio.sfx.heal(); return; }
+  if(f){ const h=G.hero; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.respawn={x:f.x,y:f.y+TS}; toast(STR.fountainRest); audio.sfx.heal(); return; }   // CAS-1841: la fuente restaura vigor
 }
 function openDialogue(n){
   // CAS-319: Maren la Sanadora — faithful port of the removed central fountain's rest-heal.
   // Full HP/MP restore + sets respawn at her feet + the same toast/sfx the fountain used.
   // No cooldown, no UI, no shop (the fountain had none); on-style heal juice for feedback.
   if(n.role==="fountain"){ const h=G.hero;
-    h.hp=heroMaxHp(h); h.mp=h.maxMp; h.respawn={x:n.x,y:n.y+TS};
+    h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.respawn={x:n.x,y:n.y+TS};   // CAS-1841: vigor a tope
     n.castT=G.t;   // CAS-466: la Sanadora hace su animación de cast al curar
     toast(STR.fountainRest); audio.sfx.heal();
     addFx("healburst",h.x,h.y,{col:"#7dffa0",life:0.5});
@@ -3029,7 +3057,7 @@ export function shopItems(){
     {name:"Poción de vida",price:15,act:h=>h.potHP++},
     {name:"Poción de maná",price:12,act:h=>h.potMP++},
     {name:"Bendición",price:60,act:h=>{h.blessings++; toast(STR.blessingOn);}},
-    {name:"Curación completa",price:20,act:h=>{h.hp=heroMaxHp(h);h.mp=h.maxMp;}},
+    {name:"Curación completa",price:20,act:h=>{h.hp=heroMaxHp(h);h.mp=h.maxMp;h.stam=STAMINA.max;}},   // CAS-1841: la curación completa restaura vigor
   ];
   // Shop upgrades grant gear INSTANCES (same data model as drops). `once` guards
   // by resolved stat so you can't buy a downgrade once you've looted better.
@@ -3149,7 +3177,9 @@ export function forgeUpgrade(slot){ const h=G.hero; if(!h) return false;
 // only h.mats. Daily contracts add mats through applyMetaReward (the meta-reward seam).
 function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n|0); }
 
-export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let ax,ay;
+export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return;
+  if(!spendStam(h,STAMINA.cost.dodge)) return;   // CAS-1841: la esquiva es una acción de PODER — cuesta vigor (OFF ⇒ true, byte-id)
+  let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
   else { const mv=io.moveVec(); if(mv[0]===0&&mv[1]===0){ ax=Math.cos(h.facing); ay=Math.sin(h.facing);} else {[ax,ay]=mv;} }
   // CAS-1814: ESQUIVA RODANTE — when DODGE.enabled the roll's iframe/cooldown/distance derive from the
@@ -3222,6 +3252,7 @@ export function update(dtMs){
   tickFrenzy(h,dt); // CAS-1773: window wind-down + gradual stack decay (arithmetic, no RNG, gated)
   tickParry(h,dt);  // CAS-1785: parry window + cooldown wind-down (arithmetic, no RNG, gated on PARRY.enabled)
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
+  tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+pactHeal(h.hotRate*dt)); if(h.hotT<=0) h.hotRate=0; } // CAS-1763: Pacto Frágil cuts the HoT tick (×1.0 at heat=0 ⇒ byte-identical)
@@ -5668,6 +5699,123 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
     BACKSTAB.enabled=sav;
     return { enabled:!!enabled, backstabFired:(enabled?backstabFired:false), fingerprint:fp }; },
+  // --- CAS-1841 ESTAMINA / VIGOR (Pilar 8 · economía de recurso) harness hooks (tools/cas1841-stamina.mjs) ---
+  // Additive; drive the REAL action gates (doRoll/tryParry/heavyAttack/heroAttack finisher/castAbility/castUltimate)
+  // through spendStam. The gate is pure arithmetic (compare + subtract) ⇒ 0 srand, no staminaRng.
+  staminaMeta(){ return { enabled:STAMINA.enabled, max:STAMINA.max, regen:STAMINA.regen, regenDelay:STAMINA.regenDelay, flashS:STAMINA.flashS, cost:Object.assign({},STAMINA.cost) }; },
+  staminaEnabled(){ return STAMINA.enabled; },
+  staminaEnable(on){ STAMINA.enabled=!!on; return { enabled:STAMINA.enabled }; },
+  staminaState(){ const h=G.hero; if(!h) return null; return { stam:+((h.stam||0).toFixed(4)), flash:+((h._stamFlash||0).toFixed(4)), pause:+((h._stamRegenPauseT||0).toFixed(4)) }; },
+  // Clean warrior in scene=play with full vigor + all combat/cooldown state cleared (so every action can fire). Returns h.
+  _stamArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.atkCD=0; h.atkT=0; h._atkHits=null;
+    h.parryT=0; h.parryCD=0; h.riposte=0; h._parryRiposte=0; h.frenzyStacks=0;
+    h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6;
+    h.abilCD=[0,0]; h.abilCDmax=[0,0]; h.loadout=DEFAULT_LOADOUT.slice(); h.ultId=null; h.ultCharge=0;
+    h.stam=STAMINA.max; h._stamFlash=0; h._stamRegenPauseT=0; return h; },
+  // AC3 COST: each PODER action subtracts its EXACT cost from h.stam; the light L subtracts NOTHING (0 delta).
+  staminaCostProbe(){ const savS=STAMINA.enabled, savP=PARRY.enabled, savC=COMBO.enabled, savD=DODGE.enabled;
+    STAMINA.enabled=true; PARRY.enabled=true; COMBO.enabled=true; DODGE.enabled=true;
+    const cost=STAMINA.cost;
+    const spend=(setup,fire)=>{ const h=this._stamArm(); if(setup) setup(h); const s0=h.stam; fire(h); return +(s0-h.stam).toFixed(4); };
+    const dodge    = spend(null, ()=>this._dodgeFire(true));
+    const parry    = spend(null, ()=>tryParry());
+    const heavy    = spend(null, ()=>heavyAttack());
+    const finisher = spend(h=>{ h.comboCount=COMBO.chainLen-1; h.comboT=COMBO.windowMs/1000; }, ()=>heroAttack());
+    const ability  = spend(null, ()=>castAbility(0));
+    const ultimate = spend(h=>{ h.ultId=ULTIMATES[0].id; h.ultCharge=1; }, ()=>castUltimate());
+    const light    = spend(null, ()=>heroAttack());   // fresh chain ⇒ 1st swing, NOT a finisher ⇒ NO spend
+    STAMINA.enabled=savS; PARRY.enabled=savP; COMBO.enabled=savC; DODGE.enabled=savD; this._stamArm();
+    return { dodge, parry, heavy, finisher, ability, ultimate, light, cost:Object.assign({},cost),
+      ok:(Math.abs(dodge-cost.dodge)<1e-6 && Math.abs(parry-cost.parry)<1e-6 && Math.abs(heavy-cost.heavy)<1e-6
+        && Math.abs(finisher-cost.finisher)<1e-6 && Math.abs(ability-cost.ability)<1e-6 && Math.abs(ultimate-cost.ultimate)<1e-6
+        && Math.abs(light)<1e-9) }; },
+  // AC4 DENY: with h.stam=0 every PODER action DENIES — it does NOT execute, does NOT fall through to a cost-0 action,
+  // arms _stamFlash and calls audio.sfx.deny (same branch as the flash). The finisher DEGRADES to a normal swing that
+  // STILL lands (_comboFin=false, atkT>0). The light L is unaffected. (The harness counts sfx.deny via a stub.)
+  staminaDenyProbe(){ const savS=STAMINA.enabled, savP=PARRY.enabled, savC=COMBO.enabled, savD=DODGE.enabled;
+    STAMINA.enabled=true; PARRY.enabled=true; COMBO.enabled=true; DODGE.enabled=true;
+    let h=this._stamArm(); h.stam=0; this._dodgeFire(true);
+    const dodge={ executed:!!h.rolling, cd:+((h.rollCD||0).toFixed(4)), flash:+((h._stamFlash||0).toFixed(4)) };
+    h=this._stamArm(); h.stam=0; const pret=tryParry();
+    const parry={ executed:(pret!==false || h.parryT>0), ret:pret, parryT:+((h.parryT||0).toFixed(4)), flash:+((h._stamFlash||0).toFixed(4)) };
+    h=this._stamArm(); h.stam=0; heavyAttack();
+    const heavy={ executed:(h.atkT>0 || h.atkCD>0), flash:+((h._stamFlash||0).toFixed(4)) };
+    h=this._stamArm(); h.stam=0; const mp0=h.mp; castAbility(0);
+    const ability={ executed:(h.mp<mp0 || h.abilCD[0]>0), mpSpent:+(mp0-h.mp).toFixed(2), flash:+((h._stamFlash||0).toFixed(4)) };
+    h=this._stamArm(); h.stam=0; h.ultId=ULTIMATES[0].id; h.ultCharge=1; castUltimate();
+    const ultimate={ executed:((h.ultCharge||0)<1), charge:+((h.ultCharge||0).toFixed(3)), flash:+((h._stamFlash||0).toFixed(4)) };
+    h=this._stamArm(); h.stam=0; h.comboCount=COMBO.chainLen-1; h.comboT=COMBO.windowMs/1000; heroAttack();
+    const finisher={ landed:(h.atkT>0), degraded:(h._comboFin===false), flash:+((h._stamFlash||0).toFixed(4)) };
+    STAMINA.enabled=savS; PARRY.enabled=savP; COMBO.enabled=savC; DODGE.enabled=savD; this._stamArm();
+    return { dodge, parry, heavy, ability, ultimate, finisher,
+      ok:(!dodge.executed && dodge.flash>0 && parry.executed===false && parry.ret===false && parry.flash>0
+        && !heavy.executed && heavy.flash>0 && !ability.executed && ability.flash>0
+        && !ultimate.executed && ultimate.flash>0 && finisher.landed && finisher.degraded && finisher.flash>0) }; },
+  // AC1 OFF: STAMINA.enabled=false ⇒ even with stam=5 (below every cost) every action STILL fires and h.stam/_stamFlash
+  // are NEVER touched (spendStam returns true instantly) ⇒ byte-identical behaviour to HEAD.
+  staminaOffProbe(){ const savS=STAMINA.enabled, savP=PARRY.enabled, savC=COMBO.enabled, savD=DODGE.enabled;
+    STAMINA.enabled=false; PARRY.enabled=true; COMBO.enabled=true; DODGE.enabled=true;
+    const run=(setup,fire,check)=>{ const h=this._stamArm(); h.stam=5; h._stamFlash=0; if(setup)setup(h); fire(h);
+      return { fired:check(h), stam:+((h.stam||0).toFixed(4)), flash:+((h._stamFlash||0).toFixed(4)) }; };
+    const dodge=run(null, ()=>this._dodgeFire(true), h=>!!h.rolling);
+    const parry=run(null, ()=>tryParry(), h=>h.parryT>0);
+    const heavy=run(null, ()=>heavyAttack(), h=>h.atkT>0);
+    const ability=run(null, ()=>castAbility(0), h=>h.abilCD[0]>0);
+    const ultimate=run(h=>{h.ultId=ULTIMATES[0].id;h.ultCharge=1;}, ()=>castUltimate(), h=>(h.ultCharge||0)<1);
+    const acts=[dodge,parry,heavy,ability,ultimate];
+    STAMINA.enabled=savS; PARRY.enabled=savP; COMBO.enabled=savC; DODGE.enabled=savD; this._stamArm();
+    return { dodge, parry, heavy, ability, ultimate,
+      ok: acts.every(a=>a.fired && Math.abs(a.stam-5)<1e-9 && a.flash===0) }; },
+  // AC5 REGEN: no pause ⇒ +regen/s toward max; after a spend the regen is PAUSED for regenDelay, then resumes; clamps at max.
+  staminaRegenProbe(){ const savS=STAMINA.enabled; STAMINA.enabled=true;
+    const h=this._stamArm();
+    h.stam=50; h._stamRegenPauseT=0; const before=h.stam; tickStamina(h,0.5); const gained=+(h.stam-before).toFixed(4); const expect=+(STAMINA.regen*0.5).toFixed(4);
+    h.stam=50; h._stamRegenPauseT=STAMINA.regenDelay; tickStamina(h,STAMINA.regenDelay*0.5); const pausedNoRegen=(Math.abs(h.stam-50)<1e-9);
+    tickStamina(h,STAMINA.regenDelay);      // drains the remaining pause (this tick returns without regen)
+    tickStamina(h,0.2); const resumed=(h.stam>50);   // pause elapsed ⇒ regen resumes
+    h.stam=STAMINA.max-1; h._stamRegenPauseT=0; tickStamina(h,10); const clamped=(Math.abs(h.stam-STAMINA.max)<1e-9);
+    STAMINA.enabled=savS; this._stamArm();
+    return { gained, expect, regenOk:Math.abs(gained-expect)<1e-6, pausedNoRegen, resumed, clamped,
+      ok:(Math.abs(gained-expect)<1e-6 && pausedNoRegen && resumed && clamped) }; },
+  // AC6 SAVE: h.stam/_stamFlash/_stamRegenPauseT are transient (out of serializeSave's allowlist) ⇒ save.v1 byte-identical
+  // ON vs OFF, and NO stamina key exists. Set live vigor state, then serialize ON vs OFF with the SAME hero.
+  staminaSaveByteId(){ const sav=STAMINA.enabled;
+    STAMINA.enabled=true; const h=this._stamArm(); h.stam=37; h._stamFlash=0.2; h._stamRegenPauseT=0.1;
+    const onStr=JSON.stringify(serializeSave());
+    STAMINA.enabled=false; const offStr=JSON.stringify(serializeSave());
+    STAMINA.enabled=sav; this._stamArm();
+    return { byteId:offStr===onStr, hasKey:/"_?stam[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length }; },
+  // AC2 RNG-STRONG: fingerprint the gameplay srand around REAL stamina firing (spend + deny + regen) + a run of loot
+  // kills, ON vs OFF. The estamina economy is pure arithmetic (no staminaRng) ⇒ the srand stream is BYTE-IDENTICAL
+  // ON==OFF even while stamina is spent, denied and regenerated for real.
+  staminaSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savS=STAMINA.enabled, savP=PARRY.enabled, savC=COMBO.enabled, savD=DODGE.enabled;
+    STAMINA.enabled=!!enabled; PARRY.enabled=true; COMBO.enabled=true; DODGE.enabled=true;
+    const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.atkCD=0; h.atkT=0; h.parryT=0; h.parryCD=0;
+      h.riposte=0; h._parryRiposte=0; h.frenzyStacks=0; h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false;
+      h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.facing=0;
+      h.abilCD=[0,0]; h.loadout=DEFAULT_LOADOUT.slice(); h.ultId=null; h.ultCharge=0;
+      h.stam=STAMINA.max; h._stamFlash=0; h._stamRegenPauseT=0; }
+    G.scene="play";
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    let spent=false, denied=false, regened=false;
+    { const e0=G.enemies.length;
+      G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ const s0=h.stam;
+        this._dodgeFire(true); spent=(h.stam < s0);                                 // real spend (dodge gate)
+        h.stam=0; h.rolling=false; h.rollCD=0; this._dodgeFire(true); denied=(h._stamFlash>0);   // real deny (no vigor)
+        h.stam=10; h._stamRegenPauseT=0; tickStamina(h,1.0); regened=(h.stam>10); } // real regen
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    STAMINA.enabled=savS; PARRY.enabled=savP; COMBO.enabled=savC; DODGE.enabled=savD;
+    return { enabled:!!enabled, staminaFired:(enabled?(spent&&denied&&regened):false), fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

@@ -279,6 +279,7 @@ export const STR = {
   redSkull: "¡Calavera roja! Penalización de muerte aumentada.",
   pickedUp: (t) => "Recogiste: " + t,
   notEnoughMP: "Maná insuficiente",
+  notEnoughStamina: "Vigor insuficiente",   // CAS-1841 — feedback opcional; el flash de barra + deny() ya cumplen
   bought: (t) => "Compraste: " + t,
   sold: (t) => "Vendiste: " + t,
   blessingOn: "Bendición activa",
