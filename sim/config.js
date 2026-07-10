@@ -1082,6 +1082,29 @@ export const ENEMY_ABILITIES = {
   slam:{ every:4, windup:0.9, count:12, spd:170, dmgMul:1.15, life:1.1, radius:104 },
 };
 
+// CAS-1826 — ATURDIMIENTO POR POSTURA (Poise / Stagger). El PAYOFF que cierra el bucle de combate
+// (Telegrafía CAS-1790 · Parada CAS-1785 · Esquiva CAS-1814 · Habilidades CAS-1819): cada ÉLITE / CAMPEÓN /
+// JEFE lleva una barra de POSTURA oculta que sube con cada golpe del héroe; al llenarse se ROMPE ⇒ el
+// enemigo queda ATURDIDO (ventana de daño-bonus). NO es un sistema nuevo: el stagger ES un `e.stun`
+// disparado por postura (reusa 100% el gate de congelamiento de IA, sim.js:3274, CERO código nuevo de IA) +
+// un `e.staggerT` que marca la ventana de bonus/VFX. HARD-GATED: enabled:false ⇒ ningún campo se toca,
+// ninguna rama corre ⇒ sim + save.v1 byte-idénticos a HEAD. La postura es 100% DETERMINISTA (acumulación
+// aritmética + umbral): NO abre stream de RNG (no existe `poiseRng`) ⇒ srand ON==OFF incluso con el stagger
+// disparando de verdad. Los 5 campos (poise/poiseMax/staggerT/staggerCD/_poiseDecayT) son run-state
+// transitorio del enemigo (mirror e.special/e.stun); `G.enemies` NUNCA se serializa ⇒ save aislado.
+export const POISE = {
+  enabled:true,
+  basicMelee:false,        // v1: sólo élites/campeones/jefes; true incluye melee básicos (rango corto)
+  // postura por evento de golpe: pesados/definitivas cargan más (deriva de opt.heavy/opt.ultimate en hitEnemy;
+  // sin flag ⇒ light). parry = pulso de una parada exitosa; telegraphPunish = bonus por castigar un windup pesado.
+  gain:{ light:12, heavy:26, ultimate:40, parry:40, telegraphPunish:25 },
+  decayDelay:2.5,          // s sin golpear antes de empezar a decaer la postura acumulada
+  decayRate:18,            // postura/s de decaimiento una vez pasado decayDelay
+  reStaggerCD:6.0,         // s de cooldown tras un stagger antes de re-acumular (evita lock infinito)
+  elite:{ max:100, dur:1.6, bonusDmg:1.5 },   // élites / campeones / élite-campeones
+  boss:{  max:280, dur:1.0, bonusDmg:1.9 },   // jefe: más postura, aturdimiento más corto, apertura MAYOR (clímax)
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
