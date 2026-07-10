@@ -1316,6 +1316,28 @@ export const HYPERARMOR = {
   vfx: true,            // chispa/tinte desde primitivas $0 al ABSORBER un stun (gateado: OFF/no-heavy ⇒ sin efecto)
 };
 
+// CAS-1907: ARQUETIPOS DE ARMA (Weapon Archetypes, 17º pilar Souls-like). El arma equipada define una CLASE de manejo
+// (sword/greatsword/dagger/spear) que reescala alcance/arco/velocidad/daño/poise-damage/estamina/backstab del swing melee —
+// SIN arte, sin save nuevo, sin RNG nuevo. 100% BORROW sobre los seams vivos de pilares 8-16 (el arquetipo sólo MULTIPLICA
+// valores que ya existen). Deriva 0-draw de `h.equip.weapon.defId` vía el mapa `byDefId` (gear.js:5 confirma que NINGÚN code
+// path conmuta por nombre/id de arma y las 4 armas actuales son espadas ⇒ ausente ⇒ 'sword'). Los multiplicadores COMPONEN
+// con TWO_HAND (se multiplican, no se pisan): p.ej. greatsword+twoHand ⇒ dmg = base×archDmgMul×twoHandDmgMul. HARD-GATED:
+// enabled:false ⇒ TODOS los seams usan la unidad (×1) ⇒ byte-idéntico a HEAD. El loadout inicial es `w_iron` (sim.js) que
+// queda SIN mapear ⇒ 'sword' ⇒ todo ×1 ⇒ combate byte-id a HEAD (AC2, 0 regresión). Números + `byDefId` = decisión FEEL/
+// BALANCE del CEO (retune = knob barato, sin rebuild). `swingMul` > 1 = swing más LENTO (multiplica `h.atkCD` y `h.atkAnim`).
+export const WEAPON_ARCHETYPES = {
+  enabled: true,
+  // arquetipo por defId de arma; ausente ⇒ 'sword'. w_iron (loadout inicial) queda SIN mapear ⇒ 'sword' (AC2). Las 4 armas:
+  // w_rusty/w_iron/w_steel/w_rune (gear.js). Mapa = decisión FEEL/CEO, tunable sin rebuild.
+  byDefId: { w_steel:"greatsword", w_rune:"spear", w_rusty:"dagger" },
+  classes: {
+    sword:      { reachMul:1.0, arcMul:1.0,  swingMul:1.0,  dmgMul:1.0,  poiseDmgMul:1.0, stamMul:1.0,  backstabMul:1.0 },
+    greatsword: { reachMul:1.4, arcMul:1.3,  swingMul:1.25, dmgMul:1.3,  poiseDmgMul:1.5, stamMul:1.3,  backstabMul:0.9 },
+    dagger:     { reachMul:0.7, arcMul:1.0,  swingMul:0.8,  dmgMul:0.85, poiseDmgMul:0.6, stamMul:0.8,  backstabMul:1.6 },
+    spear:      { reachMul:1.6, arcMul:0.65, swingMul:1.0,  dmgMul:1.0,  poiseDmgMul:1.0, stamMul:1.0,  backstabMul:1.0 },
+  },
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

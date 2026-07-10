@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2020,7 +2020,8 @@ function heroAttack(){
   // CAS-117 affix + CAS-119 talent + CAS-192 "furia" consumable all add into the same
   // atkspd term that shortens the swing cooldown — one legible, deterministic formula.
   const atkspd=heroAtkspd(h);
-  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+atkspd/100); h._atkHits=new Set();
+  const swm=heroArch(h).swingMul;  // CAS-1907: arquetipo ⇒ swing más lento/rápido (×atkCD y ×atkAnim; OFF/sword ⇒ ×1 byte-id)
+  h.atkAng=a; h.atkAnim=CFG.atkCD*swm; h.atkCD=cfg.cd*swm/(1+atkspd/100); h._atkHits=new Set();
   // CAS-1831: advance the light COMBO chain on a MELEE swing (pure input/timing, 0 RNG). Within the window
   // each swing bumps comboCount; the chainLen-th swing is the FINISHER (bigger dmg/knockback + feeds POISE
   // heavy) and resets the count so the 4th swing starts a fresh chain. Gated on COMBO.enabled + melee class ⇒
@@ -2034,7 +2035,7 @@ function heroAttack(){
     // CAS-1841: the finisher is a PODER action — it costs vigor. Sin estamina el golpe SIGUE aterrizando (el ligero
     // nunca se bloquea) pero DEGRADA a un swing normal: pierde el bonus finisher. OFF ⇒ spendStam true ⇒ el finisher
     // siempre dispara + comboCount se resetea exactamente como HEAD (byte-idéntico con COMBO).
-    if(h._comboFin){ if(spendStam(h,Math.round(STAMINA.cost.finisher*twoHandStamMul(h)))){ h.comboCount=0; } else { h._comboFin=false; } } // CAS-1895: a dos manos el coste sube ×stamMul (OFF/sin twoHand ⇒ round(cost·1)=cost byte-id)
+    if(h._comboFin){ if(spendStam(h,Math.round(STAMINA.cost.finisher*twoHandStamMul(h)*heroArch(h).stamMul))){ h.comboCount=0; } else { h._comboFin=false; } } // CAS-1895: a dos manos el coste sube ×stamMul · CAS-1907: ×archStamMul (OFF/sword ⇒ round(cost·1)=cost byte-id)
   } else { h._comboFin=false; }
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
@@ -2056,11 +2057,12 @@ export function heavyAttack(){
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: el pesado cancela el trago (sin coste); si no, enraiza vía el gate
   if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0)) return; // CAS-118 stun gate, same as heroAttack
   const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                        // v1: heavy is a melee-only power swing
-  if(!spendStam(h,Math.round(STAMINA.cost.heavy*twoHandStamMul(h)))) return;   // CAS-1841: el pesado cuesta vigor · CAS-1895: a dos manos ×stamMul (OFF/sin twoHand ⇒ round(cost·1)=cost byte-id)
+  if(!spendStam(h,Math.round(STAMINA.cost.heavy*twoHandStamMul(h)*heroArch(h).stamMul))) return;   // CAS-1841: el pesado cuesta vigor · CAS-1895: a dos manos ×stamMul · CAS-1907: ×archStamMul (OFF/sword ⇒ round(cost·1)=cost byte-id)
   tutMark("atk");
   const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const atkspd=heroAtkspd(h);
-  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd*COMBO.heavyCdMul/(1+atkspd/100); h._atkHits=new Set();
+  const swm=heroArch(h).swingMul;  // CAS-1907: arquetipo ×swingMul (OFF/sword ⇒ ×1 byte-id)
+  h.atkAng=a; h.atkAnim=CFG.atkCD*swm; h.atkCD=cfg.cd*COMBO.heavyCdMul*swm/(1+atkspd/100); h._atkHits=new Set();
   h._heavy=true; h._comboFin=false;   // this swing is HEAVY (×dmg + POISE heavy), not a chain finisher
   h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(3.6);
   addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.4});
@@ -2076,14 +2078,17 @@ function applyHeroMelee(){
   // CAS-1895: a dos manos el swing melee pega ×dmgMul (100% BORROW sobre el sink de daño; melee-only, ranged/nova no pasan
   // por aquí). OFF/sin twoHand ⇒ ×1 ⇒ byte-idéntico. `th` también arma opt.twoHand ⇒ hitEnemy escala el poise-damage.
   const th = TWO_HAND.enabled && h.twoHand;
-  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1);
+  // CAS-1907: el ARQUETIPO del arma equipada reescala el swing melee. `wa` compone MULTIPLICATIVAMENTE con TWO_HAND (dmg) y
+  // se pasa por opt a hitEnemy (poise-damage + backstab). OFF ⇒ ARCH_UNIT (todo 1) ⇒ byte-id; loadout inicial sword ⇒ ×1.
+  const wa = heroArch(h);
+  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul;
   heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
-    const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range+e.tpl.size) continue;
+    const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range*wa.reachMul+e.tpl.size) continue;   // CAS-1907: alcance ×reachMul (OFF/sword ⇒ ×1)
     const ang=Math.atan2(e.y-h.y,e.x-h.x);
-    if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc/2){
-      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th}); shakeAdd(5.5);
+    if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc*wa.arcMul/2){                                  // CAS-1907: arco ×arcMul (OFF/sword ⇒ ×1)
+      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th, arch:wa}); shakeAdd(5.5);
       // CAS-204: a bold crimson→white crescent sweeps through the struck enemy on a melee connect,
       // so the swing reads as cleaving INTO the target rather than next to it (FOUNTAINS slash juice).
       addFx("slashArc",e.x,e.y,{ang:h.atkAng,life:0.2});
@@ -2153,6 +2158,9 @@ function hitEnemy(e,dmg,ang,opt){
       // CAS-1895: a dos manos (opt.twoHand, sólo golpes melee) el poise-damage base sube ×poiseMul ⇒ staggerea más rápido.
       // Aritmética pura (0 draw); OFF/sin twoHand ⇒ opt.twoHand ausente ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
       if(TWO_HAND.enabled && opt && opt.twoHand) add*=TWO_HAND.poiseMul;
+      // CAS-1907: el arquetipo del arma escala el poise-damage en el MISMO sink (compone ×poiseDmgMul con TWO_HAND). Aritmética
+      // pura (0 draw); OFF ⇒ gate false; sword ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
+      if(WEAPON_ARCHETYPES.enabled && opt && opt.arch) add*=opt.arch.poiseDmgMul;
       e.poise=(e.poise||0)+add + ((TELEGRAPH.enabled && e.st>0)?g.telegraphPunish:0);
       e._poiseDecayT=0;
       if(e.poise>=pm){ const p=e.isBoss?POISE.boss:POISE.elite;
@@ -2206,7 +2214,7 @@ function hitEnemy(e,dmg,ang,opt){
   let backstab=false;
   if(BACKSTAB.enabled && opt && opt.melee && e.facing!==undefined
      && Math.abs(angDiff(ang, e.facing)) < BACKSTAB.rearArcDeg*Math.PI/360){
-    dmg*=BACKSTAB.mult; backstab=true; }
+    dmg*=BACKSTAB.mult*((WEAPON_ARCHETYPES.enabled&&opt&&opt.arch)?opt.arch.backstabMul:1); backstab=true; }   // CAS-1907: ×archBackstabMul (dagger↑, greatsword↓; OFF/sword ⇒ ×1)
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -3400,6 +3408,15 @@ export function toggleTwoHand(){
   return h.twoHand;
 }
 function twoHandStamMul(h){ return (TWO_HAND.enabled && h && h.twoHand) ? TWO_HAND.stamMul : 1; }
+
+// CAS-1907: ARQUETIPO DE ARMA — deriva la clase de manejo (sword/greatsword/dagger/spear) del arma equipada. 0-draw, SIN campo
+// de save (derivado de h.equip.weapon.defId, que ya se serializa como gear real ⇒ nada nuevo que guardar). Espejo de equipLoad(h).
+// El objeto devuelto MULTIPLICA los seams del swing melee (reach/arc/swing/dmg/poise/stam/backstab). `byDefId` ausente ⇒ 'sword'
+// (todo ×1 ⇒ baseline intacto). heroArch() aplica el GATE: OFF ⇒ ARCH_UNIT (todo 1) ⇒ byte-idéntico a HEAD; compone con TWO_HAND.
+const ARCH_UNIT = { reachMul:1, arcMul:1, swingMul:1, dmgMul:1, poiseDmgMul:1, stamMul:1, backstabMul:1 };
+export function weaponArchetype(h){ const c=WEAPON_ARCHETYPES; const inst=h&&h.equip&&h.equip.weapon;
+  const key=(inst && c.byDefId[inst.defId]) || "sword"; return c.classes[key] || c.classes.sword; }
+function heroArch(h){ return WEAPON_ARCHETYPES.enabled ? weaponArchetype(h) : ARCH_UNIT; }
 
 export function doRoll(){ const h=G.hero;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: rodar cancela el trago (sin coste); si no, enraiza vía el gate
@@ -6756,6 +6773,120 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     HYPERARMOR.enabled=savE; if(h){ h.hyperarmor=false; h.stun=0; }
     return { enabled:!!enabled, hyperArmorFired:(enabled?fired:false), fingerprint:fp }; },
+  // --- CAS-1907 ARQUETIPOS DE ARMA (Weapon Archetypes) harness hooks (tools/cas1907-weapon-archetypes.mjs); additive, drive los
+  // seams REALES: applyHeroMelee (reach/arc/dmg + opt.arch⇒hitEnemy poise+backstab), heroAttack/heavyAttack (swing ×swingMul),
+  // heavy/finisher stam (×archStamMul). El arquetipo deriva de h.equip.weapon.defId (gear real, ya serializado) ⇒ 0 draw, SIN
+  // campo de save, NO archetypeRng. Compone ×mul con TWO_HAND. La QA live (hija) re-verifica sobre el build servido. ---
+  weaponArchetypeMeta(){ return { enabled:WEAPON_ARCHETYPES.enabled, byDefId:{...WEAPON_ARCHETYPES.byDefId},
+    classes:JSON.parse(JSON.stringify(WEAPON_ARCHETYPES.classes)) }; },
+  weaponArchetypeEnable(on){ WEAPON_ARCHETYPES.enabled=!!on; return { enabled:WEAPON_ARCHETYPES.enabled }; },
+  // Clean warrior in play (mirror _twoHandArm) con un arma de PRUEBA equipada (por defecto w_iron ⇒ 'sword'); las probes
+  // sobreescriben h.equip.weapon.defId para elegir arquetipo. estamina llena, maxHp enorme, facing=0, postura a una mano.
+  _archArm(defId){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h.atkAnim=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0; h.flaskDrinkT=0;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null; h.frenzyStacks=0; h._parryRiposte=0;
+    h._comboFin=false; h._heavy=false; h._mcfg=ATK.warrior; h.atkAng=0; h.comboT=0; h.comboCount=0;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; h.twoHand=false;
+    h.equip={ weapon:{slot:"weapon",defId:(defId||"w_iron"),rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} };
+    return h; },
+  // AC5 multiplicadores observables: para un `defId`, mide reach/arc/swing/dmg/poise/stam/backstab de su ARQUETIPO resuelto,
+  // aislando el multiplicador con enabled OFF vs ON sobre el MISMO arma (⇒ el gearStat base se cancela; la razón == el mul).
+  // Devuelve además headEquiv: con enabled OFF el daño == equippedDmg·dmgMul (la fórmula de HEAD sin arquetipo) ⇒ AC1/AC2.
+  archWeaponProbe(defId){ const savE=WEAPON_ARCHETYPES.enabled, savC=COMBO.enabled, savS=STAMINA.enabled, savB=BACKSTAB.enabled, savT=TWO_HAND.enabled;
+    COMBO.enabled=true; STAMINA.enabled=true; BACKSTAB.enabled=true; TWO_HAND.enabled=false;
+    const h=this._archArm(defId); const cfg=ATK.warrior; const size=ETPL.wolf.size;
+    WEAPON_ARCHETYPES.enabled=true; const cls={...weaponArchetype(h)}; const archName=Object.keys(WEAPON_ARCHETYPES.classes).find(k=>WEAPON_ARCHETYPES.classes[k]===weaponArchetype(h))||"?";
+    const swing=()=>{ h.atkAng=0; h._mcfg=cfg; h._heavy=false; h._comboFin=false; h.twoHand=false; h._atkHits=new Set(); };
+    // e.facing=π ⇒ el enemigo encara al héroe (frontal) ⇒ el ARCO TRASERO no se abre ⇒ backstab NO contamina la medida de dmg/poise.
+    const meleeDmg=()=>{ const e=spawnEnemy("wolf",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=Math.PI; e.staggerT=0; swing(); const s=e.hp; applyHeroMelee(); const dd=s-e.hp; G.enemies.length=0; return dd; };
+    const poiseGain=()=>{ const e=spawnEnemy("wolf",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+20; e.y=h.y; e.facing=Math.PI; swing(); applyHeroMelee(); const p=e.poise; G.enemies.length=0; return p; };
+    const swingCD=()=>{ h.atkCD=0; h.rolling=false; h.stun=0; h.atkAnim=0; h.comboT=0; heroAttack(); const cd=h.atkCD; h.atkCD=0; h.atkT=0; return cd; };
+    const heavyStam=()=>{ h.atkCD=0; h.rolling=false; h.stun=0; h.stam=STAMINA.max; const s0=h.stam; heavyAttack(); return s0-h.stam; };
+    const hitsAt=(dist)=>{ const e=spawnEnemy("wolf",h.x+dist,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+dist; e.y=h.y; e.facing=Math.PI; swing(); const s=e.hp; applyHeroMelee(); const hit=(s-e.hp)>0; G.enemies.length=0; return hit; };
+    const hitsAng=(th)=>{ const d0=20, ex=h.x+d0*Math.cos(th), ey=h.y+d0*Math.sin(th); const e=spawnEnemy("wolf",ex,ey); e.maxHp=e.hp=1e9; e.dead=false; e.x=ex; e.y=ey; e.facing=Math.PI; swing(); const s=e.hp; applyHeroMelee(); const hit=(s-e.hp)>0; G.enemies.length=0; return hit; };
+    // e.facing=0 ⇒ el enemigo mira en la MISMA dirección del ataque (+x) ⇒ el héroe le pega por la ESPALDA ⇒ backstab ×mult SÍ dispara.
+    const backstabDmg=()=>{ const e=spawnEnemy("wolf",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=0; e.staggerT=0; swing(); const s=e.hp; applyHeroMelee(); const dd=s-e.hp; G.enemies.length=0; return dd; };
+    // dmg / poise / swing / stam: OFF vs ON sobre el MISMO arma ⇒ razón == mul (gearStat cancelado)
+    WEAPON_ARCHETYPES.enabled=false; const dOff=meleeDmg(), pOff=poiseGain(), cdOff=swingCD(), sOff=heavyStam(), bOff=backstabDmg();
+    WEAPON_ARCHETYPES.enabled=true;  const dOn=meleeDmg(),  pOn=poiseGain(),  cdOn=swingCD(),  sOn=heavyStam(),  bOn=backstabDmg();
+    const dmgRatio=dOff>0?dOn/dOff:0, poiseRatio=pOff>0?pOn/pOff:0, swingRatio=cdOff>0?cdOn/cdOff:0;
+    const backstabRatio=(bOff>0 && dmgRatio>0)?(bOn/bOff)/dmgRatio:0;   // bOn incluye dmgMul·backstabMul ⇒ divide por dmgMul
+    const stamExpOn=Math.round(STAMINA.cost.heavy*cls.stamMul), stamExpOff=STAMINA.cost.heavy;
+    // reach boundary: sword max = range+size; arquetipo = range·reachMul+size ⇒ una distancia que los distingue
+    const rm=cls.reachMul; let reachOk=true, reachTested=false, reachAt=0;
+    if(Math.abs(rm-1)>1e-6){ reachTested=true; reachAt=(rm>1)?(cfg.range+size+cfg.range*(rm-1)/2):(cfg.range*rm+size+cfg.range*(1-rm)/2);
+      WEAPON_ARCHETYPES.enabled=false; const swH=hitsAt(reachAt); WEAPON_ARCHETYPES.enabled=true; const arH=hitsAt(reachAt);
+      reachOk=(rm>1)?(!swH&&arH):(swH&&!arH); }
+    // arc boundary a distancia corta: sword half = arc/2; arquetipo = arc·arcMul/2
+    const am=cls.arcMul; let arcOk=true, arcTested=false, arcAt=0;
+    if(Math.abs(am-1)>1e-6){ arcTested=true; const half=cfg.arc/2; arcAt=(am>1)?(half+cfg.arc*(am-1)/4):(cfg.arc*am/2+cfg.arc*(1-am)/4);
+      WEAPON_ARCHETYPES.enabled=false; const swH=hitsAng(arcAt); WEAPON_ARCHETYPES.enabled=true; const arH=hitsAng(arcAt);
+      arcOk=(am>1)?(!swH&&arH):(swH&&!arH); }
+    // headEquiv: con enabled OFF el swing == equippedDmg·dmgMul (fórmula HEAD, sin arquetipo)
+    WEAPON_ARCHETYPES.enabled=false; const headDmg=equippedDmg(h)*cfg.dmgMul; const dHead=meleeDmg(); const headEquiv=Math.abs(dHead-headDmg)<1e-6;
+    const tol=1e-6;
+    const dmgOk=Math.abs(dmgRatio-cls.dmgMul)<tol, poiseOk=Math.abs(poiseRatio-cls.poiseDmgMul)<tol, swingOk=Math.abs(swingRatio-cls.swingMul)<tol;
+    const stamOk=(sOff===stamExpOff && sOn===stamExpOn), backstabOk=Math.abs(backstabRatio-cls.backstabMul)<1e-4;
+    WEAPON_ARCHETYPES.enabled=savE; COMBO.enabled=savC; STAMINA.enabled=savS; BACKSTAB.enabled=savB; TWO_HAND.enabled=savT;
+    return { defId, archName, cls, dmgRatio:+dmgRatio.toFixed(6), poiseRatio:+poiseRatio.toFixed(6), swingRatio:+swingRatio.toFixed(6),
+      backstabRatio:+backstabRatio.toFixed(6), sOff, sOn, stamExpOn, reachTested, reachOk, reachAt:+reachAt.toFixed(2), arcTested, arcOk, arcAt:+arcAt.toFixed(4),
+      headEquiv, dmgOk, poiseOk, swingOk, stamOk, backstabOk,
+      ok:(dmgOk&&poiseOk&&swingOk&&stamOk&&backstabOk&&reachOk&&arcOk&&headEquiv) }; },
+  // AC6 compone con TWO_HAND: greatsword + twoHand ⇒ dmg = base × archDmgMul × twoHandDmgMul (multiplicativo, sin pisar).
+  archComposeProbe(){ const savE=WEAPON_ARCHETYPES.enabled, savT=TWO_HAND.enabled;
+    const h=this._archArm("w_steel"); const cfg=ATK.warrior; const gcls=WEAPON_ARCHETYPES.classes.greatsword;
+    const dmgOf=(archOn,twoOn)=>{ WEAPON_ARCHETYPES.enabled=archOn; TWO_HAND.enabled=twoOn; h.twoHand=twoOn;
+      const e=spawnEnemy("wolf",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=Math.PI; e.staggerT=0;   // frontal ⇒ sin backstab
+      h.atkAng=0; h._mcfg=cfg; h._heavy=false; h._comboFin=false; h._atkHits=new Set(); const s=e.hp; applyHeroMelee(); const dd=s-e.hp; G.enemies.length=0; return dd; };
+    const base=dmgOf(false,false), arch=dmgOf(true,false), both=dmgOf(true,true);
+    const expBoth=base*gcls.dmgMul*TWO_HAND.dmgMul;
+    const archRatio=base>0?arch/base:0, bothRatio=base>0?both/base:0;
+    const archOk=Math.abs(archRatio-gcls.dmgMul)<1e-6, composeOk=Math.abs(both-expBoth)<1e-6, multiplicative=Math.abs(bothRatio-gcls.dmgMul*TWO_HAND.dmgMul)<1e-6;
+    WEAPON_ARCHETYPES.enabled=savE; TWO_HAND.enabled=savT; if(h){ h.twoHand=false; }
+    return { base, arch, both, expBoth:+expBoth.toFixed(4), archRatio:+archRatio.toFixed(6), bothRatio:+bothRatio.toFixed(6),
+      archDmgMul:gcls.dmgMul, twoHandDmgMul:TWO_HAND.dmgMul, archOk, composeOk, multiplicative, ok:(archOk&&composeOk&&multiplicative) }; },
+  // AC1 OFF byte-id: enabled=false ⇒ un arma mapeada (greatsword) es INERTE ⇒ dmg/swing/stam == la fórmula de HEAD (sin ×mul).
+  archOffProbe(){ const savE=WEAPON_ARCHETYPES.enabled, savC=COMBO.enabled, savS=STAMINA.enabled;
+    WEAPON_ARCHETYPES.enabled=false; COMBO.enabled=true; STAMINA.enabled=true;
+    const h=this._archArm("w_steel"); const cfg=ATK.warrior;
+    const e=spawnEnemy("wolf",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=Math.PI; e.staggerT=0;   // frontal ⇒ sin backstab
+    h.atkAng=0; h._mcfg=cfg; h._heavy=false; h._comboFin=false; h.twoHand=false; h._atkHits=new Set(); const s=e.hp; applyHeroMelee(); const dOff=s-e.hp; G.enemies.length=0;
+    const headDmg=equippedDmg(h)*cfg.dmgMul; const dmgInert=Math.abs(dOff-headDmg)<1e-6;
+    h.atkCD=0; h.rolling=false; h.stun=0; h.atkAnim=0; h.comboT=0; heroAttack(); const cdOff=h.atkCD; h.atkCD=0; h.atkT=0;
+    const headCD=cfg.cd/(1+heroAtkspd(h)/100); const swingInert=Math.abs(cdOff-headCD)<1e-6;
+    h.atkCD=0; h.rolling=false; h.stun=0; h.stam=STAMINA.max; const st0=h.stam; heavyAttack(); const sOff=st0-h.stam;
+    const stamInert=(sOff===STAMINA.cost.heavy);
+    WEAPON_ARCHETYPES.enabled=savE; COMBO.enabled=savC; STAMINA.enabled=savS;
+    return { dOff, headDmg, dmgInert, cdOff:+cdOff.toFixed(6), headCD:+headCD.toFixed(6), swingInert, sOff, stamInert, ok:(dmgInert&&swingInert&&stamInert) }; },
+  // AC4 SAVE byte-id: el arquetipo es DERIVADO (0 campo nuevo) ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave archetype*/weaponArch*.
+  archSaveByteId(){ const savE=WEAPON_ARCHETYPES.enabled;
+    WEAPON_ARCHETYPES.enabled=true; this._archArm("w_steel"); const onStr=JSON.stringify(serializeSave());
+    WEAPON_ARCHETYPES.enabled=false; this._archArm("w_steel"); const offStr=JSON.stringify(serializeSave());
+    WEAPON_ARCHETYPES.enabled=savE; this._archArm();
+    const hasKey=/"_?(weapon_?arch|arche?type)[a-zA-Z]*":/i.test(onStr);
+    return { byteId:(offStr===onStr), hasKey, onLen:onStr.length, offLen:offStr.length, ok:(offStr===onStr && !hasKey) }; },
+  // AC3 0-RNG STRONG: fingerprint del srand alrededor de un swing melee + PODER-swing con una GREATSWORD equipada (dmg/poise/reach/
+  // swing/stam escalan) — ON vs OFF. Todo input/aritmética (NO archetypeRng) ⇒ stream srand BYTE-IDÉNTICO ON==OFF aun disparando.
+  archSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savE=WEAPON_ARCHETYPES.enabled, savS=STAMINA.enabled, savC=COMBO.enabled;
+    WEAPON_ARCHETYPES.enabled=!!enabled; STAMINA.enabled=true; COMBO.enabled=true;
+    const h=this._archArm("w_steel");   // greatsword ⇒ reescala dmg/poise/reach/swing/stam
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let fired=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ const e=spawnEnemy("wolf",h.x+20,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.poise=0; e.staggerT=0; e.staggerCD=0; e.st=0; e.x=h.x+20; e.y=h.y; }
+        h.atkAng=0; h._mcfg=ATK.warrior; h._heavy=false; h._comboFin=false; h.twoHand=false; h._atkHits=new Set(); applyHeroMelee();
+        fired=(enabled ? (!!e && e.poise>POISE.gain.light) : true);   // greatsword poiseDmgMul>1 ⇒ poise supera light (0 draws)
+        h.atkCD=0; h.stun=0; h.stam=STAMINA.max; heavyAttack(); }     // PODER-swing stam ×stamMul (0 draws)
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    WEAPON_ARCHETYPES.enabled=savE; STAMINA.enabled=savS; COMBO.enabled=savC;
+    return { enabled:!!enabled, archetypeFired:(enabled?fired:false), fingerprint:fp }; },
   // --- CAS-1879 HOGUERA / REST SITE (Bonfire) harness hooks (tools/cas1879-bonfire.mjs); additive, drive the REAL
   // rama de descanso de interact() (heal + ancla + recarga Estus + world reset) + los helpers bonfireUnsafe/bonfireRespawn.
   // Todo geometría/aritmética + spawnEnemy/applyZoneScale (0-RNG) ⇒ sin bonfireRng ⇒ srand ON==OFF byte-idéntico. El
