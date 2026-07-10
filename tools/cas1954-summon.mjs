@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// CAS-1955 (build for CAS-1954) — CENIZAS DE ESPÍRITU (Spirit Summon, knob SUMMON). Aliado IA local invocable.
+// CAS-1963 (RE-ISSUE of CAS-1955, build for CAS-1954) — CENIZAS DE ESPÍRITU (Spirit Summon, knob SUMMON). Aliado IA local invocable.
 // Tras 22 pilares Souls-like el jugador SIEMPRE pelea solo; el siguiente eje de profundidad ARPG es un aliado IA (estilo Spirit
 // Ashes): un consumible escaso que trae un espíritu que pelea a tu lado, DIVIDE LA AGGRO del jefe y abre ventanas de combo/backstab.
 // 100% IA LOCAL (NO netcode). $0 arte (sprite de mob reusado + tinte cian procedural). 1 knob HARD-GATED, enabled:false ⇒ byte-idéntico
@@ -67,24 +67,30 @@ function runAll(tag){
   if (okContent) pass(`[${tag}] content: SUMMON knob (key=${meta.key} charges=${meta.charges} ${meta.summonMs}ms threat=${meta.threat} | spirit hp×${meta.spirit.hpPct} dmg×${meta.spirit.dmgMul} atkCd${meta.spirit.atkCdMs}ms range${meta.spirit.range} tint=${meta.spirit.tint} replaceOnRecast=${meta.replaceOnRecast})`);
   else fail(`[${tag}] content wrong: ${J(meta)}`);
 
-  // ---------- AC0 OFF default ----------
-  if (SUMMON_DEFAULT===false) pass(`[${tag}] AC0 OFF: enabled=false por defecto (config.js) ⇒ ambos SEAMs no-op (byte-id a HEAD)`);
-  else fail(`[${tag}] AC0: SUMMON default debería ser false en config.js (es ${SUMMON_DEFAULT})`);
+  // ---------- AC0 OFF default + byte-id explícito (ambos SEAMs no-op) ----------
+  const offP = d._sumOffProbe();   // SUMMON.enabled=false ⇒ spawn inerte + tickSummon no refilla + SEAM1 no marca + SEAM2 no redirige (el héroe recibe)
+  const ac0 = SUMMON_DEFAULT===false && offP.ok;
+  if (ac0) pass(`[${tag}] AC0 OFF: enabled=false por defecto (config.js); spawnInert=${offP.spawnInert} refillInert=${offP.refillInert} SEAM1 no-marca=${offP.seam1Off} SEAM2 no-redirige (héroe recibe)=${offP.seam2Off} ⇒ byte-idéntico a HEAD`);
+  else fail(`[${tag}] AC0 OFF broke: default=${SUMMON_DEFAULT} offProbe=${J(offP)}`);
 
-  // ---------- AC1 baseline 22-pilar ----------
+  // ---------- AC1 baseline 22-pilar (SUMMON on pero SIN invocar ⇒ juego == 22 pilares) ----------
   const base22 = SIGNATURE_BOSS.enabled && STATUS_BUILDUP.enabled && WEAPON_BUFFS.enabled && POISE.enabled && BACKSTAB.enabled;
-  if (base22) pass(`[${tag}] AC1 baseline: pilares previos intactos (SIGNATURE_BOSS/STATUS_BUILDUP/WEAPON_BUFFS/POISE/BACKSTAB)`);
-  else fail(`[${tag}] AC1: un pilar previo cambió estado`);
+  const blP = d._sumBaselineProbe();   // enabled=true pero sin spawn: ningún espíritu aparece solo, sin gasto, SEAMs no-op
+  const ac1 = base22 && blP.ok;
+  if (ac1) pass(`[${tag}] AC1 baseline: pilares previos intactos (SIGNATURE_BOSS/STATUS_BUILDUP/WEAPON_BUFFS/POISE/BACKSTAB); ON sin invocar ⇒ noSpirit=${blP.noSpirit} noSpend=${blP.noSpend} SEAM1 no-op=${blP.seam1Noop} (== 22 pilares)`);
+  else fail(`[${tag}] AC1 broke: base22=${base22} baselineProbe=${J(blP)}`);
 
   // ---------- AC2 spawn + carga ----------
   const sp = d._sumSpawnProbe();
   if (sp.ok) pass(`[${tag}] AC2 carga: invoca gasta 1 (${sp.before}→${sp.after}), re-invoca no-op (replaceOnRecast=false), 0 cargas deny`);
   else fail(`[${tag}] AC2 spawn/carga: ${J(sp)}`);
 
-  // ---------- AC3 refill zona + hoguera ----------
+  // ---------- AC3 refill zona + hoguera (Estus-parity, recurso escaso) ----------
   const rf = d._sumRefillProbe();
-  if (rf.ok) pass(`[${tag}] AC3 refill: misma zona sin refill · zona nueva a tope · seed sólo registra (mirror Estus + hoguera)`);
-  else fail(`[${tag}] AC3 refill: ${J(rf)}`);
+  const bf = d._sumBonfireProbe();   // drena a 0 + descansa en hoguera (rama REAL de interact()) ⇒ cargas a tope
+  const ac3 = rf.ok && bf.ok;
+  if (ac3) pass(`[${tag}] AC3 refill: misma zona sin refill · zona nueva a tope · seed sólo registra (mirror tickFlask); hoguera recarga a tope (${bf.charges}==${d.summonMeta().charges}, refilled=${bf.refilled})`);
+  else fail(`[${tag}] AC3 refill: zona=${J(rf)} hoguera=${J(bf)}`);
 
   // ---------- AC4 IA target ----------
   const tg = d._sumTargetProbe();
@@ -145,5 +151,5 @@ try {
 }
 
 log("");
-log(ok ? "✅ CAS-1955 (CAS-1954) Spirit Summon build — ALL PASS" : "❌ CAS-1955 (CAS-1954) Spirit Summon build — FAIL");
+log(ok ? "✅ CAS-1963 (CAS-1954) Spirit Summon build — ALL PASS" : "❌ CAS-1963 (CAS-1954) Spirit Summon build — FAIL");
 process.exit(ok ? 0 : 1);

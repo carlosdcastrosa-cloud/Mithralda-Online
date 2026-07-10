@@ -8995,4 +8995,32 @@ export const dev = {
     SUMMON.enabled=sav; G._spirit=null; h.summonCharges=c0; h.summonZone=z0;
     const hasKey=/summon|_spirit|spirit/i.test(onStr);
     return { ok: offStr===onStr && !hasKey, byteId:offStr===onStr, noKey:!hasKey, offLen:offStr.length, onLen:onStr.length }; },
+  // AC0 OFF byte-id: SUMMON.enabled=false ⇒ spawnSpirit() INERTE (false, sin _spirit, sin gasto); tickSummon no refilla;
+  // SEAM1 (updateEnemies) NO marca e._sumAggro (h===G.hero); SEAM2 (damageHero) NO redirige (el héroe recibe el golpe) ⇒ byte-idéntico a HEAD.
+  _sumOffProbe(){ const h=this._sumArm(false); h.summonCharges=2; const c0=h.summonCharges;
+    const spawnInert=(spawnSpirit()===false && G._spirit==null && h.summonCharges===c0);
+    h.summonCharges=1; h.summonZone="__elsewhere__"; tickSummon(h,0.016); const refillInert=(h.summonCharges===1); // OFF ⇒ tickSummon early-return
+    const e=spawnEnemy("skeleton",h.x+20,h.y); e.state="chase"; e._sumAggro=undefined;
+    updateEnemies(1/60); const seam1Off=(e._sumAggro===false);   // SEAM1 gateado ⇒ h===G.hero ⇒ marca false
+    e._sumAggro=true; const hp0=h.hp; const ret=damageHero(30,0,null,e); const seam2Off=(ret!==false && h.hp<hp0); // OFF ⇒ NO redirige, el héroe recibe
+    G.enemies.length=0;
+    return { spawnInert, refillInert, seam1Off, seam2Off, ok: spawnInert && refillInert && seam1Off && seam2Off }; },
+  // AC1 baseline==22-pilar: SUMMON.enabled=true pero SIN invocar ⇒ ningún espíritu aparece solo, un tick no gasta cargas
+  // ni crea _spirit, y ambos SEAMs son no-op (spiritAggroTarget devuelve G.hero al no haber espíritu) ⇒ juego == 22 pilares.
+  _sumBaselineProbe(){ const h=this._sumArm(true); const c0=h.summonCharges;
+    const e=spawnEnemy("skeleton",h.x+30,h.y); e.state="chase"; e._sumAggro=undefined;
+    tickSummon(h,0.016); updateSpirit(1/60); updateEnemies(1/60);
+    const noSpirit=(G._spirit==null), noSpend=(h.summonCharges===c0), seam1Noop=(e._sumAggro===false);
+    G.enemies.length=0;
+    return { noSpirit, noSpend, seam1Noop, ok: noSpirit && noSpend && seam1Noop }; },
+  // AC3 bonfire: la hoguera recarga las cargas de invocación por la rama REAL de interact() (misma asignación que el Estus).
+  // Drena a 0, descansa en un sitio seguro (fuente sintética empujada a world.fountains, patrón bonfireRestProbe) ⇒ cargas a tope.
+  _sumBonfireProbe(){ const savB=BONFIRE.enabled, savF=FLASK.enabled, savS=SUMMON.enabled;
+    BONFIRE.enabled=true; FLASK.enabled=true; SUMMON.enabled=true;
+    const arm=this._bonfireArm(); const h=arm.h, f=arm.f;
+    h.summonCharges=0; h.summonZone=null; G.enemies.length=0;
+    world.fountains.push(f); const fi=world.fountains.length-1; interact(); world.fountains.splice(fi,1);
+    const refilled=(h.summonCharges===SUMMON.charges);
+    BONFIRE.enabled=savB; FLASK.enabled=savF; SUMMON.enabled=savS; G.enemies.length=0;
+    return { refilled, charges:h.summonCharges, ok: refilled }; },
 };
