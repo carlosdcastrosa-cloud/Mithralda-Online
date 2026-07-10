@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1602,9 +1602,19 @@ function spawnEnemy(type,x,y){
   const tpl=ETPL[type]; const e={type, x,y, hp:tpl.hp, maxHp:tpl.hp, tpl, state:"idle", st:0,
     gaitPhase:(x*0.7+y*0.9), // CAS-240: STATIC per-mob gait desync offset, frozen at spawn pos. Render must NOT recompute from live e.x/e.y (movement swamps gait.w/gait.fps → CAS-222 slowdown invisible while moving).
     vx:0,vy:0, facing:0, wt:0, hurtFlash:0, hitDone:false, phase:0, knockX:0,knockY:0, wanderX:x,wanderY:y, wanderT:0,
-    stun:0, slow:1, slowT:0, dots:null}; // crowd-control sinks: stun freezes the AI, slow scales chase speed, dots = active DoTs (CAS-118); all time-based, no RNG
+    stun:0, slow:1, slowT:0, dots:null, // crowd-control sinks: stun freezes the AI, slow scales chase speed, dots = active DoTs (CAS-118); all time-based, no RNG
+    poise:0, poiseMax:0, staggerT:0, staggerCD:0, _poiseDecayT:0}; // CAS-1826: postura/stagger run-state (transient, never serialized). poiseMax stays 0 until the first hero hit resolves the tier (flags land post-spawn); 0 ⇒ this enemy never accrues
   G.enemies.push(e); return e;
 }
+// CAS-1826: resolve a tier enemy's POSTURA ceiling. Lazily read at hit-time because the tier flags
+// (e.elite/champion/champElite/isBoss) are grafted AFTER spawnEnemy at each promotion site — resolving here
+// covers ALL of them with zero-miss (no need to hook every promotion). 0 ⇒ this enemy never accrues postura
+// (basic trash, neutrals, 0-dmg supports). Pure data read — no RNG, no side effects. Boss uses its own profile.
+function poiseCeil(e){ if(!POISE.enabled || !e || !e.tpl) return 0;
+  if(e.isBoss) return POISE.boss.max;
+  if(e.elite||e.champion||e.champElite) return POISE.elite.max;
+  if(POISE.basicMelee && !e.tpl.neutral && (e.tpl.dmg||0)>0 && (e.tpl.range||0)<=60) return POISE.elite.max;
+  return 0; }
 // CAS-342: the legacy positional caves boss (spawnBoss) is removed — the dragon is now the caves
 // ZONE CAPSTONE (HUNTS.caves.boss), summoned by spawnChampion when the kill quota is met, and
 // carries its 6-anim rich rendering + breath through the shared capstone path. The dev.spawn hook
@@ -1946,6 +1956,23 @@ function hitEnemy(e,dmg,ang,opt){
   // disabled) → ×1 → byte-identical. The counter hit itself sets the buff AFTER its own hitEnemy, so the
   // counter is not self-boosted; the player's follow-up swing is.
   if(PARRY.enabled && G.hero && G.hero._parryRiposte>0){ dmg*=PARRY.riposteMul; G.hero._parryRiposte=0; }
+  // CAS-1826: ATURDIMIENTO POR POSTURA — accrue hidden postura on this tier enemy; crossing e.poiseMax BREAKS
+  // it into a STAGGER: set e.stun (reuses the AI-freeze gate ⇒ 0 new IA) + e.staggerT (the bonus-dmg window).
+  // Pure arithmetic threshold — consumes NO srand (there is no poiseRng), so a firing stagger leaves the srand
+  // stream byte-identical. Gated: staggerCD/staggerT>0 pause accrual (no re-stagger lock). opt.noPoise lets the
+  // parry counter route through without double-building (the parry seam D adds its own pulse). Heavy/ultimate
+  // hits carry more (opt.heavy/opt.ultimate); punishing a live telegraph (e.st>0) adds a bonus.
+  if(POISE.enabled && !(opt&&opt.noPoise)){
+    const pm=(e.poiseMax=poiseCeil(e));
+    if(pm>0 && e.staggerT<=0 && e.staggerCD<=0){
+      const g=POISE.gain, add=(opt&&opt.ultimate)?g.ultimate:(opt&&opt.heavy)?g.heavy:g.light;
+      e.poise=(e.poise||0)+add + ((TELEGRAPH.enabled && e.st>0)?g.telegraphPunish:0);
+      e._poiseDecayT=0;
+      if(e.poise>=pm){ const p=e.isBoss?POISE.boss:POISE.elite;
+        e.stun=Math.max(e.stun||0,p.dur); e.staggerT=p.dur; e.staggerCD=POISE.reStaggerCD; e.poise=0;
+        addFx("spellburst",e.x,e.y-2,{col:"#ffe27a"}); floater(e.x,e.y-30,STR.stagger||"¡ATURDIDO!","#ffe27a"); }
+    }
+  }
   // Crit chance = talents + the "Instinto Asesino" milestone (mk.crit). RNG is consumed only
   // when the combined chance is >0, so a fresh hero (no talents, no milestones) stays byte-
   // identical for the determinism baseline.
@@ -1974,6 +2001,9 @@ function hitEnemy(e,dmg,ang,opt){
   // pierce=0 unless enabled+equipped ⇒ red==af.dmgReduce ⇒ byte-identical.
   { const pierce=(wAf&&wAf.def.kind==="pierce")?wAf.m:0;
     for(const id of mobAffixes(e)){ const af=MOB_AFFIX[id]; if(af&&af.dmgReduce){ const red=Math.max(0,af.dmgReduce-pierce); dmg=Math.max(1,dmg*(1-red)); break; } } } // CAS-1590: a champion's Acorazado affix soaks the same fraction (one reduce, no double-stack)
+  // CAS-1826: a STAGGERED tier enemy takes bonus damage for the whole window (the read→punish payoff). Mirror of
+  // the FRENZY/PARRY multiply — deterministic, consumes NO srand ⇒ no stagger (or disabled) → ×1 → byte-identical.
+  if(POISE.enabled && e.staggerT>0) dmg*=(e.isBoss?POISE.boss:POISE.elite).bonusDmg;
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -3244,6 +3274,16 @@ function updateEnemies(dt){ const h=G.hero;
     e.hurtFlash=Math.max(0,e.hurtFlash-dt);
     if(e.hurtT>0) e.hurtT=Math.max(0,e.hurtT-dt); // CAS-317: one-shot hurt-flinch window (rich-anim boss)
     if(e.slowT>0) e.slowT-=dt;
+    // CAS-1826: POSTURA timers — the stagger window (staggerT, drives bonus-dmg + VFX) and the re-stagger
+    // cooldown (staggerCD) tick every frame; the AI-freeze itself is the EXISTING e.stun gate below (0 new IA).
+    // Postura DECAYS back down after decayDelay of not being hit, so a partial break doesn't linger forever.
+    // Gated + guarded: disabled or a 0-poise enemy does nothing. No RNG.
+    if(POISE.enabled){
+      if(e.staggerT>0) e.staggerT-=dt;
+      if(e.staggerCD>0) e.staggerCD-=dt;
+      if(e.poise>0 && e.staggerT<=0){ e._poiseDecayT=(e._poiseDecayT||0)+dt;
+        if(e._poiseDecayT>POISE.decayDelay) e.poise=Math.max(0,e.poise-POISE.decayRate*dt); }
+    }
     // CAS-1586 AURA GÉLIDA: a LIVE frost-affix mob radiates a slow field. While the hero stands
     // within auraR it is slowed to auraSlow — refreshed every tick through the SAME CAS-118
     // h.slow/h.slowT channel (HUD tint + movespd drag already wired at :2130), so stepping out of
@@ -3826,9 +3866,13 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
     h.parryT=0;                                    // consume the window
     h.iframe=Math.max(h.iframe,0.18);              // brief reward i-frame (0 status: infl ignored)
     const ra=Math.atan2(src.y-h.y,src.x-h.x);
-    hitEnemy(src, PARRY.counterDmg, ra);           // counter — crit/procs/kill route normally
+    hitEnemy(src, PARRY.counterDmg, ra, {noPoise:true}); // counter — crit/procs/kill route normally; noPoise so the parry pulse (below) is the SOLE postura source (no double-build)
     src.vx=(src.vx||0)+Math.cos(ra)*PARRY.knockback; src.vy=(src.vy||0)+Math.sin(ra)*PARRY.knockback;
     h._parryRiposte=1;                             // arm the 1-hit riposte buff (consumed by next hitEnemy)
+    // CAS-1826: a successful parry PULSES the parried tier enemy's postura (direct read→punish synergy with the
+    // parry, CAS-1785). Deterministic add, 0 srand; guarded so basics/disabled do nothing and it can't stack past max.
+    if(POISE.enabled && src.staggerT<=0 && src.staggerCD<=0){ const pm=(src.poiseMax=poiseCeil(src));
+      if(pm>0){ src.poise=Math.min(pm,(src.poise||0)+POISE.gain.parry); src._poiseDecayT=0; } }
     addFx("dodgering",h.x,h.y,{life:0.34}); addFx("spark",src.x,src.y);
     floater(h.x,h.y-38,STR.parry||"¡Parada!","#ffe27a"); shakeAdd(7); freeze(6); audio.sfx.roll();
     return false;                                  // hit COMPLETELY negated
@@ -5211,6 +5255,110 @@ export const dev = {
     if(h){ const e=spawnEnemy("wolf", h.x+20, h.y); if(e){ e.elite=true; armAbility(e); e.atkCount=e.special?e.special.every-1:0; e.specialNow=true; hot=!!(e.special&&e.special.lunge); } }
     const onStr=JSON.stringify(serializeSave()); G.enemies.length=e0; ENEMY_ABILITIES.enabled=sav;
     return { byteId:offStr===onStr, hotSpecial:hot, hasKey:/"?(lunge|abilit)[a-z]*"?:/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
+  // --- CAS-1826 ATURDIMIENTO POR POSTURA (Poise / Stagger) harness hooks (tools/cas1826-poise.mjs); additive, drive the REAL hitEnemy/updateEnemies/damageHero paths ---
+  // Static config off the data (no sim step): the single knob's live values.
+  poiseMeta(){ return { enabled:POISE.enabled, gain:POISE.gain, decayDelay:POISE.decayDelay, decayRate:POISE.decayRate,
+    reStaggerCD:POISE.reStaggerCD, elite:POISE.elite, boss:POISE.boss }; },
+  poiseEnabled(){ return POISE.enabled; },
+  poiseEnable(on){ POISE.enabled=!!on; return { enabled:POISE.enabled }; },
+  // Spawn `type` as an ambush-style ÉLITE (or boss) with its postura ceiling resolved. Clears the arena so the
+  // probe starts clean; the hero is a fresh warrior (no crit/talents ⇒ hitEnemy draws 0 srand).
+  _poiseArm(type,boss){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; if(!h) return null; h.dead=false; h.rolling=false; h.iframe=0; h.parryT=0; h.parryCD=0; h._parryRiposte=0; h.maxHp=1e6; h.hp=1e6; h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null;
+    const e=spawnEnemy(type||"wolf", h.x+30, h.y); if(!e) return null;
+    e.maxHp=e.hp=1e9; if(boss){ e.isBoss=true; } else { e.elite=true; } e.state="chase";
+    e.poise=0; e.poiseMax=poiseCeil(e); e.staggerT=0; e.staggerCD=0; e._poiseDecayT=0; return e; },
+  // AC3: N light hits FILL postura → cross poiseMax → BREAK (e.stun + e.staggerT set, poise reset) → the AI freezes
+  // (existing stun gate: no chase, not attacking) → a hit inside the window lands ×bonusDmg. Drives the REAL paths.
+  poiseAccrueProbe(){ const sav=POISE.enabled; POISE.enabled=true; const h=G.hero;
+    const e=this._poiseArm("wolf"); if(!e){ POISE.enabled=sav; return null; }
+    const max=e.poiseMax, per=POISE.gain.light; let hits=0;
+    for(let i=0;i<60 && e.staggerT<=0;i++){ e.hp=1e9; hitEnemy(e,5,0); hits++; }
+    const stunned=e.stun>0, staggered=e.staggerT>0, poiseReset=e.poise===0;
+    // IA frozen: place the enemy far from the hero, zero any residual knockback (the stun gate intentionally lets
+    // knockback ride out — we isolate the AI), advance one frame; the stun gate must skip chase + attack entirely.
+    e.x=h.x+240; e.y=h.y; e.knockX=0; e.knockY=0; const x0=e.x, y0=e.y; updateEnemies(1/60);
+    const frozen=(Math.abs(e.x-x0)<1e-6 && Math.abs(e.y-y0)<1e-6 && e.state!=="windup" && e.state!=="strike");
+    // bonus dmg INSIDE the window vs a fresh (un-staggered) baseline
+    e.x=h.x+30; e.hp=1e9; const b0=e.hp; hitEnemy(e,100,0); const staggerDmg=b0-e.hp;
+    const e2=this._poiseArm("wolf"); e2.hp=1e9; const c0=e2.hp; hitEnemy(e2,100,0); const baseDmg=c0-e2.hp;
+    const out={ max, per, hits, expectHits:Math.ceil(max/per), stunned, staggered, poiseReset, frozen,
+      baseDmg:Math.round(baseDmg), staggerDmg:Math.round(staggerDmg), ratio:+(staggerDmg/baseDmg).toFixed(3), bonusDmg:POISE.elite.bonusDmg };
+    G.enemies.length=0; POISE.enabled=sav; return out; },
+  // AC6: the boss profile has a HIGHER ceiling, SHORTER stun, and BIGGER bonus-dmg than an élite (climax opening).
+  poiseTierProbe(){ const sav=POISE.enabled; POISE.enabled=true;
+    const el=this._poiseArm("wolf",false), elMax=el?el.poiseMax:0;
+    const bo=this._poiseArm("wolf",true), boMax=bo?bo.poiseMax:0; G.enemies.length=0; POISE.enabled=sav;
+    return { eliteMax:elMax, bossMax:boMax, eliteDur:POISE.elite.dur, bossDur:POISE.boss.dur,
+      eliteBonus:POISE.elite.bonusDmg, bossBonus:POISE.boss.bonusDmg,
+      maxHigher:boMax>elMax, durShorter:POISE.boss.dur<POISE.elite.dur, bonusHigher:POISE.boss.bonusDmg>POISE.elite.bonusDmg }; },
+  // AC4: partial postura (below max) DECAYS after decayDelay of no hits — a missed combo doesn't bank forever.
+  poiseDecayProbe(){ const sav=POISE.enabled; POISE.enabled=true; const e=this._poiseArm("wolf");
+    if(!e){ POISE.enabled=sav; return null; }
+    e.hp=1e9; hitEnemy(e,5,0); hitEnemy(e,5,0); const built=e.poise;    // partial, well below max
+    const steps=Math.ceil((POISE.decayDelay+1.0)*60); for(let i=0;i<steps;i++){ e.x=1e5; updateEnemies(1/60); }
+    const afterDelay=e.poise;
+    const out={ built:+built.toFixed(2), afterDelay:+afterDelay.toFixed(2), decayed:afterDelay<built-1e-6, decayRate:POISE.decayRate, decayDelay:POISE.decayDelay };
+    G.enemies.length=0; POISE.enabled=sav; return out; },
+  // AC5: after a stagger there's a re-stagger COOLDOWN — postura won't re-accrue until it drains (no infinite lock).
+  poiseReStaggerProbe(){ const sav=POISE.enabled; POISE.enabled=true; const h=G.hero; const e=this._poiseArm("wolf");
+    if(!e){ POISE.enabled=sav; return null; }
+    for(let i=0;i<60 && e.staggerT<=0;i++){ e.hp=1e9; hitEnemy(e,5,0); }
+    const broke=e.staggerT>0, cd0=e.staggerCD;
+    let g=0; while(e.staggerT>0 && g++<600){ e.x=1e5; updateEnemies(1/60); }               // let the window expire (CD still runs)
+    const cdAfterWindow=e.staggerCD;
+    e.x=(h?h.x:0)+30; const p0=e.poise; e.hp=1e9; hitEnemy(e,5,0); const blockedInCD=(e.poise===p0);   // inside CD ⇒ no accrual
+    e.staggerCD=0; const p1=e.poise; hitEnemy(e,5,0); const reAccrues=(e.poise>p1);                     // CD drained ⇒ re-accrues
+    const out={ broke, cd0:+cd0.toFixed(2), cdAfterWindow:+cdAfterWindow.toFixed(2), cdStillActive:cdAfterWindow>0, blockedInCD, reAccrues, reStaggerCD:POISE.reStaggerCD };
+    G.enemies.length=0; POISE.enabled=sav; return out; },
+  // AC7: a successful PARRY pulses gain.parry; punishing a live TELEGRAPH (e.st>0) adds gain.telegraphPunish on top of a light hit.
+  poiseSynergyProbe(){ const sav=POISE.enabled, savT=TELEGRAPH.enabled; POISE.enabled=true; const h=G.hero;
+    // parry pulse: arm the window, take a melee hit from an élite ⇒ negated + postura pulse (counter routes noPoise ⇒ pulse is the sole source)
+    const pe=this._poiseArm("skeleton"); pe.hp=1e9; const before=pe.poise;
+    h.parryT=PARRY.windowMs/1000; const parried=(damageHero(30,Math.atan2(h.y-pe.y,h.x-pe.x),null,pe)===false); const parryGain=pe.poise-before;
+    // telegraph punish vs plain baseline
+    TELEGRAPH.enabled=true; const e2=this._poiseArm("wolf"); e2.st=0.3; const b2=e2.poise; e2.hp=1e9; hitEnemy(e2,5,0); const punishGain=e2.poise-b2;
+    const e3=this._poiseArm("wolf"); e3.st=0; const b3=e3.poise; e3.hp=1e9; hitEnemy(e3,5,0); const plainGain=e3.poise-b3;
+    const out={ parried, parryGain:+parryGain.toFixed(2), expectParry:POISE.gain.parry,
+      punishGain:+punishGain.toFixed(2), plainGain:+plainGain.toFixed(2), telegraphPunish:POISE.gain.telegraphPunish,
+      parryOk:parried && parryGain===POISE.gain.parry, punishOk:(punishGain-plainGain)===POISE.gain.telegraphPunish };
+    G.enemies.length=0; POISE.enabled=sav; TELEGRAPH.enabled=savT; return out; },
+  // AC-tier(gain): opt.heavy / opt.ultimate carry MORE postura than a light hit (light < heavy < ultimate).
+  poiseGainTierProbe(){ const sav=POISE.enabled; POISE.enabled=true;
+    const measure=(opt)=>{ const e=this._poiseArm("wolf"); e.hp=1e9; const b=e.poise; hitEnemy(e,5,0,opt); return e.poise-b; };
+    const light=measure(undefined), heavy=measure({heavy:true}), ult=measure({ultimate:true});
+    G.enemies.length=0; POISE.enabled=sav;
+    return { light, heavy, ultimate:ult, gain:POISE.gain, ordered:(light<heavy && heavy<ult) }; },
+  // AC2 RNG-STRONG: fingerprint the gameplay srand around a REAL postura FILL→BREAK (+ a bonus-dmg hit inside the
+  // window) and a run of loot kills, POISE ON vs OFF. Postura is pure arithmetic (no poiseRng) so the stagger fires
+  // (staggerFired=true on ON) while the srand stream stays BYTE-IDENTICAL ON==OFF. 2*probeN draws around the firing.
+  poiseSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const sav=POISE.enabled; POISE.enabled=!!enabled; const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.iframe=0; h.parryT=0; h.maxHp=1e6; h.hp=1e6; h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    let staggerFired=false;
+    { const e0=G.enemies.length;
+      const e=spawnEnemy("wolf",(h?h.x:0)+30,(h?h.y:0));
+      if(e){ e.elite=true; e.hp=1e9; e.poiseMax=poiseCeil(e);
+        for(let i=0;i<60 && e.staggerT<=0;i++){ e.hp=1e9; hitEnemy(e,5,0); }               // FILL → BREAK
+        staggerFired=e.staggerT>0;
+        e.hp=1e9; hitEnemy(e,50,0);                                                        // a hit INSIDE the window (bonus-dmg path)
+      }
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    POISE.enabled=sav;
+    return { enabled:!!enabled, staggerFired:(enabled?staggerFired:false), fingerprint:fp }; },
+  // AC1/AC8 SAVE: the 5 postura fields are transient enemy run-state — G.enemies is NEVER serialized. A live élite
+  // with HOT postura ⇒ save.v1 byte-identical ON/OFF and carries NO poise/stagger key. Mirror of abilitySaveByteId.
+  poiseSaveByteId(){ const sav=POISE.enabled; const h=G.hero;
+    POISE.enabled=false; G.enemies.length=0; const offStr=JSON.stringify(serializeSave());
+    POISE.enabled=true; let hot=false; const e0=G.enemies.length;
+    if(h){ const e=spawnEnemy("wolf", h.x+30, h.y); if(e){ e.elite=true; e.poiseMax=poiseCeil(e); e.poise=e.poiseMax*0.6; e.staggerT=1.2; e.staggerCD=3.0; e._poiseDecayT=0.4; hot=true; } }
+    const onStr=JSON.stringify(serializeSave()); G.enemies.length=e0; POISE.enabled=sav;
+    return { byteId:offStr===onStr, hotPoise:hot, hasKey:/"_?(poise|stagger)[a-zA-Z]*":/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

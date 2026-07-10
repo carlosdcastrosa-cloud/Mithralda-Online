@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -985,6 +985,23 @@ export function createRenderer(ctx){
   function drawEnemy(e){
     const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.champion?5:(e.tpl.size>20?4:3));
     const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false;
+    // CAS-1826 POSTURA/ATURDIMIENTO ($0 art): while BROKEN (staggerT>0) the enemy wears a golden stun swirl —
+    // a pulsing ground ring + orbiting stars — reading "hit it NOW". While postura is BUILDING (poise>0, not yet
+    // broken) a thin pip-bar over the head shows the meter filling. Pure proc render off transient sim state; no
+    // new art, no sim state mutated, no RNG. Gated so 0-poise enemies (basics / disabled) draw nothing.
+    if(POISE.enabled){
+      if(e.staggerT>0){ const t=G.t, cx=e.x, cy=e.y-e.tpl.size*0.5; ctx.save();
+        ctx.globalAlpha=0.45+0.2*Math.sin(t*10); ctx.strokeStyle="#ffe27a"; ctx.lineWidth=2;
+        const rr=e.tpl.size*1.15; ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,rr,rr*0.4,0,0,6.28); ctx.stroke();
+        ctx.globalCompositeOperation="lighter"; ctx.fillStyle="#fff4b0";
+        for(let i=0;i<4;i++){ const a=t*4+i*1.57, sx=cx+Math.cos(a)*e.tpl.size*0.9, sy=cy+Math.sin(a)*e.tpl.size*0.5;
+          ctx.globalAlpha=0.7; ctx.beginPath(); ctx.arc(sx,sy,2.2,0,6.28); ctx.fill(); }
+        ctx.restore();
+      } else if(e.poise>0 && e.poiseMax>0){ const w=e.tpl.size*1.4, x0=e.x-w/2, y0=e.y-e.tpl.size-8, fr=Math.min(1,e.poise/e.poiseMax);
+        ctx.save(); ctx.globalAlpha=0.85; ctx.fillStyle="#20242e"; ctx.fillRect(x0-1,y0-1,w+2,4);
+        ctx.fillStyle="#ffcf4d"; ctx.fillRect(x0,y0,w*fr,2); ctx.restore();
+      }
+    }
     // CAS-247: a Swift affix scales the WALK CADENCE (gait.w AND gait.fps) by the same factor as
     // its move speed, so faster steps stay natural — never reintroduce the CAS-219/240 desync.
     let gait=mobGait(e); if(e.affixGait && e.affixGait!==1) gait={w:gait.w*e.affixGait, fps:gait.fps*e.affixGait};
