@@ -22,7 +22,7 @@ import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
 import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
 import { rarityRank } from "./sim/gear.js";
-import { STAMINA, FLASK, EQUIP_LOAD } from "./sim/config.js";   // CAS-1841/CAS-1854/CAS-1889: gated HUD feeds (vigor bar + Estus pips + banda de carga — absent OFF ⇒ HUD byte-identical)
+import { STAMINA, FLASK, EQUIP_LOAD, TWO_HAND } from "./sim/config.js";   // CAS-1841/CAS-1854/CAS-1889/CAS-1895: gated HUD feeds (vigor bar + Estus pips + banda de carga + marcador a dos manos — absent OFF ⇒ HUD byte-identical)
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
@@ -174,6 +174,10 @@ export function createGame(canvas, ctx, getView){
       // CAS-1889: banda de carga de equipo para el tinte de la barra de vigor (la barra ES el recurso de esquiva). ONLY when
       // EQUIP_LOAD.enabled ⇒ con el knob OFF la clave está ausente ⇒ hud.js no tinta ⇒ snapshot + DOM byte-idénticos a HEAD.
       ...(EQUIP_LOAD.enabled ? { equipBand:equipLoad(h).band } : null),
+      // CAS-1895: marcador de EMPUÑADURA A DOS MANOS para el HUD DOM — ONLY when TWO_HAND.enabled, so con el knob OFF la
+      // clave está ausente ⇒ hud.js no marca ⇒ snapshot + DOM byte-idénticos a HEAD. La banda de vigor YA se re-tinta sola
+      // (equipLoad excluye el escudo a dos manos ⇒ el drop de banda es visible), esto añade el marcador explícito.
+      ...(TWO_HAND.enabled ? { twoHand:!!h.twoHand } : null),
     }, a11y);
   }
   // CAS-336/CAS-337 — make the HUD panels FUNCTIONAL (board CAS-335: "no tiene funciones").

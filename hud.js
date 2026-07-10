@@ -42,7 +42,7 @@
 // ===========================================================================
 
 import { uiLayout } from "./ui/layout.js"; // CAS-418: draggable panels + persistent layout (single position owner)
-import { STAMINA, FLASK } from "./sim/config.js"; // CAS-1841/CAS-1854: gated VIGOR bar + Estus pips — created ONLY when enabled (OFF ⇒ DOM byte-identical)
+import { STAMINA, FLASK, TWO_HAND } from "./sim/config.js"; // CAS-1841/CAS-1854/CAS-1895: gated VIGOR bar + Estus pips + marcador a dos manos — created ONLY when enabled (OFF ⇒ DOM byte-identical)
 
 export const hud = (()=>{
   const KEY="mithralda.hud.v1";   // own key — never the save / settings / analytics blob
@@ -179,6 +179,11 @@ export const hud = (()=>{
         "#hud .groove.flash{ box-shadow:0 0 0 1px rgba(255,90,90,.95), 0 0 7px 2px rgba(255,70,70,.6); }",
         "#hud:not(.rm) .groove.flash{ animation:hudstamflash .4s ease-out; }",
         "@keyframes hudstamflash{ 0%{ box-shadow:0 0 0 2px rgba(255,120,120,1), 0 0 10px 3px rgba(255,80,80,.85); } 100%{ box-shadow:none; } }",
+      ] : []),
+      // CAS-1895: marcador de EMPUÑADURA A DOS MANOS sobre la barra de vigor (rim ámbar/acero, $0 arte). Gated on
+      // TWO_HAND.enabled ⇒ con el knob OFF el texto del <style> es byte-idéntico a HEAD. La clase la togglea el render.
+      ...(TWO_HAND.enabled ? [
+        "#hud .groove.twohand{ box-shadow:0 0 0 1px rgba(255,207,122,.95), 0 0 6px 1px rgba(199,154,85,.55); }",
       ] : []),
       "#hud .bnum{ position:absolute; right:4px; top:0; bottom:0; display:flex; align-items:center; }",
       "#hud .bicon{ position:absolute; left:3px; top:0; bottom:0; display:flex; align-items:center; font-size:calc(10px*var(--s)); }",
@@ -454,6 +459,7 @@ export const hud = (()=>{
     fillBar(nodes.mp, s.mp, s.maxMp);
     // CAS-1841: vigor bar (present only when STAMINA.enabled fed s.stam). Toggle the deny-flash rim on the groove.
     if(nodes.stam){ fillBar(nodes.stam, s.stam, s.stamMax); const g=nodes.stam.fill&&nodes.stam.fill.parentNode; if(g) g.classList.toggle("flash", (s.stamFlash||0)>0);
+      if(g) g.classList.toggle("twohand", !!s.twoHand);   // CAS-1895: rim del marcador a dos manos (ausente OFF ⇒ toggle sobre `false` ⇒ clase nunca puesta ⇒ DOM byte-id)
       // CAS-1889: la barra de vigor ES el recurso de esquiva ⇒ tíntala por BANDA de carga de equipo ($0 arte, reusa el fill
       // existente). Presente sólo cuando EQUIP_LOAD.enabled alimentó s.equipBand; ausente ⇒ mantiene el verde-vigor por defecto
       // (byte-id con HEAD). fast=verde-cian · mid=verde-vigor neutro · fat=ámbar · over=rojo.

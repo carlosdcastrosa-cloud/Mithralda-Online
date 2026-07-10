@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2034,7 +2034,7 @@ function heroAttack(){
     // CAS-1841: the finisher is a PODER action — it costs vigor. Sin estamina el golpe SIGUE aterrizando (el ligero
     // nunca se bloquea) pero DEGRADA a un swing normal: pierde el bonus finisher. OFF ⇒ spendStam true ⇒ el finisher
     // siempre dispara + comboCount se resetea exactamente como HEAD (byte-idéntico con COMBO).
-    if(h._comboFin){ if(spendStam(h,STAMINA.cost.finisher)){ h.comboCount=0; } else { h._comboFin=false; } }
+    if(h._comboFin){ if(spendStam(h,Math.round(STAMINA.cost.finisher*twoHandStamMul(h)))){ h.comboCount=0; } else { h._comboFin=false; } } // CAS-1895: a dos manos el coste sube ×stamMul (OFF/sin twoHand ⇒ round(cost·1)=cost byte-id)
   } else { h._comboFin=false; }
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
@@ -2056,7 +2056,7 @@ export function heavyAttack(){
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: el pesado cancela el trago (sin coste); si no, enraiza vía el gate
   if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0)) return; // CAS-118 stun gate, same as heroAttack
   const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                        // v1: heavy is a melee-only power swing
-  if(!spendStam(h,STAMINA.cost.heavy)) return;   // CAS-1841: el pesado cuesta vigor (OFF ⇒ true, byte-id)
+  if(!spendStam(h,Math.round(STAMINA.cost.heavy*twoHandStamMul(h)))) return;   // CAS-1841: el pesado cuesta vigor · CAS-1895: a dos manos ×stamMul (OFF/sin twoHand ⇒ round(cost·1)=cost byte-id)
   tutMark("atk");
   const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const atkspd=heroAtkspd(h);
@@ -2073,14 +2073,17 @@ function applyHeroMelee(){
   // non-finisher light, ⇒ ×1 + opt inert (byte-identical). knockMul rides the existing knockback branch.
   const fin = COMBO.enabled && h._comboFin;
   const heavy = COMBO.enabled && h._heavy;
-  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1);
+  // CAS-1895: a dos manos el swing melee pega ×dmgMul (100% BORROW sobre el sink de daño; melee-only, ranged/nova no pasan
+  // por aquí). OFF/sin twoHand ⇒ ×1 ⇒ byte-idéntico. `th` también arma opt.twoHand ⇒ hitEnemy escala el poise-damage.
+  const th = TWO_HAND.enabled && h.twoHand;
+  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1);
   heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
     const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range+e.tpl.size) continue;
     const ang=Math.atan2(e.y-h.y,e.x-h.x);
     if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc/2){
-      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1)}); shakeAdd(5.5);
+      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th}); shakeAdd(5.5);
       // CAS-204: a bold crimson→white crescent sweeps through the struck enemy on a melee connect,
       // so the swing reads as cleaving INTO the target rather than next to it (FOUNTAINS slash juice).
       addFx("slashArc",e.x,e.y,{ang:h.atkAng,life:0.2});
@@ -2146,7 +2149,10 @@ function hitEnemy(e,dmg,ang,opt){
   if(POISE.enabled && !(opt&&opt.noPoise)){
     const pm=(e.poiseMax=poiseCeil(e));
     if(pm>0 && e.staggerT<=0 && e.staggerCD<=0){
-      const g=POISE.gain, add=(opt&&opt.ultimate)?g.ultimate:(opt&&opt.heavy)?g.heavy:g.light;
+      const g=POISE.gain; let add=(opt&&opt.ultimate)?g.ultimate:(opt&&opt.heavy)?g.heavy:g.light;
+      // CAS-1895: a dos manos (opt.twoHand, sólo golpes melee) el poise-damage base sube ×poiseMul ⇒ staggerea más rápido.
+      // Aritmética pura (0 draw); OFF/sin twoHand ⇒ opt.twoHand ausente ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
+      if(TWO_HAND.enabled && opt && opt.twoHand) add*=TWO_HAND.poiseMul;
       e.poise=(e.poise||0)+add + ((TELEGRAPH.enabled && e.st>0)?g.telegraphPunish:0);
       e._poiseDecayT=0;
       if(e.poise>=pm){ const p=e.isBoss?POISE.boss:POISE.elite;
@@ -3375,11 +3381,25 @@ function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
 // ⇒ 0-draw, NO campo nuevo. Sin ctx/DOM. El escudo pesado (CAS-1873) contribuye vía slotWeight.shield. Slot vacío ⇒ 0.
 export function equipLoad(h){ const c=EQUIP_LOAD; const eq=h&&h.equip; let total=0;
+  // CAS-1895: a dos manos el escudo se ENVAINA ⇒ su peso sale de la carga ⇒ ratio baja ⇒ posible drop de banda
+  // (sinergia observable, 0-draw, sin campo de save). OFF / sin twoHand ⇒ el slot cuenta como siempre ⇒ byte-id.
   if(eq){ for(const slot of ["weapon","body","shield"]){ const it=eq[slot]; if(!it) continue;
+    if(slot==="shield" && TWO_HAND.enabled && h && h.twoHand) continue;
     total += (c.slotWeight[slot]||0) * (c.rarityWeight[it.rarity]||1); } }
   const ratio = total / (c.capacity||1); const b=c.bands;
   const band = ratio<=b.fast ? "fast" : ratio<=b.mid ? "mid" : ratio<=b.fat ? "fat" : "over";
   return { total, ratio, band }; }
+
+// CAS-1895: EMPUÑADURA A DOS MANOS — TOGGLE de postura (llamado desde input.js edge / botón táctil). Alterna `h.twoHand`
+// (transitorio, mirror h.blocking ⇒ fuera del allowlist de save.v1). Gated en TWO_HAND.enabled + escena play + héroe vivo.
+// 0 RNG (input puro, no existe twoHandRng). OFF ⇒ return inmediato ⇒ h.twoHand nunca sube ⇒ byte-idéntico a HEAD.
+export function toggleTwoHand(){
+  const h=G.hero; if(!TWO_HAND.enabled || G.scene!=="play" || !h || h.dead) return;
+  h.twoHand=!h.twoHand;
+  audio.sfx.roll();   // reusa un SFX existente como tono de conmutación ($0 audio nuevo)
+  return h.twoHand;
+}
+function twoHandStamMul(h){ return (TWO_HAND.enabled && h && h.twoHand) ? TWO_HAND.stamMul : 1; }
 
 export function doRoll(){ const h=G.hero;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: rodar cancela el trago (sin coste); si no, enraiza vía el gate
@@ -3481,7 +3501,9 @@ export function update(dtMs){
   // (io.blockHeld). Gate: enabled + held + vivo + no rodando + no aturdido (una ruptura BAJA la guardia) + estamina > 0
   // (agotarla en un bloqueo la baja, requisito del issue). Corre TRAS el tick de stun para que la ruptura de este frame
   // ya cuente. OFF ⇒ SHIELD_BLOCK.enabled=false ⇒ h.blocking nunca sube ⇒ byte-idéntico a HEAD. 0 RNG (input puro).
-  h.blocking = SHIELD_BLOCK.enabled && io.blockHeld && !h.dead && !h.rolling && h.stun<=0 && (!STAMINA.enabled || h.stam>0);
+  // CAS-1895: a dos manos el escudo está ENVAINADO ⇒ la guardia no puede subir (h.blocking=false) ⇒ la rama de bloqueo de
+  // damageHero (que lee h.blocking) sale temprano SIN nueva rama. OFF/sin twoHand ⇒ término extra=true ⇒ byte-idéntico.
+  h.blocking = SHIELD_BLOCK.enabled && io.blockHeld && !h.dead && !h.rolling && h.stun<=0 && (!STAMINA.enabled || h.stam>0) && !(TWO_HAND.enabled && h.twoHand);
   if(h.dots) tickDots(h,dt,true);
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
@@ -3501,7 +3523,7 @@ export function update(dtMs){
     mv=flaskMoveGate(h,mv);   // CAS-1854: Estus root/cancel-on-action (cross-platform, single source — ver flaskMoveGate). Bebiendo sin cancelar ⇒ mv=[0,0] ⇒ vx=vy=0, moved=false (ENRAIZADO); mover+cancelOnAction ⇒ aborta el trago (sin coste) y deja pasar el movimiento. OFF / no bebiendo ⇒ mv intacto ⇒ byte-id. Sin i-frames ⇒ VULNERABLE.
     const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
-    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1)*(h.blocking?SHIELD_BLOCK.moveMul:1)*(EQUIP_LOAD.enabled?EQUIP_LOAD.mul[equipLoad(h).band].move:1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz · CAS-1873 strafe lento con la guardia arriba · CAS-1889 factor de carga de equipo por banda (OFF/mid ⇒ ×1 byte-id; convive con moveMul, ambos multiplican)
+    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1)*(h.blocking?SHIELD_BLOCK.moveMul:1)*(EQUIP_LOAD.enabled?EQUIP_LOAD.mul[equipLoad(h).band].move:1)*((TWO_HAND.enabled&&h.twoHand)?TWO_HAND.moveMul:1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz · CAS-1873 strafe lento con la guardia arriba · CAS-1889 factor de carga de equipo por banda (OFF/mid ⇒ ×1 byte-id) · CAS-1895 factor a dos manos (OFF/sin twoHand ⇒ ×1 byte-id; moveMul:1.0 default ⇒ sin efecto hasta retune del CEO)
     h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
@@ -4227,7 +4249,9 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // guardia arriba se MITIGA (no niega, SIN i-frames) a cambio de ESTAMINA; si la estamina no cubre el coste ⇒ RUPTURA
   // DE GUARDIA (mismo `h.stun` STAGGERED de CAS-1826) y el golpe entra COMPLETO. Geometría/aritmética pura ⇒ 0 srand,
   // NO existe `blockRng`. OFF ⇒ h.blocking nunca sube ⇒ rama muerta ⇒ byte-idéntico a HEAD.
-  if(SHIELD_BLOCK.enabled && h.blocking && src && src.hp>0 && !src.dead){
+  // CAS-1895: a dos manos el escudo está ENVAINADO ⇒ la rama sale temprano aunque h.blocking se forzara (reusa el gate,
+  // sin nueva rama). En play h.blocking YA es false a dos manos (ver derivación); este término lo hace autoritativo/testable.
+  if(SHIELD_BLOCK.enabled && h.blocking && !(TWO_HAND.enabled && h.twoHand) && src && src.hp>0 && !src.dead){
     const toAtk=Math.atan2(src.y-h.y, src.x-h.x);                 // dir héroe→atacante (mirror parry ra)
     if(Math.abs(angDiff(toAtk, h.facing)) < SHIELD_BLOCK.frontArcDeg*Math.PI/360){
       const absorbed=dmg*SHIELD_BLOCK.mitigate;
@@ -6505,6 +6529,131 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; if(h){ h.blocking=false; h.stun=0; }
     return { enabled:!!enabled, blockFired:(enabled?(blocked&&broke):false), fingerprint:fp }; },
+  // --- CAS-1895 EMPUÑADURA A DOS MANOS (Two-Handing) harness hooks (tools/cas1895-two-hand.mjs); additive, drive los
+  // seams REALES: equipLoad (escudo fuera a dos manos), applyHeroMelee (dmg ×dmgMul + poise ×poiseMul), heavyAttack (stam
+  // ×stamMul), y la rama de bloqueo de damageHero (DENY a dos manos). Todo input/aritmética ⇒ 0 srand, NO twoHandRng.
+  // h.twoHand transitorio (mirror h.blocking, fuera del allowlist de serializeSave) ⇒ save.v1 byte-id y SIN clave nueva. ---
+  twoHandMeta(){ return { enabled:TWO_HAND.enabled, key:TWO_HAND.key, dmgMul:TWO_HAND.dmgMul, poiseMul:TWO_HAND.poiseMul, dropsShield:TWO_HAND.dropsShield, stamMul:TWO_HAND.stamMul, moveMul:TWO_HAND.moveMul }; },
+  twoHandEnable(on){ TWO_HAND.enabled=!!on; return { enabled:TWO_HAND.enabled }; },
+  twoHandState(){ const h=G.hero; if(!h) return null; return { twoHand:!!h.twoHand, blocking:!!h.blocking, stam:+((h.stam||0).toFixed(4)) }; },
+  twoHandToggle(){ return { twoHand:toggleTwoHand() }; },
+  // Clean warrior in play, arrays vacías, postura a UNA mano (twoHand=false), estamina llena, sin combate/cooldown, maxHp
+  // enorme (los golpes de prueba no matan), facing=0, flags de combo/frenesí/riposte en cero, _mcfg=ATK.warrior (swing melee).
+  // NO toca h.equip (usa el loadout real ⇒ equippedDmg no-cero). Devuelve h.
+  _twoHandArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0; h.flaskDrinkT=0;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null; h.frenzyStacks=0; h._parryRiposte=0;
+    h._comboFin=false; h._heavy=false; h._mcfg=ATK.warrior; h.atkAng=0;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; h.twoHand=false; return h; },
+  // AC banda recalcula: con un loadout rare (weapon+body+shield) la carga cae en `fat`; a dos manos el escudo SALE de
+  // equipLoad ⇒ ratio baja a `mid` ⇒ drop de banda observable (sinergia con CAS-1889). 0-draw, sin campo de save.
+  twoHandEquipBandProbe(){ const savT=TWO_HAND.enabled; TWO_HAND.enabled=true;
+    const h=this._twoHandArm(); const savEq=h.equip;
+    h.equip={ weapon:{rarity:"rare"}, body:{rarity:"rare"}, shield:{rarity:"rare"} };
+    h.twoHand=false; const full=equipLoad(h); h.twoHand=true; const two=equipLoad(h);
+    const rank={fast:0,mid:1,fat:2,over:3};
+    const dropped=(rank[two.band]<rank[full.band]);
+    h.equip=savEq; TWO_HAND.enabled=savT; this._twoHandArm();
+    return { bandFull:full.band, ratioFull:+full.ratio.toFixed(4), bandTwo:two.band, ratioTwo:+two.ratio.toFixed(4),
+      dropped, ok:(full.band==="fat" && two.band==="mid" && dropped) }; },
+  // AC escudo DENY: guardia arriba (h.blocking=true) + golpe MELEE frontal. Sin dos manos ⇒ MITIGA (dBlock<dU). A dos manos
+  // ⇒ la rama de bloqueo SALE temprano ⇒ daño COMPLETO (dTwo==dU). Reusa el gate, sin nueva rama.
+  twoHandShieldDenyProbe(){ const savT=TWO_HAND.enabled, savSh=SHIELD_BLOCK.enabled, savS=STAMINA.enabled;
+    TWO_HAND.enabled=true; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._twoHandArm(); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.facing=0;
+    h.twoHand=false; h.blocking=false; h.iframe=0; const hpU0=h.hp; damageHero(200,0,null,e); const dU=hpU0-h.hp;                 // sin bloquear
+    h.iframe=0; h.hp=hpU0; h.stam=STAMINA.max; h.twoHand=false; h.blocking=true; damageHero(200,0,null,e); const dBlock=hpU0-h.hp; // guardia a 1 mano ⇒ mitiga
+    h.iframe=0; h.hp=hpU0; h.stam=STAMINA.max; h.twoHand=true;  h.blocking=true; damageHero(200,0,null,e); const dTwo=hpU0-h.hp;   // guardia + 2 manos ⇒ DENY
+    const blockMitigates=(dBlock<dU), twoHandDenies=(Math.abs(dTwo-dU)<1e-6);
+    TWO_HAND.enabled=savT; SHIELD_BLOCK.enabled=savSh; STAMINA.enabled=savS; this._twoHandArm();
+    return { dU, dBlock, dTwo, blockMitigates, twoHandDenies, ok:(blockMitigates&&twoHandDenies) }; },
+  // AC daño ×dmgMul: un swing melee (applyHeroMelee) a dos manos pega ×dmgMul respecto a una mano. Ratio robusto al valor
+  // base de equippedDmg (misma equip ambas veces). Enemigo básico (poiseCeil=0) ⇒ sin interacción de postura. 0 srand.
+  twoHandDmgProbe(){ const savT=TWO_HAND.enabled; TWO_HAND.enabled=true;
+    const h=this._twoHandArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.atkAng=0; h._mcfg=ATK.warrior;
+    e.x=h.x+30; e.y=h.y; h.twoHand=false; h._atkHits=new Set(); const a0=e.hp; applyHeroMelee(); const dOff=a0-e.hp;
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.twoHand=true; h._atkHits=new Set(); const b0=e.hp; applyHeroMelee(); const dOn=b0-e.hp;
+    const ratio=dOff>0?dOn/dOff:0; const ratioOk=Math.abs(ratio-TWO_HAND.dmgMul)<1e-6;
+    TWO_HAND.enabled=savT; this._twoHandArm();
+    return { dOff, dOn, ratio:+ratio.toFixed(6), expect:TWO_HAND.dmgMul, ratioOk, ok:(dOff>0 && ratioOk) }; },
+  // AC poise ×poiseMul: un golpe melee sobre un enemigo con postura (champion ⇒ poiseCeil=100) acumula light×poiseMul a
+  // dos manos vs light a una mano. Sin telegrafía (e.st=0) ⇒ gain limpio. 0 srand.
+  twoHandPoiseProbe(){ const savT=TWO_HAND.enabled; TWO_HAND.enabled=true;
+    const h=this._twoHandArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; }
+    h.atkAng=0; h._mcfg=ATK.warrior;
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; h.twoHand=false; h._atkHits=new Set(); applyHeroMelee(); const pOff=e.poise;
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; h.twoHand=true;  h._atkHits=new Set(); applyHeroMelee(); const pOn=e.poise;
+    const baseOk=Math.abs(pOff-POISE.gain.light)<1e-6, mulOk=Math.abs(pOn-POISE.gain.light*TWO_HAND.poiseMul)<1e-6;
+    TWO_HAND.enabled=savT; this._twoHandArm();
+    return { pOff, pOn, expect:+(POISE.gain.light*TWO_HAND.poiseMul).toFixed(4), baseOk, mulOk, ok:(baseOk&&mulOk) }; },
+  // AC estamina ×stamMul: el PODER-swing pesado (heavyAttack) gasta round(cost·stamMul) a dos manos vs cost a una mano.
+  twoHandStamProbe(){ const savT=TWO_HAND.enabled, savC=COMBO.enabled, savS=STAMINA.enabled;
+    TWO_HAND.enabled=true; COMBO.enabled=true; STAMINA.enabled=true;
+    const h=this._twoHandArm();
+    h.twoHand=false; h.atkCD=0; h.rolling=false; h.stun=0; h.stam=STAMINA.max; const s0=h.stam; heavyAttack(); const spentOff=s0-h.stam;
+    h.twoHand=true;  h.atkCD=0; h.rolling=false; h.stun=0; h.stam=STAMINA.max; const s1=h.stam; heavyAttack(); const spentOn=s1-h.stam;
+    const expOff=STAMINA.cost.heavy, expOn=Math.round(STAMINA.cost.heavy*TWO_HAND.stamMul);
+    const offOk=(spentOff===expOff), onOk=(spentOn===expOn);
+    TWO_HAND.enabled=savT; COMBO.enabled=savC; STAMINA.enabled=savS; this._twoHandArm();
+    return { spentOff, spentOn, expOff, expOn, offOk, onOk, ok:(offOk&&onOk) }; },
+  // AC OFF byte-id: TWO_HAND.enabled=false ⇒ forzar h.twoHand=true es INERTE. Melee dmg idéntico (forzado vs una mano),
+  // banda de carga idéntica (escudo sigue contando), y el escudo sigue mitigando ⇒ comportamiento byte-idéntico a HEAD.
+  twoHandOffProbe(){ const savT=TWO_HAND.enabled, savSh=SHIELD_BLOCK.enabled, savS=STAMINA.enabled;
+    TWO_HAND.enabled=false; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._twoHandArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.atkAng=0; h._mcfg=ATK.warrior;
+    e.x=h.x+30; e.y=h.y; h.twoHand=true;  h._atkHits=new Set(); const a0=e.hp; applyHeroMelee(); const dForced=a0-e.hp;
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.twoHand=false; h._atkHits=new Set(); const b0=e.hp; applyHeroMelee(); const dRef=b0-e.hp;
+    const dmgInert=(dForced===dRef);
+    const savEq=h.equip; h.equip={ weapon:{rarity:"rare"}, body:{rarity:"rare"}, shield:{rarity:"rare"} };
+    h.twoHand=true; const bandForced=equipLoad(h).band; h.twoHand=false; const bandRef=equipLoad(h).band; h.equip=savEq;
+    const bandInert=(bandForced===bandRef);
+    const e2=spawnEnemy("wolf",h.x+40,h.y); if(e2){ e2.maxHp=e2.hp=1e9; e2.dead=false; }
+    h.facing=0; h.iframe=0; const hpU0=h.hp; h.twoHand=true; h.blocking=false; damageHero(200,0,null,e2); const dU=hpU0-h.hp;
+    h.iframe=0; h.hp=hpU0; h.stam=STAMINA.max; h.twoHand=true; h.blocking=true; damageHero(200,0,null,e2); const dBlock=hpU0-h.hp;
+    const shieldInert=(dBlock<dU);
+    TWO_HAND.enabled=savT; SHIELD_BLOCK.enabled=savSh; STAMINA.enabled=savS; this._twoHandArm();
+    return { dForced, dRef, dmgInert, bandForced, bandRef, bandInert, dU, dBlock, shieldInert, ok:(dmgInert&&bandInert&&shieldInert) }; },
+  // AC SAVE byte-id: h.twoHand transitorio (fuera del allowlist) ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave two*.
+  // (Nombre del héroe SIN "twohand"/"twoHand" ⇒ el grep de clave no falsea — mirror gotcha GuardiaQA/EstusQA/GraveQA.)
+  twoHandSaveByteId(){ const savT=TWO_HAND.enabled;
+    TWO_HAND.enabled=true; const h=this._twoHandArm(); h.twoHand=true;
+    const onStr=JSON.stringify(serializeSave());
+    TWO_HAND.enabled=false; const offStr=JSON.stringify(serializeSave());
+    TWO_HAND.enabled=savT; this._twoHandArm();
+    return { byteId:(offStr===onStr), hasKey:/"_?two_?hand[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !/"_?two_?hand[a-zA-Z]*":/i.test(onStr)) }; },
+  // AC 0-RNG STRONG: fingerprint del srand alrededor del TOGGLE + un swing melee a dos manos (dmg/poise ×mul) + un PODER-swing
+  // (stam ×mul) — ON vs OFF. Todo es input/aritmética (NO twoHandRng) ⇒ el stream srand es BYTE-IDÉNTICO ON==OFF aun con la
+  // feature disparando de verdad (las mismas ops corren en ambas ramas; los multiplicadores no tocan srand).
+  twoHandSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savT=TWO_HAND.enabled, savS=STAMINA.enabled, savC=COMBO.enabled;
+    TWO_HAND.enabled=!!enabled; STAMINA.enabled=true; COMBO.enabled=true;
+    const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+      h.atkCD=0; h.atkT=0; h.parryT=0; h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max;
+      h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.facing=0; h.twoHand=false; h._mcfg=ATK.warrior;
+      h._comboFin=false; h._heavy=false; h.frenzyStacks=0; h._parryRiposte=0; h.flaskDrinkT=0; h.atkAng=0; }
+    G.scene="play";
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let toggled=false, hit=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ const t0=h.twoHand; toggleTwoHand(); toggled=(enabled ? (h.twoHand!==t0) : (h.twoHand===t0));
+        if(enabled && !h.twoHand) toggleTwoHand();                                                       // asegura postura activa ON
+        const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.poise=0; e.staggerT=0; e.staggerCD=0; e.st=0; }
+        h.atkAng=0; h._atkHits=new Set(); applyHeroMelee(); hit=(enabled ? (!!e && e.poise>POISE.gain.light) : true); // swing melee (0 draws)
+        h.atkCD=0; h.stam=STAMINA.max; heavyAttack(); }                                                  // PODER-swing stam ×mul (0 draws)
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    TWO_HAND.enabled=savT; STAMINA.enabled=savS; COMBO.enabled=savC; if(h){ h.twoHand=false; }
+    return { enabled:!!enabled, twoHandFired:(enabled?(toggled&&hit):false), fingerprint:fp }; },
   // --- CAS-1879 HOGUERA / REST SITE (Bonfire) harness hooks (tools/cas1879-bonfire.mjs); additive, drive the REAL
   // rama de descanso de interact() (heal + ancla + recarga Estus + world reset) + los helpers bonfireUnsafe/bonfireRespawn.
   // Todo geometría/aritmética + spawnEnemy/applyZoneScale (0-RNG) ⇒ sin bonfireRng ⇒ srand ON==OFF byte-idéntico. El
