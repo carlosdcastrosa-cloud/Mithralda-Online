@@ -2182,7 +2182,11 @@ function hitEnemy(e,dmg,ang,opt){
   // parry counter route through without double-building (the parry seam D adds its own pulse). Heavy/ultimate
   // hits carry more (opt.heavy/opt.ultimate); punishing a live telegraph (e.st>0) adds a bonus.
   if(POISE.enabled && !(opt&&opt.noPoise)){
-    const pm=(e.poiseMax=poiseCeil(e));
+    // CAS-1947: the signature boss's phase-2 poiseMul scales its postura ceiling (aguanta más ⇒ premia poise-break sostenido).
+    // Applied HERE (the authoritative per-hit read) so it isn't clobbered; sbPhase!==2 / OFF ⇒ poiseCeil ⇒ byte-identical.
+    let pm=poiseCeil(e);
+    if(SIGNATURE_BOSS.enabled && e._sbPhase===2 && e._sbPoiseMul) pm=Math.round((e._sbPoiseBase||pm)*e._sbPoiseMul);
+    e.poiseMax=pm;
     if(pm>0 && e.staggerT<=0 && e.staggerCD<=0){
       const g=POISE.gain; let add=(opt&&opt.ultimate)?g.ultimate:(opt&&opt.heavy)?g.heavy:g.light;
       // CAS-1895: a dos manos (opt.twoHand, sólo golpes melee) el poise-damage base sube ×poiseMul ⇒ staggerea más rápido.
@@ -2197,7 +2201,10 @@ function hitEnemy(e,dmg,ang,opt){
       e.poise=(e.poise||0)+add + ((TELEGRAPH.enabled && e.st>0)?g.telegraphPunish:0);
       e._poiseDecayT=0;
       if(e.poise>=pm){ const p=e.isBoss?POISE.boss:POISE.elite;
-        e.stun=Math.max(e.stun||0,p.dur); e.staggerT=p.dur; e.staggerCD=POISE.reStaggerCD; e.poise=0;
+        // CAS-1947: a signature boss opens a fixed poiseBreakStunMs finisher window on break (reuses the stun/stagger channel).
+        // sbPhase undefined / OFF ⇒ p.dur ⇒ byte-identical.
+        const _dur=(SIGNATURE_BOSS.enabled && e._sbPhase!==undefined) ? SIGNATURE_BOSS.poiseBreakStunMs/1000 : p.dur;
+        e.stun=Math.max(e.stun||0,_dur); e.staggerT=_dur; e.staggerCD=POISE.reStaggerCD; e.poise=0;
         addFx("spellburst",e.x,e.y-2,{col:"#ffe27a"}); floater(e.x,e.y-30,STR.stagger||"¡ATURDIDO!","#ffe27a"); }
     }
   }
@@ -2393,14 +2400,6 @@ function killEnemy(e){
     noteEliteKill(); // CAS-149: the final boss is an elite-class kill → feeds Elite Mastery
     grantMats(3);    // CAS-237: a boss kill is a signature forge-material haul
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
-    // CAS-1947: RECOMPENSA del Jefe Firma — Esencia bonus + drop garantizado de rareza alta. Sólo el jefe firma.
-    // Sin persistencia (drop-every-kill, no flag de primer kill). OFF ⇒ rama muerta ⇒ byte-id.
-    if(SIGNATURE_BOSS.enabled && e._sbPhase!==undefined){
-      const R=SIGNATURE_BOSS.rewards;
-      if(R.essenceBonus>0){ ensureMeta().essence=(ensureMeta().essence|0)+R.essenceBonus; G.metaDirty=true;
-        floater(e.x,e.y-44,"+"+R.essenceBonus+" Esencia","#ffe050",{crit:true,pop:1.4,life:1.1}); }
-      dropGear(e.x+28,e.y-10, rollGearInst(srand,2,3,R.guaranteedRarity||"rare")); // drop garantizado rareza
-    }
     maybeLegendary(e.x, e.y+18, LEGENDARY.bossMul);       // CAS-1632: append-only unique roll (after the guaranteed boss piece)
     maybeSetPiece(e.x, e.y+30, LEGENDARY.bossMul);        // CAS-1654: append-only set-piece roll (own setRng stream → srand untouched)
     maybeSocketRune(e.x, e.y+42, LEGENDARY.bossMul);      // CAS-1687: append-only rune roll (own runeRng stream → srand untouched)
@@ -2447,6 +2446,14 @@ function killEnemy(e){
     maybeSetPiece(e.x, e.y+26, legBias);                 // CAS-1654: append-only set-piece roll, same bias, own setRng stream
     maybeSocketRune(e.x, e.y+38, legBias);               // CAS-1687: append-only rune roll, same bias, own runeRng stream
   }
+  // CAS-1947: RECOMPENSA del Jefe Firma — Esencia bonus + drop garantizado de rareza alta. El jefe firma es un CHAMPION capstone
+  // (NO isBoss), así que esto corre DESPUÉS de la cadena de ramas de kill, gateado por la marca _sb. El drop usa el stream
+  // DEDICADO bossRng, APPENDED tras todos los draws srand/legRng/setRng/runeRng ⇒ srand compartido BYTE-IDÉNTICO haya o no jefe
+  // firma ([AC-RNG-STRONG]). Sin persistencia (drop cada kill). OFF ⇒ rama muerta ⇒ byte-id.
+  if(SIGNATURE_BOSS.enabled && e._sbPhase!==undefined){ const R=SIGNATURE_BOSS.rewards;
+    if((R.essenceBonus||0)>0){ ensureMeta().essence=(ensureMeta().essence|0)+R.essenceBonus; G.metaDirty=true;
+      floater(e.x,e.y-44,"+"+R.essenceBonus+" Esencia","#ffe050",{crit:true,pop:1.4,life:1.1}); }
+    dropGear(e.x+28,e.y-10, rollGearInst(bossRng.srand,2,3,R.guaranteedRarity||"rare")); }
   // CAS-1744: bonus-loot fan-out for a Caldera kill. The ONLY new RNG of the zone — drawn from the
   // DEDICATED zone5Rng, APPENDED after every srand/legRng/setRng/runeRng draw above, so the shared
   // srand stream is BYTE-IDENTICAL whether the feature is on or off ([AC-RNG-STRONG]). Gated on
@@ -2550,7 +2557,10 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
     // Fase 1 baseline: aplicar params de p1 sobre el special del jefe (los mismos que ETPL.calderatyrant.special, pero tunables sin rebuild).
     const p1=SIGNATURE_BOSS.phases.p1;
     e.special=Object.assign({},e.special||{},{every:p1.specialEvery, windup:p1.windup, slam:Object.assign({},(e.special&&e.special.slam)||{},{count:p1.slamCount,dmg:p1.slamDmg})});
-    e._sbPoiseBase=POISE.boss?POISE.boss.max:280;
+    // Base del umbral de poise = el ceiling REAL de la entidad (el capstone es champion ⇒ POISE.elite.max=100), NO el perfil
+    // boss (280) que la entidad no usa en ningún otro sitio. Así fase 2 = 100×poiseMul(1.4)=140 ⇒ ROMPIBLE con presión sostenida
+    // (el payoff de la ventana de finisher realmente dispara), en vez de 392 efectivamente inquebrable.
+    e._sbPoiseBase=poiseCeil(e)||(POISE.elite?POISE.elite.max:100);
   }
   H.champ=e;
   audio.sfx.boss(); toast(STR.huntChampion(e.tpl.champName),3.2); shakeAdd(B?12:8);
@@ -3961,7 +3971,8 @@ function updateEnemies(dt){ const h=G.hero;
       e._sbPhase=2; e._sbTransT=SIGNATURE_BOSS.transitionWindowMs/1000; e._sbVuln=true;
       // Aplicar params de p2 sobre el special — muta sólo el jefe firma, no ETPL.
       const p2=SIGNATURE_BOSS.phases.p2;
-      e.special=Object.assign({},e.special||{},{every:p2.specialEvery, windup:p2.windup, slam:Object.assign({},(e.special&&e.special.slam)||{},{count:p2.slamCount,dmg:p2.slamDmg,infl:p2.slamInfl})});
+      // slamInfl marcado con _sb ⇒ damageHero lo enruta al feed CAPEADO del héroe (nunca one-shot), distinto del feed genérico Pilar 21.
+      e.special=Object.assign({},e.special||{},{every:p2.specialEvery, windup:p2.windup, slam:Object.assign({},(e.special&&e.special.slam)||{},{count:p2.slamCount,dmg:p2.slamDmg,infl:Object.assign({_sb:true},p2.slamInfl)})});
       // Escalar umbral de poise del jefe para fase 2 (poiseMul): se aplica a la entidad directamente via poiseMax override futuro.
       e._sbPoiseMul=p2.poiseMul;
       // Flash/stun breve: ventana de vulnerabilidad visible + pausa del jefe.
@@ -3976,11 +3987,8 @@ function updateEnemies(dt){ const h=G.hero;
     if(SIGNATURE_BOSS.enabled && e._sbPhase===2 && e._sbTransT>0){
       e._sbTransT-=dt; if(e._sbTransT<=0){ e._sbTransT=0; e._sbVuln=false; }
     }
-    // Override de poiseCeil para jefe firma fase 2 (_sbPoiseMul > 1).
-    // Se hace aquí (cada frame) sobreescribiendo e.poiseMax si ya fue resuelto.
-    if(SIGNATURE_BOSS.enabled && e._sbPhase===2 && e._sbPoiseMul && e._sbPoiseBase && POISE.enabled){
-      e.poiseMax=Math.round(e._sbPoiseBase*e._sbPoiseMul);
-    }
+    // CAS-1947: el escalado de poise de fase 2 (_sbPoiseMul) se aplica en hitEnemy (lectura autoritativa por golpe) — NO aquí,
+    // porque hitEnemy reasigna e.poiseMax cada golpe y sobreescribiría este override.
     // CAS-65 capstone phase shift: cross the enrage HP threshold once -> speed up,
     // tighten the windup tell, and unlock the radial slam. Telegraphed loudly
     // (roar sfx + screen shake + flame burst + banner) so the spike is readable.
@@ -4097,8 +4105,10 @@ function updateEnemies(dt){ const h=G.hero;
         // (windup was the growing-ring tell). The ring replaces the melee hit below.
         else if(e.specialNow && e.special && e.special.slam){ const S=e.special.slam;
           for(let k=0;k<S.count;k++){ const a=k/S.count*6.28 + (e.facing||0);
-            // CAS-1947: slam del jefe firma lleva infl (S.infl=slamInfl en fase 2); no-SB: S.infl=null ⇒ byte-id.
-            G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*S.spd,vy:Math.sin(a)*S.spd,life:S.life,dmg:S.dmg,kind:"rune",enemy:true,infl:S.infl||null}); }
+            // CAS-1947: slam del jefe firma lleva infl (S.infl=slamInfl marcado _sb en fase 2). Sin infl (fase 1 / no-SB) ⇒ NO se
+            // añade la clave ⇒ el proyectil es byte-idéntico al de HEAD (evita infl:null espurio en cualquier jefe con slam).
+            const _p={x:e.x,y:e.y,vx:Math.cos(a)*S.spd,vy:Math.sin(a)*S.spd,life:S.life,dmg:S.dmg,kind:"rune",enemy:true};
+            if(S.infl) _p.infl=S.infl; G.projectiles.push(_p); }
           addFx("novacast",e.x,e.y,{r:84,col:"#ffb27a",life:0.42}); shakeAdd(7); }
       }
     } else if(e.state==="strike"){
@@ -4617,12 +4627,19 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // CAS-1931: PARIDAD — el status elemental entrante FEED el medidor del héroe cuando STATUS_BUILDUP.enabled (mismo helper/tabla
   // que enemigo); tipo no mapeado (stun) o OFF ⇒ applyStatus instantáneo byte-id. Además, un golpe MELEE físico (src presente,
   // el atacante de contacto) alimenta el SANGRADO del héroe — simétrico al feed enemigo. 0 srand.
-  if(infl && infl.type) statusOrBuildup(h, infl.type, infl, true);
+  if(infl && infl.type){
+    // CAS-1947: un shard de slam de fase 2 del jefe firma lleva infl._sb ⇒ su feed está CAPEADO (ailmentsToHero) SÓLO en el tipo
+    // alimentado ⇒ nunca cruza umbral en una sola Erupción ⇒ NO one-shot. buildPerHit sustituye el "1" del feed. Corre tras los
+    // early-outs de i-frame/dodge/parry ⇒ dodging evita el infl. Un infl NORMAL (no _sb) cae al feed genérico Pilar 21 SIN cap
+    // ⇒ el buildup del héroe por cualquier otro enemigo es byte-idéntico (sin regresión del Pilar 21).
+    if(SIGNATURE_BOSS.enabled && infl._sb && STATUS_BUILDUP.enabled){
+      const bt=STATUS_BUILDUP.elementMap[infl.type]; const A=SIGNATURE_BOSS.ailmentsToHero; const T=bt&&STATUS_BUILDUP.types[bt];
+      if(T){ addBuildup(h, bt, A.buildPerHit/T.build, true);
+        if(h.bld && h.bld[bt]>A.cap) h.bld[bt]=A.cap; }   // clamp DESPUÉS ⇒ nunca cruza umbral en un solo slam
+      else statusOrBuildup(h, infl.type, infl, true);
+    } else statusOrBuildup(h, infl.type, infl, true);
+  }
   if(STATUS_BUILDUP.enabled && src) addBuildup(h, "bleed", 1, true);
-  // CAS-1947: cap de buildup del héroe — el jefe firma aplica estado CAPEADO (ailmentsToHero.cap), nunca one-shot.
-  // Corre después de addBuildup/statusOrBuildup; sólo tiene efecto si h.bld existe (lazy, nulo hasta el primer feed).
-  // OFF ⇒ SIGNATURE_BOSS.enabled=false ⇒ rama muerta ⇒ byte-id. ON con cap=70 ⇒ cada tipo clampeado a 70.
-  if(SIGNATURE_BOSS.enabled && h.bld){ const cap=SIGNATURE_BOSS.ailmentsToHero.cap; for(const bt in h.bld){ if(h.bld[bt]>cap) h.bld[bt]=cap; } }
   // CAS-383: Coraza de Espinas boon — reflect a fraction of the damage TAKEN back to the melee
   // attacker (`src`, present for contact hits; ranged bolts pass none). Routes the retaliation
   // through hitEnemy so it crits/procs/kills exactly like any other hero hit. A dodged/i-framed
@@ -8652,4 +8669,138 @@ export const dev = {
     STATUS_BUILDUP.enabled=savSB; h.bld=null;
     const hasKey=onStr.includes('"bld"')||onStr.includes("buildup")||onStr.includes("bleed");
     return { ok: offStr===onStr && !hasKey, byteId:offStr===onStr, noBldKey:!hasKey, offLen:offStr.length, onLen:onStr.length }; },
+
+  // =====================================================================
+  // CAS-1947 — JEFE FIRMA MULTI-FASE (SIGNATURE_BOSS) dev hooks (tools/cas1947-signature-boss.mjs); additive.
+  // Arquitectura del build: el spawn MUTA e.special del jefe firma con los params de la fase activa (p1 al spawn, p2 en la
+  // transición), así que la cadencia/windup/slam leen e.special directamente. _sbVuln (flag booleano) abre la ventana; _sbPoiseMul
+  // /_sbPoiseBase escalan el umbral en hitEnemy; el feed CAPEADO y la recompensa (bossRng) viven en damageHero/killEnemy.
+  // =====================================================================
+  sbMeta(){ return { enabled:SIGNATURE_BOSS.enabled, boss:SIGNATURE_BOSS.boss, zone:SIGNATURE_BOSS.zone,
+    phase2HpPct:SIGNATURE_BOSS.phase2HpPct, transitionWindowMs:SIGNATURE_BOSS.transitionWindowMs, transitionVulnMul:SIGNATURE_BOSS.transitionVulnMul,
+    poiseBreakStunMs:SIGNATURE_BOSS.poiseBreakStunMs, phases:JSON.parse(JSON.stringify(SIGNATURE_BOSS.phases)),
+    ailmentsToHero:{...SIGNATURE_BOSS.ailmentsToHero}, rewards:{...SIGNATURE_BOSS.rewards} }; },
+
+  _sbSnap(e){ if(!e) return null; const sl=e.special&&e.special.slam; return { hp:Math.round(e.hp), maxHp:Math.round(e.maxHp),
+    champion:!!e.champion, capstone:!!e.capstone, isBoss:!!e.isBoss, sbMarked:e._sbPhase!==undefined, phase:e._sbPhase,
+    transT:+((e._sbTransT||0).toFixed(3)), vuln:!!e._sbVuln, poiseBase:e._sbPoiseBase||0, poiseMul:e._sbPoiseMul||0,
+    special:e.special?{ every:e.special.every, windup:e.special.windup, slamCount:sl?sl.count:0, slamDmg:sl?sl.dmg:0,
+      inflType:(sl&&sl.infl)?sl.infl.type:null, inflSb:!!(sl&&sl.infl&&sl.infl._sb) }:null }; },
+
+  // Spawn the REAL Caldera capstone via the genuine spawnChampion path (kill-quota met, no shortcut around the windup→strike/
+  // special AI or the onChampionKill reward). Toggle the feature FIRST so the spawn-time marks apply (or not). Isolates the boss +
+  // parks/tops a tanky hero. Returns the live boss snapshot.
+  _sbArm(enabled){ SIGNATURE_BOSS.enabled=!!enabled; G.projectiles.length=0; G.fx.length=0; G.drops.length=0;
+    G.hunts=initHunts(); G.hunts.caldera.kills=HUNTS.caldera.need; spawnChampion("caldera");
+    const e=G.hunts.caldera.champ; const h=G.hero; if(!e||!h) return null;
+    G.enemies.length=0; G.enemies.push(e);
+    h.x=e.x+18; h.y=e.y; h.maxHp=1e6; h.hp=1e6; h.stam=STAMINA.max; h.iframe=0; h.dead=false; h.rolling=false; h.bld=null; h.dots=null; h.stun=0; h.slowT=0; h.slow=1; h.facing=Math.atan2(e.y-h.y,e.x-h.x);
+    return this._sbSnap(e); },
+
+  _sbBossSnap(){ return this._sbSnap(G.hunts&&G.hunts.caldera&&G.hunts.caldera.champ); },
+
+  // Force the boss's NEXT strike to be the Erupción and drive the REAL windup→strike AI until shards emit. 0 srand.
+  _sbFireSpecial(){ const e=G.hunts.caldera&&G.hunts.caldera.champ; const h=G.hero; if(!e) return null;
+    G.projectiles.length=0; e.atkCount=(e.special.every||3)-1; e.state="chase"; e.stun=0; e.staggerT=0;
+    const R=Math.max(8,(e.tpl.range||40)-4);
+    let steps=0; while(steps++<400){ e.x=h.x+R; e.y=h.y; e.knockX=0; e.knockY=0; h.iframe=1e9;
+      updateEnemies(1/60);
+      if(G.projectiles.some(p=>p.enemy&&p.kind==="rune")) break; }
+    h.iframe=0; const runes=G.projectiles.filter(p=>p.enemy&&p.kind==="rune"); const inf=runes.length?runes[0].infl:undefined;
+    return { fired:runes.length>0, count:runes.length, dmg:runes.length?runes[0].dmg:0,
+      infl:inf?{type:inf.type, sb:!!inf._sb}:null, phase:e._sbPhase }; },
+
+  // Drop HP below phase2HpPct and run ONE real update tick ⇒ the transition block fires (once). Verify no rebound on a 2nd tick.
+  _sbForcePhase2(){ const e=G.hunts.caldera&&G.hunts.caldera.champ; if(!e) return null;
+    const p0=e._sbPhase; e.x=1e5; e.y=1e5; e.hp=Math.max(1,Math.round(e.maxHp*(SIGNATURE_BOSS.phase2HpPct-0.02)));
+    updateEnemies(1/60);
+    const p1=e._sbPhase, transT=e._sbTransT||0, vuln=!!e._sbVuln, stun=e.stun||0;
+    e.hp=Math.max(1,Math.round(e.maxHp*(SIGNATURE_BOSS.phase2HpPct-0.20))); const t0=e._sbTransT||0; updateEnemies(1/60); const reOpened=(e._sbTransT||0)>t0;
+    return { phaseBefore:p0, phaseAfter:p1, transT:+transT.toFixed(3), vuln, stun:+stun.toFixed(3), reOpened,
+      expectWindow:+(SIGNATURE_BOSS.transitionWindowMs/1000).toFixed(3) }; },
+
+  // AC2/vuln: while _sbVuln is set the hero bursts ×transitionVulnMul (baseline vs windowed, same 100 raw dmg).
+  _sbVulnProbe(){ const e=G.hunts.caldera&&G.hunts.caldera.champ; if(!e) return null;
+    e.staggerT=0; e.staggerCD=1e9; e.poise=0; e._sbVuln=false; e.hp=e.maxHp; const b0=e.hp; hitEnemy(e,100,0,{}); const baseDmg=b0-e.hp;
+    e._sbVuln=true; e.hp=e.maxHp; const w0=e.hp; hitEnemy(e,100,0,{}); const winDmg=w0-e.hp;
+    e._sbVuln=false; e.staggerCD=0;
+    return { baseDmg:+baseDmg.toFixed(2), winDmg:+winDmg.toFixed(2), ratio:+(winDmg/(baseDmg||1)).toFixed(3), expect:SIGNATURE_BOSS.transitionVulnMul,
+      ok:Math.abs(winDmg/(baseDmg||1)-SIGNATURE_BOSS.transitionVulnMul)<0.02 }; },
+
+  // AC5 poise-break: phase-2 poiseMul scales the boss ceiling (base _sbPoiseBase); crossing it opens a poiseBreakStunMs stagger.
+  _sbPoiseProbe(){ const e=G.hunts.caldera&&G.hunts.caldera.champ; if(!e) return null; const base=e._sbPoiseBase||(POISE.boss?POISE.boss.max:280);
+    e._sbPhase=1; e.staggerT=0; e.staggerCD=0; e.poise=0; e.poiseMax=0; hitEnemy(e,1,0,{}); const pm1=e.poiseMax;
+    e._sbPhase=2; e.staggerT=0; e.staggerCD=0; e.poise=0; e.poiseMax=0; hitEnemy(e,1,0,{}); const pm2=e.poiseMax;
+    e._sbPhase=2; e.staggerT=0; e.staggerCD=0; e.stun=0; e.poise=pm2-1; hitEnemy(e,1,0,{heavy:true});
+    const staggerT=e.staggerT||0, stun=e.stun||0; e.staggerCD=0; e.staggerT=0; e.poise=0;
+    const dur=SIGNATURE_BOSS.poiseBreakStunMs/1000;
+    return { pm1:+pm1.toFixed(2), pm2:+pm2.toFixed(2), expectPm2:Math.round(base*SIGNATURE_BOSS.phases.p2.poiseMul),
+      scaled: pm2>pm1 && pm2===Math.round(base*SIGNATURE_BOSS.phases.p2.poiseMul),
+      staggerT:+staggerT.toFixed(3), expectDur:+dur.toFixed(3), durOk:Math.abs(staggerT-dur)<0.01 && stun>0 }; },
+
+  // AC6 host feed CAPPED + AC4 dodge avoids the infl. A phase-2 slam shard (infl._sb) feeds h.bld through damageHero, CLAMPED to
+  // cap (< threshold ⇒ never procs in one Erupción ⇒ NO one-shot); an i-frame/roll negates the hit entirely (no feed).
+  _sbHeroFeed(){ const h=G.hero; const A=SIGNATURE_BOSS.ailmentsToHero; const inflType=SIGNATURE_BOSS.phases.p2.slamInfl.type;
+    const bt=STATUS_BUILDUP.elementMap[inflType]; const infl={type:inflType, amt:0.4, dur:1.8, _sb:true};
+    h.bld=null; h.iframe=0; h.hp=h.maxHp=1e6; h.dead=false;
+    for(let i=0;i<20;i++){ h.iframe=0; damageHero(1,0,infl,undefined); }
+    const meter=h.bld?h.bld[bt]:0; const capped=meter<=A.cap+1e-6; const belowThreshold=meter<STATUS_BUILDUP.types[bt].threshold; const noOneShot=h.hp>0 && !h.dead;
+    h.bld=null; h.iframe=0.3; h.rolling=true; damageHero(1,0,infl,undefined); const dodgedNoFeed=(h.bld==null);
+    h.iframe=0; h.rolling=false; h.bld=null;
+    return { bt, meter:+meter.toFixed(2), cap:A.cap, fedPerHit:A.buildPerHit, capped, belowThreshold, noOneShot, dodgedNoFeed,
+      ok: meter>0 && capped && belowThreshold && noOneShot && dodgedNoFeed }; },
+
+  // AC10-regression guard: a NON-sig-boss frost/bleed feed to the hero is NOT capped (Pilar 21 intact — the hero can still proc).
+  _sbGenericFeedUncapped(){ const h=G.hero; const t=STATUS_BUILDUP.types.frost; const fhits=Math.ceil(t.threshold/t.build);
+    h.bld=null; h.iframe=0; h.hp=h.maxHp=1e6; h.dead=false; h.slowT=0; h.slow=1;
+    let procd=false; for(let i=0;i<fhits;i++){ h.iframe=0; const before=h.slowT; damageHero(1,0,{type:"slow",amt:0.55,dur:2.0},undefined); if(h.slowT>before && h.slow<1) procd=true; }
+    const meterOrProc = procd || (h.bld && h.bld.frost>SIGNATURE_BOSS.ailmentsToHero.cap);
+    h.bld=null; h.slowT=0; h.slow=1;
+    return { procd, ok: meterOrProc }; },   // NON-sb frost feed reaches threshold/proc ⇒ NOT globally capped
+
+  // AC4 backstab: a rear-arc melee hit on the boss lands the BACKSTAB multiplier (positional crit through the existing seam).
+  _sbBackstabProbe(){ const e=G.hunts.caldera&&G.hunts.caldera.champ; if(!e) return null; if(!BACKSTAB.enabled) return { skipped:true, ok:true };
+    e.staggerT=0; e.staggerCD=1e9; e.poise=0;
+    e.facing=Math.PI; e.hp=e.maxHp; const f0=e.hp; hitEnemy(e,100,0,{melee:true}); const frontDmg=f0-e.hp;
+    e.facing=0;       e.hp=e.maxHp; const r0=e.hp; hitEnemy(e,100,0,{melee:true}); const rearDmg=r0-e.hp;
+    e.staggerCD=0;
+    return { frontDmg:+frontDmg.toFixed(2), rearDmg:+rearDmg.toFixed(2), mult:BACKSTAB.mult, ok: rearDmg>frontDmg*1.3 }; },
+
+  // AC7 reward: kill the marked boss through the REAL killEnemy ⇒ +essenceBonus banked + ≥1 guaranteed high-rarity gear drop.
+  _sbRewardProbe(){ const e=G.hunts.caldera&&G.hunts.caldera.champ; if(!e) return null; const R=SIGNATURE_BOSS.rewards;
+    const ess0=(ensureMeta().essence|0); const drops0=G.drops.length;
+    e.hp=0; killEnemy(e);
+    const essGain=(ensureMeta().essence|0)-ess0; const gear=G.drops.slice(drops0).filter(d=>d.kind==="gear");
+    const rk=(r)=>["common","uncommon","rare","epic","legendary"].indexOf(r); const minRk=rk(R.guaranteedRarity);
+    const hasGuaranteed=gear.some(d=>rk(d.rarity)>=minRk);
+    return { essGain, essBonus:R.essenceBonus, essOk:essGain>=R.essenceBonus, gearDrops:gear.length, hasGuaranteed,
+      rarities:gear.map(d=>d.rarity), ok: essGain>=R.essenceBonus && hasGuaranteed }; },
+
+  // AC8 RNG-STRONG: srand ON==OFF across the whole signature-boss lifecycle (transition + phase-2 slam + host feed draw ZERO srand;
+  // the kill-reward roll uses bossRng). The pre/post srand segments must be byte-identical whether the feature is on.
+  _sbSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const sav=SIGNATURE_BOSS.enabled;
+    this._sbArm(enabled); const e=G.hunts.caldera.champ; const h=G.hero;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    let transFired=false, slamFired=false, fedHero=false;
+    if(enabled){
+      e.x=1e5; e.y=1e5; e.hp=Math.round(e.maxHp*(SIGNATURE_BOSS.phase2HpPct-0.02)); updateEnemies(1/60); transFired=(e._sbPhase===2);
+      const r=this._sbFireSpecial(); slamFired=!!(r&&r.count>0);
+      h.bld=null; h.iframe=0; damageHero(1,0,{type:SIGNATURE_BOSS.phases.p2.slamInfl.type,amt:0.4,dur:1.8,_sb:true},undefined); fedHero=!!h.bld;
+    }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    SIGNATURE_BOSS.enabled=sav; h.bld=null; h.iframe=0;
+    return { enabled:!!enabled, transFired, slamFired, fedHero, fingerprint:fp }; },
+
+  // AC9 SAVE: the phase/timer state lives ONLY on the enemy (never serialized) ⇒ save.v1 byte-id ON/OFF, no _sb keys.
+  _sbSaveByteId(){ const sav=SIGNATURE_BOSS.enabled;
+    SIGNATURE_BOSS.enabled=false; const offStr=JSON.stringify(serializeSave());
+    SIGNATURE_BOSS.enabled=true;
+    G.hunts=initHunts(); G.hunts.caldera.kills=HUNTS.caldera.need; spawnChampion("caldera");
+    const e=G.hunts.caldera.champ; const marked=!!(e&&e._sbPhase!==undefined);
+    const onStr=JSON.stringify(serializeSave());
+    SIGNATURE_BOSS.enabled=sav;
+    const hasKey=onStr.includes("_sb")||onStr.includes("sbPhase")||onStr.includes("signature");
+    return { ok: offStr===onStr && !hasKey && marked, byteId:offStr===onStr, marked, noSbKey:!hasKey, offLen:offStr.length, onLen:onStr.length }; },
 };

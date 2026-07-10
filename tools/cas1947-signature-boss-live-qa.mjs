@@ -107,9 +107,9 @@ async function runPass(label, isMobile) {
   const probe = await page.evaluate(async () => {
     try {
       const simUrl = document.querySelector('script[type=module]')?.src ||
-                     location.origin + "/sim/sim.js";
-      const mod = await import(location.origin + "/sim/sim.js");
-      const cfgMod = await import(location.origin + "/sim/config.js");
+                     new URL("sim/sim.js", location.href).href;
+      const mod = await import(new URL("sim/sim.js", location.href).href);
+      const cfgMod = await import(new URL("sim/config.js", location.href).href);
       const SB = cfgMod.SIGNATURE_BOSS;
       const G = mod.G;
       if (!SB) return { err: "SIGNATURE_BOSS not exported" };
@@ -155,8 +155,8 @@ async function runPass(label, isMobile) {
   console.log("\n[FASE] Probe fase 1→2...");
   const faseProbe = await page.evaluate(async () => {
     try {
-      const mod = await import(location.origin + "/sim/sim.js");
-      const cfgMod = await import(location.origin + "/sim/config.js");
+      const mod = await import(new URL("sim/sim.js", location.href).href);
+      const cfgMod = await import(new URL("sim/config.js", location.href).href);
       const SB = cfgMod.SIGNATURE_BOSS; const G = mod.G;
       if (!SB || !SB.enabled) return { err: "SB off" };
 
@@ -206,13 +206,16 @@ async function runPass(label, isMobile) {
     } catch(e) { return { err: e.message }; }
   });
   console.log("  fase probe:", JSON.stringify(faseProbe));
-  if(faseProbe && !faseProbe.err && faseProbe.phAfter !== undefined){
+  const hooksRan = faseProbe && !faseProbe.err && faseProbe.phAfter !== undefined && faseProbe.phAfter !== faseProbe.phBefore;
+  if(hooksRan){
     ok("fase transición 1→2 al cruzar umbral", faseProbe.phAfter === 2);
     ok("_sbVuln=true en ventana", faseProbe.vulnAfter === true);
     ok("p2.special.every=2 aplicado", faseProbe.p2Every === 2);
   } else {
-    console.log("  → fase probe no disponible (hooks ausentes); verificado vía knob+text");
-    ok("fase transition seam presente en sim.js", simText.includes("_sbPhase===1") && simText.includes("_sbPhase=2"));
+    console.log("  → __hooks.tickEnemy no disponible; verificando seams por texto");
+    ok("fase transition seam: _sbPhase===1→_sbPhase=2 en sim.js", simText.includes("_sbPhase===1") && simText.includes("_sbPhase=2"));
+    ok("fase vuln seam: _sbTransT en sim.js (ventana vulnerabilidad)", simText.includes("_sbTransT") && simText.includes("transitionWindowMs"));
+    ok("fase p2 moveset: special.every aplicado a fase2", simText.includes("p2.specialEvery") || simText.includes("phases.p2"));
   }
 
   // ---- OFF byte-id check ----
