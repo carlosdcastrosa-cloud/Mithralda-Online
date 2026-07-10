@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -351,6 +351,9 @@ function newHero(name,cls){
     // CAS-118 status sinks (mirror the enemy fields): slow scales move speed, stun gates
     // input, dots holds active DoTs. Transient — never serialized (rehydrated clean).
     slow:1, slowT:0, stun:0, dots:null,
+    // CAS-1931 status-buildup: medidor OCULTO por tipo (bleed/poison/frost). Perezoso (null hasta el 1er addBuildup ⇒ 0 alloc
+    // sin buildup, mirror dots). Transitorio — nunca serializado (fuera del allowlist de serializeSave ⇒ save.v1 byte-id).
+    bld:null,
     animState:"idle", animT:0, cls:cls||"warrior",
     // CAS-169: character customization — recolorable part palette + headwear/cape
     // variation. Pure presentation state the renderer bakes into the hero strips
@@ -1647,6 +1650,7 @@ function spawnEnemy(type,x,y){
     gaitPhase:(x*0.7+y*0.9), // CAS-240: STATIC per-mob gait desync offset, frozen at spawn pos. Render must NOT recompute from live e.x/e.y (movement swamps gait.w/gait.fps → CAS-222 slowdown invisible while moving).
     vx:0,vy:0, facing:0, wt:0, hurtFlash:0, hitDone:false, phase:0, knockX:0,knockY:0, wanderX:x,wanderY:y, wanderT:0,
     stun:0, slow:1, slowT:0, dots:null, // crowd-control sinks: stun freezes the AI, slow scales chase speed, dots = active DoTs (CAS-118); all time-based, no RNG
+    bld:null, // CAS-1931 status-buildup meter (bleed/poison/frost), lazy like dots; enemies never persist ⇒ save-neutral by construction
     poise:0, poiseMax:0, staggerT:0, staggerCD:0, _poiseDecayT:0}; // CAS-1826: postura/stagger run-state (transient, never serialized). poiseMax stays 0 until the first hero hit resolves the tier (flags land post-spawn); 0 ⇒ this enemy never accrues
   G.enemies.push(e); return e;
 }
@@ -2244,8 +2248,9 @@ function hitEnemy(e,dmg,ang,opt){
   // poison DoT (reuses applyStatus → the existing status stack/feedback). Sed de Sangre leeches
   // on MELEE connects only (heroMeleeHit flag). All deterministic (no srand).
   if(bb){
-    if(bb.burn>0)   applyStatus(e,"burn",  {dmg:Math.max(1,Math.round(dmg*bb.burn))});
-    if(bb.poison>0) applyStatus(e,"poison",{dmg:Math.max(1,Math.round(dmg*bb.poison))});
+    // CAS-1931: on-hit elemental boons FEED the buildup meter when STATUS_BUILDUP.enabled (statusOrBuildup); OFF ⇒ instant applyStatus byte-id.
+    if(bb.burn>0)   statusOrBuildup(e,"burn",  {dmg:Math.max(1,Math.round(dmg*bb.burn))}, false);
+    if(bb.poison>0) statusOrBuildup(e,"poison",{dmg:Math.max(1,Math.round(dmg*bb.poison))}, false);
     if(heroMeleeHit && bb.lifesteal>0){ const h=G.hero; const mhp=heroMaxHp(h);
       if(h.hp<mhp){ const heal=Math.max(1,Math.round(pactHeal(dmg*bb.lifesteal))); h.hp=Math.min(mhp,h.hp+heal); // CAS-1763: Pacto Frágil cuts lifesteal (×1.0 at heat=0 ⇒ byte-identical)
         floater(h.x,h.y-30,"+"+heal,"#ff5d8a",{small:true}); } }
@@ -2256,8 +2261,12 @@ function hitEnemy(e,dmg,ang,opt){
   // OFF / sin buff / expirado / no-melee ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(WEAPON_BUFFS.enabled && opt && opt.melee){ const wh=G.hero; if(wh && wh._wbuff && wh.wbuffT>0){
     const bt=WEAPON_BUFFS.types[wh._wbuff];
-    if(bt){ if(bt.element==="burn" && bt.burn) applyStatus(e,"burn",{dmg:bt.burn.dmg});
-      else if(bt.element==="frost" && bt.slow) applyStatus(e,"slow",bt.slow); } } }
+    // CAS-1931: la resina elemental FEED el medidor cuando STATUS_BUILDUP.enabled; OFF ⇒ status instantáneo byte-id.
+    if(bt){ if(bt.element==="burn" && bt.burn) statusOrBuildup(e,"burn",{dmg:bt.burn.dmg}, false);
+      else if(bt.element==="frost" && bt.slow) statusOrBuildup(e,"slow",bt.slow, false); } } }
+  // CAS-1931: TODO golpe físico melee alimenta el medidor de SANGRADO (bleed) — siempre-on, HEADLINE observable (el jugador
+  // ve el medidor subir golpeando y la ráfaga % HP máx al llenarse). OFF ⇒ rama muerta ⇒ byte-idéntico a HEAD. 0 srand.
+  if(STATUS_BUILDUP.enabled && opt && opt.melee) addBuildup(e, "bleed", 1, false);
   // CAS-317: a rich-anim boss (dragon) plays a brief one-shot HURT flinch on a non-lethal
   // hit. Suppressed mid-attack (the animState resolver never overrides windup/strike) so a
   // committed swing reads through, and skipped on the killing blow (death takes over).
@@ -2316,7 +2325,7 @@ function applyWeaponAffix(wAf, e, dmg, ang){
   if(af.kind==="lifesteal"){ const h=G.hero; if(h){ const mhp=heroMaxHp(h);
     if(h.hp<mhp){ const heal=Math.max(1,Math.round(pactHeal(m*dmg))); h.hp=Math.min(mhp,h.hp+heal); // routes through pactHeal ⇒ inherits Pacto Frágil healCut + heroMaxHp clamp (never writes h.hp raw)
       floater(h.x,h.y-30,"+"+heal,"#5fd66a",{small:true}); addFx("spark",h.x,h.y-10,{col:af.tint}); } } }
-  else if(af.kind==="burn"){ applyStatus(e,"burn",{dmg:Math.max(1,Math.round(m*dmg))}); addFx("flame",e.x,e.y); } // reuses STATUS.burn DoT
+  else if(af.kind==="burn"){ statusOrBuildup(e,"burn",{dmg:Math.max(1,Math.round(m*dmg))}, false); addFx("flame",e.x,e.y); } // CAS-1931: burn afijo FEED buildup (OFF ⇒ STATUS.burn DoT byte-id)
   else if(af.kind==="stun"){ if(affixRng.srand()<(af.chance||0)){ applyStatus(e,"stun",{}); addFx("spellburst",e.x,e.y-2,{col:af.tint}); } } // ONLY proc with RNG — dedicated affixRng
   else if(af.kind==="chain"){ // arc to the NEAREST live enemy ≠ e within chainRange (tie-break: lowest index → replay-safe, no RNG)
     const rangePx=(WEAPON_AFFIXES.chainRange||3.5)*TS; let best=null,bd=Infinity;
@@ -2982,6 +2991,62 @@ function tickDots(ent, dt, isHero){
   if(any && ent.dots && Object.keys(ent.dots).length===0) ent.dots=null;
   return dead;
 }
+// CAS-1931 — STATUS BUILDUP (bleed/poison/frost). A temporal layer IN FRONT of applyStatus: instead of landing a status
+// instantly, an on-hit source FEEDS a hidden per-type meter (ent.bld). When a meter crosses its threshold it PROCs a burst
+// (reusing the same applyStatus / hp-drain) and resets to 0. The meter DECAYS (tickBuildup) so pecking never procs — only
+// sustained pressure does. 100% arithmetic ⇒ 0 RNG. HARD-GATED: STATUS_BUILDUP.enabled=false ⇒ every call site falls back
+// to the original instant applyStatus (statusOrBuildup) and addBuildup early-outs ⇒ byte-identical to HEAD (bleed inert).
+//
+// addBuildup: raise ent.bld[btype] by type.build (×bossBuildMul for a boss/elite ⇒ higher effective threshold). On crossing
+// threshold ⇒ reset + procBuildup. Lazy meter (ent.bld created on first feed, mirror dots). Deterministic, 0 draws. Returns
+// true if it PROCd. `srcAmt` (default 1) scales the added amount (harness lever; production always feeds 1).
+function addBuildup(ent, btype, srcAmt, isHero){
+  if(!STATUS_BUILDUP.enabled || !ent) return false;
+  const type=STATUS_BUILDUP.types[btype]; if(!type) return false;
+  if(!ent.bld) ent.bld={ bleed:0, poison:0, frost:0 };
+  const boss=!!ent.isBoss;
+  ent.bld[btype] += type.build * (srcAmt==null?1:srcAmt) * (boss?STATUS_BUILDUP.bossBuildMul:1);
+  const thr=type.threshold;
+  if(ent.bld[btype] >= thr){ ent.bld[btype]=0; procBuildup(ent, btype, isHero); return true; }
+  return false;
+}
+// procBuildup: the burst when a meter fills. bleed ⇒ flat % of MAX hp (defence-bypass, mirror a DoT tick; boss uses a smaller
+// pct) routed to the REAL death path if lethal; poison ⇒ strong poison DoT N s (reuses STATUS.poison); frost ⇒ strong slow +
+// (hero) drains stamina. $0 art: a status-tinted floater + a spark reuse existing primitives. No srand.
+function procBuildup(ent, btype, isHero){
+  const type=STATUS_BUILDUP.types[btype];
+  if(btype==="bleed"){
+    const maxHp=isHero?heroMaxHp(ent):(ent.maxHp||ent.hp);
+    const pct=(ent.isBoss && type.bossProcPctHp!=null)?type.bossProcPctHp:type.procPctHp;
+    const burst=Math.max(1, Math.round(maxHp*pct));
+    ent.hp-=burst; ent.hurtFlash=Math.max(ent.hurtFlash||0,0.16);
+    floater(ent.x, ent.y-(isHero?34:(ent.tpl?ent.tpl.size:16)), "-"+burst, type.tint, {crit:true, pop:1.5, life:0.9});
+    addFx("blood", ent.x, ent.y, {}); addFx("spellburst", ent.x, ent.y-2, {col:type.tint});
+    if(ent.hp<=0){ if(isHero) heroDie(); else killEnemy(ent); }
+  } else if(btype==="poison"){
+    applyStatus(ent, "poison", type.procDot);
+    floater(ent.x, ent.y-(isHero?34:(ent.tpl?ent.tpl.size:16)), STR.statusPoison||"¡veneno!", type.tint, {small:true}); addFx("spellburst", ent.x, ent.y-2, {col:type.tint});
+  } else if(btype==="frost"){
+    applyStatus(ent, "slow", type.procSlow);
+    if(isHero && type.procStamDrain){ ent.stam=Math.max(0, (ent.stam||0)-type.procStamDrain); ent._stamRegenPauseT=STAMINA.regenDelay; }
+    floater(ent.x, ent.y-(isHero?34:(ent.tpl?ent.tpl.size:16)), STR.statusFrost||"¡escarcha!", type.tint, {small:true}); addFx("dodgering", ent.x, ent.y, {life:0.22, col:type.tint});
+  }
+}
+// tickBuildup: decay every meter by decayPerSec*dt (clamp 0); drop ent.bld to null when all meters are empty (mirror the
+// dots early-out ⇒ 0 alloc/work once buildup has drained). Called next to tickDots. No-op when ent carries no buildup.
+function tickBuildup(ent, dt){
+  if(!ent.bld) return; const dec=STATUS_BUILDUP.decayPerSec*dt; let any=false;
+  for(const k in ent.bld){ if(ent.bld[k]>0){ ent.bld[k]=Math.max(0, ent.bld[k]-dec); if(ent.bld[k]>0) any=true; } }
+  if(!any) ent.bld=null;
+}
+// statusOrBuildup: the gated seam wrapping every on-hit ELEMENTAL applyStatus. When STATUS_BUILDUP.enabled AND the status
+// type is mapped (elementMap), the hit FEEDS the buildup meter instead of landing instantly; otherwise (disabled, or an
+// unmapped type like stun) it falls through to the original applyStatus ⇒ byte-identical to HEAD. Same helper for hero+enemy.
+function statusOrBuildup(ent, type, opt, isHero){
+  const bt = STATUS_BUILDUP.enabled ? STATUS_BUILDUP.elementMap[type] : null;
+  if(bt) addBuildup(ent, bt, 1, isHero);
+  else applyStatus(ent, type, opt);
+}
 // Timed stat buff: dmgBonus/defBonus are the sinks read by equippedDmg/Def, so a
 // buff changes real combat numbers. Recasting refreshes (removes the old amount
 // first) so the bonus never drifts upward across overlapping casts.
@@ -3107,7 +3172,7 @@ export function respawn(){
   // applyMetaReroll re-adds the reroll charges ON TOP of the rerollLeft:1 just reset above — the
   // CRÍTICO seam, since respawn wiped the meta reroll along with the per-run budget. HP fills below.
   reconcileMeta(h); applyMetaReroll(h); applyMetaStartBoons(h); // CAS-1565: Vanguardia start-boons re-granted after the death boon-wipe (per-run)
-  h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.x=h.respawn.x; h.y=h.respawn.y;   // CAS-1841: vigor a tope al reaparecer
+  h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.x=h.respawn.x; h.y=h.respawn.y; h.bld=null;   // CAS-1841: vigor a tope al reaparecer · CAS-1931: medidor buildup limpio (OFF ⇒ ya null ⇒ byte-id)
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.arenaMode=false; // CAS-1664: leaving the death screen exits Arena de Oleadas → back to the normal world (no-op in a normal run)
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
@@ -3703,6 +3768,7 @@ export function update(dtMs){
   // damageHero (que lee h.blocking) sale temprano SIN nueva rama. OFF/sin twoHand ⇒ término extra=true ⇒ byte-idéntico.
   h.blocking = SHIELD_BLOCK.enabled && io.blockHeld && !h.dead && !h.rolling && h.stun<=0 && (!STAMINA.enabled || h.stam>0) && !(TWO_HAND.enabled && h.twoHand);
   if(h.dots) tickDots(h,dt,true);
+  if(h.bld) tickBuildup(h,dt); // CAS-1931: buildup meters decay (0 alloc when h.bld null ⇒ OFF byte-id)
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
   if(h.rolling){ h.rollT-=dt; const sp=h.rollSpd||CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12); // CAS-1814: per-roll speed (DODGE distance); ||CFG.rollSpeed ⇒ OFF byte-identical
@@ -3856,6 +3922,7 @@ function updateEnemies(dt){ const h=G.hero;
     // this corpse for the rest of the frame.
     // CAS-121: a carapaced boss is immune even to DoTs while the shield is up (the
     // status is recorded but paused) — it resumes ticking the instant the shield breaks.
+    if(e.bld) tickBuildup(e,dt); // CAS-1931: enemy buildup meters decay (0 work when e.bld null ⇒ OFF byte-id)
     if(!e.shielded && e.dots && tickDots(e,dt,false)){ killEnemy(e); continue; }
     // CAS-121: resolve a carapace SHATTER first — a status proc is a valid break even if
     // it also stunned the boss (the stun gate below would otherwise swallow the frame).
@@ -4493,7 +4560,11 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // CAS-118: a mob's telegraphed strike can also INFLICT a status (bandit poison / wraith
   // slow). It only lands when the hit lands — dodging the telegraph (i-frames above) skips
   // it entirely, so reading the tell avoids BOTH the damage and the state. AC #3.
-  if(infl && infl.type) applyStatus(h, infl.type, infl);
+  // CAS-1931: PARIDAD — el status elemental entrante FEED el medidor del héroe cuando STATUS_BUILDUP.enabled (mismo helper/tabla
+  // que enemigo); tipo no mapeado (stun) o OFF ⇒ applyStatus instantáneo byte-id. Además, un golpe MELEE físico (src presente,
+  // el atacante de contacto) alimenta el SANGRADO del héroe — simétrico al feed enemigo. 0 srand.
+  if(infl && infl.type) statusOrBuildup(h, infl.type, infl, true);
+  if(STATUS_BUILDUP.enabled && src) addBuildup(h, "bleed", 1, true);
   // CAS-383: Coraza de Espinas boon — reflect a fraction of the damage TAKEN back to the melee
   // attacker (`src`, present for contact hits; ranged bolts pass none). Routes the retaliation
   // through hitEnemy so it crits/procs/kills exactly like any other hero hit. A dodged/i-framed
@@ -8356,4 +8427,171 @@ export const dev = {
     const onStr=JSON.stringify(serializeSave()); WEAPON_BUFFS.enabled=savWB;
     const hasBuff=onStr.includes("buff")||onStr.includes("whet")||onStr.includes("ember")||onStr.includes("frost")||onStr.includes("wbuff");
     return { ok: offStr===onStr && !hasBuff, byteId: offStr===onStr, noBuffKey: !hasBuff, offLen:offStr.length, onLen:onStr.length }; },
+
+  // =====================================================================
+  // CAS-1931 — ACUMULACIÓN DE ESTADOS (Status Buildup) dev hooks (tools/cas1931-status-buildup.mjs); additive
+  // =====================================================================
+  buildupMeta(){ return { enabled:STATUS_BUILDUP.enabled, decayPerSec:STATUS_BUILDUP.decayPerSec, bossBuildMul:STATUS_BUILDUP.bossBuildMul,
+    elementMap:{...STATUS_BUILDUP.elementMap}, types:JSON.parse(JSON.stringify(STATUS_BUILDUP.types)) }; },
+
+  // Clean pristine-town arena: tanky live warrior, buildup meter + statuses + stam reset (mirror _buffArm). Enemies cleared.
+  _bldArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.slow=1; h.dots=null; h.bld=null;
+    h.atkCD=0; h.atkT=0; h.atkAnim=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0; h.flaskDrinkT=0;
+    h.cls="warrior"; h._comboFin=false; h._heavy=false; h._art=false; h._artCls=null; h._artHyper=false; h.artCD=0; h.lockTarget=null; h.lockCd=0;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; h.twoHand=false;
+    h._wbuff=null; h.wbuffT=0; h.applyBuffT=0;
+    return h; },
+  // Spawn a clean front-facing dummy (facing=Math.PI ⇒ frontal ⇒ no backstab contamination), sole enemy.
+  _bldDummy(maxHp, boss){ const h=G.hero; const e=spawnEnemy("skeleton",h.x+20,h.y);
+    e.maxHp=e.hp=maxHp||1000; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=Math.PI; e.isBoss=!!boss; e.bld=null; e.dots=null; e.slowT=0; e.slow=1; e.stun=0;
+    G.enemies.length=0; G.enemies.push(e); return e; },
+
+  // AC0 OFF: enabled=false ⇒ un golpe elemental aplica el status INSTANTÁNEO (dots/slowT) como HEAD (statusOrBuildup cae a
+  // applyStatus); NUNCA crea medidor bld; un golpe físico melee NO alimenta bleed. Byte-idéntico a HEAD.
+  buildupOffProbe(){ const savSB=STATUS_BUILDUP.enabled; STATUS_BUILDUP.enabled=false;
+    const h=this._bldArm(); const e=this._bldDummy(1000,false);
+    statusOrBuildup(e,"burn",{dmg:5},false);           // OFF ⇒ applyStatus(burn) instantáneo
+    const instantBurn = !!(e.dots && e.dots.burn && e.dots.burn.dmg===5);
+    statusOrBuildup(e,"slow",{amt:0.55,dur:2.0},false); // OFF ⇒ applyStatus(slow) instantáneo
+    const instantSlow = e.slowT>0 && e.slow<1;
+    const noMeter = e.bld==null;
+    // físico melee con OFF ⇒ el call-site NO llama addBuildup (gate STATUS_BUILDUP.enabled) ⇒ sin medidor
+    const fed = addBuildup(e,"bleed",1,false); const stillNoMeter = e.bld==null && fed===false;
+    STATUS_BUILDUP.enabled=savSB; e.bld=null; e.dots=null; G.enemies.length=0;
+    return { ok: instantBurn && instantSlow && noMeter && stillNoMeter, instantBurn, instantSlow, noMeter, stillNoMeter }; },
+
+  // AC1 baseline: ON pero por debajo del umbral ⇒ el medidor sube pero NINGÚN proc (sin ráfaga / sin dots / hp intacta).
+  buildupBaselineProbe(){ const savSB=STATUS_BUILDUP.enabled; STATUS_BUILDUP.enabled=true;
+    const h=this._bldArm(); const e=this._bldDummy(1000,false); const hp0=e.hp;
+    let procd=false; for(let i=0;i<5;i++){ if(addBuildup(e,"bleed",1,false)) procd=true; } // 16*5=80 < 100 ⇒ sin proc
+    const meterRose = e.bld && e.bld.bleed>0 && e.bld.bleed<STATUS_BUILDUP.types.bleed.threshold;
+    const noProc = !procd && e.hp===hp0 && !(e.dots && e.dots.poison);
+    STATUS_BUILDUP.enabled=savSB; e.bld=null; G.enemies.length=0;
+    return { ok: meterRose && noProc, meterRose, noProc, meter:e?+((e.bld&&e.bld.bleed)||0).toFixed(2):0 }; },
+
+  // AC2 bleed: N golpes físicos llenan bld.bleed ⇒ al cruzar umbral PROC ráfaga=round(maxHp*procPctHp) (defence-bypass) +
+  // reset; golpe REAL melee (hitEnemy opt.melee) alimenta bleed (headline); jefe usa bossProcPctHp + acumula ×bossBuildMul;
+  // muerte por ráfaga enruta a killEnemy.
+  buildupBleedProbe(){ const savSB=STATUS_BUILDUP.enabled, savS=STAMINA.enabled; STATUS_BUILDUP.enabled=true; STAMINA.enabled=false;
+    const bt=STATUS_BUILDUP.types.bleed; const h=this._bldArm();
+    // headline: un golpe REAL melee alimenta bleed
+    const e0=this._bldDummy(1e9,false); h.facing=0; hitEnemy(e0, 1, 0, {melee:true});
+    const meleeFeeds = !!(e0.bld && e0.bld.bleed===bt.build);
+    // acumulación + proc en el cruce (feed aislado)
+    const e=this._bldDummy(1000,false);
+    const hitsToProc=Math.ceil(bt.threshold/bt.build); // 7
+    for(let i=0;i<hitsToProc-1;i++) addBuildup(e,"bleed",1,false); // 96 < 100
+    const noProcYet = e.hp===1000 && e.bld.bleed< bt.threshold;
+    const hp0=e.hp; const procd=addBuildup(e,"bleed",1,false); // cruza ⇒ proc
+    const burst=hp0-e.hp; const expectBurst=Math.round(1000*bt.procPctHp);
+    const burstOk=Math.abs(burst-expectBurst)<=1 && procd; const reset=e.bld.bleed===0;
+    // jefe: menor pct + acumula más lento
+    const eb=this._bldDummy(1000,true); const bhits=Math.ceil(bt.threshold/(bt.build*STATUS_BUILDUP.bossBuildMul)); // 12
+    for(let i=0;i<bhits-1;i++) addBuildup(eb,"bleed",1,false); const bNoProc=eb.hp===1000;
+    const bhp0=eb.hp; addBuildup(eb,"bleed",1,false); const bburst=bhp0-eb.hp; const bExpect=Math.round(1000*bt.bossProcPctHp);
+    const bossOk=Math.abs(bburst-bExpect)<=1 && bhits>hitsToProc;
+    // letal ⇒ killEnemy
+    const el=this._bldDummy(1000,false); el.hp=50; for(let i=0;i<hitsToProc;i++) addBuildup(el,"bleed",1,false); const killed=el.dead;
+    STATUS_BUILDUP.enabled=savSB; STAMINA.enabled=savS; G.enemies.length=0;
+    return { ok: meleeFeeds && noProcYet && burstOk && reset && bossOk && killed,
+      meleeFeeds, noProcYet, burst, expectBurst, burstOk, reset, bossHits:bhits, bburst, bExpect, bossOk, killed }; },
+
+  // AC3 poison: fuente burn/poison reconvertida ⇒ alimenta bld.poison; SIN proc no aplica veneno instantáneo (reconvertido);
+  // al llenarse ⇒ applyStatus(poison, procDot) fuerte (DoT N s, mismo motor).
+  buildupPoisonProbe(){ const savSB=STATUS_BUILDUP.enabled; STATUS_BUILDUP.enabled=true;
+    const t=STATUS_BUILDUP.types.poison; const h=this._bldArm(); const e=this._bldDummy(1e9,false);
+    statusOrBuildup(e,"burn",{dmg:6},false); // burn⇒poison meter, SIN burn/poison instantáneo (feed #1)
+    const noInstant = !(e.dots && (e.dots.burn||e.dots.poison)) && e.bld && e.bld.poison>0;
+    const hits=Math.ceil(t.threshold/t.build); // 5
+    for(let i=2;i<hits;i++) statusOrBuildup(e,"burn",{dmg:6},false); const noProcYet=!(e.dots&&e.dots.poison); // total hits-1 feeds ⇒ sub-umbral
+    statusOrBuildup(e,"burn",{dmg:6},false); // cruza ⇒ proc poison DoT
+    const poisonDot = !!(e.dots && e.dots.poison && e.dots.poison.dmg===t.procDot.dmg && e.dots.poison.t>0); const reset=e.bld.poison===0;
+    STATUS_BUILDUP.enabled=savSB; e.bld=null; e.dots=null; G.enemies.length=0;
+    return { ok: noInstant && noProcYet && poisonDot && reset, noInstant, noProcYet, poisonDot, reset }; },
+
+  // AC4 frost: frost buff reconvertido ⇒ alimenta bld.frost; al llenarse ⇒ applyStatus(slow, procSlow) fuerte + (héroe) drena
+  // stam en procStamDrain; enemigos SÓLO slow.
+  buildupFrostProbe(){ const savSB=STATUS_BUILDUP.enabled; STATUS_BUILDUP.enabled=true;
+    const t=STATUS_BUILDUP.types.frost; const h=this._bldArm(); const e=this._bldDummy(1e9,false);
+    const hits=Math.ceil(t.threshold/t.build); // 4
+    for(let i=1;i<hits;i++) statusOrBuildup(e,"frost",{amt:0.6,dur:1.5},false); const noProcYet=!(e.slowT>0 && e.slow<1);
+    statusOrBuildup(e,"frost",{amt:0.6,dur:1.5},false); // cruza ⇒ slow fuerte
+    const enemySlow = e.slowT>0 && Math.abs((e.slow)-t.procSlow.amt)<0.001; const enemyReset=e.bld.frost===0;
+    // héroe: drena stam al procear
+    const s0=h.stam=80; for(let i=1;i<hits;i++) addBuildup(h,"frost",1,true); const heroS0=h.stam; addBuildup(h,"frost",1,true);
+    const heroSlow=h.slowT>0 && h.slow<1; const stamDrained=h.stam===Math.max(0,heroS0-t.procStamDrain);
+    STATUS_BUILDUP.enabled=savSB; e.bld=null; e.slowT=0; e.slow=1; h.bld=null; h.slowT=0; h.slow=1; h.stam=STAMINA.max; G.enemies.length=0;
+    return { ok: noProcYet && enemySlow && enemyReset && heroSlow && stamDrained, noProcYet, enemySlow, enemyReset, heroSlow, stamDrained, heroStam:h.stam }; },
+
+  // AC5 decae: sin sostener, el medidor baja decayPerSec/s a 0 (tickBuildup); picotear no cruza el umbral (no procea).
+  buildupDecayProbe(){ const savSB=STATUS_BUILDUP.enabled; STATUS_BUILDUP.enabled=true;
+    const h=this._bldArm(); const e=this._bldDummy(1000,false);
+    addBuildup(e,"bleed",1,false); const b0=e.bld.bleed; // 16
+    tickBuildup(e,1.0); const afterTick=(e.bld?e.bld.bleed:0); const decayed=afterTick< b0 && Math.abs(afterTick-(b0-STATUS_BUILDUP.decayPerSec))<0.01;
+    tickBuildup(e,1.0); const clearedToNull=e.bld==null; // 2-14 ⇒ 0 ⇒ null
+    // picotear: feed+decay repetido nunca cruza umbral ni toca hp
+    const hp0=e.hp; let procd=false; for(let i=0;i<10;i++){ if(addBuildup(e,"bleed",1,false)) procd=true; tickBuildup(e,1.0); }
+    const peckNoProc = !procd && e.hp===hp0;
+    STATUS_BUILDUP.enabled=savSB; e.bld=null; G.enemies.length=0;
+    return { ok: decayed && clearedToNull && peckNoProc, b0, afterTick, decayed, clearedToNull, peckNoProc }; },
+
+  // AC6 paridad héroe: por el choke damageHero, un golpe elemental / físico melee enemigo alimenta h.bld; al llenarse el héroe
+  // SUFRE el proc. Físico (src) ⇒ ráfaga bleed % heroMaxHp; elemental infl (slow) ⇒ h.bld.frost ⇒ slow+drena stam.
+  buildupParityProbe(){ const savSB=STATUS_BUILDUP.enabled, savS=STAMINA.enabled; STATUS_BUILDUP.enabled=true; STAMINA.enabled=false;
+    const bt=STATUS_BUILDUP.types.bleed; const h=this._bldArm(); h.hp=1e6;
+    const src=this._bldDummy(100,false); // atacante de contacto (src presente ⇒ físico melee ⇒ bleed héroe)
+    const hits=Math.ceil(bt.threshold/bt.build); const mhp=heroMaxHp(h);
+    for(let i=0;i<hits-1;i++){ h.iframe=0; damageHero(1,0,null,src); }
+    const beforeBurst=h.hp; h.iframe=0; damageHero(1,0,null,src); // cruza ⇒ ráfaga bleed héroe
+    const heroBurst=beforeBurst-h.hp-1; // -1 por el daño de contacto de este golpe
+    const expectBurst=Math.round(mhp*bt.procPctHp); const bleedOk=Math.abs(heroBurst-expectBurst)<=2 && (h.bld?h.bld.bleed:0)===0;
+    // elemental parity: infl slow SIN src ⇒ alimenta h.bld.frost ⇒ proc slow + drena stam
+    h.bld=null; h.slowT=0; h.slow=1; h.stam=90; const ft=STATUS_BUILDUP.types.frost; const fhits=Math.ceil(ft.threshold/ft.build);
+    for(let i=0;i<fhits-1;i++){ h.iframe=0; damageHero(1,0,{type:"slow",amt:0.55,dur:2.0},null); }
+    const s0=h.stam; h.iframe=0; damageHero(1,0,{type:"slow",amt:0.55,dur:2.0},null);
+    const heroFrost=h.slowT>0 && h.slow<1 && h.stam===Math.max(0,s0-ft.procStamDrain);
+    STATUS_BUILDUP.enabled=savSB; STAMINA.enabled=savS; h.bld=null; h.slowT=0; h.slow=1; h.stam=STAMINA.max; G.enemies.length=0;
+    return { ok: bleedOk && heroFrost, heroBurst, expectBurst, bleedOk, heroFrost }; },
+
+  // AC7 compone: buildup convive con WEAPON_BUFFS/dmgMul sin bypass — el dmgMul melee sigue aplicando Y el golpe alimenta bleed;
+  // el proc pasa por ent.hp como cualquier status (no inyecta stun ⇒ no bypassa poise/i-frames).
+  buildupComposeProbe(){ const savSB=STATUS_BUILDUP.enabled, savS=STAMINA.enabled, savTW=TWO_HAND.enabled, savA=WEAPON_ARCHETYPES.enabled, savR=WEAPON_ARTS.enabled, savWB=WEAPON_BUFFS.enabled;
+    STATUS_BUILDUP.enabled=true; STAMINA.enabled=false; TWO_HAND.enabled=false; WEAPON_ARCHETYPES.enabled=false; WEAPON_ARTS.enabled=false; WEAPON_BUFFS.enabled=true;
+    const h=this._bldArm(); h._wbuff="whet"; h.wbuffT=10; // whet dmg×1.35 activo
+    const e=this._bldDummy(1e9,false);
+    const baseDmg=equippedDmg(h)*ATK[h.cls].dmgMul; const stun0=e.stun||0;
+    h._atkHits=new Set(); h.atkAng=0; h._mcfg=ATK[h.cls]; h._heavy=false; h._comboFin=false; h._art=false; h.facing=0; const hp0=e.hp;
+    applyHeroMelee();
+    const dmgApplied=Math.round(hp0-e.hp); const dmgExpect=Math.round(baseDmg*WEAPON_BUFFS.types.whet.dmgMul); const dmgOk=Math.abs(dmgApplied-dmgExpect)<=2;
+    const bledFed = !!(e.bld && e.bld.bleed===STATUS_BUILDUP.types.bleed.build);
+    const noStunInject = (e.stun||0)===stun0;
+    STATUS_BUILDUP.enabled=savSB; STAMINA.enabled=savS; TWO_HAND.enabled=savTW; WEAPON_ARCHETYPES.enabled=savA; WEAPON_ARTS.enabled=savR; WEAPON_BUFFS.enabled=savWB;
+    e.bld=null; h._wbuff=null; h.wbuffT=0; G.enemies.length=0;
+    return { ok: dmgOk && bledFed && noStunInject, dmgApplied, dmgExpect, dmgOk, bledFed, noStunInject }; },
+
+  // AC8 RNG-STRONG: srand ON==OFF N-draw (buildup 100% aritmética, 0 draws); buildupFed/buildupProc observables 0-draw.
+  buildupSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savSB=STATUS_BUILDUP.enabled, savS=STAMINA.enabled, savTW=TWO_HAND.enabled, savA=WEAPON_ARCHETYPES.enabled, savR=WEAPON_ARTS.enabled, savWB=WEAPON_BUFFS.enabled;
+    STATUS_BUILDUP.enabled=enabled; STAMINA.enabled=true; TWO_HAND.enabled=false; WEAPON_ARCHETYPES.enabled=false; WEAPON_ARTS.enabled=false; WEAPON_BUFFS.enabled=false;
+    const h=this._bldArm(); const e=this._bldDummy(1e9,false); // maxHp enorme ⇒ la ráfaga bleed NUNCA mata ⇒ 0 killEnemy (0 loot srand)
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9)); // pre-segmento
+    let buildupFed=false, buildupProc=false;
+    if(enabled){ const n=Math.ceil(STATUS_BUILDUP.types.bleed.threshold/STATUS_BUILDUP.types.bleed.build);
+      for(let i=0;i<n;i++){ const p=addBuildup(e,"bleed",1,false); buildupFed=true; if(p) buildupProc=true; } }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9)); // post-segmento
+    STATUS_BUILDUP.enabled=savSB; STAMINA.enabled=savS; TWO_HAND.enabled=savTW; WEAPON_ARCHETYPES.enabled=savA; WEAPON_ARTS.enabled=savR; WEAPON_BUFFS.enabled=savWB;
+    e.bld=null; G.enemies.length=0;
+    return { enabled:!!enabled, buildupFed, buildupProc, fingerprint:fp }; },
+
+  // AC9 SAVE: serializeSave() byte-id ON/OFF; sin clave bld*/buildup*/bleed* (todo transitorio; enemigos no persisten).
+  buildupSaveByteId(){ const savSB=STATUS_BUILDUP.enabled;
+    STATUS_BUILDUP.enabled=false; this._bldArm(); const offStr=JSON.stringify(serializeSave());
+    STATUS_BUILDUP.enabled=true; const h=this._bldArm(); addBuildup(h,"bleed",1,true); addBuildup(h,"poison",1,true); addBuildup(h,"frost",1,true); // puebla h.bld
+    const onStr=JSON.stringify(serializeSave());
+    STATUS_BUILDUP.enabled=savSB; h.bld=null;
+    const hasKey=onStr.includes('"bld"')||onStr.includes("buildup")||onStr.includes("bleed");
+    return { ok: offStr===onStr && !hasKey, byteId:offStr===onStr, noBldKey:!hasKey, offLen:offStr.length, onLen:onStr.length }; },
 };

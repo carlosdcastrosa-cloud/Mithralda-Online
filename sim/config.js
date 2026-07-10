@@ -1408,6 +1408,31 @@ export const WEAPON_BUFFS = {
   },
 };
 
+// CAS-1931 — ACUMULACIÓN DE ESTADOS (Status Buildup: Sangrado / Veneno / Escarcha). 21º pilar Souls-like.
+// 100% BORROW sobre el motor de status CAS-118 (applyStatus/tickDots/STATUS): en vez de aplicar el status AL INSTANTE,
+// cada golpe SUMA a un medidor OCULTO por tipo (ent.bld) que, al cruzar `threshold`, PROCEA un efecto en RÁFAGA (reusando
+// el MISMO applyStatus / hp-drain) y se resetea. El medidor DECAE `decayPerSec/s` si no se sostiene ⇒ recompensa presión,
+// castiga picotear. `elementMap` enruta cada fuente elemental on-hit YA existente (burn/slow/frost/poison) a un medidor;
+// el golpe físico melee alimenta `bleed` (tipo NUEVO, no está en STATUS ⇒ headline observable). Paridad enemigo→héroe por
+// el MISMO helper/tabla (damageHero choke). enabled:false ⇒ la reconversión CAE al applyStatus instantáneo original
+// (byte-idéntico a HEAD: 0 medidor, 0 tick, 0 proc, `bleed` inerte). 100% aritmética/timing ⇒ 0 RNG (sin buildupRng).
+// `ent.bld` transitorio (mirror `dots`/`slowT`) ⇒ fuera del allowlist de serializeSave ⇒ save.v1 byte-id sin clave bld*.
+// Números = FEEL/CEO, tunables sin rebuild.
+export const STATUS_BUILDUP = {
+  enabled: true,
+  decayPerSec: 14,          // el buildup drena esto/s si no se sostiene (castiga picotear; recompensa presión)
+  bossBuildMul: 0.55,       // jefes/élites (ent.isBoss) acumulan MÁS lento (mul sobre lo añadido) ⇒ umbral efectivo mayor
+  elementMap: { burn:"poison", slow:"frost", frost:"frost", poison:"poison" },   // físico melee ⇒ bleed (explícito en el sink)
+  types: {
+    // Sangrado: fed por físico melee; proc = ráfaga % HP máx del objetivo. HEADLINE observable en el loop.
+    bleed:  { threshold:100, build:16, procPctHp:0.14, bossProcPctHp:0.06, tint:"#d11e2e" },
+    // Veneno: fed por fuego/veneno reconvertido; proc = DoT poison fuerte N s (reusa STATUS.poison).
+    poison: { threshold:100, build:22, procDot:{dmg:7,dur:5.0},           tint:"#7bd14a" },
+    // Escarcha: fed por frost buff + hielo enemigo; proc = slow fuerte + drena estamina (héroe).
+    frost:  { threshold:100, build:26, procSlow:{amt:0.45,dur:2.2}, procStamDrain:22, tint:"#7fd3ff" },
+  },
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
