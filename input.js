@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -117,7 +117,9 @@ function onKeyDown(e){
   edge(e.code);
   // swallow the browser default for any key the game consumes (movement, a bound
   // play action, or the numeric attack alias) so scrolling / find-on-page don't fire.
-  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape") e.preventDefault();
+  // CAS-1847: suprime el default del navegador para la tecla de lock cuando está enabled (Tab mueve el foco del
+  // navegador si no se hace preventDefault). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
+  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key)) e.preventDefault();
 }
 function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md); }
 function edge(code){
@@ -253,6 +255,10 @@ function edge(code){
   // the feature off the key is inert (falls through, no state change). Not a rebindable action (deliberate, like
   // KeyH parry: never touches REBINDS/settings.binds ⇒ the attack button + settings snapshot stay byte-identical).
   if(code===COMBO.heavyKey && COMBO.enabled){ sim.heavyAttack(); return; }
+  // CAS-1847: dedicated LOCK_ON.key (default Tab) fija/cicla el ENFOQUE DE OBJETIVO — gated on LOCK_ON.enabled,
+  // so con la feature off la tecla es inerte (falls through, no state change). Not a rebindable action (deliberate,
+  // like KeyH parry / COMBO.heavyKey: never touches REBINDS/settings.binds). cycleLock es cross-platform.
+  if(code===LOCK_ON.key && LOCK_ON.enabled){ sim.cycleLock(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }

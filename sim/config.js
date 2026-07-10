@@ -1158,6 +1158,21 @@ export const STAMINA = {
   cost:{ dodge:25, parry:20, heavy:30, finisher:30, ability:25, ultimate:40 }
 };
 
+// CAS-1847: ENFOQUE DE OBJETIVO (Lock-On / Target Focus, 9ª feature Souls-like). Unifica los 8 pilares vivos
+// (Telegrafía/Esquiva/Parada/Habilidades/Poise/Combos/Backstab/Estamina) dándole al jugador control fino de
+// `facing` contra un objetivo elegido. Hoy `h.facing` sigue la dirección de MOVIMIENTO (sim.js:3294), así que
+// casi todo el combate reactivo (arco de Backstab, contra de Parada, orientación de Combos, todo swing melee)
+// depende de a-dónde-caminas. El Lock-On DESACOPLA `facing` del movimiento: con lock, un ÚNICO seam maestro
+// sobreescribe `h.facing` al objetivo cada frame (auto-encara) mientras `h.vx/h.vy` (desde `mv`) siguen intactos
+// ⇒ STRAFE automático. Selección por distancia (sort determinista, tie-break por índice) + override de ángulo:
+// geometría/input 100% PUROS ⇒ CERO draws, NO existe `lockOnRng` (nada que sembrar) ⇒ srand ON==OFF incluso con
+// el lock disparando de verdad. Estado TRANSITORIO del héroe (`lockTarget`/`lockCd`, mirror comboCount/stam,
+// fuera del allowlist de serializeSave) ⇒ save.v1 byte-id y SIN clave nueva. Reticle 100% procedural (canvas,
+// $0 arte). HARD-GATED: enabled:false ⇒ input inerte, sin override, sin reticle, sin estado ⇒ byte-idéntico a
+// HEAD; y sin pulsar la tecla ⇒ idéntico a hoy aun con la feature ON. `range`/`key` = decisión FEEL/BALANCE del
+// CEO (retune = edición de knob barata, mirror dash CAS-1814 / estamina CAS-1841).
+export const LOCK_ON = { enabled:true, key:"Tab", range:340, cycleCd:0.14, reticleCol:"#ffd15c" };
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

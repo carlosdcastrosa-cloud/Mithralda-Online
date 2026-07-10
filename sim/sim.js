@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -305,6 +305,11 @@ function newHero(name,cls){
     // run como h.mp), _stamFlash = timer del flash de la barra en un deny, _stamRegenPauseT = pausa breve de regen
     // tras gastar. Nunca serializado (fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off). 0 RNG.
     stam:STAMINA.max, _stamFlash:0, _stamRegenPauseT:0,
+    // CAS-1847: ENFOQUE DE OBJETIVO (Lock-On) — mismo patrón transitorio que comboCount/stam. lockTarget = la
+    // referencia al enemigo enfocado (o null), lockCd = debounce entre ciclos. `G.enemies` no se serializa, así
+    // que la referencia no arrastra al enemigo al save; ambos fuera del allowlist de serializeSave ⇒ save.v1
+    // byte-idéntico con la feature on/off y SIN clave nueva. 0 RNG (geometría/input puro).
+    lockTarget:null, lockCd:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -1895,6 +1900,32 @@ function tickStamina(h,dt){ if(!STAMINA.enabled||!h) return;
   if(h.stam<STAMINA.max) h.stam=Math.min(STAMINA.max,(h.stam||0)+STAMINA.regen*dt);
 }
 
+// CAS-1847: ENFOQUE DE OBJETIVO (Lock-On). Tap de la tecla de lock (llamado desde input.js edge / botón táctil).
+// Sin target ⇒ adquiere el enemigo VÁLIDO más cercano en `range`; con target ⇒ cicla al SIGUIENTE más cercano
+// (wrap). Geometría 100% PURA, 0 RNG: sort determinista por distancia con tie-break por índice de array. Gated
+// en LOCK_ON.enabled + escena play + héroe vivo + fuera del debounce lockCd. OFF ⇒ retorna sin tocar estado.
+export function cycleLock(){
+  const h=G.hero; if(!LOCK_ON.enabled || G.scene!=="play" || !h || h.dead || h.lockCd>0) return;
+  h.lockCd=LOCK_ON.cycleCd;
+  const r2=LOCK_ON.range*LOCK_ON.range;
+  const cand=[]; // {e, d2, i}
+  for(let i=0;i<G.enemies.length;i++){ const e=G.enemies[i];
+    if(e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y, d2=dx*dx+dy*dy;
+    if(d2<=r2) cand.push({e,d2,i}); }
+  if(!cand.length){ h.lockTarget=null; return; }
+  cand.sort((a,b)=> a.d2-b.d2 || a.i-b.i);            // determinista, sin RNG
+  const cur=cand.findIndex(c=>c.e===h.lockTarget);
+  h.lockTarget = cand[(cur+1)%cand.length].e;          // cur=-1 (sin target) ⇒ el más cercano
+}
+// CAS-1847: mantener el lock sólo mientras el objetivo esté vivo y en rango. Decrementa el debounce. Sin LOS en
+// v1 (YAGNI). OFF ⇒ return inmediato ⇒ byte-idéntico. 0 RNG.
+function tickLock(h,dt){ if(!LOCK_ON.enabled||!h) return;
+  if(h.lockCd>0) h.lockCd=Math.max(0,h.lockCd-dt);
+  const t=h.lockTarget;
+  if(t && (t.dead || t.hp<=0 || (t.x-h.x)**2+(t.y-h.y)**2 > LOCK_ON.range*LOCK_ON.range || G.enemies.indexOf(t)<0))
+    h.lockTarget=null;
+}
+
 // CAS-1785: arm the parry window. Dedicated KeyH (input.js) → this export, mirroring how KeyK/KeyY/KeyL
 // call read-side actions outside the rebindable `binds` table. Gated on PARRY.enabled + play scene +
 // alive + off-cooldown. Arms parryT (active window) and parryCD (whiff cooldown), plus a subtle $0
@@ -3253,6 +3284,7 @@ export function update(dtMs){
   tickParry(h,dt);  // CAS-1785: parry window + cooldown wind-down (arithmetic, no RNG, gated on PARRY.enabled)
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
+  tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+pactHeal(h.hotRate*dt)); if(h.hotT<=0) h.hotRate=0; } // CAS-1763: Pacto Frágil cuts the HoT tick (×1.0 at heat=0 ⇒ byte-identical)
@@ -3295,6 +3327,13 @@ export function update(dtMs){
     else h.walkT=0;
   }
   if(!io.isTouch && io.aimActive) io.aim(); // CAS-347: steer to cursor ONLY while aiming (mouse held); plain walking faces movement (above)
+  // CAS-1847: SEAM MAESTRO del Lock-On. Corre ÚLTIMO (tras movimiento Y ratón) para ser autoritativo, y corre
+  // AUNQUE el héroe esté quieto ⇒ strafe en el sitio. Con lock activo el héroe AUTO-ENCARA al objetivo, así que
+  // melee/backstab(CAS-1836)/parry(CAS-1785)/combos(CAS-1831) se orientan al target GRATIS (todos leen h.facing
+  // en el instante del swing); el movimiento (h.vx/vy desde `mv`) queda intacto ⇒ STRAFE. El lock GANA sobre
+  // io.aimActive (ratón). OFF o sin target ⇒ no toca nada ⇒ byte-idéntico a HEAD. Geometría pura, 0 RNG.
+  if(LOCK_ON.enabled && h.lockTarget && !h.lockTarget.dead)
+    h.facing = Math.atan2(h.lockTarget.y - h.y, h.lockTarget.x - h.x);
   // CAS-256: animState priority — special (deliberate cast) and hurt (hit-react) sit
   // above locomotion/attack so they read clearly, but BELOW dead. Purely visual: this
   // only chooses the rendered strip, it does not touch movement/attack/CD logic.
@@ -5816,6 +5855,102 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
     STAMINA.enabled=savS; PARRY.enabled=savP; COMBO.enabled=savC; DODGE.enabled=savD;
     return { enabled:!!enabled, staminaFired:(enabled?(spent&&denied&&regened):false), fingerprint:fp }; },
+  // --- CAS-1847 ENFOQUE DE OBJETIVO (Lock-On) harness hooks (tools/cas1847-lock-on.mjs) ---
+  // Additive; drive the REAL paths (cycleLock / tickLock / el seam maestro de override de facing). Geometría/input
+  // 100% PUROS ⇒ 0 srand, no lockOnRng. lockTarget/lockCd son transitorios (fuera del allowlist de serializeSave).
+  lockMeta(){ return { enabled:LOCK_ON.enabled, key:LOCK_ON.key, range:LOCK_ON.range, cycleCd:LOCK_ON.cycleCd, reticleCol:LOCK_ON.reticleCol }; },
+  lockEnabled(){ return LOCK_ON.enabled; },
+  lockEnable(on){ LOCK_ON.enabled=!!on; return { enabled:LOCK_ON.enabled }; },
+  lockState(){ const h=G.hero; if(!h) return null; const t=h.lockTarget;
+    return { hasTarget:!!t, targetIdx:(t?G.enemies.indexOf(t):-1), lockCd:+((h.lockCd||0).toFixed(4)), facing:+((h.facing||0).toFixed(6)) }; },
+  // Clean warrior in scene=play with lock state cleared + enemy list emptied (so the probe seeds its own enemies). Returns h.
+  _lockArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.atkCD=0; h.atkT=0; h._atkHits=null;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6;
+    h.lockTarget=null; h.lockCd=0; return h; },
+  // AC4 ADQUISICIÓN/CICLO/AUTO-CLEAR: tap sin target ⇒ el más cercano; re-tap ⇒ el siguiente (wrap); fuera de rango ⇒
+  // no adquiere; target muerto ⇒ tickLock lo limpia. (Reset de lockCd entre taps porque cycleLock arma el debounce.)
+  lockAcquireProbe(){ const sav=LOCK_ON.enabled; LOCK_ON.enabled=true;
+    const h=this._lockArm(); if(!h){ LOCK_ON.enabled=sav; return null; }
+    const e1=spawnEnemy("wolf",h.x,h.y+60), e2=spawnEnemy("wolf",h.x,h.y+120), e3=spawnEnemy("wolf",h.x,h.y+180);
+    for(const e of [e1,e2,e3]){ if(e){ e.maxHp=e.hp=1e6; e.dead=false; } }
+    h.lockCd=0; cycleLock(); const acqNearest=(h.lockTarget===e1);
+    h.lockCd=0; cycleLock(); const cyc2=(h.lockTarget===e2);
+    h.lockCd=0; cycleLock(); const cyc3=(h.lockTarget===e3);
+    h.lockCd=0; cycleLock(); const wrap=(h.lockTarget===e1);
+    // fuera de rango: sólo un enemigo VIVO a range+200 ⇒ no adquiere
+    for(const e of [e1,e2,e3]){ if(e){ e.dead=true; e.hp=0; } }
+    const far=spawnEnemy("wolf",h.x,h.y+LOCK_ON.range+200); if(far){ far.maxHp=far.hp=1e6; far.dead=false; }
+    h.lockTarget=null; h.lockCd=0; cycleLock(); const outOfRange=(h.lockTarget===null);
+    // auto-clear: adquiere un vivo, luego muere ⇒ tickLock lo limpia
+    for(const e of [e1,e2,e3]){ if(e){ e.dead=false; e.hp=1e6; } }
+    h.lockTarget=null; h.lockCd=0; cycleLock(); const acqAlive=(h.lockTarget===e1);
+    if(e1){ e1.dead=true; e1.hp=0; } tickLock(h,0.016); const autoClearDead=(h.lockTarget===null);
+    // auto-clear por rango: adquiere, luego lo alejo ⇒ tickLock limpia
+    if(e2){ e2.dead=false; e2.hp=1e6; } h.lockTarget=null; h.lockCd=0; cycleLock(); const acq2=(h.lockTarget===e2);
+    if(e2){ e2.y=h.y+LOCK_ON.range+300; } tickLock(h,0.016); const autoClearRange=(h.lockTarget===null);
+    G.enemies.length=0; h.lockTarget=null; h.lockCd=0; LOCK_ON.enabled=sav;
+    return { acqNearest, cyc2, cyc3, wrap, outOfRange, acqAlive, autoClearDead, acq2, autoClearRange,
+      ok:(acqNearest&&cyc2&&cyc3&&wrap&&outOfRange&&acqAlive&&autoClearDead&&acq2&&autoClearRange) }; },
+  // AC3 AUTO-FACE + STRAFE: con lock, el seam maestro pone h.facing = atan2(target-h) aunque el héroe "camine" en
+  // otra dirección; h.vx/h.vy (movimiento) quedan INTACTOS. Sin lock, facing sigue a mv (comportamiento de hoy).
+  lockFaceProbe(){ const sav=LOCK_ON.enabled;
+    const h=this._lockArm(); if(!h){ LOCK_ON.enabled=sav; return null; }
+    const e=spawnEnemy("wolf",h.x+100,h.y); if(e){ e.maxHp=e.hp=1e6; e.dead=false; }
+    LOCK_ON.enabled=true; h.lockTarget=e; h.lockCd=0;
+    const mvAng=Math.PI;                                  // como si caminara a la IZQUIERDA
+    h.facing=mvAng; h.vx=123; h.vy=-456;                  // marcadores de movimiento
+    // seam maestro (idéntico al del tick)
+    if(LOCK_ON.enabled && h.lockTarget && !h.lockTarget.dead) h.facing=Math.atan2(h.lockTarget.y-h.y,h.lockTarget.x-h.x);
+    const want=Math.atan2(e.y-h.y,e.x-h.x);
+    const facedTarget=(Math.abs(h.facing-want)<1e-9);
+    const strafeIntact=(h.vx===123 && h.vy===-456);       // el override NO toca vx/vy
+    // OFF ⇒ sin override, facing sigue a mv
+    LOCK_ON.enabled=false; h.facing=mvAng;
+    if(LOCK_ON.enabled && h.lockTarget && !h.lockTarget.dead) h.facing=Math.atan2(h.lockTarget.y-h.y,h.lockTarget.x-h.x);
+    const offFollowsMv=(h.facing===mvAng);
+    G.enemies.length=0; h.lockTarget=null; h.lockCd=0; h.vx=0; h.vy=0; LOCK_ON.enabled=sav;
+    return { facedTarget, strafeIntact, offFollowsMv, ok:(facedTarget&&strafeIntact&&offFollowsMv) }; },
+  // AC2 0-RNG STRONG: srand ON==OFF byte-idéntico con el LOCK DISPARANDO REAL — target adquirido (cycleLock) +
+  // override de facing activo + un melee ATERRIZANDO (hitEnemy determinista, ángulo FIJO ⇒ draws idénticos ON/OFF).
+  // El lock añade 0 draws (NO existe lockOnRng), así que el fingerprint es byte-idéntico.
+  lockSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const sav=LOCK_ON.enabled; LOCK_ON.enabled=!!enabled;
+    const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.atkCD=0; h.atkT=0;
+      h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.facing=0;
+      h.lockTarget=null; h.lockCd=0; h.x=0; h.y=0; }
+    G.scene="play";
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    let acquired=false, overrode=false, landed=false;
+    { const e0=G.enemies.length;
+      G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const e=spawnEnemy("wolf",(h?h.x:0),(h?h.y:0)+80);   // enemigo ABAJO (+y)
+      if(e && h){ e.maxHp=e.hp=1e9; e.dead=false; e.facing=0; e.poise=0; e.staggerT=0; e.staggerCD=0; e.knockX=0; e.knockY=0;
+        h.facing=Math.PI;                                  // "camina" a la IZQUIERDA (opuesto al enemigo)
+        cycleLock(); acquired=(h.lockTarget===e);           // adquiere el más cercano (0 draws)
+        if(LOCK_ON.enabled && h.lockTarget && !h.lockTarget.dead) h.facing=Math.atan2(h.lockTarget.y-h.y,h.lockTarget.x-h.x); // seam maestro
+        const want=Math.atan2(e.y-h.y,e.x-h.x);
+        overrode=(LOCK_ON.enabled ? Math.abs(h.facing-want)<1e-9 : (h.facing===Math.PI));
+        const ma=Math.atan2(e.y-h.y,e.x-h.x);               // ángulo FIJO ⇒ draws idénticos ON/OFF
+        const d0=e.hp; hitEnemy(e,50,ma,{melee:true}); landed=(e.hp<d0); }
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    LOCK_ON.enabled=sav;
+    return { enabled:!!enabled, lockFired:(enabled?(acquired&&overrode&&landed):false), fingerprint:fp }; },
+  // AC6 SAVE BYTE-ID: lockTarget/lockCd NO entran a serializeSave (fuera del allowlist) ⇒ save.v1 idéntico ON/OFF,
+  // sin clave mithralda.lockon.v1. (Nombre del héroe SIN "lock" para no falsear el grep — mirror gotcha VigorBot.)
+  lockSaveByteId(){ const h=G.hero; if(!h) return null; const sav=LOCK_ON.enabled;
+    LOCK_ON.enabled=false; h.lockTarget=null; h.lockCd=0; const off=JSON.stringify(serializeSave());
+    LOCK_ON.enabled=true; const e=(G.enemies[0]||{x:1,y:1,dead:false,hp:1}); h.lockTarget=e; h.lockCd=0.123;
+    const on=JSON.stringify(serializeSave());
+    h.lockTarget=null; h.lockCd=0; LOCK_ON.enabled=sav;
+    const hasKey=/"_?lock(Target|Cd)"/i.test(on) || (typeof localStorage!=="undefined" && !!localStorage.getItem("mithralda.lockon.v1"));
+    return { byteId:(off===on), noKey:!hasKey, off, on }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

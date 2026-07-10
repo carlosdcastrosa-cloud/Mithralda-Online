@@ -275,6 +275,7 @@ export const STR = {
   stagger: "¡ATURDIDO!",                             // CAS-1826: postura BREAK banner — the tier enemy is staggered (bonus-dmg window)
   execute: "¡REMATE!",                               // CAS-1831: the anti-Stagger REMATADOR banner — a melee hit punishes a staggered enemy (×extra dmg)
   backstab: "¡POR LA ESPALDA!",                      // CAS-1836: the POSITIONAL crit banner — a MELEE hit through the enemy's rear arc. Sinergia: rodar (Esquiva) tras un enemigo COMPROMETIDO (telegraph/lunge/carga/STAGGER) habilita el crítico posicional.
+  lockOnHint: "Tab: fija/cicla el objetivo — con lock, el héroe orbita en strafe y todos los ataques se orientan al enemigo enfocado.", // CAS-1847: ayuda del Enfoque de Objetivo (Lock-On)
   levelUp: (n) => "¡Subiste al nivel " + n + "!",
   redSkull: "¡Calavera roja! Penalización de muerte aumentada.",
   pickedUp: (t) => "Recogiste: " + t,
