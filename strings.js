@@ -277,6 +277,9 @@ export const STR = {
   backstab: "¡POR LA ESPALDA!",                      // CAS-1836: the POSITIONAL crit banner — a MELEE hit through the enemy's rear arc. Sinergia: rodar (Esquiva) tras un enemigo COMPROMETIDO (telegraph/lunge/carga/STAGGER) habilita el crítico posicional.
   lockOnHint: "Tab: fija/cicla el objetivo — con lock, el héroe orbita en strafe y todos los ataques se orientan al enemigo enfocado.", // CAS-1847: ayuda del Enfoque de Objetivo (Lock-On)
   flaskHint: "U bebe del Frasco: cura parte de tu vida pero te enraíza y expone ~0.75s; moverte/atacar/rodar cancela el trago sin gastarlo; las cargas se rellenan al cambiar de zona.", // CAS-1854: ayuda del Frasco de Curación (Estus)
+  bloodstainRecovered: "¡ESENCIA RECUPERADA!",       // CAS-1867: volviste a la Mancha de Sangre y recuperaste la Esencia en riesgo
+  bloodstainLost: "Tu esencia se ha desvanecido…",   // CAS-1867: moriste antes de recuperar la mancha anterior ⇒ su Esencia se perdió para siempre
+  bloodstainHint: "Al morir, la Esencia del run queda como una Mancha de Sangre en el punto de muerte. Vuelve a la zona y camina sobre ella para recuperarla; muere antes y la pierdes para siempre.", // CAS-1867: ayuda de la Mancha de Sangre (Corpse-Run)
   levelUp: (n) => "¡Subiste al nivel " + n + "!",
   redSkull: "¡Calavera roja! Penalización de muerte aumentada.",
   pickedUp: (t) => "Recogiste: " + t,
