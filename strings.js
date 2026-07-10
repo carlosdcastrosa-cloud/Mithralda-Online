@@ -273,6 +273,7 @@ export const STR = {
   riposte: "¡CASTIGO!",                              // CAS-210: the perfect-dodge → counter payoff banner
   parry: "¡PARADA!",                                 // CAS-1785: the timing-parry negate + counter banner
   stagger: "¡ATURDIDO!",                             // CAS-1826: postura BREAK banner — the tier enemy is staggered (bonus-dmg window)
+  execute: "¡REMATE!",                               // CAS-1831: the anti-Stagger REMATADOR banner — a melee hit punishes a staggered enemy (×extra dmg)
   levelUp: (n) => "¡Subiste al nivel " + n + "!",
   redSkull: "¡Calavera roja! Penalización de muerte aumentada.",
   pickedUp: (t) => "Recogiste: " + t,
