@@ -1527,6 +1527,23 @@ export function createRenderer(ctx){
         ctx.restore();
       }
     }
+    else if(f.kind==="telegraphline"){ // CAS-1820 directional LUNGE lane tell — presentation only (sim spawns it ONLY for a lunge-special windup, so knob OFF ⇒ this fx never exists). Wedge along the LOCKED facing ⇒ "step out of the lane". k=remaining life ⇒ brightens toward the strike instant.
+      const a=f.ang||0, len=f.len||120, w=f.w||16;
+      const ux=Math.cos(a), uy=Math.sin(a), px=-uy, py=ux;   // unit forward + left-normal
+      const w0=w, w1=w*0.6;                                  // slight taper toward the tip
+      ctx.save();
+      ctx.globalAlpha=0.10+0.18*k; ctx.fillStyle="#b3242a";  // translucent lane fill (matches the ground-mark red)
+      ctx.beginPath();
+      ctx.moveTo(f.x+px*w0, f.y+py*w0);
+      ctx.lineTo(f.x+ux*len+px*w1, f.y+uy*len+py*w1);
+      ctx.lineTo(f.x+ux*len-px*w1, f.y+uy*len-py*w1);
+      ctx.lineTo(f.x-px*w0, f.y-py*w0);
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha=0.35+0.4*Math.abs(Math.sin(G.t*14)); ctx.strokeStyle="#ff5230"; ctx.lineWidth=2; // pulsing edges
+      ctx.beginPath(); ctx.moveTo(f.x+px*w0,f.y+py*w0); ctx.lineTo(f.x+ux*len+px*w1,f.y+uy*len+py*w1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(f.x-px*w0,f.y-py*w0); ctx.lineTo(f.x+ux*len-px*w1,f.y+uy*len-py*w1); ctx.stroke();
+      ctx.restore();
+    }
     else if(f.kind==="strikeflash"){ ctx.globalAlpha=k*0.9; ctx.strokeStyle="#dbeeff"; ctx.lineWidth=4; // CAS-211 (d): cold blue-white, FOUNTAINS signal-lock
       if(f.range){ ctx.beginPath(); ctx.arc(f.x,f.y,(f.range)*(0.6+sw*0.5),(f.ang||0)-0.7,(f.ang||0)+0.7); ctx.stroke(); }
       ctx.globalAlpha=k; ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*10+2,0,6.28); ctx.fill(); ctx.globalAlpha=1; }

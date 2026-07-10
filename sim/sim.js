@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -106,6 +106,14 @@ const affixRng = createRNG(0x0a771c5e);
 // without it (AC1 [AC-RNG-STRONG]); at ANY setting the shared srand is provably untouched. Like the other
 // dedicated streams, seed() does NOT reset it — the harness neutralises via ZONE5.enabled=false.
 const zone5Rng = createRNG(0xca1de5a0);
+// CAS-1819/1820 — DEDICATED enemy-abilities stream (distinct seed 0x0ab111a7; NOT one of the used seeds
+// 0x1a2b3c4d/0x5e75c0de/0x117a1a7e/0xa5e4a000/0xe7e40a1d/0x3c9a7b21/0x4d0b7e15/0x0a771c5e/0xca1de5a0). The
+// telegraphed enemy specials (A1 lunge, A2 slam) are CADENCE-deterministic (fire on e.atkCount % every) and
+// draw ZERO srand — so the shared authoritative stream is byte-identical ON==OFF. Any OPTIONAL variance
+// (e.g. angle jitter) would come ONLY from here, never srand. HARD-GATED behind ENEMY_ABILITIES.enabled: with
+// the knob off no special is assigned and no draw happens ⇒ sim byte-identical to a build without it. Like the
+// other dedicated streams, seed() does NOT reset it — the harness neutralises via ENEMY_ABILITIES.enabled=false.
+const abilityRng = createRNG(0x0ab111a7);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -3211,8 +3219,14 @@ function armTelegraph(e){
   const burstR =
       (e.isBoss && ((e.phase+1)%2===0)) ? 118 :               // boss alt-strike ground-wave
       (e.capstone && e.enraged && e.slam) ? 108 :             // capstone enraged slam
-      (e.specialNow && e.special && e.special.slam) ? 96 : 0; // champion special slam
+      (e.specialNow && e.special && e.special.slam) ? (e.special.slam.radius||96) : 0; // champion / CAS-1820 brute-élite special slam (radius param)
   if(burstR>0) addFx("telegraphmark", e.x, e.y, { life, r:burstR, ground:1, oy:(e.tpl.size||16)*0.4 });
+  // CAS-1820 A1 — directional LUNGE lane tell: a procedural wedge (addFx only, 0 RNG) drawn along the facing
+  // FROZEN at windup entry, so a sidestep OUT of the lane reads. Only for a lunge-special windup (⇒ present
+  // only when ENEMY_ABILITIES assigned the lunge; with the knob OFF this branch is never reached).
+  if(e.specialNow && e.special && e.special.lunge){
+    addFx("telegraphline", e.x, e.y, { life, ang:e.facing, len:(e.special.lunge.distance||140), w:(e.tpl.size||16)*1.1+8 });
+  }
 }
 // CAS-1790 harness helper: clean arena + one enemy parked INSIDE its own range so the REAL AI commits
 // chase→windup on the next tick(s). `heavy` = flags to graft (elite/isBoss/…). Drives updateEnemies (the
@@ -3317,7 +3331,7 @@ function updateEnemies(dt){ const h=G.hero;
             // CAS-109: every Nth Champion strike is a telegraphed radial SLAM — a longer
             // windup (the growing-ring tell in render) then a ring of shards instead of
             // the melee hit. Punishes face-tanking; readable + dodgeable with the roll.
-            e.specialNow = !!(e.special && e.special.slam && (e.atkCount % e.special.every === 0));
+            e.specialNow = !!(e.special && (e.special.slam || e.special.lunge) && (e.atkCount % e.special.every === 0)); // CAS-1820: lunge shares the same cadence choke as slam
             // CAS-321 warlock hybrid: pick CLAW vs CAST by distance the instant the attack
             // commits — outside `meleeR` it zaps (castNow → "cast" strip + bolt), inside it claws.
             e.castNow = (e.tpl.arch==="warlock") && (d > (e.tpl.meleeR||50));
@@ -3336,7 +3350,7 @@ function updateEnemies(dt){ const h=G.hero;
     } else if(e.state==="windup"){
       // CAS-126 charger COMMITS its facing at windup start — it does NOT track, so the
       // charge lane is fixed and the player can sidestep it (the whole point of the tell).
-      e.st-=dt; if(e.tpl.arch!=="charger") e.facing=Math.atan2(h.y-e.y,h.x-e.x);
+      e.st-=dt; if(e.tpl.arch!=="charger" && !(e.specialNow && e.special && e.special.lunge)) e.facing=Math.atan2(h.y-e.y,h.x-e.x); // CAS-1820: a lunge special LOCKS its facing at windup (like a charger) ⇒ sidestep the lane
       // CAS-210: FOUNTAINS-style windup charge tell — pulsing ring that grows from orange→red.
       // fxRng-based so purely cosmetic (no sim determinism impact).
       e._windupT=(e._windupT||0)+dt; if(e._windupT>=0.11){ e._windupT=0;
@@ -3344,7 +3358,7 @@ function updateEnemies(dt){ const h=G.hero;
       if(e.st<=0){ e.state="strike";
         // strike-window length per archetype: rusher lunge + charger charge need a longer
         // window for the dash to read/travel; everyone else lands on the "now!" instant.
-        e.st=(e.specialNow)?0.12:(e.tpl.arch==="charger")?0.36:(e.tpl.arch==="rusher")?0.2:0.12;
+        e.st=(e.specialNow)?((e.special&&e.special.lunge)?0.2:0.12):(e.tpl.arch==="charger")?0.36:(e.tpl.arch==="rusher")?0.2:0.12; // CAS-1820: lunge special needs the longer dash window to travel/read
         // CAS-447: a boss/champion swing carries an audible whoosh at the COMMIT — the
         // telegraph reads by ear even when the hit is dodged (specials keep their windup roar).
         if(e.isBoss||e.champion||e.capstone){ audio.sfx.bossAtk&&audio.sfx.bossAtk(); }
@@ -3372,10 +3386,20 @@ function updateEnemies(dt){ const h=G.hero;
       // growing ring during windup was the tell — clear the radius or it was already dead)
       // and SELF-DESTRUCTS. Handled at the top so it never reaches the melee/lunge branches.
       if(e.tpl.arch==="volatile"){ detonateVolatile(e); continue; }
+      // CAS-1820 A1 EMBESTIDA TELEGRAFIADA: a special directional LUNGE — dash straight along the facing
+      // LOCKED at windup (the heavy ring + the lane wedge were the tell). Contact ⇒ damageHero(dmg,ang,infl,e)
+      // with src=e ⇒ PARABLE (KeyH) and EVADIBLE by dash i-frames; sidestepping the lane avoids it. Mirrors
+      // the rusher lunge geometry but reads the special's own distance/dmg. 0 RNG (moveEnt + damageHero only).
+      if(e.specialNow && e.special && e.special.lunge){ const L=e.special.lunge;
+        const lspd=(L.distance||140)/0.2; moveEnt(e,Math.cos(e.facing)*lspd*dt,Math.sin(e.facing)*lspd*dt,e.tpl.size*0.6);
+        if(!e.hitDone && d<=e.tpl.size+e.tpl.range*0.5){ e.hitDone=true;
+          const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(L.dmg,a,L.infl||e.tpl.infl,e); // src=e ⇒ parable + evadible
+          addFx("spark",e.x+Math.cos(a)*14,e.y+Math.sin(a)*14); }
+      }
       // CAS-115 rusher LUNGE: dash forward through the whole strike window (the telegraph
       // was the windup), landing a single contact hit when it reaches the hero. Closing
       // the gap IS the attack — sidestepping the lunge line avoids it.
-      if(e.tpl.arch==="rusher" && !e.specialNow){
+      else if(e.tpl.arch==="rusher" && !e.specialNow){
         const lspd=(e.tpl.lunge||110)/0.2; moveEnt(e,Math.cos(e.facing)*lspd*dt,Math.sin(e.facing)*lspd*dt,e.tpl.size*0.6);
         if(!e.hitDone && d<=e.tpl.size+e.tpl.range*0.5){ e.hitDone=true;
           const a=Math.atan2(h.y-e.y,h.x-e.x); damageHero(e.tpl.dmg,a,e.tpl.infl,e); // CAS-247: pass src for Vampiric leech-on-hit
@@ -3523,6 +3547,28 @@ function ambushSpawnPos(zone){ const r=world[zone]; const h=G.hero; const R=AMBU
     if(!solidBlocked(x,y,16)) return {x,y}; }
   return {x:h.x+R[0], y:h.y};
 }
+// CAS-1820 — mount ONE telegraphed special on a freshly-promoted ÉLITE, chosen by its archetype family,
+// reusing the live special.slam / windup→strike machinery. The ONLY new-behaviour site: called from the
+// spawn/promotion path wrapped in `if(ENEMY_ABILITIES.enabled)`, so with the knob OFF nothing is assigned
+// ⇒ the strike never reaches the new lunge/slam branches ⇒ sim byte-identical to HEAD. Never stomps a
+// pre-existing special (champion/boss slams stay untouched). Assignment is pure data (0 RNG); the specials
+// fire on a deterministic cadence (e.atkCount % every) ⇒ 0 srand draws. `e.special` is transient entity
+// run-state (not serialized) ⇒ save byte-identical. Reversible in one line (the knob).
+function armAbility(e){
+  if(!e || e.special || e.isBoss || e.champion) return;       // don't override an existing special
+  const arch=e.tpl && e.tpl.arch;
+  if(arch==="rusher"){                                        // A1 — directional lunge on a rusher-family élite
+    const L=ENEMY_ABILITIES.lunge;
+    e.special={ every:L.every, windup:L.windup,
+      lunge:{ distance:L.distance, dmg:Math.round((e.tpl.dmg||0)*L.dmgMul), windup:L.windup, infl:e.tpl.infl||null } };
+    e.atkCount=0; e.specialNow=false;
+  } else if(arch==="brute"){                                  // A2 — radial ground-slam on a brute-family élite
+    const S=ENEMY_ABILITIES.slam;
+    e.special={ every:S.every, windup:S.windup,
+      slam:{ count:S.count, spd:S.spd, dmg:Math.round((e.tpl.dmg||0)*S.dmgMul), life:S.life, radius:S.radius } };
+    e.atkCount=0; e.specialNow=false;
+  }
+}
 // Erupt the ambush: a zone-scaled trash pack + one promoted ELITE leader, telegraphed loudly
 // (warning toast + sting + spawn rings). The elite keeps its archetype telegraph so the fight
 // stays readable; its reward tier comes from the kill zone's ZONE_LOOT (deeper zone = richer).
@@ -3539,6 +3585,7 @@ function spawnAmbush(zone){
       size:Math.round(b.size*E.sizeMul), knock:Math.round(b.knock*E.knockMul), xp:Math.round(b.xp*E.xpMul) });
     e.hp=e.maxHp=e.tpl.hp; e.elite=true; e.state="chase"; e.zone=zone; e.fromAmbush=true;
     e.rwdTier=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier; e.rwdMinR=E.minR; e.rwdGold=E.goldBonus;
+    if(ENEMY_ABILITIES.enabled) armAbility(e); // CAS-1820: rusher-family élite → A1 lunge, brute-family → A2 slam (HARD-GATED)
     for(let i=0,n=rmCount(10);i<n;i++) addFx("flame",e.x+frr(-24,24),e.y+frr(-24,24)); addFx("poof",p.x,p.y); }
   A.active=true; A.t=AMBUSH.cooldown;
   audio.sfx.boss(); shakeAdd(9); toast(STR.ambush(zone),3.2);
@@ -5075,6 +5122,95 @@ export const dev = {
     TELEGRAPH.enabled=true;  const onStr=JSON.stringify(serializeSave());
     TELEGRAPH.enabled=sav;
     return { byteId:offStr===onStr, hasKey:/"?telegraph"?:/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
+  // --- CAS-1819/1820 HABILIDADES ESPECIALES TELEGRAFIADAS (enemy abilities) harness hooks (tools/cas1819-abilities.mjs); additive, drive the REAL updateEnemies/damageHero paths ---
+  // Static config off the data (no sim step): the single knob's live values.
+  abilityMeta(){ return { enabled:ENEMY_ABILITIES.enabled, lunge:ENEMY_ABILITIES.lunge, slam:ENEMY_ABILITIES.slam }; },
+  abilityEnabled(){ return ENEMY_ABILITIES.enabled; },
+  abilityEnable(on){ ENEMY_ABILITIES.enabled=!!on; return { enabled:ENEMY_ABILITIES.enabled }; },
+  // Spawn `type` as an ambush-style ÉLITE and mount its archetype ability (gated on the live knob).
+  _abilityArm(type){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; if(!h) return null; h.dead=false; h.rolling=false; h.iframe=0; h.parryT=0; h.parryCD=0; h.maxHp=1e6; h.hp=1e6; h.cls="warrior";
+    const e=spawnEnemy(type, h.x+20, h.y); if(!e) return null;
+    e.maxHp=e.hp=1e9; e.elite=true; e.state="chase";
+    if(ENEMY_ABILITIES.enabled) armAbility(e);
+    return e; },
+  // Align the cadence so the NEXT committed attack is the special, then drive the REAL AI chase→windup→strike.
+  // Returns the enemy parked at the strike instant (slam shards already emitted; lunge not yet dashed).
+  _abilityToStrike(e){ const h=G.hero; if(!e||!h||!e.special) return e;
+    e.atkCount=e.special.every-1; const R=Math.max(8,(e.tpl.range||40)-4);
+    let steps=0; while(e.state!=="strike" && steps++<400){ e.x=h.x+R; e.y=h.y; e.knockX=0; e.knockY=0; updateEnemies(1/60); if(e.hp<=0) break; }
+    return e; },
+  _abilityResetHero(){ const h=G.hero; if(!h) return; h.iframe=0; h.rolling=false; h.parryT=0; h.parryCD=0; h._parryRiposte=0; h.dead=false; h.hp=h.maxHp; },
+  // AC-assign: armAbility maps a rusher-family élite → A1 lunge, a brute-family élite → A2 slam, and any
+  // OTHER archetype → NO special; with the knob OFF nothing is ever assigned (byte-identical spawn).
+  abilityAssignProbe(){ const sav=ENEMY_ABILITIES.enabled; ENEMY_ABILITIES.enabled=true; const h=G.hero; const out={};
+    const mk=(type)=>{ if(!h) return null; const e0=G.enemies.length; const e=spawnEnemy(type,h.x+20,h.y); if(!e) return null; e.elite=true; armAbility(e);
+      const r={ arch:e.tpl.arch, hasLunge:!!(e.special&&e.special.lunge), hasSlam:!!(e.special&&e.special.slam),
+        every:e.special?e.special.every:0, dmg:e.special?(e.special.lunge?e.special.lunge.dmg:e.special.slam.dmg):0 }; G.enemies.length=e0; return r; };
+    out.rusher=mk("wolf"); out.brute=mk("orc"); out.caster=mk("mage");
+    ENEMY_ABILITIES.enabled=false; if(h){ const e0=G.enemies.length; const e=spawnEnemy("wolf",h.x+20,h.y); if(e){ e.elite=true; if(ENEMY_ABILITIES.enabled) armAbility(e); out.offRusher={ arch:e.tpl.arch, hasSpecial:!!e.special }; } G.enemies.length=e0; }
+    ENEMY_ABILITIES.enabled=sav; return out; },
+  // AC-A1: drive a rusher élite to its telegraphed LUNGE. Proves the directional tell + heavy ring spawn, and
+  // the contact routes through damageHero with src=e ⇒ PARABLE (KeyH) and EVADIBLE by dash i-frames.
+  abilityLungeProbe(){ const sav=ENEMY_ABILITIES.enabled; ENEMY_ABILITIES.enabled=true;
+    const e=this._abilityArm("wolf"); if(!e){ ENEMY_ABILITIES.enabled=sav; return null; }
+    const hasLunge=!!(e.special && e.special.lunge); this._abilityToStrike(e);
+    const laneTell=G.fx.some(f=>f.kind==="telegraphline"), heavyRing=G.fx.some(f=>f.kind==="telegraphmark"&&!f.ground);
+    const h=G.hero, L=e.special.lunge, ang=Math.atan2(h.y-e.y,h.x-e.x); e.hp=1e9;
+    // BASELINE: the contact lands (real damageHero, src=e).
+    this._abilityResetHero(); const b0=h.hp; const baseRet=damageHero(L.dmg,ang,L.infl,e); const landed=Math.round(b0-h.hp);
+    // DODGE: a roll i-frame negates the SAME contact (src=e evadible por i-frames).
+    this._abilityResetHero(); h.iframe=0.3; h.rolling=true; const i0=h.hp; const iRet=damageHero(L.dmg,ang,L.infl,e); const iframeDmg=Math.round(i0-h.hp);
+    // PARRY: a live parry window negates it + fires a counter (src=e ⇒ PARABLE).
+    const savP=PARRY.enabled; PARRY.enabled=true; this._abilityResetHero(); h.parryT=PARRY.windowMs/1000; const eh0=e.hp; const p0=h.hp;
+    const pRet=damageHero(L.dmg,ang,L.infl,e); const parryDmg=Math.round(p0-h.hp); const countered=e.hp<eh0; PARRY.enabled=savP;
+    ENEMY_ABILITIES.enabled=sav;
+    return { hasLunge, laneTell, heavyRing, dmg:L.dmg, landed, baseLanded:baseRet===true,
+      negatedByIframe:iRet===false&&iframeDmg===0, negatedByParry:pRet===false&&parryDmg===0, countered }; },
+  // AC-A2: drive a brute élite to its telegraphed radial SLAM. Proves the shards emit (count from config),
+  // the ground ring radius comes from the knob, shards are src=null ⇒ NOT parryable but EVADIBLE by i-frames.
+  abilitySlamProbe(){ const sav=ENEMY_ABILITIES.enabled; ENEMY_ABILITIES.enabled=true;
+    const e=this._abilityArm("orc"); if(!e){ ENEMY_ABILITIES.enabled=sav; return null; }
+    const hasSlam=!!(e.special && e.special.slam), S=e.special.slam; this._abilityToStrike(e);
+    const shards=G.projectiles.filter(p=>p.enemy && p.kind==="rune");
+    const gm=G.fx.find(f=>f.kind==="telegraphmark"&&f.ground); const ringRadius=gm?Math.round(gm.r):0;
+    const srcNull=shards.every(p=>p.src===undefined);   // slam projectiles carry no src ⇒ damageHero(...,null)
+    const h=G.hero;
+    // baseline: a shard-equivalent lands (src=null path).
+    this._abilityResetHero(); const b0=h.hp; const baseRet=damageHero(S.dmg,0,null); const landed=Math.round(b0-h.hp);
+    // DODGE: an i-frame negates the shard (universal choke).
+    this._abilityResetHero(); h.iframe=0.3; h.rolling=true; const i0=h.hp; const iRet=damageHero(S.dmg,0,null); const iframeDmg=Math.round(i0-h.hp);
+    // PARRY: does NOT catch a shard (src=null) ⇒ still lands (proves ranged shards are not parryable).
+    const savP=PARRY.enabled; PARRY.enabled=true; this._abilityResetHero(); h.parryT=PARRY.windowMs/1000; const p0=h.hp; const pRet=damageHero(S.dmg,0,null); const parryDmg=Math.round(p0-h.hp); PARRY.enabled=savP;
+    ENEMY_ABILITIES.enabled=sav;
+    return { hasSlam, shardCount:shards.length, expectShards:S.count, ringRadius, cfgRadius:ENEMY_ABILITIES.slam.radius,
+      srcNull, landed, negatedByIframe:iRet===false&&iframeDmg===0, notParryable:pRet===true&&parryDmg>0 }; },
+  // AC-RNG-STRONG: fingerprint the gameplay srand around REAL ability FIRINGS (A1 lunge + A2 slam), ENEMY_ABILITIES
+  // ON vs OFF. Assignment is pure data and the specials are cadence-deterministic (no srand, any variance only from
+  // abilityRng), so the shared srand stream is BYTE-IDENTICAL ON==OFF while the abilities do/don't fire. Both branches
+  // spawn the SAME enemies (only the assignment/firing differs), so the draw sequence is identical. 2*probeN draws.
+  abilitySrandProbe(enabled, seedVal, probeN, fire){ probeN=Math.max(4,probeN|0);
+    const sav=ENEMY_ABILITIES.enabled; ENEMY_ABILITIES.enabled=!!enabled; const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.iframe=0; h.parryT=0; h.maxHp=1e6; h.hp=1e6; h.cls="warrior"; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    let lungeFired=false, slamFired=false;
+    if(fire!==false && h){ const e0=G.enemies.length, p0=G.projectiles.length, f0=G.fx.length;
+      const eL=this._abilityArm("wolf"); if(eL){ this._abilityToStrike(eL);
+        if(eL.special && eL.special.lunge){ eL.x=h.x+eL.tpl.size*0.5; eL.y=h.y; eL.hitDone=false; h.hp=h.maxHp; const hpL=h.hp; updateEnemies(1/60); lungeFired=(eL.hitDone||h.hp<hpL); } }
+      const eS=this._abilityArm("orc"); if(eS){ this._abilityToStrike(eS); slamFired=G.projectiles.some(p=>p.enemy&&p.kind==="rune"); }
+      G.enemies.length=e0; G.projectiles.length=p0; G.fx.length=f0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    ENEMY_ABILITIES.enabled=sav;
+    return { enabled:!!enabled, lungeFired:(enabled?lungeFired:false), slamFired:(enabled?slamFired:false), fingerprint:fp }; },
+  // AC-SAVE: e.special is transient enemy run-state, never serialized. Mount a hot ability on a live élite and
+  // toggle the knob: save.v1 bytes are byte-identical ON/OFF and carry NO ability key. Mirror of telegraphSaveByteId.
+  abilitySaveByteId(){ const sav=ENEMY_ABILITIES.enabled; const h=G.hero;
+    ENEMY_ABILITIES.enabled=false; const offStr=JSON.stringify(serializeSave());
+    ENEMY_ABILITIES.enabled=true; let hot=false; const e0=G.enemies.length;
+    if(h){ const e=spawnEnemy("wolf", h.x+20, h.y); if(e){ e.elite=true; armAbility(e); e.atkCount=e.special?e.special.every-1:0; e.specialNow=true; hot=!!(e.special&&e.special.lunge); } }
+    const onStr=JSON.stringify(serializeSave()); G.enemies.length=e0; ENEMY_ABILITIES.enabled=sav;
+    return { byteId:offStr===onStr, hotSpecial:hot, hasKey:/"?(lunge|abilit)[a-z]*"?:/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

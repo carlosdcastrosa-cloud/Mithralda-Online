@@ -1063,6 +1063,25 @@ export const DODGE = {
   distance:92,      // px de impulso ≈ rollSpeed×rollTime actual (86px); neutro
 };
 
+// CAS-1819/1820 — HABILIDADES ESPECIALES TELEGRAFIADAS PARA ENEMIGOS. NO es un sistema nuevo: monta 2
+// ataques especiales telegrafiados sobre la maquinaria VIVA (special.slam radial + la IA windup→strike +
+// armTelegraph + el choke damageHero). Al promover un ÉLITE de ambush, por su FAMILIA de arquetipo, se le
+// asigna UN `special`: rusher→A1 embestida direccional (lunge), brute→A2 golpe de suelo radial (slam).
+// HARD-GATED: enabled:false ⇒ 0 asignaciones nuevas ⇒ el strike jamás alcanza las ramas nuevas ⇒ sim +
+// save byte-idénticos a HEAD (reversible en 1 línea). Cadencia-determinista (e.atkCount % every ⇒ 0 draws
+// del srand principal; abilityRng 0x0ab111a7 dedicado para cualquier varianza opcional) ⇒ srand ON==OFF.
+// `e.special` vive en la entidad (run-state transitorio, NO serializado igual que los slams de jefe) ⇒
+// save.v1 byte-idéntico sin tocar el esquema. Lead-time ≥ TELEGRAPH.leadMs (heredado por armTelegraph).
+export const ENEMY_ABILITIES = {
+  enabled:true,
+  // A1 embestida direccional (familia rusher élite): dash recto por el facing BLOQUEADO en windup; contacto
+  // ⇒ damageHero(src=e) ⇒ parable (KeyH) Y evadible por i-frames Y evitable saliendo del carril.
+  lunge:{ every:3, windup:0.5, distance:150, dmgMul:1.5 },
+  // A2 golpe de suelo radial (familia brute élite): reusa special.slam; shards src=null ⇒ NO parables pero
+  // evadibles rodando / saliendo del anillo. `radius` dimensiona el anillo de suelo telegrafiado.
+  slam:{ every:4, windup:0.9, count:12, spd:170, dmgMul:1.15, life:1.1, radius:104 },
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
