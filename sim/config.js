@@ -1203,6 +1203,29 @@ export const FLASK = { enabled:true, key:"KeyU", charges:3, healPct:0.40, drinkM
 // corre igual, sin marcador, sin store ⇒ byte-idéntico a HEAD. `lossPct`/`recoverRadius` = decisión FEEL/BALANCE del CEO.
 export const BLOODSTAIN = { enabled:true, lossPct:1.0, recoverRadius:32, markerColor:"#8b0000" };
 
+// CAS-1873: ESCUDO / BLOQUEO CON GUARDIA (Shield Block, 12º pilar · el DEFENSIVO faltante). Mantener el bloqueo
+// (hold ShiftLeft / botón táctil hold) levanta la guardia en un ARCO FRONTAL. Un golpe MELEE entrante por el frente
+// se MITIGA (no niega) y consume ESTAMINA (CAS-1841) proporcional al daño absorbido; agotar la estamina en un bloqueo
+// dispara RUPTURA DE GUARDIA = el mismo `h.stun` STAGGERED de CAS-1826 (ventana punible). NO da i-frames, NO niega
+// ranged (src=null lo salta, igual que Parry), melee+frontal-only. Distinto de Parada (CAS-1785, timing counter):
+// sostenido, trade de recurso. Estado TRANSITORIO (`h.blocking`, mirror stam; guard-break reusa `h.stun` que YA
+// existe y YA está fuera del allowlist de serializeSave) ⇒ save.v1 byte-id y SIN clave nueva. 100% input/geometría/
+// aritmética ⇒ CERO draws, NO existe `blockRng` ⇒ srand ON==OFF incluso con el bloqueo/ruptura disparando de verdad.
+// Guardia dibujada con canvas primitives (arco/tinte, $0 arte). HARD-GATED: enabled:false ⇒ input inerte, sin
+// h.blocking, rama de damageHero muerta, sin arco/botón ⇒ byte-idéntico a HEAD; sin pulsar ⇒ idéntico a hoy con la
+// feature ON. Los NÚMEROS + `key` = decisión FEEL/BALANCE del CEO (retune = knob barato, mirror dash/estamina/estus).
+// Decisión de tecla (CTO): las 26 letras ocupadas + right-click=aim ⇒ `ShiftLeft` (hold, libre en todo el repo,
+// semántica de "brace"); móvil = botón HUD hold. CEO retunea por knob en el Gate.
+export const SHIELD_BLOCK = {
+  enabled:true,
+  key:"ShiftLeft",   // HOLD para levantar la guardia (desktop); móvil = botón HUD hold (mirror tb.flask)
+  frontArcDeg:150,   // cono frontal que cubre la guardia (espejo frontal de BACKSTAB.rearArcDeg sobre h.facing)
+  mitigate:0.65,     // fracción del daño MELEE frontal ABSORBIDA (0.65 ⇒ pasa el 35%); mitigación, NO negación
+  stamPerDmg:0.6,    // estamina (CAS-1841) consumida por punto de daño absorbido
+  breakStunS:0.9,    // ruptura de guardia ⇒ h.stun segundos (REUSA el STAGGERED de CAS-1826)
+  moveMul:0.55,      // velocidad de strafe con la guardia arriba (gateado; OFF/no-bloqueando ⇒ sin efecto)
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
