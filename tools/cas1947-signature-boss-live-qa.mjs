@@ -1,18 +1,20 @@
 // ===========================================================================
-// CAS-1950 (QA for CAS-1947) — LIVE QA: JEFE FIRMA MULTI-FASE (SIGNATURE_BOSS, 22º pilar Souls-like).
-// Verifica el build CAS-1948 (deployado por CAS-1949) sobre la URL canónica gh-pages.
-// PASS x2 (desktop+mobile). Mirror de tools/cas1931-status-buildup-live-qa.mjs.
+// CAS-1952 (QA POST-SHIP for CAS-1947) — LIVE OBSERVABLE QA: JEFE FIRMA MULTI-FASE
+// (SIGNATURE_BOSS, 22º pilar / capstone Souls-like).
 //
-// Feature: Jefe Firma multi-fase (calderatyrant en Caldera). Fase 1 baseline, Fase 2 @ ≤50% HP
-// (transición con flash+ventana vulnerabilidad ×1.5 daño + stun breve), poise-break que premia combos,
-// status buildup (frost/bleed) al héroe CAPEADO (cap=70) via damageHero→addBuildup, drop garantizado
-// +200 Esencia al matar. $0 arte: glyph procedural en barra de jefe.
+// Verifica el build LIVE (5cc1b10af498) sobre la URL canónica gh-pages. A diferencia de
+// una verificación byte/seam, esta corrida DRIVES THE REAL SIM LOOP: summona el jefe firma
+// (calderatyrant en la Caldera) vía `dev.armHunt("caldera")` → mismo spawnChampion de prod,
+// baja su HP con `dev.setChampHp`, avanza frames con el `update()` exportado, y OBSERVA:
+//   1. Fase 1 → Fase 2 al cruzar 50% HP + ventana de vulnerabilidad (×1.5 daño) medida en vivo.
+//   2. Specials por fase disparan (p1 slam=14 shards; p2 slam=18 + aplica frost al héroe).
+//   3. GUARDRAIL: buildup de ailments al héroe CAPEADO (cap 70) — nunca one-shot (héroe sobrevive).
+//   4. Poise-break del jefe lo aturde (ejerce combos del kit).
+//   5. Recompensa al matar: +200 Esencia + drop rareza garantizada `rare`.
+// Lección durable: deploy byte-correcto != mecánica observable ⇒ aquí se OBSERVA en loop real.
 //
 //   node tools/cas1947-signature-boss-live-qa.mjs [URL]
 //   default URL = https://carlosdcastrosa-cloud.github.io/Mithralda-Online/
-//
-// Blobs tocados (leer de `git show --stat` del Build commit):
-//   sim/config.js, sim/sim.js, render/render.js
 // ===========================================================================
 import puppeteer from "puppeteer-core";
 import { findChromium, LAUNCH_ARGS } from "./harness.mjs";
@@ -22,7 +24,7 @@ import { execSync } from "node:child_process";
 
 const BASE = (process.argv[2] || "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/").replace(/\/$/, "");
 const FILES = ["sim/config.js", "sim/sim.js", "render/render.js"];
-const OUT = "shots/cas1950"; fs.mkdirSync(OUT, { recursive: true });
+const OUT = "shots/cas1952"; fs.mkdirSync(OUT, { recursive: true });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const md5 = (s) => crypto.createHash("md5").update(s).digest("hex");
 const REF = process.env.BLD_REF || "HEAD";
@@ -49,6 +51,75 @@ async function pollBuild(headHashes, tries = 16, gap = 5000) {
 let pass = 0, fail = 0;
 function ok(label, cond) { if (cond) { pass++; console.log("  ✓ " + label); } else { fail++; console.error("  ✗ " + label); } }
 
+// Drive the REAL sim loop through the build's dedicated SIGNATURE_BOSS dev hooks (the same ones
+// tools/cas1947-signature-boss.mjs used at build time). Each hook summons the genuine Caldera
+// capstone via spawnChampion (no shortcut around windup→strike/special AI or the reward path),
+// teleports it clear of world geometry, and drives updateEnemies()/hitEnemy()/damageHero()/
+// killEnemy() for a directly OBSERVABLE measurement.
+async function driveObservable(page) {
+  return await page.evaluate(async () => {
+    const R = { steps: {}, err: null };
+    try {
+      const mod = await import(new URL("sim/sim.js", location.href).href);
+      const cfg = await import(new URL("sim/config.js", location.href).href);
+      const { G, dev, createHero } = mod;
+      const SB = cfg.SIGNATURE_BOSS;
+      if (!SB || !SB.enabled) { R.err = "SB off/absent"; return R; }
+      if (!dev._sbArm) { R.err = "dedicated _sb dev hooks absent on live"; return R; }
+
+      // --- boot a real run so G.hero exists; default procedural world has the caldera zone (ZONE5 on) ---
+      if (!G.hero) createHero("SBQA", "warrior");
+      G.scene = "play";
+
+      R.steps.meta = dev.sbMeta();
+
+      // (A) Phase-1 baseline: arm the REAL boss ON.
+      const arm = dev._sbArm(true);
+      R.steps.arm = arm;
+
+      // (C) Phase transition <=50% HP (HEADLINE) — real updateEnemies tick, once, no rebound.
+      R.steps.forcePhase2 = dev._sbForcePhase2();
+      // (B/C) boss now phase 2 — read the mutated moveset
+      R.steps.p2snap = dev._sbBossSnap();
+
+      // (D) Vuln ×transitionVulnMul measured (baseline vs windowed, same 100 raw dmg).
+      R.steps.vuln = dev._sbVulnProbe();
+
+      // (E) Specials fire per phase: re-arm for a clean phase-1 slam, then phase-2 slam + frost infl.
+      dev._sbArm(true);
+      R.steps.slam_p1 = dev._sbFireSpecial();          // phase 1 → 14 shards
+      dev._sbForcePhase2();
+      R.steps.slam_p2 = dev._sbFireSpecial();          // phase 2 → 18 shards + frost(_sb) infl
+
+      // (F) GUARDRAIL: hero ailment feed CAPPED (never procs in one Erupción ⇒ NO one-shot); dodge negates.
+      dev._sbArm(true); dev._sbForcePhase2();
+      R.steps.heroFeed = dev._sbHeroFeed();
+      // (F-reg) Pilar-21 regression: a NON-sig-boss frost feed to the hero is NOT globally capped.
+      R.steps.genericFeed = dev._sbGenericFeedUncapped();
+
+      // (G) Poise-break: phase-2 poiseMul scales the ceiling; crossing it opens a poiseBreakStunMs stagger.
+      // Force the REAL transition first so _sbPoiseMul is populated (only the transition sets it), then probe.
+      dev._sbArm(true); dev._sbForcePhase2();
+      R.steps.poise = dev._sbPoiseProbe();
+      // (G-kit) backstab: rear-arc melee lands the positional crit (exercises the kit vs the boss).
+      R.steps.backstab = dev._sbBackstabProbe();
+
+      // (H) Reward: kill the marked boss → +essenceBonus banked + >=1 guaranteed high-rarity drop.
+      dev._sbArm(true);
+      R.steps.reward = dev._sbRewardProbe();
+
+      // (I) Guardrails motor: RNG-STRONG (srand ON==OFF) + save byte-id (no _sb keys serialized).
+      const seedV = 1234567;
+      const on = dev._sbSrandProbe(true, seedV, 8);
+      const off = dev._sbSrandProbe(false, seedV, 8);
+      R.steps.srand = { on, off, fpEqual: JSON.stringify(on.fingerprint) === JSON.stringify(off.fingerprint) };
+      R.steps.saveByteId = dev._sbSaveByteId();
+
+      return R;
+    } catch (e) { R.err = (e && e.message) || String(e); R.stack = e && e.stack; return R; }
+  });
+}
+
 async function runPass(label, isMobile) {
   console.log(`\n${"=".repeat(60)}\n${label}\n${"=".repeat(60)}`);
   const headHashes = {};
@@ -60,183 +131,90 @@ async function runPass(label, isMobile) {
   ok("pollBuild OK (todos los blobs)", poll.ok);
   console.log("  build live:", poll.build);
 
+  // ---- static knob/seam checks (fast, still valuable) ----
+  const cfgText = poll.text["sim/config.js"] || "";
+  ok("SIGNATURE_BOSS knob en config live (enabled:true)", cfgText.includes("SIGNATURE_BOSS") && /enabled:\s*true/.test(cfgText));
+  ok("boss: calderatyrant en config", cfgText.includes('boss: "calderatyrant"'));
+  ok("phase2HpPct: 0.5 en config", cfgText.includes("phase2HpPct: 0.5"));
+  const simText = poll.text["sim/sim.js"] || "";
+  ok("OFF-gate spawnChampion (SIGNATURE_BOSS.enabled && zone===)", simText.includes("SIGNATURE_BOSS.enabled && zone===SIGNATURE_BOSS.zone"));
+  ok("OFF-gate vuln mul en hitEnemy", simText.includes("SIGNATURE_BOSS.enabled && e._sbVuln"));
+  ok("OFF-gate ailment feed capeado en damageHero (infl._sb)", simText.includes("SIGNATURE_BOSS.enabled && infl._sb"));
+  ok("OFF-gate reward en killEnemy", simText.includes("SIGNATURE_BOSS.enabled && e._sbPhase!==undefined"));
+  ok("poise-break stun wired (poiseBreakStunMs/1000)", simText.includes("SIGNATURE_BOSS.poiseBreakStunMs/1000"));
+
   const chromePath = await findChromium();
-  const browser = await puppeteer.launch({ executablePath: chromePath, args: LAUNCH_ARGS,
-    ...(isMobile ? {} : {}) });
+  const browser = await puppeteer.launch({ executablePath: chromePath, args: LAUNCH_ARGS });
   const page = await browser.newPage();
   if (isMobile) await page.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
   else await page.setViewport({ width: 1280, height: 800 });
+  const jsErrors = [];
+  page.on("pageerror", (e) => jsErrors.push(e.message));
 
-  await page.goto(BASE + "/?map=seed", { waitUntil: "networkidle2", timeout: 30000 });
+  await page.goto(BASE + "/", { waitUntil: "networkidle2", timeout: 30000 });
   await wait(2000);
 
-  // ---- knob check ----
-  console.log("\n[KNOB] Verificando knob SIGNATURE_BOSS en config live...");
-  const knob = await page.evaluate(() => {
-    if(typeof sim === "undefined") return null;
-    const cfg = sim.G ? (window._simConfig || null) : null;
-    // try global access
-    try {
-      const m = document.querySelector("script[type=module]");
-      return null; // can't read from here directly
-    } catch { return null; }
-  });
-  // Use a different approach: check the config.js text
-  const cfgText = poll.text["sim/config.js"] || "";
-  ok("SIGNATURE_BOSS knob en config live", cfgText.includes("SIGNATURE_BOSS") && cfgText.includes("enabled: true"));
-  ok("boss: calderatyrant en config", cfgText.includes('"calderatyrant"') || cfgText.includes("'calderatyrant'") || cfgText.includes("boss:\"calderatyrant\"") || cfgText.includes("boss: \"calderatyrant\""));
-  ok("phase2HpPct: 0.5 en config", cfgText.includes("phase2HpPct: 0.5") || cfgText.includes("phase2HpPct:0.5"));
-  ok("p2.slamInfl en config", cfgText.includes("slamInfl"));
-  ok("ailmentsToHero.cap en config", cfgText.includes("ailmentsToHero"));
-  ok("rewards.essenceBonus en config", cfgText.includes("essenceBonus"));
+  console.log("\n[DRIVE] Observable real-loop drive (dedicated _sb dev hooks)...");
+  const R = await driveObservable(page);
+  console.log(JSON.stringify(R, null, 1));
 
-  const simText = poll.text["sim/sim.js"] || "";
-  ok("_sbPhase en sim.js", simText.includes("_sbPhase"));
-  ok("_sbTransT en sim.js", simText.includes("_sbTransT"));
-  ok("transitionVulnMul en sim.js", simText.includes("transitionVulnMul"));
-  ok("ailmentsToHero.cap en sim.js (cap buildup)", simText.includes("ailmentsToHero.cap"));
-  ok("bossRng stream en sim.js", simText.includes("bossRng"));
-
-  const renderText = poll.text["render/render.js"] || "";
-  ok("SIGNATURE_BOSS en render.js (glyph import)", renderText.includes("SIGNATURE_BOSS"));
-  ok("_sbPhase en render.js (indicador fase)", renderText.includes("_sbPhase"));
-  ok("FASE II en render.js (glyph texto)", renderText.includes("FASE II"));
-
-  // ---- sim probe (dev hooks) ----
-  console.log("\n[SIM] Probe via dev hooks...");
-  const probe = await page.evaluate(async () => {
-    try {
-      const simUrl = document.querySelector('script[type=module]')?.src ||
-                     new URL("sim/sim.js", location.href).href;
-      const mod = await import(new URL("sim/sim.js", location.href).href);
-      const cfgMod = await import(new URL("sim/config.js", location.href).href);
-      const SB = cfgMod.SIGNATURE_BOSS;
-      const G = mod.G;
-      if (!SB) return { err: "SIGNATURE_BOSS not exported" };
-
-      // AC8: srand ON==OFF check via determinism export
-      const det = mod.determinism ? mod.determinism() : null;
-
-      return {
-        sbEnabled: SB.enabled,
-        sbBoss: SB.boss,
-        sbZone: SB.zone,
-        phase2HpPct: SB.phase2HpPct,
-        transitionVulnMul: SB.transitionVulnMul,
-        phases_p1_every: SB.phases.p1.specialEvery,
-        phases_p2_every: SB.phases.p2.specialEvery,
-        phases_p2_infl: SB.phases.p2.slamInfl && SB.phases.p2.slamInfl.type,
-        cap: SB.ailmentsToHero && SB.ailmentsToHero.cap,
-        essenceBonus: SB.rewards && SB.rewards.essenceBonus,
-        guaranteedRarity: SB.rewards && SB.rewards.guaranteedRarity,
-        det,
-      };
-    } catch(e) { return { err: e.message }; }
-  });
-  console.log("  probe:", JSON.stringify(probe));
-
-  if (probe && !probe.err) {
-    ok("SIGNATURE_BOSS.enabled=true", probe.sbEnabled === true);
-    ok("boss=calderatyrant", probe.sbBoss === "calderatyrant");
-    ok("zone=caldera", probe.sbZone === "caldera");
-    ok("phase2HpPct=0.5", probe.phase2HpPct === 0.5);
-    ok("transitionVulnMul=1.5", probe.transitionVulnMul === 1.5);
-    ok("p1.specialEvery=3", probe.phases_p1_every === 3);
-    ok("p2.specialEvery=2 (más agresivo)", probe.phases_p2_every === 2);
-    ok("p2.slamInfl.type=frost", probe.phases_p2_infl === "frost");
-    ok("ailmentsToHero.cap=70", probe.cap === 70);
-    ok("rewards.essenceBonus=200", probe.essenceBonus === 200);
-    ok("rewards.guaranteedRarity=rare", probe.guaranteedRarity === "rare");
-  } else {
-    ok("sim probe ejecutado", false);
+  if (R.err) { ok("observable drive ejecutado sin error: " + R.err, false); }
+  else {
+    const s = R.steps;
+    // (A) phase-1 baseline via the REAL spawnChampion
+    ok("(A) jefe firma summoned + marcado (_sbPhase!==undefined)", !!s.arm && s.arm.sbMarked === true);
+    ok("(A) Fase 1 baseline: phase=1", s.arm.phase === 1);
+    ok("(A) Fase 1 special: every=3", s.arm.special && s.arm.special.every === 3);
+    ok("(A) Fase 1 special: slamCount=14", s.arm.special && s.arm.special.slamCount === 14);
+    ok("(A) meta: boss=calderatyrant zone=caldera", s.meta.boss === "calderatyrant" && s.meta.zone === "caldera");
+    // (C) transition (HEADLINE)
+    const fp2 = s.forcePhase2;
+    ok("(C) HEADLINE Fase 1→2 al cruzar 50% HP", fp2.phaseBefore === 1 && fp2.phaseAfter === 2);
+    ok("(C) ventana vuln abierta (_sbVuln=true)", fp2.vuln === true);
+    ok(`(C) _sbTransT abre = transitionWindowMs (${fp2.transT}s ≈ ${fp2.expectWindow}s)`, Math.abs(fp2.transT - fp2.expectWindow) < 0.02);
+    ok("(C) transición dispara stun breve de fase", fp2.stun > 0);
+    ok("(C) transición ocurre UNA vez (no re-abre en 2º cruce)", fp2.reOpened === false);
+    ok("(C) Fase 2 moveset: special.every=2", s.p2snap.special.every === 2);
+    ok("(C) Fase 2 moveset: slamCount=18", s.p2snap.special.slamCount === 18);
+    ok("(C) Fase 2 slam aplica frost (inflType=frost, _sb)", s.p2snap.special.inflType === "frost" && s.p2snap.special.inflSb === true);
+    // (D) vuln x1.5 measured
+    ok(`(D) daño vuln = ×${s.vuln.expect} (ratio=${s.vuln.ratio}: ${s.vuln.winDmg} vs ${s.vuln.baseDmg})`, s.vuln.ok === true);
+    // (E) specials fire per phase
+    ok(`(E) Fase 1 slam EMITE 14 shards (count=${s.slam_p1.count})`, s.slam_p1.fired === true && s.slam_p1.count === 14);
+    ok(`(E) Fase 2 slam EMITE 18 shards (count=${s.slam_p2.count})`, s.slam_p2.fired === true && s.slam_p2.count === 18);
+    ok("(E) Fase 2 shard lleva frost(_sb) al héroe", s.slam_p2.infl && s.slam_p2.infl.type === "frost" && s.slam_p2.infl.sb === true);
+    // (F) GUARDRAIL cap + no one-shot (CRITICAL)
+    const hf = s.heroFeed;
+    ok(`(F) buildup héroe CAPEADO ≤${hf.cap} (meter=${hf.meter}, fed/hit=${hf.fedPerHit}×20)`, hf.capped === true);
+    ok("(F) CRÍTICO: cap < umbral proc ⇒ NUNCA procs en un Erupción ⇒ NO one-shot", hf.belowThreshold === true && hf.noOneShot === true);
+    ok("(F) esquiva/i-frame NIEGA el feed (dodge counterplay)", hf.dodgedNoFeed === true);
+    ok("(F) heroFeed probe OK global", hf.ok === true);
+    ok("(F-reg) Pilar-21 intacto: feed NO-jefe NO capeado (proc alcanza)", s.genericFeed.ok === true);
+    // (G) poise-break stun 1200ms + backstab kit
+    const pp = s.poise;
+    ok(`(G) Fase 2 escala poiseMax (pm1=${pp.pm1}→pm2=${pp.pm2}=round(base×${s.meta.phases.p2.poiseMul}))`, pp.scaled === true);
+    ok(`(G) poise-break ATURDE ${s.meta.poiseBreakStunMs}ms (staggerT=${pp.staggerT}s ≈ ${pp.expectDur}s)`, pp.durOk === true);
+    ok(`(G-kit) backstab rear-arc golpea más fuerte (rear=${s.backstab.rearDmg} > front=${s.backstab.frontDmg})`, s.backstab.ok === true);
+    // (H) reward
+    ok(`(H) recompensa +${s.reward.essBonus} Esencia (gain=${s.reward.essGain})`, s.reward.essOk === true);
+    ok(`(H) drop rareza garantizada ≥${s.meta.rewards.guaranteedRarity} (${JSON.stringify(s.reward.rarities)})`, s.reward.hasGuaranteed === true);
+    // (I) engine guardrails
+    ok(`(I) RNG-STRONG: srand ON==OFF (fingerprint idéntico; transFired=${s.srand.on.transFired} slamFired=${s.srand.on.slamFired})`, s.srand.fpEqual === true);
+    ok(`(I) SAVE byte-id ON==OFF sin claves _sb (byteId=${s.saveByteId.byteId}, noSbKey=${s.saveByteId.noSbKey})`, s.saveByteId.ok === true);
   }
 
-  // ---- fase transition probe ----
-  console.log("\n[FASE] Probe fase 1→2...");
-  const faseProbe = await page.evaluate(async () => {
-    try {
-      const mod = await import(new URL("sim/sim.js", location.href).href);
-      const cfgMod = await import(new URL("sim/config.js", location.href).href);
-      const SB = cfgMod.SIGNATURE_BOSS; const G = mod.G;
-      if (!SB || !SB.enabled) return { err: "SB off" };
+  ok("boot sin errores JS", jsErrors.length === 0);
+  if (jsErrors.length) console.error("  JS errors:", jsErrors.slice(0, 5));
 
-      // Save + quiesce state
-      const enemies_save = G.enemies; const proj_save = G.projectiles;
-      const fields_save = G.fields; const fx_save = G.fx;
-      const hero_save = G.hero; const scene_save = G.scene;
-      try {
-        G.enemies = []; G.projectiles = []; G.fields = []; G.fx = [];
-        // create a fake signature boss entity
-        const e = {
-          type: SB.boss, zone: SB.zone, isBoss: false, champion: true,
-          hp: 1000, maxHp: 1000, tpl: { hp:1000, dmg:30, spd:50, size:40, windup:1.0, recover:0.8 },
-          state:"chase", _sbPhase:1, _sbTransT:0, _sbVuln:false,
-          special:{ every:3, windup:1.0, slam:{ count:14, spd:180, dmg:24, life:1.2 } },
-          _sbPoiseBase:280, stun:0, staggerT:0, staggerCD:0, _poiseDecayT:0, poise:0, poiseMax:0,
-          dead:false, hurtFlash:0, slowT:0, bld:null, dots:null, slow:1,
-          x:200, y:200, vx:0, vy:0, facing:0, wt:0, knockX:0, knockY:0, wanderX:200, wanderY:200, wanderT:0,
-          gaitPhase:0, animState:"idle", animT:0, phase:0
-        };
-        G.enemies.push(e);
-        G.scene = "play";
-
-        // bajar HP a umbral de fase 2
-        const phaseThreshold = Math.floor(e.maxHp * SB.phase2HpPct) - 1;
-        e.hp = phaseThreshold;
-
-        // run one frame of updateEnemies-equivalent: check fase transition
-        // We can't call updateEnemies directly, but we can check the transition logic manually
-        // by checking what sim exports (dev hooks)
-        const phBefore = e._sbPhase;
-        if(mod.__hooks && mod.__hooks.tickEnemy) mod.__hooks.tickEnemy(e, 1/60);
-
-        return {
-          phBefore,
-          phAfter: e._sbPhase,
-          vulnAfter: e._sbVuln,
-          transT: e._sbTransT,
-          p2Every: e.special && e.special.every,
-          p2SlamCount: e.special && e.special.slam && e.special.slam.count,
-        };
-      } finally {
-        G.enemies = enemies_save; G.projectiles = proj_save;
-        G.fields = fields_save; G.fx = fx_save;
-        G.hero = hero_save; G.scene = scene_save;
-      }
-    } catch(e) { return { err: e.message }; }
-  });
-  console.log("  fase probe:", JSON.stringify(faseProbe));
-  const hooksRan = faseProbe && !faseProbe.err && faseProbe.phAfter !== undefined && faseProbe.phAfter !== faseProbe.phBefore;
-  if(hooksRan){
-    ok("fase transición 1→2 al cruzar umbral", faseProbe.phAfter === 2);
-    ok("_sbVuln=true en ventana", faseProbe.vulnAfter === true);
-    ok("p2.special.every=2 aplicado", faseProbe.p2Every === 2);
-  } else {
-    console.log("  → __hooks.tickEnemy no disponible; verificando seams por texto");
-    ok("fase transition seam: _sbPhase===1→_sbPhase=2 en sim.js", simText.includes("_sbPhase===1") && simText.includes("_sbPhase=2"));
-    ok("fase vuln seam: _sbTransT en sim.js (ventana vulnerabilidad)", simText.includes("_sbTransT") && simText.includes("transitionWindowMs"));
-    ok("fase p2 moveset: special.every aplicado a fase2", simText.includes("p2.specialEvery") || simText.includes("phases.p2"));
-  }
-
-  // ---- OFF byte-id check ----
-  console.log("\n[OFF] Byte-idéntico verificado vía texto...");
-  ok("SIGNATURE_BOSS gated en spawnChampion (OFF ⇒ no _sb*)", simText.includes("SIGNATURE_BOSS.enabled && zone===SIGNATURE_BOSS.zone"));
-  ok("vuln mul gated en hitEnemy (OFF ⇒ ×1)", simText.includes("SIGNATURE_BOSS.enabled && e._sbVuln"));
-  ok("cap gated en damageHero (OFF ⇒ noop)", simText.includes("SIGNATURE_BOSS.enabled && h.bld"));
-  ok("reward gated en killEnemy (OFF ⇒ noop)", simText.includes("SIGNATURE_BOSS.enabled && e._sbPhase!==undefined"));
-
-  // ---- screenshot ----
   await page.screenshot({ path: `${OUT}/${isMobile ? "mobile" : "desktop"}_game.png` });
   console.log(`  screenshot: ${OUT}/${isMobile ? "mobile" : "desktop"}_game.png`);
-
   await browser.close();
 }
 
-// Run ×2: desktop + mobile
 await runPass("PASS 1 — Desktop", false);
 await runPass("PASS 2 — Mobile", true);
 
 console.log("\n" + "=".repeat(60));
-console.log(`CAS-1950 SIGNATURE_BOSS live QA: ${pass} pass, ${fail} fail`);
+console.log(`CAS-1952 SIGNATURE_BOSS OBSERVABLE live QA: ${pass} pass, ${fail} fail`);
 if (fail > 0) { console.error("FAIL"); process.exit(1); }
 else console.log("PASS");
