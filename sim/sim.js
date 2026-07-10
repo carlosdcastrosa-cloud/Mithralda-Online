@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -310,6 +310,11 @@ function newHero(name,cls){
     // que la referencia no arrastra al enemigo al save; ambos fuera del allowlist de serializeSave ⇒ save.v1
     // byte-idéntico con la feature on/off y SIN clave nueva. 0 RNG (geometría/input puro).
     lockTarget:null, lockCd:0,
+    // CAS-1854: FRASCO DE CURACIÓN (Estus) — recurso transitorio (mirror comboCount/stam/lockTarget). flaskCharges =
+    // cargas restantes (refill a tope al cambiar de zona), flaskDrinkT = timer del canal enraizado (>0 = bebiendo,
+    // root + vulnerable), flaskZone = última zona vista para detectar la transición del refill. Fuera del allowlist
+    // de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG (curación 100% timing/input).
+    flaskCharges:FLASK.charges, flaskDrinkT:0, flaskZone:null,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -1549,6 +1554,7 @@ export function loadSave(d){
       h.metaApplied={ hp:Math.max(0,num(ma.hp,0)), dmg:Math.max(0,num(ma.dmg,0)), gold:Math.max(0,num(ma.gold,0)), spdLv:Math.max(0,Math.floor(num(ma.spdLv,0))) }; }
     reconcileMeta(h);
     h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max;   // always respawn at full (CAS-1841: vigor a tope, mirror mp)
+    if(FLASK.enabled){ h.flaskCharges=FLASK.charges; h.flaskDrinkT=0; h.flaskZone=null; }   // CAS-1854: Estus a tope al arrancar run (gated ⇒ OFF byte-id)
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -1926,6 +1932,42 @@ function tickLock(h,dt){ if(!LOCK_ON.enabled||!h) return;
     h.lockTarget=null;
 }
 
+// CAS-1854: FRASCO DE CURACIÓN — pulsar-para-beber (llamado desde input.js edge / botón táctil). Arranca el canal
+// enraizado; NO consume la carga aquí — se consume al COMPLETARSE el canal en tickFlask. Cancelar antes ⇒ 0 coste.
+// Requiere: feature ON, escena play, héroe vivo, carga disponible, no ya bebiendo, no rodando/aturdido, y hp < máx
+// (no desperdicia un trago a vida llena). 0 RNG. OFF ⇒ retorna sin tocar estado ⇒ byte-idéntico.
+export function drinkFlask(){
+  const h=G.hero;
+  if(!FLASK.enabled || G.scene!=="play" || !h || h.dead) return false;
+  if(h.flaskDrinkT>0 || h.flaskCharges<=0 || h.rolling || h.stun>0 || h.hp>=heroMaxHp(h)) return false;
+  h.flaskDrinkT = FLASK.drinkMs/1000;   // arranca el canal enraizado + vulnerable
+  return true;
+}
+// CAS-1854: avanza el canal (llamado junto a tickStamina/tickLock, gated). Al terminar consume 1 carga y cura
+// round(heroMaxHp·healPct) ruteado por pactHeal (respeta healCut del Pacto Frágil; ×1.0 sin pacto ⇒ byte-id),
+// clamp a máx. Refill al cambiar de zona (descanso): flaskZone arranca en null ⇒ la PRIMERA lectura sólo siembra la
+// zona (no recarga). 0 RNG (aritmética/timing puros). OFF ⇒ return inmediato ⇒ byte-idéntico.
+function tickFlask(h,dt){
+  if(!FLASK.enabled||!h) return;
+  if(FLASK.refillOnZone){ const z=zoneOf(world,h.x,h.y);
+    if(h.flaskZone!==null && z!==h.flaskZone) h.flaskCharges=FLASK.charges;   // transición de zona ⇒ recarga
+    h.flaskZone=z; }
+  if(h.flaskDrinkT>0){ h.flaskDrinkT-=dt;
+    if(h.flaskDrinkT<=0){ h.flaskDrinkT=0;
+      if(h.flaskCharges>0){ h.flaskCharges--;
+        const heal=Math.max(1,Math.round(pactHeal(heroMaxHp(h)*FLASK.healPct)));
+        h.hp=Math.min(heroMaxHp(h), h.hp+heal); floater(h.x,h.y-30,"+"+heal,"#5fd66a"); audio.sfx.heal&&audio.sfx.heal(); } } }
+}
+// CAS-1854: FUENTE ÚNICA del root/cancel de movimiento del Estus — llamada desde el bloque de movimiento de update()
+// Y desde el harness (dev.flask*), así el test ejercita el código REAL. Bebiendo con input de movimiento + cancelOnAction
+// ⇒ ABORTA el trago sin gastar carga y devuelve mv intacto (deja pasar el movimiento); bebiendo sin cancelar ⇒ devuelve
+// [0,0] ⇒ el bloque de movimiento pone vx=vy=0/moved=false (ENRAIZADO). OFF o no bebiendo ⇒ mv intacto ⇒ byte-idéntico.
+function flaskMoveGate(h, mv){
+  if(!FLASK.enabled || !h || h.flaskDrinkT<=0) return mv;
+  if(FLASK.cancelOnAction && (mv[0]||mv[1])){ h.flaskDrinkT=0; return mv; }
+  return [0,0];
+}
+
 // CAS-1785: arm the parry window. Dedicated KeyH (input.js) → this export, mirroring how KeyK/KeyY/KeyL
 // call read-side actions outside the rebindable `binds` table. Gated on PARRY.enabled + play scene +
 // alive + off-cooldown. Arms parryT (active window) and parryCD (whiff cooldown), plus a subtle $0
@@ -1940,7 +1982,11 @@ export function tryParry(){ const h=G.hero;
 
 // ------------------------------ combat ---------------------------------
 function heroAttack(){
-  const h=G.hero; if(h.atkCD>0||h.rolling||h.stun>0) return; // CAS-118: stun gates the swing
+  const h=G.hero;
+  // CAS-1854: Estus — atacar mientras se bebe CANCELA el trago sin gastar carga (cancelOnAction); si no, el
+  // `||flaskDrinkT>0` de abajo ENRAIZA (el trago es no-interrumpible ⇒ no ataca). OFF ⇒ ambas ramas inertes ⇒ byte-id.
+  if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;
+  if(h.atkCD>0||h.rolling||h.stun>0||(FLASK.enabled&&h.flaskDrinkT>0)) return; // CAS-118: stun gates the swing
   tutMark("atk"); // CAS-128: a real swing teaches the attack step
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const dmg=equippedDmg(h)*cfg.dmgMul;
@@ -1979,7 +2025,9 @@ function heroAttack(){
 // HARD-GATED: COMBO.enabled=false or a ranged/nova class ⇒ no-op ⇒ the normal attack + chain are untouched (byte-id).
 // Mirror of heroAttack's melee branch; reuses the existing swing anim/fx (longer `life` ⇒ heavier read), $0 art.
 export function heavyAttack(){
-  const h=G.hero; if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0) return; // CAS-118 stun gate, same as heroAttack
+  const h=G.hero;
+  if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: el pesado cancela el trago (sin coste); si no, enraiza vía el gate
+  if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0)) return; // CAS-118 stun gate, same as heroAttack
   const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                        // v1: heavy is a melee-only power swing
   if(!spendStam(h,STAMINA.cost.heavy)) return;   // CAS-1841: el pesado cuesta vigor (OFF ⇒ true, byte-id)
   tutMark("atk");
@@ -2632,7 +2680,9 @@ function onNeutralKill(){ const s=G.skull; s.kills++; s.killT=90;
 // Read live off the equipped instances (0 when no unique) → un-equipped cd is byte-identical.
 function cdrFactor(h){ const c=Math.min(60, (h&&h.tt?h.tt.cdr:0) + uniqTotals(h).abilCdr + setTotals(h).abilCdr); return 1 - c/100; } // CAS-1654: Erudito set (−10% CD at 3pz) joins under the same 60% cap
 export function castSpell(i){
-  const h=G.hero; if(h.rolling||h.stun>0) return; // CAS-118: stun gates casting
+  const h=G.hero;
+  if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: castear cancela el trago (sin coste); si no, enraiza vía el gate
+  if(h.rolling||h.stun>0||(FLASK.enabled&&h.flaskDrinkT>0)) return; // CAS-118: stun gates casting
   if(i===0){ heroAttack(); return; }
   const list=SPELLS[h.cls||"warrior"]; let sp=list && list[i-1];
   if(!sp) return;
@@ -3208,7 +3258,9 @@ export function forgeUpgrade(slot){ const h=G.hero; if(!h) return false;
 // only h.mats. Daily contracts add mats through applyMetaReward (the meta-reward seam).
 function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n|0); }
 
-export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return;
+export function doRoll(){ const h=G.hero;
+  if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: rodar cancela el trago (sin coste); si no, enraiza vía el gate
+  if(h.rolling||h.rollCD>0||(FLASK.enabled&&h.flaskDrinkT>0)) return;
   if(!spendStam(h,STAMINA.cost.dodge)) return;   // CAS-1841: la esquiva es una acción de PODER — cuesta vigor (OFF ⇒ true, byte-id)
   let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
@@ -3285,6 +3337,7 @@ export function update(dtMs){
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
+  tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+pactHeal(h.hotRate*dt)); if(h.hotT<=0) h.hotRate=0; } // CAS-1763: Pacto Frágil cuts the HoT tick (×1.0 at heat=0 ⇒ byte-identical)
@@ -3308,7 +3361,9 @@ export function update(dtMs){
         if(dx*dx+dy*dy<=rr*rr){ set.add(e); applyStatus(e,"burn",{dmg:td}); addFx("flame",e.x,e.y,{life:0.4}); } }
       addFx("flame",h.x,h.y,{life:0.35}); }
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
-  else { const mv=io.moveVec(); const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
+  else { let mv=io.moveVec();
+    mv=flaskMoveGate(h,mv);   // CAS-1854: Estus root/cancel-on-action (cross-platform, single source — ver flaskMoveGate). Bebiendo sin cancelar ⇒ mv=[0,0] ⇒ vx=vy=0, moved=false (ENRAIZADO); mover+cancelOnAction ⇒ aborta el trago (sin coste) y deja pasar el movimiento. OFF / no bebiendo ⇒ mv intacto ⇒ byte-id. Sin i-frames ⇒ VULNERABLE.
+    const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
     const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz
     h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
@@ -5951,6 +6006,121 @@ export const dev = {
     h.lockTarget=null; h.lockCd=0; LOCK_ON.enabled=sav;
     const hasKey=/"_?lock(Target|Cd)"/i.test(on) || (typeof localStorage!=="undefined" && !!localStorage.getItem("mithralda.lockon.v1"));
     return { byteId:(off===on), noKey:!hasKey, off, on }; },
+  // --- CAS-1854 FRASCO DE CURACIÓN (Estus) harness hooks (tools/cas1854-flask.mjs). Additive; drive the REAL paths
+  // (drinkFlask / tickFlask / los gates de acción con `||flaskDrinkT>0` / el root+cancel del movimiento). Curación 100%
+  // timing/input ⇒ 0 srand, NO flaskRng. flaskCharges/flaskDrinkT/flaskZone transitorios (fuera del allowlist). ---
+  flaskMeta(){ return { enabled:FLASK.enabled, key:FLASK.key, charges:FLASK.charges, healPct:FLASK.healPct, drinkMs:FLASK.drinkMs, cancelOnAction:FLASK.cancelOnAction, refillOnZone:FLASK.refillOnZone }; },
+  flaskEnabled(){ return FLASK.enabled; },
+  flaskEnable(on){ FLASK.enabled=!!on; return { enabled:FLASK.enabled }; },
+  flaskState(){ const h=G.hero; if(!h) return null; return { charges:h.flaskCharges|0, drinkT:+((h.flaskDrinkT||0).toFixed(4)), zone:h.flaskZone, hp:Math.round(h.hp), maxHp:Math.round(heroMaxHp(h)) }; },
+  // Clean warrior in play, full charges, NOT drinking, combat/cooldown cleared, hp at HALF (so a drink is allowed) with
+  // a big-but-finite maxHp so the % heal is a clean integer. flaskZone seeded to the current zone (no spurious refill). Returns h.
+  _flaskArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;   // CAS-1854: limpiar el hitstop de un probe previo (damageHero) ⇒ update() no early-returna en el test de movimiento
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.atkCD=0; h.atkT=0; h._atkHits=null;
+    h.parryT=0; h.parryCD=0; h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false; h.spellCD=[0,0,0,0];
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.maxHp=1000; h.hp=500; h.maxMp=1e6; h.mp=1e6; h.stam=1e6;
+    h.flaskCharges=FLASK.charges; h.flaskDrinkT=0; h.flaskZone=zoneOf(world,h.x,h.y); return h; },
+  // Advance the channel to completion in one call (drinkMs + a hair), running the REAL tickFlask.
+  _flaskDrainChannel(h){ tickFlask(h, FLASK.drinkMs/1000 + 0.001); },
+  // AC4 CARGAS + heal exacto + clamp: arranca sin consumir; completa ⇒ −1 carga + hp += round(heroMaxHp·healPct) clamp;
+  // drena a 0 ⇒ no arranca a 0; no arranca a vida llena; near-full ⇒ clampa (sin overheal).
+  flaskDrinkProbe(){ const sav=FLASK.enabled; FLASK.enabled=true;
+    const h=this._flaskArm(); const mhp=heroMaxHp(h);
+    const expectHeal=Math.max(1,Math.round(pactHeal(mhp*FLASK.healPct)));
+    h.hp=Math.round(mhp*0.5); const startRet=drinkFlask();
+    const armed=(startRet===true && h.flaskDrinkT>0 && h.flaskCharges===FLASK.charges);   // canal armado, carga AÚN no gastada
+    const hp0=h.hp; this._flaskDrainChannel(h);
+    const healed=Math.round(h.hp-hp0); const consumedOne=(h.flaskCharges===FLASK.charges-1); const healExact=(healed===expectHeal);
+    let guard=0; while(h.flaskCharges>0 && guard++<10){ h.hp=Math.round(mhp*0.3); if(!drinkFlask()) break; this._flaskDrainChannel(h); }
+    const drainedToZero=(h.flaskCharges===0);
+    h.hp=Math.round(mhp*0.3); const noStartAtZero=(drinkFlask()===false && h.flaskDrinkT===0);
+    h.flaskCharges=FLASK.charges; h.hp=mhp; const noStartAtFull=(drinkFlask()===false && h.flaskDrinkT===0);
+    h.flaskCharges=FLASK.charges; h.hp=mhp-1; drinkFlask(); this._flaskDrainChannel(h); const clampNoOverheal=(h.hp===mhp);
+    FLASK.enabled=sav; this._flaskArm();
+    return { expectHeal, healed, armed, consumedOne, healExact, drainedToZero, noStartAtZero, noStartAtFull, clampNoOverheal,
+      ok:(armed&&consumedOne&&healExact&&drainedToZero&&noStartAtZero&&noStartAtFull&&clampNoOverheal) }; },
+  // AC3 ROOT + VULNERABLE (canal NO-interrumpible ⇒ cancelOnAction=false): mientras se bebe, ninguna acción de PODER
+  // dispara (gates activos) y el héroe RECIBE daño normal (sin i-frames). El canal SOBREVIVE (no se cancela).
+  flaskRootProbe(){ const savF=FLASK.enabled, savCancel=FLASK.cancelOnAction, savC=COMBO.enabled;
+    FLASK.enabled=true; FLASK.cancelOnAction=false; COMBO.enabled=true;
+    const h=this._flaskArm(); drinkFlask(); const drinking=(h.flaskDrinkT>0);
+    h.atkCD=0; h.atkT=0; heroAttack(); const noLight=(h.atkT===0 && h.atkCD===0);
+    h.atkCD=0; h.atkT=0; heavyAttack(); const noHeavy=(h.atkT===0 && h.atkCD===0);
+    h.spellCD=[0,0,0,0]; castSpell(1); const noCast=(h.spellCD.reduce((a,b)=>a+b,0)===0);
+    h.rolling=false; h.rollCD=0; doRoll(); const noRoll=(!h.rolling);
+    const stillDrinking=(h.flaskDrinkT>0);
+    const e=spawnEnemy("wolf",h.x,h.y+40); if(e){ e.maxHp=e.hp=1e6; e.dead=false; }
+    h.iframe=0; const hp0=h.hp; const ret=damageHero(50, Math.atan2((e?e.y:h.y+40)-h.y,(e?e.x:h.x)-h.x), null, e||null);
+    const tookDamage=(h.hp<hp0 && ret!==false);
+    FLASK.enabled=savF; FLASK.cancelOnAction=savCancel; COMBO.enabled=savC; this._flaskArm();
+    return { drinking, noLight, noHeavy, noCast, noRoll, stillDrinking, tookDamage,
+      ok:(drinking&&noLight&&noHeavy&&noCast&&noRoll&&stillDrinking&&tookDamage) }; },
+  // AC5 CANCEL sin coste (cancelOnAction=true): atacar/pesado/castear/rodar mientras se bebe ⇒ aborta el canal
+  // (flaskDrinkT=0) SIN gastar carga y SIN curar. (El move-cancel se ejercita vía update()+io en el harness.)
+  flaskCancelProbe(){ const savF=FLASK.enabled, savCancel=FLASK.cancelOnAction, savC=COMBO.enabled;
+    FLASK.enabled=true; FLASK.cancelOnAction=true; COMBO.enabled=true;
+    const start=(fire,setup)=>{ const h=this._flaskArm(); if(setup)setup(h); const c0=h.flaskCharges, hp0=h.hp;
+      drinkFlask(); const armed=(h.flaskDrinkT>0); fire(h);
+      return { armed, cancelled:(h.flaskDrinkT===0), chargeIntact:(h.flaskCharges===c0), noHeal:(h.hp===hp0) }; };
+    const atk=start(()=>heroAttack());
+    const heavy=start(()=>heavyAttack());
+    const cast=start(()=>castSpell(1));
+    const roll=start(()=>doRoll(), h=>{ h.rollCD=0; });
+    const all=[atk,heavy,cast,roll];
+    FLASK.enabled=savF; FLASK.cancelOnAction=savCancel; COMBO.enabled=savC; this._flaskArm();
+    return { atk, heavy, cast, roll, ok: all.every(a=>a.armed && a.cancelled && a.chargeIntact && a.noHeal) }; },
+  // AC6 REFILL en zona: cambiar de zona ⇒ charges=max; misma zona (aunque se gasten cargas) ⇒ NO recarga (no
+  // infinito en combate); primer tick (flaskZone=null) sólo SIEMBRA la zona (sin recarga).
+  flaskRefillProbe(){ const sav=FLASK.enabled; FLASK.enabled=true;
+    const h=this._flaskArm(); const z=zoneOf(world,h.x,h.y);
+    h.flaskCharges=1; h.flaskZone=z; tickFlask(h,0.016); const sameZoneNoRefill=(h.flaskCharges===1);
+    h.flaskZone="__elsewhere__"; tickFlask(h,0.016); const zoneRefill=(h.flaskCharges===FLASK.charges && h.flaskZone===z);
+    h.flaskCharges=1; h.flaskZone=null; tickFlask(h,0.016); const seedNoRefill=(h.flaskCharges===1 && h.flaskZone===z);
+    FLASK.enabled=sav; this._flaskArm();
+    return { sameZoneNoRefill, zoneRefill, seedNoRefill, ok:(sameZoneNoRefill&&zoneRefill&&seedNoRefill) }; },
+  // AC1 OFF byte-id: FLASK.enabled=false ⇒ drinkFlask inerte, tickFlask no-op, y los gates IGNORAN un flaskDrinkT
+  // forzado (el ataque dispara normal) ⇒ comportamiento byte-idéntico a HEAD.
+  flaskOffProbe(){ const sav=FLASK.enabled; FLASK.enabled=false;
+    const h=this._flaskArm(); h.hp=Math.round(heroMaxHp(h)*0.5);
+    const ret=drinkFlask(); const inert=(ret===false && h.flaskDrinkT===0);
+    h.flaskDrinkT=99; h.atkCD=0; h.atkT=0; heroAttack(); const attackFires=(h.atkT>0);   // gate ignora flask cuando OFF
+    h.flaskDrinkT=99; const hp0=h.hp; tickFlask(h,0.016); const tickNoop=(h.flaskDrinkT===99 && h.hp===hp0);
+    h.flaskDrinkT=0; FLASK.enabled=sav; this._flaskArm();
+    return { inert, attackFires, tickNoop, ok:(inert&&attackFires&&tickNoop) }; },
+  // AC7 SAVE byte-id: flaskCharges/flaskDrinkT/flaskZone transitorios (fuera del allowlist) ⇒ save.v1 idéntico ON/OFF,
+  // sin clave flask*. (Nombre del héroe SIN "flask" ⇒ el grep de clave no falsea — mirror gotcha VigorBot/FocusBot.)
+  flaskSaveByteId(){ const sav=FLASK.enabled;
+    FLASK.enabled=true; const h=this._flaskArm(); h.flaskCharges=1; h.flaskDrinkT=0.33; h.flaskZone="forest";
+    const onStr=JSON.stringify(serializeSave());
+    FLASK.enabled=false; const offStr=JSON.stringify(serializeSave());
+    FLASK.enabled=sav; this._flaskArm();
+    return { byteId:(offStr===onStr), hasKey:/"_?flask[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !/"_?flask[a-zA-Z]*":/i.test(onStr)) }; },
+  // AC2 0-RNG STRONG: fingerprint del srand alrededor del FLASK DISPARANDO REAL — un trago COMPLETADO (−1 carga +
+  // heal) y un trago CANCELADO por acción (carga intacta) — ON vs OFF. La curación es aritmética/timing (NO flaskRng)
+  // ⇒ el stream srand es BYTE-IDÉNTICO ON==OFF incluso con el frasco disparando de verdad.
+  flaskSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savF=FLASK.enabled, savCancel=FLASK.cancelOnAction; FLASK.enabled=!!enabled; FLASK.cancelOnAction=true;
+    const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.atkCD=0; h.atkT=0;
+      h.maxHp=1000; h.hp=500; h.maxMp=1e6; h.mp=1e6; h.stam=1e6; h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.facing=0;
+      h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false;
+      h.flaskCharges=FLASK.charges; h.flaskDrinkT=0; h.flaskZone=zoneOf(world,h.x,h.y); }
+    G.scene="play";
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let completed=false, cancelled=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ const c0=h.flaskCharges, hp0=h.hp;
+        drinkFlask(); tickFlask(h, FLASK.drinkMs/1000 + 0.001); completed=(h.flaskCharges===c0-1 && h.hp>hp0);   // trago completado (0 draws)
+        h.hp=500; h.flaskDrinkT=0; drinkFlask(); const c1=h.flaskCharges; heroAttack(); cancelled=(h.flaskDrinkT===0 && h.flaskCharges===c1); } // trago cancelado por acción
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    FLASK.enabled=savF; FLASK.cancelOnAction=savCancel;
+    return { enabled:!!enabled, flaskFired:(enabled?(completed&&cancelled):false), fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

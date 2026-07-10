@@ -42,7 +42,7 @@
 // ===========================================================================
 
 import { uiLayout } from "./ui/layout.js"; // CAS-418: draggable panels + persistent layout (single position owner)
-import { STAMINA } from "./sim/config.js"; // CAS-1841: gated VIGOR bar — created ONLY when STAMINA.enabled (OFF ⇒ DOM byte-identical)
+import { STAMINA, FLASK } from "./sim/config.js"; // CAS-1841/CAS-1854: gated VIGOR bar + Estus pips — created ONLY when enabled (OFF ⇒ DOM byte-identical)
 
 export const hud = (()=>{
   const KEY="mithralda.hud.v1";   // own key — never the save / settings / analytics blob
@@ -68,6 +68,7 @@ export const hud = (()=>{
     cream:"#d8d3c4", textDim:"#8a8678",
     hpf:"#b3242a", hpb:"#2e1012", mpf:"#3f6bd0", mpb:"#101a30", xpf:"#d0aa44", xpb:"#231d0e",
     stamf:"#3fae55", stamb:"#0f2413",   // CAS-1841: verde-vigor (fill + groove) — $0 arte
+    flaskf:"#5fd66a", flaskb:"#123a1a",  // CAS-1854: verde-Estus (pip lleno + groove del canal) — $0 arte, casa el floater de curación
 
     // signal hues — status chips / alerts ONLY (§4)
     poison:"#8be04a", slow:"#7fd0ff", stun:"#ffe066", burn:"#ff8a3a", heal:"#4fbf6a", rune:"#5a8aff",
@@ -277,6 +278,19 @@ export const hud = (()=>{
     nodes.mp=bar(sw, C.mpf, C.mpb, "✦");
     if(STAMINA.enabled) nodes.stam=bar(sw, C.stamf, C.stamb, "⚡");   // CAS-1841: vigor bar (gated ⇒ OFF: not created, DOM byte-id)
     nodes.xp=bar(sw, C.xpf, C.xpb, "XP");
+    // CAS-1854: FRASCO DE CURACIÓN (Estus) — fila de PIPS de cargas + groove de PROGRESO del canal. Creada SÓLO
+    // cuando FLASK.enabled ⇒ con el knob OFF no existe ⇒ DOM byte-idéntico a HEAD. Estilos 100% inline (no toca el
+    // <style> inyectado ⇒ trivially byte-id OFF). $0 arte: pips y barra procedurales. El groove sólo se ilumina
+    // mientras se bebe (feedback de la ventana vulnerable).
+    if(FLASK.enabled){
+      const fw=mk("div","display:flex;align-items:center;gap:calc(4px*var(--s));margin-top:calc(3px*var(--s))", sw);
+      const fic=mk("div","font-size:calc(11px*var(--s));line-height:1;opacity:.9", fw); fic.textContent="⚕";
+      const pipwrap=mk("div","display:flex;gap:calc(3px*var(--s))", fw); const pips=[];
+      for(let i=0;i<FLASK.charges;i++){ const p=mk("div","width:calc(9px*var(--s));height:calc(9px*var(--s));border-radius:2px;border:1px solid "+C.flaskf+";background:"+C.flaskf, pipwrap); pips.push(p); }
+      const pg=mk("div","flex:1;height:calc(4px*var(--s));border-radius:2px;background:"+C.flaskb+";overflow:hidden;opacity:.25", fw);
+      const pgf=mk("div","height:100%;width:0%;background:"+C.flaskf, pg);
+      nodes.flask={ pips, pg, pgf };
+    }
     // caption (name · class · Nv · gold) — the statframe art bakes no text region
     const cap=mk("div",null,tl); cap.className="cap";
     nodes.name=mk("span",null,cap); nodes.name.className="name"; nodes.name.textContent="—";
@@ -419,6 +433,7 @@ export const hud = (()=>{
     if(!s || s.hp==null){ // menu / no hero — placeholders, never throw
       nodes.name.textContent="—"; nodes.cls.textContent="—"; nodes.lvl.textContent="Nv —"; nodes.gold.textContent="0 oro";
       fillBar(nodes.hp,0,1); fillBar(nodes.mp,0,1); fillBar(nodes.xp,0,1); if(nodes.stam) fillBar(nodes.stam,0,1);
+      if(nodes.flask){ for(const p of nodes.flask.pips) p.style.background="transparent"; nodes.flask.pgf.style.width="0%"; nodes.flask.pg.style.opacity=".25"; } // CAS-1854: menú/sin héroe ⇒ pips vacíos
       paintSlots(nodes.equip,[],3); paintSlots(nodes.inv,[],36);
       if(nodes.minimap) nodes.minimap.textContent=(s&&s.zone)?String(s.zone):"—";
       nodes.chips.textContent=""; paintLog();
@@ -436,6 +451,13 @@ export const hud = (()=>{
     fillBar(nodes.mp, s.mp, s.maxMp);
     // CAS-1841: vigor bar (present only when STAMINA.enabled fed s.stam). Toggle the deny-flash rim on the groove.
     if(nodes.stam){ fillBar(nodes.stam, s.stam, s.stamMax); const g=nodes.stam.fill&&nodes.stam.fill.parentNode; if(g) g.classList.toggle("flash", (s.stamFlash||0)>0); }
+    // CAS-1854: Estus pips (llenos = cargas disponibles) + groove de progreso del canal (crece 0→100% mientras se
+    // bebe; iluminado sólo bebiendo = señal de vulnerabilidad). Presente sólo cuando FLASK.enabled alimentó s.flask*.
+    if(nodes.flask){ const n=nodes.flask, ch=s.flaskCharges|0;
+      for(let i=0;i<n.pips.length;i++) n.pips[i].style.background = i<ch ? C.flaskf : "transparent";
+      const dt=s.flaskDrinkT||0, dm=s.flaskDrinkMax||1, drinking=dt>0;
+      n.pg.style.opacity = drinking ? "1" : ".25";
+      n.pgf.style.width = drinking ? Math.max(0,Math.min(100,(1-dt/dm)*100)).toFixed(1)+"%" : "0%"; }
     fillBar(nodes.xp, s.xp, s.xpNext);
     paintSlots(nodes.equip, s.equip||[], 3, cue);
     paintSlots(nodes.inv, s.bag||[], 36, cue);

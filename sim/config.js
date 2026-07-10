@@ -1173,6 +1173,25 @@ export const STAMINA = {
 // CEO (retune = edición de knob barata, mirror dash CAS-1814 / estamina CAS-1841).
 export const LOCK_ON = { enabled:true, key:"Tab", range:340, cycleCd:0.14, reticleCol:"#ffd15c" };
 
+// CAS-1854: FRASCO DE CURACIÓN (Estus, 10ª feature Souls-like). Los 9 pilares vivos hacen el COMBATE legible y
+// castigable; ninguno convierte CURARSE en una decisión. Hoy la vida sólo vuelve pasivamente (lifesteal/on-kill/
+// descanso) o con consumibles instantáneos sin coste posicional. El Estus cierra el bucle DEFENSIVO: pulsar-para-
+// beber arranca un canal ENRAIZADO + VULNERABLE ~0.75s (sin i-frames ⇒ backstab/telegraph lo castigan solos), cura
+// un % de vida máx, gasta 1 de N cargas, y las cargas se rellenan al cambiar de zona (descanso). Reusa el "root +
+// vulnerable" que YA existe: añadir `|| h.flaskDrinkT>0` a los gates de acción (heroAttack/heavyAttack/castSpell/
+// doRoll) enraiza GRATIS; el cancel-on-action es la cara inversa (input de mover/atacar/rodar aborta el trago sin
+// gastar carga). Recurso TRANSITORIO (flaskCharges/flaskDrinkT/flaskZone, mirror stam/lockTarget, fuera del allowlist
+// de serializeSave ⇒ save.v1 byte-id y SIN clave nueva). Curación 100% timing/input ⇒ CERO draws, NO existe
+// `flaskRng`. Pips + tinte 100% procedurales ($0 arte). HARD-GATED: enabled:false ⇒ input inerte, sin canal/root/
+// pips/tinte/refill ⇒ byte-idéntico a HEAD. Los NÚMEROS + `key` = decisión FEEL/BALANCE del CEO (retune = knob barato,
+// mirror dash CAS-1814 / estamina CAS-1841).
+// DESVÍO GE del spec: el spec proponía key:"KeyF", pero KeyF YA está ligado a `pickup` (settings.js:39) ⇒ en la escena
+// play `playAction("KeyF")` resuelve a pickup y consume el evento ANTES del fixed-handler ⇒ el frasco nunca dispararía.
+// KeyU es la única LETRA libre en play (fuera de REBINDS; sólo se usa en la escena abilitysel) ⇒ se resuelve por el
+// fixed-handler igual que KeyH/KeyN/Tab. Mismo precedente que CAS-1832 (heavyKey KeyG→KeyN por colisión con la forja).
+// CEO confirma/retune la tecla en el Gate.
+export const FLASK = { enabled:true, key:"KeyU", charges:3, healPct:0.40, drinkMs:750, cancelOnAction:true, refillOnZone:true };
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

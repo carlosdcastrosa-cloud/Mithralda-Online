@@ -22,7 +22,7 @@ import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
 import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
 import { rarityRank } from "./sim/gear.js";
-import { STAMINA } from "./sim/config.js";   // CAS-1841: gated HUD vigor bar feed (absent OFF ⇒ HUD byte-identical)
+import { STAMINA, FLASK } from "./sim/config.js";   // CAS-1841/CAS-1854: gated HUD feeds (vigor bar + Estus pips — absent OFF ⇒ HUD byte-identical)
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
@@ -167,6 +167,9 @@ export function createGame(canvas, ctx, getView){
       // CAS-1841: vigor feed for the HUD bar — ONLY when STAMINA.enabled, so with the knob OFF these keys are
       // absent ⇒ hud.js never creates the bar ⇒ the snapshot + DOM are byte-identical to HEAD.
       ...(STAMINA.enabled ? { stam:h.stam, stamMax:STAMINA.max, stamFlash:h._stamFlash } : null),
+      // CAS-1854: Estus feed para los pips + tinte del HUD — ONLY when FLASK.enabled, so con el knob OFF estas claves
+      // están ausentes ⇒ hud.js nunca crea el widget ⇒ el snapshot + DOM son byte-idénticos a HEAD.
+      ...(FLASK.enabled ? { flaskCharges:h.flaskCharges, flaskMax:FLASK.charges, flaskDrinkT:h.flaskDrinkT, flaskDrinkMax:FLASK.drinkMs/1000 } : null),
     }, a11y);
   }
   // CAS-336/CAS-337 — make the HUD panels FUNCTIONAL (board CAS-335: "no tiene funciones").
