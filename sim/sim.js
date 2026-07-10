@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4272,6 +4272,22 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   h.hurtAnim=HURT_ANIM_DUR; // CAS-256: a landed hit plays the hit-react flinch strip (lower priority than an active cast)
   h.iframe=0.25; // brief mercy invuln
+  // CAS-1901: SUPERARMADURA EN GOLPES COMPROMETIDOS (Hyperarmor). El ÚNICO vector de INTERRUPCIÓN del héroe es el `stun`
+  // (gatea atacar/lanzar/rodar, CAS-1826) y se aplica JUSTO abajo vía applyStatus. Durante la ventana de golpe COMPROMETIDO
+  // ((h._heavy||h._comboFin) && h.atkAnim>0), un golpe entrante cuyo poise-damage (=`dmg`, arg1) queda por DEBAJO del umbral
+  // NO aplica su stun ⇒ el héroe aguanta y remata su golpe. El DAÑO ya se restó arriba (h.hp-=real) ⇒ intacto: NO es i-frame,
+  // te comes el golpe. Anti-inmunidad: dmg>=thr ⇒ el stun aplica normal (un slam de jefe te tumba igual). Suprime SÓLO el
+  // stun (neutraliza este infl); un slow/dot entra por su propio infl.type ⇒ NO se toca. Umbral ×twoHandBonus a dos manos
+  // (v1 flat 1.0). 100% timing/aritmética ⇒ 0 srand (NO hyperArmorRng). h.hyperarmor transitorio (mirror h.blocking, fuera
+  // del allowlist de save.v1) ⇒ save.v1 byte-id. OFF (HYPERARMOR.enabled=false) ⇒ rama muerta ⇒ applyStatus corre igual que
+  // HEAD ⇒ byte-idéntico (15 pilares intactos).
+  if(HYPERARMOR.enabled){
+    h.hyperarmor = h.atkAnim>0 && ((HYPERARMOR.appliesTo.heavy && h._heavy) || (HYPERARMOR.appliesTo.finisher && h._comboFin));
+    if(h.hyperarmor && infl && infl.type==="stun"){
+      const thr = HYPERARMOR.poiseThreshold * (TWO_HAND.enabled && h.twoHand ? HYPERARMOR.twoHandBonus : 1);
+      if(dmg < thr){ if(HYPERARMOR.vfx) addFx("dodgering",h.x,h.y,{life:0.2}); infl=null; } // absorbió el stun (chispa $0 gateada); daño ya aplicado
+    }
+  }
   // CAS-118: a mob's telegraphed strike can also INFLICT a status (bandit poison / wraith
   // slow). It only lands when the hit lands — dodging the telegraph (i-frames above) skips
   // it entirely, so reading the tell avoids BOTH the damage and the state. AC #3.
@@ -6654,6 +6670,92 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     TWO_HAND.enabled=savT; STAMINA.enabled=savS; COMBO.enabled=savC; if(h){ h.twoHand=false; }
     return { enabled:!!enabled, twoHandFired:(enabled?(toggled&&hit):false), fingerprint:fp }; },
+  // --- CAS-1901 SUPERARMADURA EN GOLPES COMPROMETIDOS (Hyperarmor) harness hooks (tools/cas1901-hyperarmor.mjs); additive,
+  // drive el seam REAL de damageHero (suprime SÓLO el stun durante la ventana comprometida). El daño ya se restó ⇒ hp baja
+  // igual. 100% timing/estado/aritmética ⇒ 0 srand (NO hyperArmorRng). h.hyperarmor transitorio (mirror h.blocking, fuera del
+  // allowlist de serializeSave) ⇒ save.v1 byte-id y SIN clave hyper*. La QA live (hija) re-verifica sobre el build servido. ---
+  hyperMeta(){ return { enabled:HYPERARMOR.enabled, appliesTo:{...HYPERARMOR.appliesTo}, poiseThreshold:HYPERARMOR.poiseThreshold, twoHandBonus:HYPERARMOR.twoHandBonus, vfx:HYPERARMOR.vfx }; },
+  hyperEnable(on){ HYPERARMOR.enabled=!!on; return { enabled:HYPERARMOR.enabled }; },
+  // Clean warrior in play, arrays vacías, estamina llena, maxHp enorme (los golpes de prueba no matan), facing=0, sin combate/
+  // cooldown, flags de commit (h._heavy/h._comboFin/h.atkAnim) en cero, postura a una mano. NO toca h.equip. Devuelve h.
+  _hyperArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.slow=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h.atkAnim=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0; h.flaskDrinkT=0;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null; h.frenzyStacks=0; h._parryRiposte=0;
+    h._comboFin=false; h._heavy=false; h._mcfg=ATK.warrior; h.atkAng=0; h.hyperarmor=false;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; h.twoHand=false; return h; },
+  // Aplica un golpe entrante con `dmg` crudo + status `st` al héroe, con h.iframe reseteado (si no, la mercy-invuln del golpe
+  // previo lo niega antes de applyStatus). Devuelve {stun, hpDrop}.
+  _hyperHit(dmg, st){ const h=G.hero; h.iframe=0; h.stun=0; const hp0=h.hp; damageHero(dmg, 0, st?{type:st.type, dur:st.dur, amt:st.amt}:null, null); return { stun:+((h.stun||0).toFixed(4)), hpDrop:+((hp0-h.hp).toFixed(4)) }; },
+  // AC2 ON + commit (heavy y finisher): dmg<thr ⇒ h.stun NO sube pero hp baja (daño aplicado); dmg>=thr ⇒ h.stun sube (rompe).
+  hyperCommitProbe(){ const savE=HYPERARMOR.enabled; HYPERARMOR.enabled=true;
+    const h=this._hyperArm(); const thr=HYPERARMOR.poiseThreshold; const lo=Math.max(1,Math.round(thr*0.55)), hi=Math.round(thr+8);
+    // HEAVY commit
+    this._hyperArm(); h._heavy=true; h._comboFin=false; h.atkAnim=1;
+    const hLo=this._hyperHit(lo,{type:"stun",dur:0.9});   // sub-umbral ⇒ absorbe stun, daño entra
+    const hHi=this._hyperHit(hi,{type:"stun",dur:0.9});   // supra-umbral ⇒ rompe (stun sube)
+    // FINISHER commit
+    this._hyperArm(); h._heavy=false; h._comboFin=true; h.atkAnim=1;
+    const fLo=this._hyperHit(lo,{type:"stun",dur:0.9});
+    const fHi=this._hyperHit(hi,{type:"stun",dur:0.9});
+    HYPERARMOR.enabled=savE; this._hyperArm();
+    const heavyOk=(hLo.stun===0 && hLo.hpDrop>0 && hHi.stun>0);
+    const finOk  =(fLo.stun===0 && fLo.hpDrop>0 && fHi.stun>0);
+    return { thr, lo, hi, hLo, hHi, fLo, fHi, heavyOk, finOk, ok:(heavyOk&&finOk) }; },
+  // AC3 ON + NO commit (idle: sin heavy/finisher, atkAnim=0) ⇒ un stun sub-umbral SÍ aplica (superarmadura sólo en commit).
+  hyperNoCommitProbe(){ const savE=HYPERARMOR.enabled; HYPERARMOR.enabled=true;
+    const h=this._hyperArm(); const thr=HYPERARMOR.poiseThreshold; const lo=Math.max(1,Math.round(thr*0.55));
+    h._heavy=false; h._comboFin=false; h.atkAnim=0;
+    const idle=this._hyperHit(lo,{type:"stun",dur:0.9});          // fuera de commit ⇒ stun aplica normal
+    // control: MISMO golpe en commit ⇒ absorbido (demuestra que la diferencia es el estado de commit)
+    this._hyperArm(); h._heavy=true; h.atkAnim=1; const commit=this._hyperHit(lo,{type:"stun",dur:0.9});
+    HYPERARMOR.enabled=savE; this._hyperArm();
+    return { lo, idleStun:idle.stun, commitStun:commit.stun, ok:(idle.stun>0 && commit.stun===0) }; },
+  // AC4 ON + commit: un SLOW/DOT entrante sub-umbral NO se suprime (sólo el stun/action-lock). Con el mismo estado de commit,
+  // un stun se absorbe pero un slow aplica ⇒ demuestra que la rama toca SÓLO el stun.
+  hyperStatusProbe(){ const savE=HYPERARMOR.enabled; HYPERARMOR.enabled=true;
+    const h=this._hyperArm(); const thr=HYPERARMOR.poiseThreshold; const lo=Math.max(1,Math.round(thr*0.55));
+    h._heavy=true; h._comboFin=false; h.atkAnim=1;
+    const stunHit=this._hyperHit(lo,{type:"stun",dur:0.9});       // absorbido
+    h.iframe=0; h.slowT=0; h.slow=0; const slowHit=this._hyperHit(lo,{type:"slow",amt:0.5,dur:2.2}); const slowT=+((h.slowT||0).toFixed(4));
+    HYPERARMOR.enabled=savE; this._hyperArm();
+    return { stunAbsorbed:(stunHit.stun===0), slowApplied:(slowT>0), slowT, slowHpDrop:slowHit.hpDrop, ok:(stunHit.stun===0 && slowT>0) }; },
+  // AC5 OFF byte-id: HYPERARMOR.enabled=false ⇒ rama muerta ⇒ un stun sub-umbral en plena ventana de commit SÍ aturde
+  // (idéntico a HEAD, la superarmadura no existe). ON el MISMO golpe se absorbe ⇒ demuestra que el gate manda.
+  hyperOffProbe(){ const savE=HYPERARMOR.enabled;
+    const h=this._hyperArm(); const thr=HYPERARMOR.poiseThreshold; const lo=Math.max(1,Math.round(thr*0.55));
+    HYPERARMOR.enabled=false; this._hyperArm(); h._heavy=true; h.atkAnim=1; const off=this._hyperHit(lo,{type:"stun",dur:0.9});
+    HYPERARMOR.enabled=true;  this._hyperArm(); h._heavy=true; h.atkAnim=1; const on =this._hyperHit(lo,{type:"stun",dur:0.9});
+    HYPERARMOR.enabled=savE; this._hyperArm();
+    return { offStun:off.stun, onStun:on.stun, offHpDrop:off.hpDrop, ok:(off.stun>0 && on.stun===0) }; },
+  // AC5 SAVE byte-id: h.hyperarmor transitorio (fuera del allowlist) ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave hyper*.
+  // (Nombre del héroe SIN "hyper"/"armor" ⇒ el grep de clave no falsea — mirror gotcha GuardiaQA/DosManosQA.)
+  hyperSaveByteId(){ const savE=HYPERARMOR.enabled;
+    HYPERARMOR.enabled=true; const h=this._hyperArm(); h._heavy=true; h.atkAnim=1; this._hyperHit(20,{type:"stun",dur:0.9}); h.hyperarmor=true;
+    const onStr=JSON.stringify(serializeSave());
+    HYPERARMOR.enabled=false; const offStr=JSON.stringify(serializeSave());
+    HYPERARMOR.enabled=savE; this._hyperArm();
+    return { byteId:(offStr===onStr), hasKey:/"_?hyper[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !/"_?hyper[a-zA-Z]*":/i.test(onStr)) }; },
+  // AC6 0-RNG STRONG: fingerprint del srand alrededor de un golpe COMPROMETIDO que ABSORBE un stun (feature disparando real)
+  // — ON vs OFF. La rama es 100% timing/aritmética (NO hyperArmorRng) ⇒ el stream srand es BYTE-IDÉNTICO ON==OFF, 0 draws.
+  hyperSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savE=HYPERARMOR.enabled; HYPERARMOR.enabled=!!enabled;
+    const h=this._hyperArm();
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let fired=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ h._heavy=true; h._comboFin=false; h.atkAnim=1; const st0=(h.stun=0,0); h.iframe=0;
+        damageHero(Math.max(1,Math.round(HYPERARMOR.poiseThreshold*0.55)), 0, {type:"stun",dur:0.9}, null); // golpe comprometido sub-umbral (0 draws)
+        fired=(enabled ? (h.stun===st0) : (h.stun>0)); }                   // ON absorbió (stun 0); OFF aturdió
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    HYPERARMOR.enabled=savE; if(h){ h.hyperarmor=false; h.stun=0; }
+    return { enabled:!!enabled, hyperArmorFired:(enabled?fired:false), fingerprint:fp }; },
   // --- CAS-1879 HOGUERA / REST SITE (Bonfire) harness hooks (tools/cas1879-bonfire.mjs); additive, drive the REAL
   // rama de descanso de interact() (heal + ancla + recarga Estus + world reset) + los helpers bonfireUnsafe/bonfireRespawn.
   // Todo geometría/aritmética + spawnEnemy/applyZoneScale (0-RNG) ⇒ sin bonfireRng ⇒ srand ON==OFF byte-idéntico. El
