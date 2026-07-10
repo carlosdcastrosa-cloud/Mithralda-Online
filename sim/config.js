@@ -1303,6 +1303,19 @@ export const TWO_HAND = {
   moveMul: 1.0,        // factor de velocidad al empuñar a dos manos (1.0 = sin penalización de movilidad en v1)
 };
 
+// CAS-1901: SUPERARMADURA EN GOLPES COMPROMETIDOS (Hyperarmor / Poise-through). 16º pilar Souls-like. Durante el swing
+// PESADO/rematador del héroe (ventana comprometida) gana superarmadura: un golpe entrante cuyo poise-damage (=`dmg` crudo
+// entrante) queda < `poiseThreshold` NO aplica su STUN (el único vector de interrupción del héroe, CAS-1826) ⇒ aguantas y
+// terminas el golpe; el DAÑO SIGUE aterrizando (NO es i-frame). Anti-inmunidad: >= umbral ⇒ el stun rompe la superarmadura
+// (un slam de jefe te tumba igual). Recompensa la agresión comprometida; punible porque te comes el golpe.
+export const HYPERARMOR = {
+  enabled: true,
+  appliesTo: { heavy: true, finisher: true },  // qué swings comprometidos califican (heavy = h._heavy, finisher = h._comboFin)
+  poiseThreshold: 34,   // dmg crudo entrante < umbral ⇒ NO interrumpe (superarmadura aguanta); >= ⇒ rompe. Número del Gate CEO
+  twoHandBonus: 1.0,    // umbral efectivo = poiseThreshold * (twoHand activo ? twoHandBonus : 1); v1 flat=1.0 (wired-neutral, el CEO lo sube sin rebuild)
+  vfx: true,            // chispa/tinte desde primitivas $0 al ABSORBER un stun (gateado: OFF/no-heavy ⇒ sin efecto)
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
