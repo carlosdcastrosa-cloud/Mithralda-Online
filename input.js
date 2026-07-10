@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -259,6 +259,11 @@ function edge(code){
   // so con la feature off la tecla es inerte (falls through, no state change). Not a rebindable action (deliberate,
   // like KeyH parry / COMBO.heavyKey: never touches REBINDS/settings.binds). cycleLock es cross-platform.
   if(code===LOCK_ON.key && LOCK_ON.enabled){ sim.cycleLock(); return; }
+  // CAS-1854: dedicated FLASK.key (default KeyU — KeyF ya es pickup) bebe del FRASCO DE CURACIÓN (Estus) — gated on FLASK.enabled, so con
+  // la feature off la tecla es inerte (falls through, no state change). Not a rebindable action (deliberate, como
+  // KeyH parry / COMBO.heavyKey / LOCK_ON.key: never touches REBINDS/settings.binds). El cancel-on-action se resuelve
+  // en el sim (mover/atacar/rodar), así que desktop y móvil comparten la lógica de abortar el trago.
+  if(code===FLASK.key && FLASK.enabled){ sim.drinkFlask(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
@@ -344,6 +349,10 @@ export function tbtns(){ // returns button rects for current scene
     // CAS-1659: Ultimate button — above the ability cluster, distinct star/glyph. Only meaningful
     // (and drawn) when the run has a drafted ultimate; casting no-ops otherwise (charge-gated).
     ult:{x:m+bs*0.5,  y:VH-m-bs*4.45, r:(G.hero&&G.hero.ultId)?bs*0.5:0, label:ultGlyph(), act:()=>sim.castUltimate()},
+    // CAS-1854: botón táctil del FRASCO DE CURACIÓN (Estus) — SÓLO cuando FLASK.enabled, así con el knob OFF no hay
+    // botón ⇒ el layout de controles es byte-idéntico a HEAD. Mover el joystick durante el trago lo cancela (mismo
+    // seam del sim que desktop). Junto al botón de recoger (F) en el cluster izquierdo. $0 arte (glifo procedural).
+    ...(FLASK.enabled ? { flask:{x:m+bs*1.55, y:VH-m-bs*2.2, r:bs*0.4, label:"⚕", act:()=>sim.drinkFlask()} } : {}),
     bs
   };
 }

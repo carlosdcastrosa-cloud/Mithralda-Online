@@ -3627,6 +3627,7 @@ export function createRenderer(ctx){
       ctx.font="bold "+(big?20:14)+"px "+FF; ctx.textAlign="center"; const ly=b.y+(big?7:5);
       ctx.fillStyle=COL.out; ctx.fillText(b.label,b.x+1,ly+1); ctx.fillStyle=kc; ctx.fillText(b.label,b.x,ly); }
     btn(tb.attack,COL.textGold,true); btn(tb.roll,COL.cream); btn(tb.s2,COL.flame); btn(tb.s3,COL.heal); btn(tb.s4,COL.rune); btn(tb.act,COL.cream); btn(tb.pick,COL.cream);
+    if(tb.flask) btn(tb.flask,COL.heal); // CAS-1854: botón táctil del Estus (present only when FLASK.enabled ⇒ tb.flask undefined OFF ⇒ byte-id)
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
     if(top.cdx) btn(top.cdx,COL.textGold); // CAS-1751: Códice touch button (present only when enabled)
     // CAS-1659: Ultimate touch button + charge ring — only when the run has a drafted ultimate.
