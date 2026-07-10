@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -283,6 +283,11 @@ function edge(code){
   // un TOGGLE en el edge (no held). No es una acción rebindable (deliberate, como KeyH parry / SHIELD_BLOCK.key: never
   // touches REBINDS/settings.binds). El sim decide (toggleTwoHand gated en escena play + héroe vivo).
   if(code===TWO_HAND.key && TWO_HAND.enabled){ sim.toggleTwoHand(); return; }
+  // CAS-1914: dedicated WEAPON_ARTS.key (default Semicolon — todas las 26 letras ocupadas, ver spec) dispara el ARTE DE ARMA firma
+  // del arquetipo equipado — gated on WEAPON_ARTS.enabled, so con la feature off la tecla es inerte (falls through, no state change).
+  // No es una acción rebindable (deliberate, como KeyH parry / TWO_HAND.key: never touches REBINDS/settings.binds ⇒ snapshot byte-id).
+  // El sim decide (weaponArt gated en escena play + héroe vivo + cooldown/estamina). Cross-platform (móvil = botón HUD tb.weaponart).
+  if(code===WEAPON_ARTS.key && WEAPON_ARTS.enabled){ sim.weaponArt(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
@@ -388,6 +393,10 @@ export function tbtns(){ // returns button rects for current scene
     // hay botón ⇒ el layout de controles es byte-idéntico a HEAD (mirror tb.flask). Es un TAP (no hold): el dispatch de
     // handleUITap llama `act` ⇒ sim.toggleTwoHand() alterna la postura. $0 arte (glifo procedural ⚔). Cluster izquierdo.
     ...(TWO_HAND.enabled ? { twohand:{x:m+bs*3.65, y:VH-m-bs*2.2, r:bs*0.4, label:"⚔", act:()=>sim.toggleTwoHand()} } : {}),
+    // CAS-1914: botón táctil del ARTE DE ARMA — SÓLO cuando WEAPON_ARTS.enabled, así con el knob OFF no hay botón ⇒ el layout de
+    // controles es byte-idéntico a HEAD (mirror tb.twohand). Es un TAP (no hold): handleUITap llama `act` ⇒ sim.weaponArt() dispara
+    // el Arte firma del arquetipo equipado (mismo seam del sim que desktop). $0 arte (glifo procedural ✦). Cluster izquierdo.
+    ...(WEAPON_ARTS.enabled ? { weaponart:{x:m+bs*4.75, y:VH-m-bs*2.2, r:bs*0.4, label:"✦", act:()=>sim.weaponArt()} } : {}),
     bs
   };
 }
