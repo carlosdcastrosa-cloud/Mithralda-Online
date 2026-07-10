@@ -1033,6 +1033,19 @@ export const PARRY = {
   riposteMul:1.5,   // buff de 1 golpe: el PRÓXIMO hitEnemy del héroe ×este mult (consumible, transitorio)
 };
 
+// CAS-1790 — Telegrafía de ataque enemigo (heavy attack wind-ups). Los golpes PESADOS
+// (jefe/campeón/capstone/élite) ganan un aviso legible: un piso de lead-time (M1, timing puro
+// 0-RNG) + un cue procedural cosmético (M2, contracting ring + marca de suelo anticipatoria para
+// las ráfagas radiales). HARD-GATED: enabled:false ⇒ 0 FX nuevos, 0 ajuste de windup, 0 lectura
+// ⇒ sim + save.v1 byte-idénticos a HEAD. Presentación pura: NUNCA toca daño/cooldowns/IA/RNG de
+// combate ni el save. Reintroduce UN marcador controlado heavy-only sin revivir el ruido
+// por-arquetipo que CAS-403 quitó (aquel sigue compilado fuera por TELEGRAPHS_OFF).
+export const TELEGRAPH = {
+  enabled:true,
+  leadMs:300,      // ventana de reacción reservada antes de un impacto PESADO (banda 250-350ms)
+  heavyOnly:true,  // v1: élites/campeones/jefes/capstones; mobs básicos sin cambios
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

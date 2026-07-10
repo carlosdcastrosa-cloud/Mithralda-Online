@@ -1476,6 +1476,25 @@ export function createRenderer(ctx){
     // as a marked ground area → draw NOTHING. The fx still spawns in sim.js (addFx order and
     // the fx RNG stream untouched → determinism intact); render just skips it.
     else if(f.kind==="windupring"){ }
+    else if(f.kind==="telegraphmark"){ // CAS-1790 heavy wind-up cue — presentation only, spawned by sim only when TELEGRAPH.enabled (knob OFF ⇒ this fx never exists). k=remaining life ⇒ contracts toward the strike instant.
+      if(f.ground){ // (b) anticipatory ground ring for radial bursts — sized to the blast, "step out / roll" before the runes fly
+        const R=(f.r||96)*(0.82+0.18*k), cy=f.y+(f.oy||0);
+        ctx.save();
+        ctx.globalAlpha=0.12+0.20*k; ctx.fillStyle="#b3242a";
+        ctx.beginPath(); ctx.ellipse(f.x,cy,R,R*0.5,0,0,6.28); ctx.fill();
+        ctx.globalAlpha=0.35+0.35*Math.abs(Math.sin(G.t*14)); ctx.strokeStyle="#ff5230"; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.ellipse(f.x,cy,R,R*0.5,0,0,6.28); ctx.stroke();
+        ctx.restore();
+      } else { // (a) single strong "heavy incoming" ring closing onto the unit — distinct from the trash windupring flash
+        const fl=Math.floor(G.t*16)%2===0, R=6+(f.r||24)*k;
+        ctx.save();
+        ctx.globalAlpha=(fl?0.92:0.5)*Math.max(k,0.18); ctx.strokeStyle="#ffcaa0"; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(f.x,f.y,R,0,6.28); ctx.stroke();
+        ctx.globalAlpha*=0.55; ctx.strokeStyle="#ff5230"; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(f.x,f.y,R+3,0,6.28); ctx.stroke();
+        ctx.restore();
+      }
+    }
     else if(f.kind==="strikeflash"){ ctx.globalAlpha=k*0.9; ctx.strokeStyle="#dbeeff"; ctx.lineWidth=4; // CAS-211 (d): cold blue-white, FOUNTAINS signal-lock
       if(f.range){ ctx.beginPath(); ctx.arc(f.x,f.y,(f.range)*(0.6+sw*0.5),(f.ang||0)-0.7,(f.ang||0)+0.7); ctx.stroke(); }
       ctx.globalAlpha=k; ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(f.x,f.y,sw*10+2,0,6.28); ctx.fill(); ctx.globalAlpha=1; }
