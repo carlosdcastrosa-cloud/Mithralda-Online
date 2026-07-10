@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3371,10 +3371,25 @@ export function forgeUpgrade(slot){ const h=G.hero; if(!h) return false;
 // only h.mats. Daily contracts add mats through applyMetaReward (the meta-reward seam).
 function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n|0); }
 
+// CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
+// y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
+// ⇒ 0-draw, NO campo nuevo. Sin ctx/DOM. El escudo pesado (CAS-1873) contribuye vía slotWeight.shield. Slot vacío ⇒ 0.
+export function equipLoad(h){ const c=EQUIP_LOAD; const eq=h&&h.equip; let total=0;
+  if(eq){ for(const slot of ["weapon","body","shield"]){ const it=eq[slot]; if(!it) continue;
+    total += (c.slotWeight[slot]||0) * (c.rarityWeight[it.rarity]||1); } }
+  const ratio = total / (c.capacity||1); const b=c.bands;
+  const band = ratio<=b.fast ? "fast" : ratio<=b.mid ? "mid" : ratio<=b.fat ? "fat" : "over";
+  return { total, ratio, band }; }
+
 export function doRoll(){ const h=G.hero;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: rodar cancela el trago (sin coste); si no, enraiza vía el gate
   if(h.rolling||h.rollCD>0||(FLASK.enabled&&h.flaskDrinkT>0)) return;
-  if(!spendStam(h,STAMINA.cost.dodge)) return;   // CAS-1841: la esquiva es una acción de PODER — cuesta vigor (OFF ⇒ true, byte-id)
+  // CAS-1889: la BANDA de carga del equipo multiplica esquiva (dist/iframe) + coste de estamina + move. OFF ⇒ m todo 1
+  // (mid) ⇒ byte-idéntico. `over` + overCanRoll:false ⇒ deny + return ANTES de gastar estamina (sobrecargado, sin rodada).
+  const el = EQUIP_LOAD.enabled ? equipLoad(h).band : "mid";
+  const em = EQUIP_LOAD.enabled ? EQUIP_LOAD.mul[el] : { dist:1, iframe:1, stam:1, move:1 };
+  if(EQUIP_LOAD.enabled && el==="over" && !EQUIP_LOAD.overCanRoll){ audio.sfx.deny(); return; }
+  if(!spendStam(h,Math.round(STAMINA.cost.dodge*em.stam))) return;   // CAS-1841/CAS-1889: la esquiva cuesta vigor (banda·mul); OFF/mid ⇒ round(cost·1)=cost byte-id
   let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
   else { const mv=io.moveVec(); if(mv[0]===0&&mv[1]===0){ ax=Math.cos(h.facing); ay=Math.sin(h.facing);} else {[ax,ay]=mv;} }
@@ -3384,7 +3399,9 @@ export function doRoll(){ const h=G.hero;
   // knob distance is applied as a per-roll speed (h.rollSpd, transient run-state, NOT serialized). OFF ⇒
   // CFG.rollIFrame/rollCD/rollSpeed EXACT (h.rollSpd=CFG.rollSpeed ⇒ movement byte-identical). 0-RNG.
   const dg=DODGE.enabled;
-  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=(dg?DODGE.iframeMs/1000:CFG.rollIFrame)+((h.bb&&h.bb.iframeAdd)||0)+metaDashIframe(); h.rollCD=dg?DODGE.cooldownMs/1000:CFG.rollCD; h.rollSpd=dg?DODGE.distance/CFG.rollTime:CFG.rollSpeed; h.rollX=ax; h.rollY=ay; // CAS-1565: +Evasión meta i-frames (read-live)
+  // CAS-1889: la banda multiplica SÓLO el término base de DODGE (iframe/distancia); los bonus (bb.iframeAdd + meta + Estela)
+  // siguen SUMANDO intactos. em.iframe/em.dist = 1 con OFF/mid ⇒ byte-idéntico. over+overCanRoll:true ⇒ 0 ⇒ rodada mínima.
+  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=(dg?DODGE.iframeMs/1000:CFG.rollIFrame)*em.iframe+((h.bb&&h.bb.iframeAdd)||0)+metaDashIframe(); h.rollCD=dg?DODGE.cooldownMs/1000:CFG.rollCD; h.rollSpd=(dg?DODGE.distance/CFG.rollTime:CFG.rollSpeed)*em.dist; h.rollX=ax; h.rollY=ay; // CAS-1565: +Evasión meta i-frames (read-live)
   if(h.bb&&h.bb.trail>0) h._trailSet=new Set(); // CAS-388: fresh per-roll set so Estela Ardiente burns each enemy once per dash
   audio.sfx.roll(); } // CAS-383: Viento Veloz widens the dodge window
 
@@ -3484,7 +3501,7 @@ export function update(dtMs){
     mv=flaskMoveGate(h,mv);   // CAS-1854: Estus root/cancel-on-action (cross-platform, single source — ver flaskMoveGate). Bebiendo sin cancelar ⇒ mv=[0,0] ⇒ vx=vy=0, moved=false (ENRAIZADO); mover+cancelOnAction ⇒ aborta el trago (sin coste) y deja pasar el movimiento. OFF / no bebiendo ⇒ mv intacto ⇒ byte-id. Sin i-frames ⇒ VULNERABLE.
     const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
-    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1)*(h.blocking?SHIELD_BLOCK.moveMul:1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz · CAS-1873 strafe lento con la guardia arriba (gateado por h.blocking ⇒ OFF/no-bloqueando byte-id)
+    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1)*(h.blocking?SHIELD_BLOCK.moveMul:1)*(EQUIP_LOAD.enabled?EQUIP_LOAD.mul[equipLoad(h).band].move:1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz · CAS-1873 strafe lento con la guardia arriba · CAS-1889 factor de carga de equipo por banda (OFF/mid ⇒ ×1 byte-id; convive con moveMul, ambos multiplican)
     h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
@@ -7233,4 +7250,89 @@ export const dev = {
     const e=spawnEnemy(type,x,y); if(!e) return { ok:false, reason:"spawn failed" };
     e.x=x; e.y=y; applyZoneScale(e,"caldera"); const before=G.drops.length; e.hp=0; killEnemy(e);
     return { ok:true, zone:zoneOf(world,e.x,e.y), drops:G.drops.slice(before).map(d=>({kind:d.kind,slot:d.inst?d.inst.slot:null,rarity:d.inst?d.inst.rarity:null,tier:d.tier})) }; },
+  // --- CAS-1889 CARGA DE EQUIPO / TIPOS DE RODADA (Equip Load) harness hooks (tools/cas1889-equip-load.mjs); additive.
+  // La BANDA de carga (derivada del equipo YA guardado: Σ slotWeight·rarityWeight / capacity) MULTIPLICA esquiva
+  // (dist/iframe) + coste de estamina + move speed. Aritmética PURA sobre {slot,rarity} ⇒ CERO srand, NO equipLoadRng,
+  // NINGÚN campo nuevo en save.v1. Los probes ejercitan el REAL equipLoad() + la REAL rama de doRoll (mul por banda +
+  // deny en over) + la REAL fórmula de move (sp). La QA live (hija) re-verifica bandas/tinte HUD sobre el build servido. ---
+  equipLoadMeta(){ return { enabled:EQUIP_LOAD.enabled, capacity:EQUIP_LOAD.capacity, slotWeight:EQUIP_LOAD.slotWeight,
+    rarityWeight:EQUIP_LOAD.rarityWeight, bands:EQUIP_LOAD.bands, mul:EQUIP_LOAD.mul, overCanRoll:EQUIP_LOAD.overCanRoll }; },
+  equipLoadEnable(on){ EQUIP_LOAD.enabled=!!on; return { enabled:EQUIP_LOAD.enabled }; },
+  // Fija los 3 slots a rarezas dadas (null ⇒ vacía el slot) y devuelve {total,ratio,band} del REAL equipLoad().
+  equipLoadOf(rw,rb,rs){ const h=G.hero; if(!h) return null;
+    const mk=(slot,defId,rar)=> rar==null?null:{slot,defId,rarity:rar};
+    h.equip={ weapon:mk("weapon","w_iron",rw), body:mk("body","a_leather",rb), shield:mk("shield","s_wood",rs) };
+    const el=equipLoad(h); return { total:el.total, ratio:+el.ratio.toFixed(6), band:el.band }; },
+  // AC2 CRÍTICO: el loadout INICIAL/típico (3 piezas common, mirror sim.js:374) DEBE caer en mid ⇒ multiplicadores todos 1
+  // ⇒ el feel actual NO regresa (baseline intacto).
+  equipInitialBand(){ const h=G.hero; if(!h) return null;
+    h.equip={ weapon:{slot:"weapon",defId:"w_iron",rarity:"common"}, body:{slot:"body",defId:"a_leather",rarity:"common"}, shield:{slot:"shield",defId:"s_wood",rarity:"common"} };
+    const el=equipLoad(h); const m=EQUIP_LOAD.mul[el.band]; const allOne=(m.dist===1&&m.iframe===1&&m.stam===1&&m.move===1);
+    return { total:el.total, ratio:+el.ratio.toFixed(6), band:el.band, mulAllOne:allOne, ok:(el.band==="mid"&&allOne) }; },
+  // Warrior limpio en play, arrays vacíos, estamina llena, sin combate/cooldown, maxHp enorme. facing=0. Devuelve h.
+  _equipArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null; h.slow=1;
+    h.atkCD=0; h.atkT=0; h.atkAnim=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.flaskDrinkT=0; h.hurtFlash=0;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; return h; },
+  // AC ROLL: la banda multiplica los valores de esquiva. Fija el equipo, dispara el REAL doRoll() y lee h.rollSpd (dist)
+  // + h.iframe + estamina gastada. `over`+overCanRoll:false ⇒ deny (fired=false, sin gasto). DODGE ON para el probe.
+  equipRollProbe(rw,rb,rs){ const savE=EQUIP_LOAD.enabled, savD=DODGE.enabled, savS=STAMINA.enabled;
+    EQUIP_LOAD.enabled=true; DODGE.enabled=true; STAMINA.enabled=true;
+    const h=this._equipArm(); this.equipLoadOf(rw,rb,rs); const band=equipLoad(h).band;
+    h.rolling=false; h.rollCD=0; h.stam=STAMINA.max; const st0=h.stam; doRoll();
+    const fired=!!h.rolling, rollSpd=+(h.rollSpd||0).toFixed(6), iframe=+(h.iframe||0).toFixed(6), stamSpent=+(st0-h.stam).toFixed(4);
+    EQUIP_LOAD.enabled=savE; DODGE.enabled=savD; STAMINA.enabled=savS; this._equipArm();
+    return { band, fired, rollSpd, iframe, stamSpent }; },
+  // AC1 OFF byte-id: EQUIP_LOAD.enabled=false ⇒ m todo 1 aunque el equipo sea legendary (sería `over` con ON) ⇒ doRoll
+  // dispara NORMAL, rollSpd=base de DODGE, estamina=STAMINA.cost.dodge ⇒ byte-idéntico a HEAD.
+  equipOffProbe(){ const savE=EQUIP_LOAD.enabled, savD=DODGE.enabled, savS=STAMINA.enabled;
+    EQUIP_LOAD.enabled=false; DODGE.enabled=true; STAMINA.enabled=true;
+    const h=this._equipArm(); this.equipLoadOf("legendary","legendary","legendary");
+    h.rolling=false; h.rollCD=0; h.stam=STAMINA.max; const st0=h.stam; doRoll();
+    const base=DODGE.distance/CFG.rollTime; const fired=!!h.rolling;
+    const rollSpd=+(h.rollSpd||0).toFixed(6), stamSpent=+(st0-h.stam).toFixed(4);
+    const rollSpdBase=(Math.abs(rollSpd-base)<1e-6), stamBase=(stamSpent===STAMINA.cost.dodge);
+    EQUIP_LOAD.enabled=savE; DODGE.enabled=savD; STAMINA.enabled=savS; this._equipArm();
+    return { fired, rollSpd, base:+base.toFixed(6), stamSpent, expectStam:STAMINA.cost.dodge, rollSpdBase, stamBase, ok:(fired&&rollSpdBase&&stamBase) }; },
+  // MOVE: la banda multiplica la velocidad (factor en `sp`, sim.js). Lee h.vx (pre-clamp) tras un update con moveVec=[1,0]
+  // (el harness inyecta io.moveVec). Devuelve vx + el mul de la banda ⇒ el harness compara ratios fat/over vs mid.
+  equipMoveProbe(rw,rb,rs){ const savE=EQUIP_LOAD.enabled; EQUIP_LOAD.enabled=true;
+    const h=this._equipArm(); this.equipLoadOf(rw,rb,rs); const band=equipLoad(h).band;
+    h.atkAnim=0; h.slowT=0; h.blocking=false; h.rolling=false; h.rollT=0; h.rollCD=0;
+    update(16); const vx=+(h.vx||0).toFixed(6); const mul=EQUIP_LOAD.mul[band].move;
+    EQUIP_LOAD.enabled=savE; this._equipArm();
+    return { band, vx, mul }; },
+  // AC SAVE byte-id: peso DERIVADO del equipo YA guardado ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave equipLoad*/
+  // equipBand*. (Nombre del héroe SIN "equip"/"load" ⇒ el grep de clave no falsea — mirror gotcha GuardiaQA/GraveQA.)
+  equipSaveByteId(){ const savE=EQUIP_LOAD.enabled;
+    this._equipArm(); this.equipLoadOf("legendary","legendary","legendary");
+    EQUIP_LOAD.enabled=true; const onStr=JSON.stringify(serializeSave());
+    EQUIP_LOAD.enabled=false; const offStr=JSON.stringify(serializeSave());
+    EQUIP_LOAD.enabled=savE; this._equipArm();
+    const rx=/"_?equip(load|band|weight|ratio|capacity)[a-zA-Z]*":/i;
+    return { byteId:(offStr===onStr), hasKey:rx.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !rx.test(onStr)) }; },
+  // AC RNG-STRONG: fingerprint del srand alrededor de un doRoll DISPARANDO REAL (equipo epic ⇒ banda fat, mul≠1) — ON vs
+  // OFF. Todo es aritmética sobre el equipo (NO equipLoadRng) ⇒ el stream srand es BYTE-IDÉNTICO ON==OFF incluso disparando.
+  equipSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savE=EQUIP_LOAD.enabled, savD=DODGE.enabled, savS=STAMINA.enabled;
+    EQUIP_LOAD.enabled=!!enabled; DODGE.enabled=true; STAMINA.enabled=true;
+    const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+      h.atkCD=0; h.atkT=0; h.parryT=0; h.flaskDrinkT=0; h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max;
+      h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.facing=0; h.blocking=false;
+      h.equip={ weapon:{slot:"weapon",defId:"w_iron",rarity:"epic"}, body:{slot:"body",defId:"a_leather",rarity:"epic"}, shield:{slot:"shield",defId:"s_wood",rarity:"epic"} }; } // epic-all ⇒ fat (mul≠1) pero PUEDE rodar
+    G.scene="play";
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let rolled=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ h.rolling=false; h.rollCD=0; h.stam=STAMINA.max; doRoll(); rolled=!!h.rolling; h.rolling=false; h.rollT=0; } // rodada REAL con mul por banda (0 draws)
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // el stream de loot compartido queda alineado
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    EQUIP_LOAD.enabled=savE; DODGE.enabled=savD; STAMINA.enabled=savS; if(h){ h.rolling=false; }
+    return { enabled:!!enabled, rollFired:!!rolled, fingerprint:fp }; },
 };

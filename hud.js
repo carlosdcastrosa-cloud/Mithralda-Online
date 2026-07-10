@@ -73,6 +73,9 @@ export const hud = (()=>{
     // signal hues — status chips / alerts ONLY (§4)
     poison:"#8be04a", slow:"#7fd0ff", stun:"#ffe066", burn:"#ff8a3a", heal:"#4fbf6a", rune:"#5a8aff",
   };
+  // CAS-1889: tinte de la barra de vigor por BANDA de carga de equipo (fast/mid/fat/over). mid = verde-vigor por defecto
+  // (C.stamf) ⇒ el baseline no cambia de color; fast=verde-cian (ágil), fat=ámbar (aviso), over=rojo (bloqueo). $0 arte.
+  const EQUIP_BAND_COL = { fast:"#5fd6a0", mid:"#3fae55", fat:"#d9a441", over:"#c0392b" };
   // §6 rarity shape-cues (prepended only when colorblind=true)
   const RARITY_CUE=["","◦","◆","★","★"]; // 0 common · 1 uncommon · 2 rare · 3+ epic
 
@@ -450,7 +453,11 @@ export const hud = (()=>{
     fillBar(nodes.hp, s.hp, s.maxHp);
     fillBar(nodes.mp, s.mp, s.maxMp);
     // CAS-1841: vigor bar (present only when STAMINA.enabled fed s.stam). Toggle the deny-flash rim on the groove.
-    if(nodes.stam){ fillBar(nodes.stam, s.stam, s.stamMax); const g=nodes.stam.fill&&nodes.stam.fill.parentNode; if(g) g.classList.toggle("flash", (s.stamFlash||0)>0); }
+    if(nodes.stam){ fillBar(nodes.stam, s.stam, s.stamMax); const g=nodes.stam.fill&&nodes.stam.fill.parentNode; if(g) g.classList.toggle("flash", (s.stamFlash||0)>0);
+      // CAS-1889: la barra de vigor ES el recurso de esquiva ⇒ tíntala por BANDA de carga de equipo ($0 arte, reusa el fill
+      // existente). Presente sólo cuando EQUIP_LOAD.enabled alimentó s.equipBand; ausente ⇒ mantiene el verde-vigor por defecto
+      // (byte-id con HEAD). fast=verde-cian · mid=verde-vigor neutro · fat=ámbar · over=rojo.
+      if(nodes.stam.fill && s.equipBand){ nodes.stam.fill.style.background = EQUIP_BAND_COL[s.equipBand] || C.stamf; } }
     // CAS-1854: Estus pips (llenos = cargas disponibles) + groove de progreso del canal (crece 0→100% mientras se
     // bebe; iluminado sólo bebiendo = señal de vulnerabilidad). Presente sólo cuando FLASK.enabled alimentó s.flask*.
     if(nodes.flask){ const n=nodes.flask, ch=s.flaskCharges|0;
