@@ -1226,6 +1226,21 @@ export const SHIELD_BLOCK = {
   moveMul:0.55,      // velocidad de strafe con la guardia arriba (gateado; OFF/no-bloqueando ⇒ sin efecto)
 };
 
+// CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
+// Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
+// no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
+// aggro dentro de safeRadius). enabled:false ⇒ la rama de fuente queda INTACTA ⇒ build byte-idéntico al HEAD previo.
+export const BONFIRE = {
+  enabled: true,
+  key: "KeyE",           // reusa el interact de proximidad (fuentes); reservado para hotkey dedicado si el CEO lo pide
+  healFull: true,        // HP/MP/stam a tope (la fuente ya lo hace; la hoguera lo garantiza)
+  refillFlasks: true,    // recarga cargas de Estus reusando FLASK.charges (gated FLASK.enabled)
+  respawnEnemies: true,  // world reset: repuebla NO-jefes de la zona, determinista 0-draw
+  setCheckpoint: true,   // fija h.respawn al sitio (la fuente ya lo hace)
+  safeRadius: 260,       // no descansar si un no-jefe en aggro está dentro de este radio (px)
+  glowColor: "#ff9a3c",  // llama/glow procedural $0 en canvas
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

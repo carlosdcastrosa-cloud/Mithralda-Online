@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -533,7 +533,16 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.water; ctx.beginPath(); ctx.arc(f.x,f.y,r,0,6.28); ctx.fill();
       ctx.fillStyle=COL.waterL; const ph=Math.sin(G.t*2+f.x)*3; ctx.fillRect(f.x-8,f.y-4+ph,5,3); ctx.fillRect(f.x+4,f.y+2-ph,4,3);
       ctx.fillStyle=COL.waterGlint; ctx.fillRect(f.x-3,f.y-8+ph,3,3);
-      if(f.temple){ ctx.fillStyle=COL.textGold; ctx.fillRect(f.x-2,f.y-r-10,4,8); ctx.fillRect(f.x-6,f.y-r-6,12,3);} }
+      if(f.temple){ ctx.fillStyle=COL.textGold; ctx.fillRect(f.x-2,f.y-r-10,4,8); ctx.fillRect(f.x-6,f.y-r-6,12,3);}
+      // CAS-1879: HOGUERA — llama/glow procedural $0 sobre el sitio de descanso, gateada por BONFIRE.enabled
+      // (OFF ⇒ este bloque no dibuja nada ⇒ byte-idéntico a HEAD). sin(G.t)+radial gradient, sin assets nuevos.
+      if(BONFIRE.enabled){ const gc=BONFIRE.glowColor, fl=1+Math.sin(G.t*6+f.x)*0.16, fh=(16+Math.sin(G.t*9+f.y)*4)*fl;
+        const g=ctx.createRadialGradient(f.x,f.y-2,1,f.x,f.y-2,r*1.9); g.addColorStop(0,"rgba(255,180,90,0.5)"); g.addColorStop(1,"rgba(255,120,40,0)");
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(f.x,f.y-2,r*1.9,0,6.28); ctx.fill();       // glow radial pulsante
+        ctx.fillStyle=gc; ctx.beginPath(); ctx.moveTo(f.x-5*fl,f.y+2);                          // llama triangular procedural
+        ctx.quadraticCurveTo(f.x-3*fl,f.y-fh*0.5,f.x,f.y-fh); ctx.quadraticCurveTo(f.x+3*fl,f.y-fh*0.5,f.x+5*fl,f.y+2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle="#ffe08a"; ctx.beginPath(); ctx.moveTo(f.x-2*fl,f.y+1);                   // núcleo claro
+        ctx.quadraticCurveTo(f.x-1.4*fl,f.y-fh*0.34,f.x,f.y-fh*0.6); ctx.quadraticCurveTo(f.x+1.4*fl,f.y-fh*0.34,f.x+2*fl,f.y+1); ctx.closePath(); ctx.fill(); } }
     // CAS-114 — warp portals (town↔abyss). The town→abyss gate reads LOCKED (dim red,
     // a barred glyph) until the hero's power clears the gate, then OPEN (violet swirl);
     // the return gate is always open. Animated from sim time only (no render RNG).

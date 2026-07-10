@@ -432,6 +432,8 @@ export const STR = {
 
   fountainRest: "Descansaste en la Fuente. Vida y maná restaurados.",
   fountainSaved: "Punto de reaparición fijado en esta Fuente.",
+  bonfireRest: "Descansaste en la Hoguera. Vida, maná y Estus restaurados; el mundo se ha repuesto.",  // CAS-1879: descanso de la HOGUERA (rest site) — cura+recarga Estus+ancla+repuebla no-jefes (referenciado sólo bajo BONFIRE.enabled)
+  bonfireUnsafe: "Hay enemigos demasiado cerca para descansar.",  // CAS-1879: safe-gate de la Hoguera — un no-jefe en aggro dentro de safeRadius deniega el descanso
   // CAS-267: controls hint is bind-aware — `k(action)` resolves the player's LIVE
   // keybinding (respects CAS-265 rebinds) so it never shows a stale hardcoded key.
   controlsHintPC: (k) => "Mover " + k("up")+k("left")+k("down")+k("right") + "/flechas · Atacar clic o " + k("attack") + " · Rodar " + k("roll") + " · Hechizos " + k("skill2")+k("skill3")+k("skill4") + " · Recoger " + k("pickup") + " · Inventario " + k("inventory") + " · Mapa " + k("map") + " · Hablar " + k("interact") + " · Pausa " + k("pause"),
