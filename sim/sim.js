@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -114,6 +114,12 @@ const zone5Rng = createRNG(0xca1de5a0);
 // the knob off no special is assigned and no draw happens ⇒ sim byte-identical to a build without it. Like the
 // other dedicated streams, seed() does NOT reset it — the harness neutralises via ENEMY_ABILITIES.enabled=false.
 const abilityRng = createRNG(0x0ab111a7);
+// CAS-1947 — DEDICATED Jefe Firma stream (distinct seed 0xb055f17a; NOT one of the used seeds above).
+// Slot for any SIGNATURE_BOSS variance draw (e.g. slam angle jitter in phase 2). HARD-GATED behind
+// SIGNATURE_BOSS.enabled: with the feature off no _sb* fields are set and no bossRng draw happens →
+// sim byte-identical to a build without it ([AC8] RNG-neutral STRONG). Like other dedicated streams,
+// seed() does NOT reset it — harness neutralises via SIGNATURE_BOSS.enabled=false.
+const bossRng = createRNG(0xb055f17a);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -2242,6 +2248,9 @@ function hitEnemy(e,dmg,ang,opt){
   if(BACKSTAB.enabled && opt && opt.melee && e.facing!==undefined
      && Math.abs(angDiff(ang, e.facing)) < BACKSTAB.rearArcDeg*Math.PI/360){
     dmg*=BACKSTAB.mult*((WEAPON_ARCHETYPES.enabled&&opt&&opt.arch)?opt.arch.backstabMul:1); backstab=true; }   // CAS-1907: ×archBackstabMul (dagger↑, greatsword↓; OFF/sword ⇒ ×1)
+  // CAS-1947: ventana de vulnerabilidad de transición de fase (_sbVuln) — héroe pega ×transitionVulnMul.
+  // Aritmética pura, 0 srand; sólo el jefe firma; OFF ⇒ e._sbVuln undefined ⇒ ×1 ⇒ byte-id.
+  if(SIGNATURE_BOSS.enabled && e._sbVuln) dmg*=SIGNATURE_BOSS.transitionVulnMul;
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -2384,6 +2393,14 @@ function killEnemy(e){
     noteEliteKill(); // CAS-149: the final boss is an elite-class kill → feeds Elite Mastery
     grantMats(3);    // CAS-237: a boss kill is a signature forge-material haul
     dropGear(e.x-20,e.y, rollGearInst(srand,2,3,"rare")); // boss: guaranteed rare+ from the tier 2-3 pool
+    // CAS-1947: RECOMPENSA del Jefe Firma — Esencia bonus + drop garantizado de rareza alta. Sólo el jefe firma.
+    // Sin persistencia (drop-every-kill, no flag de primer kill). OFF ⇒ rama muerta ⇒ byte-id.
+    if(SIGNATURE_BOSS.enabled && e._sbPhase!==undefined){
+      const R=SIGNATURE_BOSS.rewards;
+      if(R.essenceBonus>0){ ensureMeta().essence=(ensureMeta().essence|0)+R.essenceBonus; G.metaDirty=true;
+        floater(e.x,e.y-44,"+"+R.essenceBonus+" Esencia","#ffe050",{crit:true,pop:1.4,life:1.1}); }
+      dropGear(e.x+28,e.y-10, rollGearInst(srand,2,3,R.guaranteedRarity||"rare")); // drop garantizado rareza
+    }
     maybeLegendary(e.x, e.y+18, LEGENDARY.bossMul);       // CAS-1632: append-only unique roll (after the guaranteed boss piece)
     maybeSetPiece(e.x, e.y+30, LEGENDARY.bossMul);        // CAS-1654: append-only set-piece roll (own setRng stream → srand untouched)
     maybeSocketRune(e.x, e.y+42, LEGENDARY.bossMul);      // CAS-1687: append-only rune roll (own runeRng stream → srand untouched)
@@ -2526,6 +2543,15 @@ function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; con
   { const wtm=worldTierMods(); if(wtm){ const b3=e.tpl;
     e.tpl=Object.assign({},b3,{ hp:Math.round(b3.hp*wtm.hpMul), dmg:Math.round(b3.dmg*wtm.dmgMul) }); } }
   e.hp=e.maxHp=e.tpl.hp; e.champion=true; e.zone=zone; e.state="chase";
+  // CAS-1947: SIGNATURE_BOSS — marcar el jefe firma en la caldera (una sola entidad, nada más).
+  // Todos los campos _sb* son transitorios de run (no entran en save.v1). OFF ⇒ este bloque no corre ⇒ byte-id.
+  if(SIGNATURE_BOSS.enabled && zone===SIGNATURE_BOSS.zone && B && B.base===SIGNATURE_BOSS.boss){
+    e._sbPhase=1; e._sbTransT=0; e._sbVuln=false;
+    // Fase 1 baseline: aplicar params de p1 sobre el special del jefe (los mismos que ETPL.calderatyrant.special, pero tunables sin rebuild).
+    const p1=SIGNATURE_BOSS.phases.p1;
+    e.special=Object.assign({},e.special||{},{every:p1.specialEvery, windup:p1.windup, slam:Object.assign({},(e.special&&e.special.slam)||{},{count:p1.slamCount,dmg:p1.slamDmg})});
+    e._sbPoiseBase=POISE.boss?POISE.boss.max:280;
+  }
   H.champ=e;
   audio.sfx.boss(); toast(STR.huntChampion(e.tpl.champName),3.2); shakeAdd(B?12:8);
   for(let i=0,n=rmCount(B?12:8);i<n;i++) addFx("flame",e.x+frr(-26,26),e.y+frr(-26,26));
@@ -3928,6 +3954,33 @@ function updateEnemies(dt){ const h=G.hero;
     // it also stunned the boss (the stun gate below would otherwise swallow the frame).
     // Shattering drops the shield, staggers the boss (stun) and opens the damage window.
     if(e.shielded && e.shieldBroken){ shatterCarapace(e); }
+    // CAS-1947: SIGNATURE_BOSS phase transition (Fase 1 → Fase 2 al cruzar phase2HpPct).
+    // Una sola vez (guard _sbPhase===1). Abre ventana de vulnerabilidad + flash procedural.
+    // Tick de la ventana de vulnerabilidad (_sbTransT). Aritmética pura, 0 draws bossRng.
+    if(SIGNATURE_BOSS.enabled && e._sbPhase===1 && e.hp>0 && e.hp<=e.maxHp*SIGNATURE_BOSS.phase2HpPct){
+      e._sbPhase=2; e._sbTransT=SIGNATURE_BOSS.transitionWindowMs/1000; e._sbVuln=true;
+      // Aplicar params de p2 sobre el special — muta sólo el jefe firma, no ETPL.
+      const p2=SIGNATURE_BOSS.phases.p2;
+      e.special=Object.assign({},e.special||{},{every:p2.specialEvery, windup:p2.windup, slam:Object.assign({},(e.special&&e.special.slam)||{},{count:p2.slamCount,dmg:p2.slamDmg,infl:p2.slamInfl})});
+      // Escalar umbral de poise del jefe para fase 2 (poiseMul): se aplica a la entidad directamente via poiseMax override futuro.
+      e._sbPoiseMul=p2.poiseMul;
+      // Flash/stun breve: ventana de vulnerabilidad visible + pausa del jefe.
+      e.stun=Math.max(e.stun||0, 0.6);
+      e.hurtFlash=0.5;
+      addFx("spellburst",e.x,e.y,{col:"#ff4820"}); addFx("novacast",e.x,e.y,{r:96,col:"#ff8820",life:0.6});
+      for(let i=0;i<14;i++) addFx("flame",e.x+frr(-40,40),e.y+frr(-40,40));
+      shakeAdd(14); audio.sfx.boss();
+      floater(e.x,e.y-50,"¡FASE 2!","#ff4820",{crit:true,pop:1.8,life:1.2});
+    }
+    // Tick ventana de vulnerabilidad (_sbTransT decae cada frame).
+    if(SIGNATURE_BOSS.enabled && e._sbPhase===2 && e._sbTransT>0){
+      e._sbTransT-=dt; if(e._sbTransT<=0){ e._sbTransT=0; e._sbVuln=false; }
+    }
+    // Override de poiseCeil para jefe firma fase 2 (_sbPoiseMul > 1).
+    // Se hace aquí (cada frame) sobreescribiendo e.poiseMax si ya fue resuelto.
+    if(SIGNATURE_BOSS.enabled && e._sbPhase===2 && e._sbPoiseMul && e._sbPoiseBase && POISE.enabled){
+      e.poiseMax=Math.round(e._sbPoiseBase*e._sbPoiseMul);
+    }
     // CAS-65 capstone phase shift: cross the enrage HP threshold once -> speed up,
     // tighten the windup tell, and unlock the radial slam. Telegraphed loudly
     // (roar sfx + screen shake + flame burst + banner) so the spike is readable.
@@ -4044,7 +4097,8 @@ function updateEnemies(dt){ const h=G.hero;
         // (windup was the growing-ring tell). The ring replaces the melee hit below.
         else if(e.specialNow && e.special && e.special.slam){ const S=e.special.slam;
           for(let k=0;k<S.count;k++){ const a=k/S.count*6.28 + (e.facing||0);
-            G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*S.spd,vy:Math.sin(a)*S.spd,life:S.life,dmg:S.dmg,kind:"rune",enemy:true}); }
+            // CAS-1947: slam del jefe firma lleva infl (S.infl=slamInfl en fase 2); no-SB: S.infl=null ⇒ byte-id.
+            G.projectiles.push({x:e.x,y:e.y,vx:Math.cos(a)*S.spd,vy:Math.sin(a)*S.spd,life:S.life,dmg:S.dmg,kind:"rune",enemy:true,infl:S.infl||null}); }
           addFx("novacast",e.x,e.y,{r:84,col:"#ffb27a",life:0.42}); shakeAdd(7); }
       }
     } else if(e.state==="strike"){
@@ -4565,6 +4619,10 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // el atacante de contacto) alimenta el SANGRADO del héroe — simétrico al feed enemigo. 0 srand.
   if(infl && infl.type) statusOrBuildup(h, infl.type, infl, true);
   if(STATUS_BUILDUP.enabled && src) addBuildup(h, "bleed", 1, true);
+  // CAS-1947: cap de buildup del héroe — el jefe firma aplica estado CAPEADO (ailmentsToHero.cap), nunca one-shot.
+  // Corre después de addBuildup/statusOrBuildup; sólo tiene efecto si h.bld existe (lazy, nulo hasta el primer feed).
+  // OFF ⇒ SIGNATURE_BOSS.enabled=false ⇒ rama muerta ⇒ byte-id. ON con cap=70 ⇒ cada tipo clampeado a 70.
+  if(SIGNATURE_BOSS.enabled && h.bld){ const cap=SIGNATURE_BOSS.ailmentsToHero.cap; for(const bt in h.bld){ if(h.bld[bt]>cap) h.bld[bt]=cap; } }
   // CAS-383: Coraza de Espinas boon — reflect a fraction of the damage TAKEN back to the melee
   // attacker (`src`, present for contact hits; ranged bolts pass none). Routes the retaliation
   // through hitEnemy so it crits/procs/kills exactly like any other hero hit. A dodged/i-framed
