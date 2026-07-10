@@ -565,7 +565,18 @@ export function createRenderer(ctx){
     // props are skipped entirely. Margin is asymmetric: props above (smaller y) can be tall.
     const order=[];
     const tvm=world.tiledVisual?1:0; const vL=camX-48-(tvm?336:0), vR=camX+VW/Z+48+(tvm?336:0), vT=camY-120, vB=camY+VH/Z+24+(tvm?616:0); // CAS-462
-    for(const d of world.deco){ if(d.x<vL||d.x>vR||d.y<vT||d.y>vB) continue; order.push({y:(d.kind&&d.kind.startsWith("tp:"))?d.y-16:d.y,draw:()=>{
+    for(const d of world.deco){ if(d.x<vL||d.x>vR||d.y<vT||d.y>vB) continue;
+      // CAS-1808: a sliced tileset cell (custom stamp carrying d.sw, CAS-1729) is a FLOOR
+      // tile — draw it INLINE right here in the ground pass (this loop runs before
+      // renderEntities) with the same 9-arg blit, so hero and mobs always y-sort ABOVE it.
+      // A full-house fill of cells with y>hero.y no longer buries the hero. Full-sheet custom
+      // stamps (no d.sw, CAS-1716) keep flowing into `order` below so an intentional prop
+      // occluder still overlaps by depth (byte-identical to HEAD for non-tileset stamps).
+      if(d.kind==="custom" && d.sw){ const img=customImg(d.asset);
+        if(img&&img.complete&&img.naturalWidth){ const w=d.w||d.sw, h=d.h||d.sh;
+          ctx.drawImage(img, d.sx, d.sy, d.sw, d.sh, Math.round(d.x-w/2), Math.round(d.y-h), Math.round(w), Math.round(h)); }
+        continue; }
+      order.push({y:(d.kind&&d.kind.startsWith("tp:"))?d.y-16:d.y,draw:()=>{
       if(d.kind && d.kind.startsWith("tp:")){ let ei=+d.kind.slice(3);
         const fr=TDECO.anim&&TDECO.anim[ei]; if(fr&&fr.length) ei=fr[((G.t*7)|0)%fr.length]; // CAS-463
         const e=TDECO.entries[ei], pa=IMG.tiled_props;
