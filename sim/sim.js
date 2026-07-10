@@ -3076,6 +3076,29 @@ export function returnToHub(){ respawn(); G.scene="pause"; }
 function nearestNPC(){ const h=G.hero; let best=null,bd=CFG.talkRange*CFG.talkRange;
   for(const n of world.npcs){ const d=dist2(h.x,h.y,n.x,n.y); if(d<bd){bd=d;best=n;} } return best; }
 function nearestFountain(){ const h=G.hero; for(const f of world.fountains){ if(dist2(h.x,h.y,f.x,f.y)<CFG.fountainRange*CFG.fountainRange) return f; } return null; }
+// CAS-1886: resuelve BONFIRE.sites (nombres de zona) a posiciones DETERMINISTAS (0-draw). Para cada zona pedida se toma
+// el PRIMER spawner (orden de world.spawners) cuya ancla (fracción siteAnchor del rect) cae DENTRO de esa zona vía
+// zoneOf — descartando los huntZones del continente que resuelven a `field`. El punto {x,y,zone,bonfire:true} expone la
+// misma superficie que una fountain, así bonfireRespawn(site)/h.respawn funcionan igual y zoneOf(site)===zone ⇒ repop>0.
+// Memoizado en world._bonfireSites (config estática ⇒ 0 estado persistido, 0 RNG). SÓLO invocado bajo BONFIRE.enabled ⇒
+// OFF nunca computa ni muta world ⇒ byte-idéntico a HEAD. Robusto a zonas ausentes (p.ej. caldera con ZONE5 OFF ⇒ skip).
+function bonfireSites(w){
+  w=w||world;
+  if(w._bonfireSites) return w._bonfireSites;
+  const out=[], a=BONFIRE.siteAnchor;
+  for(const zone of BONFIRE.sites){
+    const sp=w.spawners.find(s=>{ if(!s || !s.rect || s.zone!==zone || (s.max|0)<=0) return false;
+      const x=(s.rect.x+s.rect.w*a.fx)*TS, y=(s.rect.y+s.rect.h*a.fy)*TS; return zoneOf(w,x,y)===zone; });
+    if(!sp) continue;                                                    // sin spawner en-zona ⇒ esa zona no recibe hoguera
+    out.push({ x:(sp.rect.x+sp.rect.w*a.fx)*TS, y:(sp.rect.y+sp.rect.h*a.fy)*TS, zone, bonfire:true });
+  }
+  w._bonfireSites=out; return out;
+}
+const BONFIRE_NONE=[];
+export function bonfireSitesPublic(){ return BONFIRE.enabled ? bonfireSites() : BONFIRE_NONE; }   // CAS-1886: render lee los sites (gateado) sin exponer estado mutable
+// CAS-1886: hoguera standalone en rango (mismo alcance que una fountain). Sólo llamada bajo BONFIRE.enabled desde interact().
+function nearestBonfireSite(){ const h=G.hero, r2=CFG.fountainRange*CFG.fountainRange;
+  for(const s of bonfireSites()){ if(dist2(h.x,h.y,s.x,s.y)<r2) return s; } return null; }
 // CAS-319: Maren la Sanadora (role:"fountain") replaced the central square fountain (CAS-309).
 // She heals EXACTLY as that fountain did, so she's reached at fountainRange (60) — the SAME radius
 // the fountain used — not the tighter talkRange (56) other NPC dialogue uses. Checked before the
@@ -3120,16 +3143,20 @@ export function interact(){
   const f=nearestFountain();
   const n=nearestNPC();
   if(n){ openDialogue(n); return; }
-  if(f){ const h=G.hero;
-    // CAS-1879: HOGUERA — la fuente se vuelve un rest site gateado por BONFIRE.enabled. OFF ⇒ esta guarda + rama no
+  // CAS-1886: una HOGUERA de BONFIRE.sites (zona de caza poblada) dispara la MISMA rama de descanso gateada. Se prueba
+  // sólo si no hay fountain en rango y SÓLO bajo BONFIRE.enabled ⇒ OFF ⇒ rest===f ⇒ rama byte-idéntica a HEAD. El site
+  // expone {x,y} igual que una fountain, así bonfireUnsafe/bonfireRespawn/h.respawn operan idénticos.
+  const rest = f || (BONFIRE.enabled ? nearestBonfireSite() : null);
+  if(rest){ const h=G.hero;
+    // CAS-1879: HOGUERA — la fuente/sitio se vuelve un rest site gateado por BONFIRE.enabled. OFF ⇒ esta guarda + rama no
     // existen ⇒ el descanso es byte-idéntico a HEAD (heal + ancla + STR.fountainRest). El safe-gate corre ANTES de
     // curar/recargar/resetear: un no-jefe en aggro dentro de safeRadius deniega el descanso (toast unsafe + sfx.deny),
     // sin efecto alguno. Geometría pura ⇒ 0 RNG.
-    if(BONFIRE.enabled && bonfireUnsafe(f)){ toast(STR.bonfireUnsafe); audio.sfx.deny(); return; }
-    h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.respawn={x:f.x,y:f.y+TS};   // CAS-1841: la fuente restaura vigor
+    if(BONFIRE.enabled && bonfireUnsafe(rest)){ toast(STR.bonfireUnsafe); audio.sfx.deny(); return; }
+    h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.respawn={x:rest.x,y:rest.y+TS};   // CAS-1841: la fuente restaura vigor
     if(BONFIRE.enabled){                                            // CAS-1879: la hoguera AÑADE recarga Estus + world reset
       if(BONFIRE.refillFlasks && FLASK.enabled) h.flaskCharges=FLASK.charges;   // recarga Estus (reusa CAS-1854, misma asignación que el refill de zona)
-      if(BONFIRE.respawnEnemies) bonfireRespawn(f);                 // world reset DETERMINISTA 0-draw de los no-jefes de la zona (jefes intactos)
+      if(BONFIRE.respawnEnemies) bonfireRespawn(rest);             // world reset DETERMINISTA 0-draw de los no-jefes de la zona (jefes intactos)
       toast(STR.bonfireRest); audio.sfx.heal(); return;
     }
     toast(STR.fountainRest); audio.sfx.heal(); return; }
@@ -6561,6 +6588,69 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     BONFIRE.enabled=savE; FLASK.enabled=savF;
     return { enabled:!!enabled, bonfireFired:(enabled?fired:false), fingerprint:fp }; },
+  // --- CAS-1886 PLACEMENT: BONFIRE.sites en zonas de caza pobladas (repop live observable). Los hooks ejercitan la
+  // RESOLUCIÓN determinista de sites + la REAL rama de descanso de interact() disparada por PROXIMIDAD a un site (sin
+  // fountain), verificando repop>0 en zona poblada. Sites = config estática (0 RNG) ⇒ srand ON==OFF byte-idéntico. ---
+  // Lista resuelta de sites (gateada BONFIRE.enabled): cada uno con su zona objetivo y si zoneOf(site)===zona (invariante).
+  bonfireSitesInfo(){ const ss=bonfireSitesPublic();
+    return { count:ss.length, zones:ss.map(s=>s.zone), sites:ss.map(s=>({ zone:s.zone, x:Math.round(s.x), y:Math.round(s.y),
+      zoneMatch:(zoneOf(world,s.x,s.y)===s.zone) })), hasForest:ss.some(s=>s.zone==="forest"), allMatch:ss.every(s=>zoneOf(world,s.x,s.y)===s.zone) }; },
+  // AC5 posición determinista: reconstruir el mundo dos veces con la MISMA semilla ⇒ mismos site.x/site.y (resolución = función
+  // pura del world-build determinista). Usa el MISMO path de construcción que el juego (MapDoc / clásico / tiled).
+  bonfireSitesDeterministic(){ const build=()=> MAPDOC ? buildWorldFromMapDoc(MAPDOC, createRNG())
+      : (USE_CLASSIC ? buildWorld(createRNG()) : buildTiledWorld(createRNG()));
+    const flat=(w)=> bonfireSites(w).map(s=>[s.zone, Math.round(s.x), Math.round(s.y)]);
+    const a=flat(build()), b=flat(build());
+    return { a, b, same:(JSON.stringify(a)===JSON.stringify(b)) }; },
+  // AC3 repop live: DESCANSO disparado por PROXIMIDAD a un BONFIRE.site (sin fountain) ⇒ heal + recarga Estus + ancla +
+  // world reset de la zona del site (no-jefes reemplazados/repoblados, JEFE intacto). Confirma que la mecánica HEADLINE
+  // ya NO queda dormida: zoneOf(site)=zona poblada ⇒ repop>0. Héroe COLOCADO en el site (interact()→nearestBonfireSite()).
+  bonfireSiteRestProbe(zoneName){ const savE=BONFIRE.enabled, savF=FLASK.enabled; BONFIRE.enabled=true; FLASK.enabled=true;
+    const ss=bonfireSitesPublic(); const site=ss.find(s=>s.zone===(zoneName||"forest")) || ss[0];
+    const h=G.hero; G.scene="play"; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    if(!site||!h){ BONFIRE.enabled=savE; FLASK.enabled=savF; return { ok:false, noSite:!site }; }
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null; h.atkCD=0; h.atkT=0;
+    h.x=site.x; h.y=site.y; h.maxHp=1000; h.hp=1; h.maxMp=200; h.mp=0; h.stam=0; h.flaskCharges=0; h.respawn=null;
+    const old=spawnEnemy("wolf", site.x+8, site.y); if(old){ old.hp=old.maxHp=30; old._probeOld=true; }   // wolf/orc = trash de zona; state idle ⇒ safe-gate pasa
+    const boss=spawnEnemy("wolf", site.x, site.y+8); if(boss){ boss.isBoss=true; boss.hp=boss.maxHp=1e6; boss._probeBoss=true; }
+    interact();                                                          // ruta REAL: nearestBonfireSite() ⇒ rama gateada de descanso
+    const zone=zoneOf(world,site.x,site.y);
+    const healed=(h.hp===heroMaxHp(h) && h.mp===h.maxMp && h.stam===STAMINA.max);
+    const refilled=(h.flaskCharges===FLASK.charges);
+    const anchored=!!(h.respawn && Math.abs(h.respawn.x-site.x)<1e-6 && Math.abs(h.respawn.y-(site.y+TS))<1e-6);
+    const oldGone=!G.enemies.some(e=>e._probeOld);
+    const bossAlive=G.enemies.some(e=>e._probeBoss);
+    const repop=G.enemies.filter(e=>!e.isBoss).length;
+    BONFIRE.enabled=savE; FLASK.enabled=savF; G.enemies.length=0;
+    return { zone, siteZone:site.zone, healed, refilled, anchored, oldGone, bossAlive, repop, ok:(healed&&refilled&&anchored&&oldGone&&bossAlive&&repop>0) }; },
+  // AC4 safe-gate en un site: no-jefe en aggro dentro de safeRadius ⇒ interact() DENEGADO (sin heal/refill/ancla ni reset).
+  bonfireSiteSafeGateProbe(zoneName){ const savE=BONFIRE.enabled, savF=FLASK.enabled; BONFIRE.enabled=true; FLASK.enabled=true;
+    const ss=bonfireSitesPublic(); const site=ss.find(s=>s.zone===(zoneName||"forest")) || ss[0];
+    const h=G.hero; G.scene="play"; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    if(!site||!h){ BONFIRE.enabled=savE; FLASK.enabled=savF; return { ok:false, noSite:!site }; }
+    h.x=site.x; h.y=site.y; h.maxHp=1000; h.hp=1; h.flaskCharges=0; h.respawn=null; h.stun=0; h.dead=false;
+    const R=BONFIRE.safeRadius; const e=spawnEnemy("wolf", site.x+R*0.5, site.y); if(e){ e.hp=e.maxHp=100; e.state="chase"; }
+    interact();                                                          // enemigo unsafe cerca ⇒ debe DENEGAR
+    const denied=(h.hp===1 && h.flaskCharges===0 && h.respawn===null);
+    // ahora sácalo del radio ⇒ el descanso procede
+    e.x=site.x+R*3; interact();
+    const allowed=(h.hp===heroMaxHp(h) && h.flaskCharges===FLASK.charges);
+    BONFIRE.enabled=savE; FLASK.enabled=savF; G.enemies.length=0;
+    return { denied, allowed, ok:(denied&&allowed) }; },
+  // AC OFF byte-id (placement): BONFIRE.enabled=false ⇒ nearestBonfireSite() nunca se consulta ⇒ un héroe SOBRE un site (sin
+  // fountain) NO cura/recarga/reset (la rama no existe) ⇒ estado del mundo idéntico a HEAD (sin la feature de sites).
+  bonfireSiteOffProbe(zoneName){ const savE=BONFIRE.enabled, savF=FLASK.enabled;
+    BONFIRE.enabled=true; const ss=bonfireSitesPublic(); const site=ss.find(s=>s.zone===(zoneName||"forest")) || ss[0];
+    BONFIRE.enabled=false; FLASK.enabled=true;
+    const h=G.hero; G.scene="play"; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    if(!site||!h){ BONFIRE.enabled=savE; FLASK.enabled=savF; return { ok:false, noSite:!site }; }
+    h.x=site.x; h.y=site.y; h.maxHp=1000; h.hp=1; h.flaskCharges=0; h.respawn=null; h.dead=false; h.stun=0;
+    const old=spawnEnemy("wolf", site.x+8, site.y); if(old){ old.hp=old.maxHp=30; old._probeOld=true; }
+    const n0=G.enemies.length;
+    interact();                                                          // OFF ⇒ site NO detectado ⇒ no-op
+    const inert=(h.hp===1 && h.flaskCharges===0 && h.respawn===null && G.enemies.length===n0 && G.enemies.some(e=>e._probeOld));
+    BONFIRE.enabled=savE; FLASK.enabled=savF; G.enemies.length=0;
+    return { inert, ok:inert }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

@@ -1239,6 +1239,13 @@ export const BONFIRE = {
   setCheckpoint: true,   // fija h.respawn al sitio (la fuente ya lo hace)
   safeRadius: 260,       // no descansar si un no-jefe en aggro está dentro de este radio (px)
   glowColor: "#ff9a3c",  // llama/glow procedural $0 en canvas
+  // CAS-1886 (placement retune, decisión CEO CAS-1885): hogueras STANDALONE en zonas de caza POBLADAS para que el
+  // world-reset (bonfireRespawn) sea observable live. Las 2 fountains viven en `field` (sin spawner) ⇒ repop=0; estos
+  // sites DESACOPLAN la hoguera de las fountains (aditivo — las fountains siguen curando). Cada entrada = una ZONA; la
+  // posición se resuelve DETERMINISTA (0-draw) desde el rect del spawner de esa zona en bonfireSites() (sim.js). El
+  // guard zoneOf(site)===zone descarta spawners que caen fuera de zona (p.ej. huntZones del continente en `field`).
+  sites: ["forest", "caves", "ruins", "abyss", "frost", "trial", "swamp", "caldera"],
+  siteAnchor: { fx: 0.5, fy: 0.18 },   // fracción del rect del spawner (centro-x, cerca del borde superior = entrada defendible, no en el cluster de spawn)
 };
 
 // the objective text + the gate it reads come straight from here, no UI branching.

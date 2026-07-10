@@ -543,6 +543,22 @@ export function createRenderer(ctx){
         ctx.quadraticCurveTo(f.x-3*fl,f.y-fh*0.5,f.x,f.y-fh); ctx.quadraticCurveTo(f.x+3*fl,f.y-fh*0.5,f.x+5*fl,f.y+2); ctx.closePath(); ctx.fill();
         ctx.fillStyle="#ffe08a"; ctx.beginPath(); ctx.moveTo(f.x-2*fl,f.y+1);                   // núcleo claro
         ctx.quadraticCurveTo(f.x-1.4*fl,f.y-fh*0.34,f.x,f.y-fh*0.6); ctx.quadraticCurveTo(f.x+1.4*fl,f.y-fh*0.34,f.x+2*fl,f.y+1); ctx.closePath(); ctx.fill(); } }
+    // CAS-1886: HOGUERAS standalone en zonas de caza (BONFIRE.sites) — base de piedra + leños + misma llama/glow procedural
+    // $0, gateada BONFIRE.enabled (OFF ⇒ lista vacía ⇒ nada dibuja ⇒ byte-idéntico a HEAD). View-culled por site (radial
+    // gradients son caros); tiempo de sim ⇒ 0 render RNG. sim.bonfireSitesPublic() resuelve posiciones deterministas.
+    if(BONFIRE.enabled) for(const f of sim.bonfireSitesPublic()){
+      if(f.x>camX+VW/Z+48 || f.x<camX-48 || f.y>camY+VH/Z+48 || f.y<camY-48) continue;          // view-cull
+      ctx.fillStyle="rgba(0,0,0,0.30)"; ctx.beginPath(); ctx.ellipse(f.x,f.y+5,13,6,0,0,6.28); ctx.fill();  // sombra
+      ctx.fillStyle=COL.stoneD; ctx.beginPath(); ctx.arc(f.x,f.y+2,10,0,6.28); ctx.fill();       // anillo de piedra
+      ctx.fillStyle="#5b3a22"; ctx.fillRect(f.x-7,f.y,14,3); ctx.fillRect(f.x-2,f.y-5,4,11);      // leños cruzados
+      const gc=BONFIRE.glowColor, fl=1+Math.sin(G.t*6+f.x)*0.16, fh=(16+Math.sin(G.t*9+f.y)*4)*fl;
+      const g=ctx.createRadialGradient(f.x,f.y-2,1,f.x,f.y-2,38); g.addColorStop(0,"rgba(255,180,90,0.5)"); g.addColorStop(1,"rgba(255,120,40,0)");
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(f.x,f.y-2,38,0,6.28); ctx.fill();                 // glow radial pulsante
+      ctx.fillStyle=gc; ctx.beginPath(); ctx.moveTo(f.x-5*fl,f.y+2);                              // llama triangular
+      ctx.quadraticCurveTo(f.x-3*fl,f.y-fh*0.5,f.x,f.y-fh); ctx.quadraticCurveTo(f.x+3*fl,f.y-fh*0.5,f.x+5*fl,f.y+2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle="#ffe08a"; ctx.beginPath(); ctx.moveTo(f.x-2*fl,f.y+1);                       // núcleo claro
+      ctx.quadraticCurveTo(f.x-1.4*fl,f.y-fh*0.34,f.x,f.y-fh*0.6); ctx.quadraticCurveTo(f.x+1.4*fl,f.y-fh*0.34,f.x+2*fl,f.y+1); ctx.closePath(); ctx.fill();
+    }
     // CAS-114 — warp portals (town↔abyss). The town→abyss gate reads LOCKED (dim red,
     // a barred glyph) until the hero's power clears the gate, then OPEN (violet swirl);
     // the return gate is always open. Animated from sim time only (no render RNG).
