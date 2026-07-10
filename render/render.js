@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -656,6 +656,10 @@ export function createRenderer(ctx){
     list.push({y:h.y,draw:()=>drawHero(h)});
     list.sort((a,b)=>a.y-b.y);
     for(const o of list) o.draw();
+    // CAS-1847: reticle del ENFOQUE DE OBJETIVO (Lock-On) — $0 arte, 100% procedural. Anillo + 4 chevrones
+    // rotando con G.t alrededor del enemigo enfocado. Gated LOCK_ON.enabled && h.lockTarget (vivo) ⇒ OFF o sin
+    // lock no dibuja nada ⇒ byte-idéntico. Se dibuja tras las entidades para leer por encima del sprite enemigo.
+    if(LOCK_ON.enabled && h.lockTarget && !h.lockTarget.dead) drawLockReticle(h.lockTarget);
     // projectiles + fx on top
     for(const f of G.fields) drawField(f);
     for(const p of G.projectiles) drawProjectile(p);
@@ -680,6 +684,33 @@ export function createRenderer(ctx){
       // CAS-1614: 2px near-black (#0a0c10 = COL.out) drop shadow keeps numbers legible over bright
       // terrain and busy VFX (was a 1px shadow).
       ctx.fillStyle=COL.out; ctx.fillText(txt,fx+2,f.y+2); ctx.fillStyle=f.col; ctx.fillText(txt,fx,f.y); ctx.globalAlpha=1; }
+  }
+
+  // CAS-1847: reticle procedural del ENFOQUE DE OBJETIVO — $0 arte. Anillo pulsante + 4 chevrones que rotan con
+  // G.t alrededor del objetivo enfocado, en LOCK_ON.reticleCol. Sin assets, sin RNG (todo derivado de G.t/geometría).
+  function drawLockReticle(e){
+    const cx=e.x, cy=e.y-((e.tpl&&e.tpl.size)||14)*0.4;
+    const r=((e.tpl&&e.tpl.size)||14)*1.15 + 6;
+    const col=LOCK_ON.reticleCol||"#ffd15c";
+    ctx.save();
+    // anillo (pulso suave con G.t)
+    ctx.globalAlpha=0.55+0.2*Math.sin(G.t*4);
+    ctx.strokeStyle=col; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,6.283); ctx.stroke();
+    // 4 chevrones rotando
+    ctx.globalAlpha=0.9;
+    const rot=G.t*1.4, cr=r+4, len=5;
+    for(let k=0;k<4;k++){ const a=rot+k*(Math.PI/2);
+      const px=cx+Math.cos(a)*cr, py=cy+Math.sin(a)*cr;
+      // pequeño chevrón "<" apuntando hacia el centro (tangente ± a la radial)
+      const ta=a+Math.PI;               // hacia el centro
+      const b1=ta+0.55, b2=ta-0.55;
+      ctx.beginPath();
+      ctx.moveTo(px+Math.cos(b1)*len, py+Math.sin(b1)*len);
+      ctx.lineTo(px, py);
+      ctx.lineTo(px+Math.cos(b2)*len, py+Math.sin(b2)*len);
+      ctx.stroke(); }
+    ctx.restore(); ctx.globalAlpha=1;
   }
 
   function drawHero(h){
