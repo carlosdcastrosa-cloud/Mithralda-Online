@@ -25,6 +25,9 @@ let curAsset = null;                              // selected asset id for the S
 // curAsset) the Sello tool stamps that source sub-rect instead of the whole sheet.
 // null ⇒ whole-sheet stamp (CAS-1716 behaviour, byte-safe export).
 let curCell = null;                               // { asset, col, row, sx, sy, sw, sh } | null
+// CAS-1803 — hover highlight: { asset, col, row } | null. Pure UI feedback (which cell
+// the cursor is over); never touches the exported rect. Redrawn only on cell change.
+let hoverCell = null;
 let slicePanelAsset = null;                       // asset id currently shown in the right slice panel
 // CAS-1735 — picker zoom. PURE viewport transform: multiplier over the fit scale.
 // `1` == fit-width (byte-identical to CAS-1729). Never serialized (UI-only view pref);
@@ -315,7 +318,7 @@ function openSlicePanel(id){
   const r=assets.get(id);
   if(!r || tool!=="stamp"){ panel.style.display="none"; slicePanelAsset=null; return; }
   // CAS-1735: opening a DIFFERENT tileset resets the picker view (zoom→fit, scroll→0).
-  if(slicePanelAsset!==id){ sliceZoom=1; const v=$("sliceView"); if(v){ v.scrollLeft=0; v.scrollTop=0; } }
+  if(slicePanelAsset!==id){ sliceZoom=1; hoverCell=null; const v=$("sliceView"); if(v){ v.scrollLeft=0; v.scrollTop=0; } }
   slicePanelAsset=id; const s=sliceOf(r);
   $("slTw").value=s.tw; $("slTh").value=s.th; $("slMargin").value=s.margin;
   $("slSpacing").value=s.spacing; $("slOx").value=s.ox; $("slOy").value=s.oy;
@@ -348,6 +351,14 @@ function drawSlicePanel(){
     x.beginPath(); x.moveTo(px,0); x.lineTo(px,ch); x.stroke(); }
   for(let rr=0;rr<=g.rows;rr++){ const py=Math.round((sl.oy+sl.margin+rr*(sl.th+sl.spacing))*ds)+0.5;
     x.beginPath(); x.moveTo(0,py); x.lineTo(cw,py); x.stroke(); }
+  // CAS-1803 — hover cell feedback (cyan), drawn UNDER the gold selected highlight so a
+  // selected cell reads unambiguously even while hovered. Skipped when it == the selection.
+  if(hoverCell && hoverCell.asset===slicePanelAsset &&
+     !(curCell && curCell.asset===slicePanelAsset && curCell.col===hoverCell.col && curCell.row===hoverCell.row)){
+    const hr=cellRect(sl, hoverCell.col, hoverCell.row);
+    x.fillStyle="#39c6d833"; x.strokeStyle="#5fe0f0"; x.lineWidth=1.5;
+    const hx=hr.sx*ds, hy=hr.sy*ds, hw=hr.sw*ds, hh=hr.sh*ds;
+    x.fillRect(hx,hy,hw,hh); x.strokeRect(hx+0.5,hy+0.5,hw-1,hh-1); }
   if(curCell && curCell.asset===slicePanelAsset){
     x.fillStyle="#c8a24a44"; x.strokeStyle="#e8c060"; x.lineWidth=2;
     const hx=curCell.sx*ds, hy=curCell.sy*ds, hw=curCell.sw*ds, hh=curCell.sh*ds;
@@ -620,11 +631,24 @@ for(const k of ["slTw","slTh","slMargin","slSpacing","slOx","slOy"]){ const el=$
     const v=$("sliceView");
     dwn={ ox:e.offsetX, oy:e.offsetY, cx:e.clientX, cy:e.clientY, sl:v?v.scrollLeft:0, st:v?v.scrollTop:0 };
     moved=false; });
+  // CAS-1803 — cheap hover feedback: recompute the cell under the cursor and redraw ONLY
+  // when it changes cell (bounds redraws to grid crossings → no per-pixel canvas repaint).
+  const updateHover=e=>{
+    if(!slicePanelAsset){ if(hoverCell){ hoverCell=null; drawSlicePanel(); } return; }
+    const c=pickAtCanvasPx(e.offsetX,e.offsetY);
+    const same = c ? (hoverCell && hoverCell.asset===slicePanelAsset && hoverCell.col===c.col && hoverCell.row===c.row)
+                   : !hoverCell;
+    if(same) return;
+    hoverCell = c ? { asset:slicePanelAsset, col:c.col, row:c.row } : null;
+    drawSlicePanel(); };
   cvs.addEventListener("pointermove", e=>{
-    if(!dwn) return; const v=$("sliceView"); if(!v) return;
+    if(!dwn){ updateHover(e); return; }
+    const v=$("sliceView"); if(!v) return;
     const dx=e.clientX-dwn.cx, dy=e.clientY-dwn.cy;
     if(!moved && (Math.abs(dx)>3 || Math.abs(dy)>3)){ moved=true; cvs.style.cursor="grabbing"; }
-    if(moved){ v.scrollLeft=dwn.sl-dx; v.scrollTop=dwn.st-dy; } });
+    if(moved){ v.scrollLeft=dwn.sl-dx; v.scrollTop=dwn.st-dy; }
+    else updateHover(e); });
+  cvs.addEventListener("pointerleave", ()=>{ if(hoverCell){ hoverCell=null; drawSlicePanel(); } });
   const end=e=>{ if(!dwn) return; const wasMoved=moved; const ox=dwn.ox, oy=dwn.oy; dwn=null; cvs.style.cursor="crosshair";
     if(wasMoved) return;                                   // was a pan, not a pick
     const r=assets.get(slicePanelAsset); if(!r) return;
@@ -726,4 +750,12 @@ window.__editor = { get doc(){ return doc; }, docToMapDoc, docFromMapDoc, setDoc
   sliceZoomFit(){ const v=$("sliceView"); if(v){ v.scrollLeft=0; v.scrollTop=0; } return setSliceZoom(1); },
   get sliceZoom(){ return sliceZoom; },
   pickAtCanvasPx(x,y){ return pickAtCanvasPx(x,y); },
+  // CAS-1803 hover highlight (UI-only) — QA probes. setHoverCell resolves the cell at a
+  // canvas px (same math as the pointer handler) and returns the resulting hover, or null.
+  setHoverCell(col,row){ hoverCell=(col==null?null:{ asset:slicePanelAsset, col, row });
+    if(slicePanelAsset) drawSlicePanel(); return hoverCell?{...hoverCell}:null; },
+  setHoverAtCanvasPx(x,y){ const c=slicePanelAsset?pickAtCanvasPx(x,y):null;
+    hoverCell=c?{ asset:slicePanelAsset, col:c.col, row:c.row }:null;
+    if(slicePanelAsset) drawSlicePanel(); return hoverCell?{...hoverCell}:null; },
+  get hoverCell(){ return hoverCell?{...hoverCell}:null; },
   selectAsset, selectTool, referencedAssets, reingestEmbedded };
