@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -723,6 +723,27 @@ export function createRenderer(ctx){
       ctx.strokeStyle="#ffe27a"; ctx.lineWidth=2; ctx.beginPath();
       ctx.arc(h.x,h.y+2,15+3*(1-a),0,6.28); ctx.stroke();
       ctx.globalAlpha=0.28*a; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(h.x,h.y+2,15+3*(1-a),0,6.28); ctx.stroke();
+      ctx.restore();
+    }
+    // CAS-1814: ESQUIVA RODANTE — a legible INVULNERABILITY aura during a roll's i-frame window: a soft
+    // cyan/white ghost tint + a shimmer ring that reads clearly "you are invulnerable now". Procedural
+    // ($0 art), additive-lit, reuses the streak machinery; gated on DODGE.enabled + an ACTIVE roll's
+    // i-frame (h.rolling && h.iframe>0) + !reduceMotion. Derived only from h.iframe (no RNG, no sim
+    // mutation) → Stage-2 safe. OFF (DODGE.enabled=false) ⇒ this block never runs ⇒ only the generic
+    // flicker below remains (roll render byte-identical to HEAD).
+    if(DODGE.enabled && h.rolling && h.iframe>0 && !h.dead && !G.settings.reduceMotion){
+      const a=clamp((h.iframe||0)/Math.max(0.05,DODGE.iframeMs/1000),0,1); // 1→0 across the invuln window
+      ctx.save(); ctx.globalCompositeOperation="lighter";
+      const gr=ctx.createRadialGradient(h.x,h.y+2,2,h.x,h.y+2,17);      // ghost tint over the hero
+      gr.addColorStop(0,`rgba(210,245,255,${0.30*a+0.05})`);
+      gr.addColorStop(0.6,`rgba(120,220,255,${0.16*a})`);
+      gr.addColorStop(1,"rgba(120,220,255,0)");
+      ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(h.x,h.y+2,17,0,6.28); ctx.fill();
+      const rr=14+4*(1-a);                                             // shimmer ring, expands as it fades
+      ctx.strokeStyle=`rgba(190,240,255,${0.55*a+0.12})`; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(h.x,h.y+2,rr,0,6.28); ctx.stroke();
+      ctx.strokeStyle=`rgba(255,255,255,${0.30*a})`; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(h.x,h.y+2,rr+3,0,6.28); ctx.stroke();
       ctx.restore();
     }
     if(h.iframe>0 && !h.dead && Math.floor(G.t*20)%2===0) ctx.globalAlpha=0.45;

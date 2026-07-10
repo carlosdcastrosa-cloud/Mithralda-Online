@@ -1046,6 +1046,23 @@ export const TELEGRAPH = {
   heavyOnly:true,  // v1: élites/campeones/jefes/capstones; mobs básicos sin cambios
 };
 
+// CAS-1814 — Esquiva Rodante (dodge roll con i-frames). Realce REACTIVO con-knob del `doRoll`
+// EXISTENTE (CAS-1618), NO una mecánica nueva: la esquiva ya rueda (tecla Space), niega TODO daño
+// (melee Y ranged) por el i-frame universal en damageHero, y tiene cooldown (rollCD transitorio).
+// Con enabled:true, doRoll deriva iframe/cooldown/distancia de estos params (banda reactiva del
+// issue) en vez de CFG.roll*, conservando los bonos existentes (bb.iframeAdd + metaDashIframe +
+// Estela Ardiente que se SUMAN igual), y render dibuja un aura de invulnerabilidad legible durante
+// la ventana. HARD-GATED: enabled:false ⇒ doRoll usa CFG.rollIFrame/rollCD/rollSpeed EXACTOS y no
+// se dibuja aura ⇒ sim + render byte-idénticos a HEAD. Timing PURO: 0 draws de RNG (reusa el i-frame
+// que ya es 0-RNG; NO abre stream nuevo). NO persiste: el cooldown reusa rollCD (run-state
+// transitorio, patrón parryCD/atkspdBuff), save.v1 byte-idéntico con o sin el flag.
+export const DODGE = {
+  enabled:true,
+  cooldownMs:900,   // banda 800–1200; reactivo deliberado (HEAD roll = 620ms)
+  iframeMs:280,     // banda 200–300; niega TODO daño (melee+ranged) (HEAD roll = 340ms)
+  distance:92,      // px de impulso ≈ rollSpeed×rollTime actual (86px); neutro
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
