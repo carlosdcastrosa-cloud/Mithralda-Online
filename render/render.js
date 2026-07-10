@@ -3686,6 +3686,7 @@ export function createRenderer(ctx){
     btn(tb.attack,COL.textGold,true); btn(tb.roll,COL.cream); btn(tb.s2,COL.flame); btn(tb.s3,COL.heal); btn(tb.s4,COL.rune); btn(tb.act,COL.cream); btn(tb.pick,COL.cream);
     if(tb.flask) btn(tb.flask,COL.heal); // CAS-1854: botón táctil del Estus (present only when FLASK.enabled ⇒ tb.flask undefined OFF ⇒ byte-id)
     if(tb.block) btn(tb.block, G.hero&&G.hero.blocking ? "#dff1ff" : "#7fb0d8"); // CAS-1873: botón HOLD del bloqueo (present only when SHIELD_BLOCK.enabled ⇒ undefined OFF ⇒ byte-id); se ilumina con la guardia arriba
+    if(tb.twohand) btn(tb.twohand, G.hero&&G.hero.twoHand ? "#ffcf7a" : "#c79a55"); // CAS-1895: botón TOGGLE de empuñadura a dos manos (present only when TWO_HAND.enabled ⇒ undefined OFF ⇒ byte-id); se ilumina con la postura activa
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
     if(top.cdx) btn(top.cdx,COL.textGold); // CAS-1751: Códice touch button (present only when enabled)
     // CAS-1659: Ultimate touch button + charge ring — only when the run has a drafted ultimate.

@@ -1276,6 +1276,33 @@ export const EQUIP_LOAD = {
   overCanRoll: false,          // over-encumbered: false ⇒ doRoll bloquea (deny ANTES de gastar); true ⇒ rodada mínima
 };
 
+// CAS-1895: EMPUÑADURA A DOS MANOS (Two-Handing, 15º pilar). Un TOGGLE de postura ofensiva: agarrar el arma con las
+// dos manos GUARDA el escudo ⇒ más pegada a cambio de defensa. NO crea sistema nuevo — 100% BORROW sobre pilares vivos:
+//   · Escudo INACTIVO: mientras `h.twoHand`, SHIELD_BLOCK (CAS-1873) no puede levantar la guardia ⇒ su rama en damageHero
+//     queda muerta (reusa el gate `h.blocking`, sin nueva rama). El escudo está "envainado".
+//   · Carga de equipo recalcula: el peso del escudo SALE de equipLoad(h) (CAS-1889) ⇒ ratio baja ⇒ posible drop de banda
+//     (fat→mid, mid→fast) ⇒ esquiva más ágil. Sinergia observable, 0-draw, sin campo de save.
+//   · Daño melee ×dmgMul: el swing (applyHeroMelee) pega ×1.35.
+//   · Poise-damage ×poiseMul: el golpe alimenta POISE.gain (CAS-1826) ×1.5 ⇒ staggerea más rápido.
+//   · Estamina/golpe ×stamMul: el coste de vigor de los PODER-swings (heavy/finisher, CAS-1841) sube ×1.15.
+// Estado TRANSITORIO `h.twoHand` (mirror `h.blocking`: fuera del allowlist de serializeSave ⇒ save.v1 byte-id y SIN clave
+// nueva; un toggle de runtime que arranca en false tras cargar). 100% input/aritmética ⇒ CERO draws, NO existe
+// `twoHandRng` ⇒ srand ON==OFF byte-idéntico incluso con el toggle activo. HUD $0 arte (reusa el tinte de banda de vigor
+// del HUD DOM + un marcador). HARD-GATED: enabled:false ⇒ toggle inerte, `h.twoHand` nunca sube, todas las ramas muertas
+// ⇒ byte-idéntico a HEAD (14 pilares intactos); sin pulsar ⇒ idéntico a hoy con la feature ON. Números + `key` = decisión
+// FEEL/BALANCE del CEO (retune = knob barato). Decisión de tecla (CTO): KeyH del spec YA es Parada con Tempo (CAS-1785) y
+// las 26 letras + ShiftLeft (bloqueo) + Tab/Space/Digits están ocupadas ⇒ `ShiftRight` (libre en todo el repo, simétrico
+// al ShiftLeft del bloqueo: mano izquierda = brace/escudo, mano derecha = agarre a dos manos). Móvil = botón HUD (toggle).
+export const TWO_HAND = {
+  enabled: true,
+  key: "ShiftRight",   // TOGGLE de postura a dos manos (desktop); móvil = botón HUD toggle. Desvío del spec KeyH (ya = Parry CAS-1785)
+  dmgMul: 1.35,        // multiplicador de daño del swing melee mientras se empuña a dos manos
+  poiseMul: 1.5,       // multiplicador del poise-damage (POISE.gain CAS-1826) ⇒ rompe postura más rápido
+  dropsShield: true,   // el escudo se envaina ⇒ SHIELD_BLOCK no puede alzar guardia + su peso sale de equipLoad
+  stamMul: 1.15,       // multiplicador del coste de vigor de los PODER-swings (heavy/finisher, CAS-1841)
+  moveMul: 1.0,        // factor de velocidad al empuñar a dos manos (1.0 = sin penalización de movilidad en v1)
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

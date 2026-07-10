@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -125,7 +125,7 @@ function onKeyDown(e){
   // navegador si no se hace preventDefault). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
   // CAS-1873: suprime el default del navegador para la tecla de bloqueo cuando está enabled (ShiftLeft es un
   // modificador; sin esto podría interferir con atajos). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
-  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key)) e.preventDefault();
+  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key)) e.preventDefault();
 }
 function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md);
   // CAS-1873: soltar la tecla de bloqueo BAJA la guardia (HELD). Siempre se limpia (aunque OFF) ⇒ el estado no queda
@@ -278,6 +278,11 @@ function edge(code){
   // fija blockHeld=true aquí y lo baja onKeyUp. No es una acción rebindable (deliberate, como KeyH parry / FLASK.key:
   // never touches REBINDS/settings.binds). El sim decide si la guardia realmente sube (estamina/stun/rolling gate).
   if(code===SHIELD_BLOCK.key && SHIELD_BLOCK.enabled){ blockHeld=true; return; }
+  // CAS-1895: dedicated TWO_HAND.key (default ShiftRight — KeyH del spec ya es Parry CAS-1785) ALTERNA la EMPUÑADURA A
+  // DOS MANOS — gated on TWO_HAND.enabled, so con la feature off la tecla es inerte (falls through, no state change). Es
+  // un TOGGLE en el edge (no held). No es una acción rebindable (deliberate, como KeyH parry / SHIELD_BLOCK.key: never
+  // touches REBINDS/settings.binds). El sim decide (toggleTwoHand gated en escena play + héroe vivo).
+  if(code===TWO_HAND.key && TWO_HAND.enabled){ sim.toggleTwoHand(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
@@ -379,6 +384,10 @@ export function tbtns(){ // returns button rects for current scene
     // fija blockHeld mientras el dedo siga abajo (ver blockPointerId), onPointerUp lo suelta. `act` no-op (el hold lo
     // maneja el pointer handler, no el dispatch de tap). $0 arte (glifo procedural 🛡). Cluster izquierdo, sobre pick/⚕.
     ...(SHIELD_BLOCK.enabled ? { block:{x:m+bs*2.6, y:VH-m-bs*2.2, r:bs*0.4, label:"🛡", act:()=>{} } } : {}),
+    // CAS-1895: botón táctil TOGGLE de la EMPUÑADURA A DOS MANOS — SÓLO cuando TWO_HAND.enabled, así con el knob OFF no
+    // hay botón ⇒ el layout de controles es byte-idéntico a HEAD (mirror tb.flask). Es un TAP (no hold): el dispatch de
+    // handleUITap llama `act` ⇒ sim.toggleTwoHand() alterna la postura. $0 arte (glifo procedural ⚔). Cluster izquierdo.
+    ...(TWO_HAND.enabled ? { twohand:{x:m+bs*3.65, y:VH-m-bs*2.2, r:bs*0.4, label:"⚔", act:()=>sim.toggleTwoHand()} } : {}),
     bs
   };
 }
