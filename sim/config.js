@@ -1192,6 +1192,17 @@ export const LOCK_ON = { enabled:true, key:"Tab", range:340, cycleCd:0.14, retic
 // CEO confirma/retune la tecla en el Gate.
 export const FLASK = { enabled:true, key:"KeyU", charges:3, healPct:0.40, drinkMs:750, cancelOnAction:true, refillOnZone:true };
 
+// CAS-1867: MANCHA DE SANGRE (Bloodstain / Corpse-Run) — 11ª feature Souls-like, cierra la tríada de CASTIGO
+// (Poise/Stagger + Estus + CONSECUENCIA DE MUERTE). Hoy morir BANCA automáticamente toda la Esencia del run
+// (sim.js:3001). Este knob INTERCEPTA ese banking: la Esencia ganada pasa a estar EN RIESGO como una Mancha de
+// Sangre en el punto de muerte; recuperarla volviendo a la zona la banca; morir otra vez antes la PIERDE. `lossPct`
+// = fracción de la Esencia del run que se arriesga (1.0 ⇒ toda; el resto se banca "seguro"); `recoverRadius` = radio
+// de recogida (walk-over); `markerColor` = charco $0 arte. Estado runtime G.bloodstain {zone,x,y,amount}|null en su
+// PROPIO store aislado (mithralda.bloodstain.v1, mirror KEY_ARENA) ⇒ save.v1 intacto y SIN clave nueva. 0 RNG
+// (posición=punto de muerte, recuperación=dist²) ⇒ srand ON==OFF. HARD-GATED: enabled:false ⇒ el banking de siempre
+// corre igual, sin marcador, sin store ⇒ byte-idéntico a HEAD. `lossPct`/`recoverRadius` = decisión FEEL/BALANCE del CEO.
+export const BLOODSTAIN = { enabled:true, lossPct:1.0, recoverRadius:32, markerColor:"#8b0000" };
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

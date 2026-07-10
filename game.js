@@ -117,6 +117,7 @@ export function createGame(canvas, ctx, getView){
   persist.bootCodex(); // CAS-1751: rehydrate the account-wide Códice de Botín ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile reads the live codex bonus (account-wide, independent of any character)
   persist.bootTitles(); // CAS-1758: rehydrate the account-wide Títulos de Gesta ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile caches the equipped title (account-wide, independent of any character)
   persist.bootPacts(); // CAS-1763: rehydrate the Pactos de Poder (Power Pacts) preference from its OWN store (account-wide, independent of any character; effects derive live in the seam each run)
+  persist.bootBloodstain(); // CAS-1867: rehydrate the Mancha de Sangre (at-risk Esencia dropped at the death point) from its OWN store (mithralda.bloodstain.v1 — never the run save); gated on BLOODSTAIN.enabled ⇒ OFF leaves G.bloodstain null (byte-id)
   persist.boot();
   persist.initFlush();
   // CAS-132: privacy-light retention/funnel analytics. boot() opens the anonymous

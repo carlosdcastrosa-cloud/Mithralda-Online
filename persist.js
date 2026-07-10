@@ -11,6 +11,7 @@
 // wrapped — private-mode / quota failures degrade silently, the game still runs.
 // ===========================================================================
 import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena, serializeCodex, loadCodex, serializeTitles, loadTitles, serializePacts, loadPacts } from "./sim/sim.js";
+import { BLOODSTAIN } from "./sim/config.js";   // CAS-1867: gate del store de la Mancha de Sangre (enabled:false ⇒ nunca leer/escribir)
 
 const KEY = "mithralda.save.v1";
 // CAS-1557: the ACCOUNT-WIDE meta-progression store — deliberately SEPARATE from the run save
@@ -40,6 +41,12 @@ const KEY_TITLES = "mithralda.titles.v1";
 // persist as a cross-run PREFERENCE. Same medium-ownership split: the sim owns the shape (serializePacts /
 // loadPacts), this controller owns localStorage + the pactsDirty flush.
 const KEY_PACTS = "mithralda.pacts.v1";
+// CAS-1867: the MANCHA DE SANGRE (Bloodstain / Corpse-Run) store — its OWN key, SEPARATE from the run save + meta +
+// arena + codex + titles + pacts (additive persistence; save.v1 is untouched). Holds the run's at-risk Esencia dropped
+// at the death point ({zone,x,y,amount} or absent when there is none). Same medium-ownership split: the sim owns the
+// shape (G.bloodstain, mutated in heroDie / tickBloodstain), this controller owns localStorage + the bloodstainDirty
+// flush. When BLOODSTAIN.enabled=false it is NEVER read or written ⇒ byte-identical to HEAD.
+const KEY_BLOODSTAIN = "mithralda.bloodstain.v1";
 const SAVE_THROTTLE = 2.0;      // seconds between throttled autosaves while in a run
 let acc = 0;
 let suppressed = false;         // once true, ALL writes are no-ops until the page reloads
@@ -118,6 +125,25 @@ export function savePacts(){ if(suppressed) return false;
 // (the preference is simply never evaluated afterward). Called AFTER bootTitles() in the boot sequence.
 export function bootPacts(){ loadPacts(readPacts()); G.pactsDirty=false; }
 
+// CAS-1867: Mancha de Sangre I/O (isolated from every store above; save.v1 untouched). Wrapped — a private-mode /
+// quota failure degrades silently; the run simply keeps its at-risk Esencia in memory. saveBloodstain WRITES the
+// current G.bloodstain, or REMOVES the key when there is no active stain (recovered/lost) — so a single dirty flag
+// drives both persist + clear. When BLOODSTAIN.enabled=false the store is NEVER touched ⇒ byte-identical to HEAD.
+export function saveBloodstain(){ if(suppressed || !BLOODSTAIN.enabled) return false;
+  try{ const bs=G.bloodstain;
+    if(bs && (bs.amount|0)>0) localStorage.setItem(KEY_BLOODSTAIN, JSON.stringify({ zone:bs.zone, x:bs.x, y:bs.y, amount:bs.amount|0 }));
+    else localStorage.removeItem(KEY_BLOODSTAIN);   // recuperada / perdida / vacía ⇒ borra el store
+    return true; }
+  catch(e){ return false; } }
+// Rehydrate the at-risk stain at boot into G.bloodstain (independent of any run save — a brand-new player has none).
+// A corrupt/absent/invalid blob → null. Gated: enabled:false ⇒ never reads the store ⇒ G.bloodstain stays null (byte-id).
+export function bootBloodstain(){ G.bloodstain=null; G.bloodstainDirty=false;
+  if(!BLOODSTAIN.enabled) return;
+  try{ const raw=localStorage.getItem(KEY_BLOODSTAIN); const d=raw?JSON.parse(raw):null;
+    if(d && d.zone && Number.isFinite(+d.x) && Number.isFinite(+d.y) && (+d.amount|0)>0)
+      G.bloodstain={ zone:String(d.zone), x:+d.x, y:+d.y, amount:+d.amount|0 }; }
+  catch(e){ G.bloodstain=null; } }
+
 // Boot: if a VALID save exists, rehydrate straight into play (skipping the name /
 // class flow); otherwise leave the normal menu flow untouched. A corrupt, old or
 // invalid save is discarded (cleared) and the player starts clean — never crashes.
@@ -154,6 +180,9 @@ export function tick(dtSec){
   // CAS-1763: flush the pact preference the instant the player changes a rank in the panel — BEFORE the
   // run-save scene gate, so a covenant edit persists even off a run. One-shot: the flag clears on write.
   if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; }
+  // CAS-1867: flush the Mancha de Sangre the instant it drops (death), is recovered (walk-over) or lost (replaced) —
+  // BEFORE the run-save scene gate, so it persists even on the death screen. One-shot: the flag clears on write.
+  if(G.bloodstainDirty){ if(saveBloodstain()) G.bloodstainDirty=false; }
   if(!G.started || G.scene==="menu" || G.scene==="classsel") return;
   // CAS-128: the moment the tutorial is finished/skipped, write the one-time seen marker
   // so it never auto-starts for this player again. flushed gates it to a single write.
@@ -170,7 +199,7 @@ export function resetGame(){ suppress(); clear(); try{ if(typeof location!=="und
 // few seconds of progress between throttled autosaves.
 export function initFlush(){
   if(typeof window==="undefined") return;
-  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; } if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1751 codex + CAS-1758 titles + CAS-1763 pacts ride the same unload flush
+  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; } if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; } if(G.bloodstainDirty){ if(saveBloodstain()) G.bloodstainDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1751 codex + CAS-1758 titles + CAS-1763 pacts + CAS-1867 bloodstain ride the same unload flush
   window.addEventListener("beforeunload", flush);
   window.addEventListener("pagehide", flush);
   if(typeof document!=="undefined")

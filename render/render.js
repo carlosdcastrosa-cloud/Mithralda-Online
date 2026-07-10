@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -646,10 +646,26 @@ export function createRenderer(ctx){
     if(!poi.seen){ const by=y-32+Math.sin(t*4)*2; ctx.fillStyle="#ffd24d"; ctx.fillRect(Math.round(x)-1,Math.round(by),2,7); ctx.fillRect(Math.round(x)-1,Math.round(by)+9,2,2); }
   }
 
+  // CAS-1867: marcador de la MANCHA DE SANGRE (Corpse-Run) — $0 arte, 100% procedural. Charco rojo oscuro
+  // (markerColor) con sombra elíptica + un destello/glifo pulsante animado SÓLO desde G.t (0 RNG, no perturba el
+  // sim). Se dibuja world-space, y-sorted con las entidades. Gated: sólo cuando BLOODSTAIN.enabled && hay mancha
+  // activa && su zona === la zona actual del héroe (llamador). OFF o sin mancha ⇒ nada ⇒ byte-idéntico.
+  function drawBloodstain(bs){ const x=bs.x, y=bs.y, t=G.t;
+    ctx.globalAlpha=0.3; ctx.fillStyle="#000"; ctx.beginPath(); ctx.ellipse(x,y+4,9,4,0,0,6.28); ctx.fill(); ctx.globalAlpha=1;
+    ctx.fillStyle=BLOODSTAIN.markerColor; ctx.beginPath(); ctx.ellipse(x,y+2,8,4,0,0,6.28); ctx.fill();
+    ctx.fillStyle="#5a0000"; ctx.beginPath(); ctx.ellipse(x,y+2,5,2.5,0,0,6.28); ctx.fill();
+    const pulse=0.5+Math.sin(t*4+x*0.05)*0.5; ctx.globalAlpha=0.35+pulse*0.5;
+    ctx.fillStyle="#ff6b6b"; const gy=y-7-Math.sin(t*2)*2;
+    ctx.fillRect(Math.round(x)-1,Math.round(gy),2,7); ctx.fillRect(Math.round(x)-3,Math.round(gy)+3,6,2); // cruz/destello
+    ctx.globalAlpha=1;
+  }
+
   function renderEntities(){
     const h=G.hero;
     const list=[];
     for(const o of G._decoOrder) list.push(o);
+    // CAS-1867: la mancha de sangre entra en el y-sort SÓLO si su zona coincide con la del héroe (no se ve en otras zonas).
+    if(BLOODSTAIN.enabled && G.bloodstain && G.bloodstain.zone===zoneOf(world,h.x,h.y)) list.push({y:G.bloodstain.y,draw:()=>drawBloodstain(G.bloodstain)});
     for(const e of G.enemies) list.push({y:e.y,draw:()=>drawEnemy(e)});
     for(const c of G.corpses) list.push({y:c.y,draw:()=>drawCorpse(c)}); // CAS-317: dragon death-anim corpses, y-sorted with the living
     for(const n of world.npcs) list.push({y:n.y,draw:()=>drawNPC(n)});

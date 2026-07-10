@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -199,6 +199,13 @@ export const G = {
   // one-shot flush flag the persistence controller consumes to write the store the instant
   // essence is banked or a node bought (durable without waiting for the throttled autosave).
   meta:null, metaDirty:false,
+  // CAS-1867: MANCHA DE SANGRE (Corpse-Run). Runtime state {zone,x,y,amount}|null — la Esencia del run puesta EN
+  // RIESGO en el punto de muerte cuando BLOODSTAIN.enabled. null hasta que persist.bootBloodstain() la rehidrata de
+  // su PROPIO store (mithralda.bloodstain.v1 — nunca el run save). `bloodstainDirty` es el flag one-shot que
+  // persist.js consume para escribir/borrar el store el instante que se dropea (muerte) o recupera/pierde. El sim
+  // fija la forma (drop en heroDie / recover en tickBloodstain), persist.js posee el medio localStorage — mismo
+  // split medium-ownership que meta/arena. enabled:false ⇒ nunca se muta ⇒ 0 efecto observable, byte-idéntico.
+  bloodstain:null, bloodstainDirty:false,
   // CAS-1751: account-wide CÓDICE DE BOTÍN (Collection Log). A pure read-side ledger of the FIRST-EVER
   // pickup of each unique/set-piece/rune ({v,uniq,set,rune} flat sets). null until persist.bootCodex()
   // rehydrates it from its OWN store (mithralda.codex.v1 — never the run save). Touches NO RNG and no
@@ -1958,6 +1965,22 @@ function tickFlask(h,dt){
         const heal=Math.max(1,Math.round(pactHeal(heroMaxHp(h)*FLASK.healPct)));
         h.hp=Math.min(heroMaxHp(h), h.hp+heal); floater(h.x,h.y-30,"+"+heal,"#5fd66a"); audio.sfx.heal&&audio.sfx.heal(); } } }
 }
+// CAS-1867: recuperación de la MANCHA DE SANGRE — check de distancia determinista en el tick del héroe (gated).
+// Si hay mancha activa Y estamos en su MISMA zona Y dentro de recoverRadius ⇒ banca su amount a la meta, borra la
+// mancha + su store, banner + floater. Sólo se recupera en la zona donde caíste (entrar a otra zona NO borra la mancha;
+// persiste hasta reemplazo/recuperación). 0 RNG (dist²). OFF ⇒ return inmediato ⇒ byte-idéntico (jamás lee G.bloodstain).
+function tickBloodstain(h){
+  if(!BLOODSTAIN.enabled || !h || !G.bloodstain) return;
+  const bs=G.bloodstain;
+  if(bs.zone!==zoneOf(world,h.x,h.y)) return;                              // sólo la zona de muerte
+  if(dist2(h.x,h.y,bs.x,bs.y) > BLOODSTAIN.recoverRadius*BLOODSTAIN.recoverRadius) return;
+  const amt=bs.amount|0;
+  if(amt>0){ ensureMeta().essence=(ensureMeta().essence|0)+amt; G.metaDirty=true; }
+  toast(STR.bloodstainRecovered, 2.6);
+  floater(h.x,h.y-40,"+"+amt+" Esencia","#ffd15c",{pop:1.8,life:1.2});
+  audio.sfx.pickup&&audio.sfx.pickup();
+  G.bloodstain=null; G.bloodstainDirty=true;                              // consume + borra el store (persist flush)
+}
 // CAS-1854: FUENTE ÚNICA del root/cancel de movimiento del Estus — llamada desde el bloque de movimiento de update()
 // Y desde el harness (dev.flask*), así el test ejercita el código REAL. Bebiendo con input de movimiento + cancelOnAction
 // ⇒ ABORTA el trago sin gastar carga y devuelve mv intacto (deja pasar el movimiento); bebiendo sin cancelar ⇒ devuelve
@@ -2998,8 +3021,22 @@ function heroDie(){
   // CAS-1557: bank this run's Esencia into the account-wide meta store (marks it dirty for an
   // immediate flush) and stamp the amount + new bank total onto the frozen recap so the death
   // screen can show the "+X Esencia" payoff. Pure read of existing counters — no new economy.
-  { const gain=essenceForRun(h, G.recap); if(gain>0){ ensureMeta().essence=(ensureMeta().essence|0)+gain; G.metaDirty=true; }
-    if(G.recap){ G.recap.essence=gain; G.recap.essenceTotal=ensureMeta().essence|0; } }
+  { const gain=essenceForRun(h, G.recap);
+    if(BLOODSTAIN.enabled){
+      // CAS-1867: INTERCEPTA el banking — la Esencia del run se REDIRIGE a una Mancha de Sangre en el punto de muerte.
+      // Sólo la parte `safe` (gain·(1−lossPct)) se banca; `atRisk` queda en el suelo, recuperable volviendo a la zona.
+      // Reemplazo canónico (1 mancha a la vez): la mancha vieja NO recuperada se PIERDE (su amount nunca se banca).
+      // 0 RNG: posición = punto de muerte exacto. El store se persiste vía el flag one-shot bloodstainDirty (persist.js).
+      const atRisk=Math.round(gain*BLOODSTAIN.lossPct); const safe=gain-atRisk;
+      if(safe>0){ ensureMeta().essence=(ensureMeta().essence|0)+safe; G.metaDirty=true; }
+      if(G.bloodstain && (G.bloodstain.amount|0)>0) toast(STR.bloodstainLost, 2.6); // la mancha anterior se desvanece
+      G.bloodstain = atRisk>0 ? { zone:zoneOf(world,h.x,h.y), x:h.x, y:h.y, amount:atRisk } : null;
+      G.bloodstainDirty=true;
+      if(G.recap){ G.recap.essence=gain; G.recap.essenceTotal=ensureMeta().essence|0; }
+    } else {
+      if(gain>0){ ensureMeta().essence=(ensureMeta().essence|0)+gain; G.metaDirty=true; }
+      if(G.recap){ G.recap.essence=gain; G.recap.essenceTotal=ensureMeta().essence|0; }
+    } }
   // CAS-1664: a death in Arena de Oleadas ENDS the gauntlet — bank the highest wave reached as the
   // new best (own store, additive) so the score survives. The death screen reads G.arena to show it.
   if(G.arenaMode) arenaOnDeath();
@@ -3338,6 +3375,7 @@ export function update(dtMs){
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
+  tickBloodstain(h);// CAS-1867: recuperación de la Mancha de Sangre (walk-over misma zona, dist² pura, no RNG, gated on BLOODSTAIN.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+pactHeal(h.hotRate*dt)); if(h.hotT<=0) h.hotRate=0; } // CAS-1763: Pacto Frágil cuts the HoT tick (×1.0 at heat=0 ⇒ byte-identical)
@@ -6121,6 +6159,122 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     FLASK.enabled=savF; FLASK.cancelOnAction=savCancel;
     return { enabled:!!enabled, flaskFired:(enabled?(completed&&cancelled):false), fingerprint:fp }; },
+  // --- CAS-1867 MANCHA DE SANGRE (Bloodstain / Corpse-Run) harness hooks (tools/cas1867-bloodstain.mjs); additive, drive the REAL heroDie drop + tickBloodstain recover paths ---
+  bloodstainMeta(){ return { enabled:BLOODSTAIN.enabled, lossPct:BLOODSTAIN.lossPct, recoverRadius:BLOODSTAIN.recoverRadius, markerColor:BLOODSTAIN.markerColor }; },
+  bloodstainEnable(on){ BLOODSTAIN.enabled=!!on; return { enabled:BLOODSTAIN.enabled }; },
+  bloodstainState(){ const bs=G.bloodstain; return { stain:bs?{ zone:bs.zone, x:bs.x, y:bs.y, amount:bs.amount|0 }:null, essence:ensureMeta().essence|0, dirty:!!G.bloodstainDirty }; },
+  // Clean warrior in play, arrays cleared, NO active stain, deterministic counters (lvl-driven essenceForRun). Returns h.
+  _bloodArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    G.bloodstain=null; G.bloodstainDirty=false;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.atkCD=0; h.atkT=0; h._atkHits=null;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.maxHp=1000; h.hp=1000; h.maxMp=1e6; h.mp=1e6; h.stam=1e6;
+    h.conquest=null; h.lvl=1; h.eliteKills=0; h.affixKills=0; h.champElites=0; h.kills=0; h.gold=0; h.playT=0; h.blessings=0;
+    ensureMeta(); return h; },
+  // Compute the run's earned Esencia EXACTLY as heroDie would (buildRecap → essenceForRun), 0 RNG.
+  _bloodExpectGain(){ const h=G.hero; if(!h) return 0; const sr=G.run; G.run=null; const g=essenceForRun(h, buildRecap()); G.run=sr; return g|0; },
+  // AC3 DROP: morir ⇒ mancha en el punto de muerte {x,y,zone}, amount=round(gain·lossPct); meta sube sólo en `safe`
+  // (con lossPct=1.0 ⇒ meta NO sube). recap.essence sigue reportando lo ganado. bloodstainDirty armado.
+  bloodstainDropProbe(){ const savE=BLOODSTAIN.enabled, savL=BLOODSTAIN.lossPct;
+    BLOODSTAIN.enabled=true; BLOODSTAIN.lossPct=1.0;
+    const h=this._bloodArm(); h.lvl=10; G.run=null; h.x=1280; h.y=608; const dz=zoneOf(world,h.x,h.y);
+    const gain=this._bloodExpectGain(); const atRisk=Math.round(gain*1.0), safe=gain-atRisk;
+    const meta0=ensureMeta().essence|0;
+    h.dead=false; heroDie();
+    const bs=G.bloodstain;
+    const okAmount=(!!bs && bs.amount===atRisk && atRisk>0);
+    const okPos=(!!bs && bs.x===h.x && bs.y===h.y && bs.zone===dz);
+    const okMetaSafe=((ensureMeta().essence|0)===meta0+safe);
+    const okRecap=(!!G.recap && G.recap.essence===gain && G.recap.essenceTotal===(ensureMeta().essence|0));
+    const okDirty=(G.bloodstainDirty===true);
+    BLOODSTAIN.enabled=savE; BLOODSTAIN.lossPct=savL; this._bloodArm();
+    return { gain, atRisk, safe, amount:bs?bs.amount:null, zone:bs?bs.zone:null, okAmount, okPos, okMetaSafe, okRecap, okDirty,
+      ok:(okAmount&&okPos&&okMetaSafe&&okRecap&&okDirty) }; },
+  // AC4 RECOVER: caminar dentro de recoverRadius en la MISMA zona ⇒ meta += amount exacto, mancha borrada, dirty
+  // armado; fuera del radio NO recupera.
+  bloodstainRecoverProbe(){ const savE=BLOODSTAIN.enabled; BLOODSTAIN.enabled=true;
+    const h=this._bloodArm(); const z=zoneOf(world,h.x,h.y); const meta0=ensureMeta().essence|0; const N=137;
+    G.bloodstain={ zone:z, x:h.x+8, y:h.y+6, amount:N }; G.bloodstainDirty=false;   // dist²=100 < 32²=1024
+    tickBloodstain(h);
+    const banked=((ensureMeta().essence|0)===meta0+N), cleared=(G.bloodstain===null), dirty=(G.bloodstainDirty===true);
+    const m1=ensureMeta().essence|0;
+    G.bloodstain={ zone:z, x:h.x+400, y:h.y, amount:N }; G.bloodstainDirty=false; tickBloodstain(h);   // dist²=160000 > 1024
+    const outOfRange=((ensureMeta().essence|0)===m1 && G.bloodstain!==null);
+    BLOODSTAIN.enabled=savE; this._bloodArm();
+    return { banked, cleared, dirty, outOfRange, ok:(banked&&cleared&&dirty&&outOfRange) }; },
+  // AC5 REEMPLAZO: con mancha activa (amount A), morir de nuevo ⇒ mancha vieja borrada, A NO bancado (perdido),
+  // nueva mancha con el nuevo atRisk (== round(gain)).
+  bloodstainReplaceProbe(){ const savE=BLOODSTAIN.enabled, savL=BLOODSTAIN.lossPct;
+    BLOODSTAIN.enabled=true; BLOODSTAIN.lossPct=1.0;
+    const h=this._bloodArm(); h.lvl=10; G.run=null; h.x=1280; h.y=608; const z=zoneOf(world,h.x,h.y);
+    const gain=this._bloodExpectGain(); const A=999;
+    G.bloodstain={ zone:"__old_zone__", x:5, y:5, amount:A };   // mancha vieja NO recuperada
+    const meta0=ensureMeta().essence|0;
+    h.dead=false; heroDie();
+    const bs=G.bloodstain;
+    const oldLost=((ensureMeta().essence|0)===meta0);                       // A jamás bancado (safe=0), meta sin cambio
+    const newStain=(!!bs && bs.amount===Math.round(gain) && bs.zone===z && bs.amount!==A);
+    BLOODSTAIN.enabled=savE; BLOODSTAIN.lossPct=savL; this._bloodArm();
+    return { A, gain, newAmount:bs?bs.amount:null, oldLost, newStain, ok:(oldLost&&newStain) }; },
+  // AC6 ZONA: mancha registrada en OTRA zona (misma-zona check FALLA) ⇒ NO recupera y persiste; volver a la zona
+  // de muerte SÍ recupera. (La visibilidad del marcador por-zona se re-verifica en la QA live.)
+  bloodstainZoneProbe(){ const savE=BLOODSTAIN.enabled; BLOODSTAIN.enabled=true;
+    const h=this._bloodArm(); const zHere=zoneOf(world,h.x,h.y); const other=(zHere==="town")?"forest":"town"; const N=200;
+    G.bloodstain={ zone:other, x:h.x, y:h.y, amount:N }; G.bloodstainDirty=false; const m0=ensureMeta().essence|0;
+    tickBloodstain(h);
+    const noRecoverWrongZone=((ensureMeta().essence|0)===m0 && G.bloodstain!==null);
+    const persistsCrossZone=(G.bloodstain!==null);                          // entrar a otra zona NO borra la mancha
+    G.bloodstain={ zone:zHere, x:h.x, y:h.y, amount:N };
+    tickBloodstain(h);
+    const recoverSameZone=((ensureMeta().essence|0)===m0+N && G.bloodstain===null);
+    BLOODSTAIN.enabled=savE; this._bloodArm();
+    return { zHere, other, noRecoverWrongZone, persistsCrossZone, recoverSameZone,
+      ok:(zHere!==other && noRecoverWrongZone && persistsCrossZone && recoverSameZone) }; },
+  // AC7 SAVE aislado: G.bloodstain vive en su PROPIO store (mithralda.bloodstain.v1), NO en save.v1 ⇒ serializeSave()
+  // byte-idéntico ON/OFF y SIN clave bloodstain*. (Nombre del héroe SIN "bloodstain" ⇒ el grep de clave no falsea.)
+  bloodstainSaveByteId(){ const savE=BLOODSTAIN.enabled;
+    BLOODSTAIN.enabled=true; const h=this._bloodArm(); G.bloodstain={ zone:"forest", x:123, y:456, amount:77 };
+    const onStr=JSON.stringify(serializeSave());
+    BLOODSTAIN.enabled=false; const offStr=JSON.stringify(serializeSave());
+    BLOODSTAIN.enabled=savE; this._bloodArm();
+    return { byteId:(offStr===onStr), hasKey:/"_?bloodstain[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !/"_?bloodstain[a-zA-Z]*":/i.test(onStr)) }; },
+  // AC1 OFF byte-id: BLOODSTAIN.enabled=false ⇒ heroDie BANCA todo el gain a la meta (banking de siempre), NO crea
+  // mancha, y tickBloodstain es no-op aunque se fuerce una mancha ⇒ comportamiento byte-idéntico a HEAD.
+  bloodstainOffProbe(){ const savE=BLOODSTAIN.enabled; BLOODSTAIN.enabled=false;
+    const h=this._bloodArm(); h.lvl=10; G.run=null; h.x=1280; h.y=608;
+    const gain=this._bloodExpectGain(); const meta0=ensureMeta().essence|0;
+    h.dead=false; heroDie();
+    const banksAll=((ensureMeta().essence|0)===meta0+gain), noStain=(G.bloodstain===null);
+    G.bloodstain={ zone:zoneOf(world,h.x,h.y), x:h.x, y:h.y, amount:50 }; const m1=ensureMeta().essence|0;
+    tickBloodstain(h);
+    const tickNoop=((ensureMeta().essence|0)===m1 && G.bloodstain!==null);
+    G.bloodstain=null; BLOODSTAIN.enabled=savE; this._bloodArm();
+    return { gain, banksAll, noStain, tickNoop, ok:(banksAll&&noStain&&tickNoop) }; },
+  // AC2 0-RNG STRONG: fingerprint del srand alrededor de la MANCHA DISPARANDO REAL — una muerte que DROPEA (redirige
+  // atRisk) + una recuperación que BANCA amount — ON vs OFF. Todo es aritmética/geometría (NO bloodstainRng) ⇒ el
+  // stream srand es BYTE-IDÉNTICO ON==OFF incluso con la feature disparando de verdad.
+  bloodstainSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savE=BLOODSTAIN.enabled, savL=BLOODSTAIN.lossPct; BLOODSTAIN.enabled=!!enabled; BLOODSTAIN.lossPct=1.0;
+    const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.iframe=0; h.stun=0; h.atkCD=0; h.maxHp=1000; h.hp=500; h.blessings=0;
+      h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null; h.lvl=10; h.eliteKills=0; h.affixKills=0; h.champElites=0;
+      h.kills=0; h.gold=0; h.playT=0; }
+    G.run=null; G.scene="play"; G.bloodstain=null; G.bloodstainDirty=false;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let dropped=false, recovered=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ h.x=1280; h.y=608; h.dead=false; heroDie();                    // muerte que DROPEA (0 draws)
+        dropped=(enabled ? (G.bloodstain!==null && G.bloodstain.amount>0) : (G.bloodstain===null));
+        if(enabled && G.bloodstain){ const bs=G.bloodstain; h.dead=false; h.x=bs.x; h.y=bs.y; tickBloodstain(h); recovered=(G.bloodstain===null); } // recuperación (0 draws)
+        else recovered=true; }
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    BLOODSTAIN.enabled=savE; BLOODSTAIN.lossPct=savL; G.bloodstain=null; G.bloodstainDirty=false;
+    return { enabled:!!enabled, bloodstainFired:(enabled?(dropped&&recovered):false), fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,
