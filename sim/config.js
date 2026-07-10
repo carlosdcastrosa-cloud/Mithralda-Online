@@ -1338,6 +1338,31 @@ export const WEAPON_ARCHETYPES = {
   },
 };
 
+// CAS-1914: ARTES DE ARMA (Weapon Arts / "Ash of War", 18º pilar Souls-like). Cada ARQUETIPO de arma (Pilar 17) gana un
+// movimiento FIRMA dedicado (tecla Semicolon / botón HUD), con coste de estamina + cooldown compartido, cuyo efecto escala por
+// arquetipo activo. 100% BORROW sobre los seams vivos (arquetipo/hyperarmor/dash/backstab/two-hand/estamina): el Arte sólo
+// MULTIPLICA valores que YA existen, DENTRO de applyHeroMelee/hitEnemy ⇒ compone multiplicativo con archetype × TWO_HAND sin
+// pisar fórmulas. Sin arte (reusa VFX de dash/hyperarmor-glow/swing-arc), sin save nuevo (h.artCD/h._art transitorios, fuera
+// del allowlist), sin RNG nuevo (100% timing/aritmética ⇒ srand ON==OFF). HARD-GATED: enabled:false ⇒ weaponArt() es rama
+// muerta + la extensión del gate hyperarmor es inerte ⇒ byte-idéntico a HEAD (17 pilares intactos). El loadout inicial w_iron
+// queda SIN mapear (WEAPON_ARCHETYPES.byDefId) ⇒ 'sword' ⇒ Arte "Tajo Circular" baseline. Números/tecla = decisión FEEL/CEO.
+export const WEAPON_ARTS = {
+  enabled: true,
+  key: "Semicolon",   // alias fijo gated (input.js, NO rebindable); FEEL/CEO-tunable. Todas las 26 letras ocupadas (ver spec).
+  cooldownMs: 2500,   // cooldown COMPARTIDO por-arte (transitorio h.artCD, mirror h.atkCD, NO save)
+  // efecto por arquetipo (clave = weaponArchName). Números = FEEL/CEO, tunables sin rebuild. Campos ausentes ⇒ ×1 (ART_UNIT).
+  classes: {
+    // Golpe de Carga: overhead comprometido — ventana hyperarmor extendida (reusa Pilar 16), poise/daño masivo.
+    greatsword: { name:"Golpe de Carga",       stam:35, windupMul:1.6, dmgMul:1.8, poiseDmgMul:2.2, hyperarmor:true },
+    // Filo Sombrío: dash corto que reposiciona DETRÁS del objetivo ⇒ setup auto-backstab (Pilar 6). Barato.
+    dagger:     { name:"Filo Sombrío",         stam:12, dashDist:70,  dmgMul:0.9, autoBackstab:true },
+    // Estocada Perforante: reach↑↑ arco estrecho, atraviesa la línea frontal. Espaciado.
+    spear:      { name:"Estocada Perforante",  stam:20, reachMul:1.8, arcMul:0.4,  dmgMul:1.2, pierce:true },
+    // Tajo Circular: giro arco completo, equilibrado — baseline útil sin dominar.
+    sword:      { name:"Tajo Circular",        stam:22, arcMul:2.0,   dmgMul:1.0, poiseDmgMul:1.2 },
+  },
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

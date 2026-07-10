@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -3687,6 +3687,7 @@ export function createRenderer(ctx){
     if(tb.flask) btn(tb.flask,COL.heal); // CAS-1854: botón táctil del Estus (present only when FLASK.enabled ⇒ tb.flask undefined OFF ⇒ byte-id)
     if(tb.block) btn(tb.block, G.hero&&G.hero.blocking ? "#dff1ff" : "#7fb0d8"); // CAS-1873: botón HOLD del bloqueo (present only when SHIELD_BLOCK.enabled ⇒ undefined OFF ⇒ byte-id); se ilumina con la guardia arriba
     if(tb.twohand) btn(tb.twohand, G.hero&&G.hero.twoHand ? "#ffcf7a" : "#c79a55"); // CAS-1895: botón TOGGLE de empuñadura a dos manos (present only when TWO_HAND.enabled ⇒ undefined OFF ⇒ byte-id); se ilumina con la postura activa
+    if(tb.weaponart) btn(tb.weaponart, G.hero&&(G.hero.artCD>0) ? "#6b5aa8" : "#b49af0"); // CAS-1914: botón del ARTE DE ARMA (present only when WEAPON_ARTS.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA durante el cooldown (artCD>0)
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
     if(top.cdx) btn(top.cdx,COL.textGold); // CAS-1751: Códice touch button (present only when enabled)
     // CAS-1659: Ultimate touch button + charge ring — only when the run has a drafted ultimate.
