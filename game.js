@@ -13,7 +13,7 @@
 // A Stage-2 networking layer wraps sim/ by feeding intents per tick and ignoring
 // render/audio/view — no rewrite of the gameplay logic required.
 // ===========================================================================
-import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode, ascendMeta, castAbility as simCastAbility, castUltimate as simCastUltimate } from "./sim/sim.js";
+import { configure as configureSim, G, update as simUpdate, dev as simDev, serializeSave, equipBag as simEquipBag, conquestSnap, resetMeta, metaSnap, buyMetaNode, ascendMeta, castAbility as simCastAbility, castUltimate as simCastUltimate, equipLoad } from "./sim/sim.js";
 import { audio } from "./audio.js";
 import { view } from "./view.js";
 import { uiLayout } from "./ui/layout.js"; // CAS-1613: classic-sidebar opt-in flag (default OFF)
@@ -22,7 +22,7 @@ import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
 import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
 import { rarityRank } from "./sim/gear.js";
-import { STAMINA, FLASK } from "./sim/config.js";   // CAS-1841/CAS-1854: gated HUD feeds (vigor bar + Estus pips — absent OFF ⇒ HUD byte-identical)
+import { STAMINA, FLASK, EQUIP_LOAD } from "./sim/config.js";   // CAS-1841/CAS-1854/CAS-1889: gated HUD feeds (vigor bar + Estus pips + banda de carga — absent OFF ⇒ HUD byte-identical)
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
@@ -171,6 +171,9 @@ export function createGame(canvas, ctx, getView){
       // CAS-1854: Estus feed para los pips + tinte del HUD — ONLY when FLASK.enabled, so con el knob OFF estas claves
       // están ausentes ⇒ hud.js nunca crea el widget ⇒ el snapshot + DOM son byte-idénticos a HEAD.
       ...(FLASK.enabled ? { flaskCharges:h.flaskCharges, flaskMax:FLASK.charges, flaskDrinkT:h.flaskDrinkT, flaskDrinkMax:FLASK.drinkMs/1000 } : null),
+      // CAS-1889: banda de carga de equipo para el tinte de la barra de vigor (la barra ES el recurso de esquiva). ONLY when
+      // EQUIP_LOAD.enabled ⇒ con el knob OFF la clave está ausente ⇒ hud.js no tinta ⇒ snapshot + DOM byte-idénticos a HEAD.
+      ...(EQUIP_LOAD.enabled ? { equipBand:equipLoad(h).band } : null),
     }, a11y);
   }
   // CAS-336/CAS-337 — make the HUD panels FUNCTIONAL (board CAS-335: "no tiene funciones").

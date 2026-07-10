@@ -1248,6 +1248,34 @@ export const BONFIRE = {
   siteAnchor: { fx: 0.5, fy: 0.18 },   // fracción del rect del spawner (centro-x, cerca del borde superior = entrada defendible, no en el cluster de spawn)
 };
 
+// CAS-1889: CARGA DE EQUIPO / TIPOS DE RODADA (Equip Load & Roll Types, 14º pilar). El PESO total del equipo equipado
+// (weapon/body/shield) contra una `capacity` ⇒ un `ratio` que cae en 4 BANDAS (fast/mid/fat/over). Cada banda MULTIPLICA
+// valores YA vivos (no crea sistema nuevo): DODGE{distance,iframeMs} (CAS-1814) + STAMINA.cost.dodge (CAS-1841) + move
+// speed. 100% BORROW. El peso es DERIVADO puro del equipo YA guardado — `Σ slotWeight[slot]*rarityWeight[rarity]` sobre
+// `h.equip` ⇒ CERO draws, NO existe `equipLoadRng`, NINGÚN campo nuevo en save.v1 (recomputable de {slot,rarity}). HARD-GATED:
+// enabled:false ⇒ multiplicadores = 1 (mid) ⇒ build byte-idéntico a HEAD (Estamina/Esquiva/Bloqueo intactos) + sin HUD nuevo.
+// AC crítico: `capacity`+`slotWeight` elegidos para que el LOADOUT INICIAL (3 piezas common: sim.js:374) caiga en la banda
+// MID ⇒ multiplicadores todos 1 ⇒ el FEEL actual NO regresa. Comprobación: total inicial = 4+5+4 = 13; 13/20 = 0.65 ∈ (0.30,0.70]
+// ⇒ mid. Las 4 bandas son alcanzables con inventarios reales: fast = loadout mínimo (1 slot, p.ej. arma common 4/20=0.20);
+// mid = kit inicial (0.65); fat = subir rareza uniforme (uncommon-all 14.3/20=0.715 … epic-all 18.85/20=0.94); over = full
+// legendary (22.1/20=1.105). Los NÚMEROS = decisión FEEL/BALANCE del CEO (retune = knob barato, mirror dash/estamina/estus).
+export const EQUIP_LOAD = {
+  enabled: true,               // OFF ⇒ multiplicadores=1 (mid) ⇒ byte-idéntico a HEAD, sin HUD nuevo
+  capacity: 20,                // capacidad base; tune para que el loadout típico/inicial = mid
+  // peso(inst) = slotWeight[slot] * rarityWeight[rarity]; slot vacío ⇒ 0
+  slotWeight: { weapon: 4, body: 5, shield: 4 },   // Σ common = 13 ⇒ ratio inicial 0.65 = mid (feel intacto)
+  rarityWeight: { common:1.0, uncommon:1.1, rare:1.25, epic:1.45, legendary:1.7 }, // heavier = pricier build
+  bands: { fast:0.30, mid:0.70, fat:1.0 },   // umbrales superiores; over = ratio > fat
+  // multiplicadores por banda; mid = TODO 1 (baseline intacto ⇒ AC2)
+  mul: {
+    fast: { dist:1.15, iframe:1.15, stam:1.0,  move:1.0  },
+    mid:  { dist:1.0,  iframe:1.0,  stam:1.0,  move:1.0  },
+    fat:  { dist:0.7,  iframe:0.7,  stam:1.4,  move:0.85 },
+    over: { dist:0.0,  iframe:0.0,  stam:1.6,  move:0.6  }, // dist/iframe 0 ⇒ sin rodada útil
+  },
+  overCanRoll: false,          // over-encumbered: false ⇒ doRoll bloquea (deny ANTES de gastar); true ⇒ rodada mínima
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
