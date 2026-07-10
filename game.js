@@ -22,6 +22,7 @@ import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
 import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
 import { rarityRank } from "./sim/gear.js";
+import { STAMINA } from "./sim/config.js";   // CAS-1841: gated HUD vigor bar feed (absent OFF ⇒ HUD byte-identical)
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
@@ -163,6 +164,9 @@ export function createGame(canvas, ctx, getView){
         if(h.slowT>0) out.push({type:"slow", dur:h.slowT}); if(h.stun>0) out.push({type:"stun", dur:h.stun}); return out; })(),
       // CAS-450: Conquista/World-Tier read-only view for the HUD trophy chips (hud.js paintConquest)
       conquest:conquestSnap(),
+      // CAS-1841: vigor feed for the HUD bar — ONLY when STAMINA.enabled, so with the knob OFF these keys are
+      // absent ⇒ hud.js never creates the bar ⇒ the snapshot + DOM are byte-identical to HEAD.
+      ...(STAMINA.enabled ? { stam:h.stam, stamMax:STAMINA.max, stamFlash:h._stamFlash } : null),
     }, a11y);
   }
   // CAS-336/CAS-337 — make the HUD panels FUNCTIONAL (board CAS-335: "no tiene funciones").

@@ -1141,6 +1141,23 @@ export const COMBO = {
 // HARD-GATED: enabled:false ⇒ ninguna rama corre ⇒ dmg/knock/VFX/save/srand byte-idénticos a HEAD.
 export const BACKSTAB = { enabled:true, rearArcDeg:120, mult:1.8, knockMul:1.6 };
 
+// CAS-1841: ESTAMINA / VIGOR (Pilar 8 · economía de recurso). Los 7 pilares vivos (Telegrafía/Esquiva/Parada/
+// Habilidades/Poise/Combos/Backstab) sólo DAN poder; ninguno COBRA. La estamina hace de cada acción de PODER una
+// decisión con coste, sin estrangular el momento-a-momento: el ataque ligero L NUNCA gasta. Es un recurso
+// TRANSITORIO del héroe (`h.stam`, refill a tope cada run como `h.mp`) que un único helper `spendStam(h,cost)`
+// consume por acción; el gate es 100% aritmético (comparar+restar) ⇒ CERO draws, NO existe `staminaRng` (nada que
+// sembrar) ⇒ srand ON==OFF incluso con la estamina gastando/denegando/regenerando de verdad. Fuera del allowlist de
+// serializeSave ⇒ save.v1 byte-idéntico y SIN clave nueva. HARD-GATED: enabled:false ⇒ `spendStam` retorna true sin
+// tocar estado y la barra HUD no se crea ⇒ dmg/knock/save/srand/DOM byte-idénticos a HEAD. Los NÚMEROS son decisión
+// de FEEL/BALANCE del CEO (retune = edición de knob barata y reversible, sin rebuild de lógica).
+export const STAMINA = {
+  enabled:true,
+  max:100, regen:22,          // por segundo; pool lleno ~4.5 s ocioso
+  regenDelay:0.35,            // pausa de regen tras gastar (feel)
+  flashS:0.4,                 // duración del flash de la barra en un deny
+  cost:{ dodge:25, parry:20, heavy:30, finisher:30, ability:25, ultimate:40 }
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
