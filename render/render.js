@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -660,6 +660,19 @@ export function createRenderer(ctx){
     ctx.globalAlpha=1;
   }
 
+  // CAS-1873: guardia del ESCUDO/BLOQUEO — $0 arte, 100% procedural. Sector frontal (frontArcDeg centrado en h.facing)
+  // en tono frío #bfe3ff + borde brillante, pulsando suave con G.t (0 RNG, no perturba el sim). Gated por el llamador
+  // (SHIELD_BLOCK.enabled && h.blocking) ⇒ OFF / sin bloquear no dibuja nada ⇒ byte-idéntico.
+  function drawGuard(h){ const cx=h.x, cy=h.y-14, r=22; const half=SHIELD_BLOCK.frontArcDeg*Math.PI/360;
+    const a0=h.facing-half, a1=h.facing+half; const pulse=0.5+Math.sin(G.t*6)*0.5;
+    ctx.save();
+    ctx.globalAlpha=0.14+pulse*0.10; ctx.fillStyle="#bfe3ff";
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,r,a0,a1); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha=0.6+pulse*0.25; ctx.strokeStyle="#dff1ff"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(cx,cy,r,a0,a1); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha=1;
+  }
+
   function renderEntities(){
     const h=G.hero;
     const list=[];
@@ -676,6 +689,9 @@ export function createRenderer(ctx){
     // rotando con G.t alrededor del enemigo enfocado. Gated LOCK_ON.enabled && h.lockTarget (vivo) ⇒ OFF o sin
     // lock no dibuja nada ⇒ byte-idéntico. Se dibuja tras las entidades para leer por encima del sprite enemigo.
     if(LOCK_ON.enabled && h.lockTarget && !h.lockTarget.dead) drawLockReticle(h.lockTarget);
+    // CAS-1873: arco de guardia frontal cuando el ESCUDO/BLOQUEO está arriba — se dibuja tras las entidades para leer
+    // sobre el sprite del héroe. Gated ⇒ OFF / sin bloquear no dibuja nada ⇒ byte-idéntico.
+    if(SHIELD_BLOCK.enabled && h.blocking) drawGuard(h);
     // projectiles + fx on top
     for(const f of G.fields) drawField(f);
     for(const p of G.projectiles) drawProjectile(p);
@@ -3644,6 +3660,7 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.out; ctx.fillText(b.label,b.x+1,ly+1); ctx.fillStyle=kc; ctx.fillText(b.label,b.x,ly); }
     btn(tb.attack,COL.textGold,true); btn(tb.roll,COL.cream); btn(tb.s2,COL.flame); btn(tb.s3,COL.heal); btn(tb.s4,COL.rune); btn(tb.act,COL.cream); btn(tb.pick,COL.cream);
     if(tb.flask) btn(tb.flask,COL.heal); // CAS-1854: botón táctil del Estus (present only when FLASK.enabled ⇒ tb.flask undefined OFF ⇒ byte-id)
+    if(tb.block) btn(tb.block, G.hero&&G.hero.blocking ? "#dff1ff" : "#7fb0d8"); // CAS-1873: botón HOLD del bloqueo (present only when SHIELD_BLOCK.enabled ⇒ undefined OFF ⇒ byte-id); se ilumina con la guardia arriba
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
     if(top.cdx) btn(top.cdx,COL.textGold); // CAS-1751: Códice touch button (present only when enabled)
     // CAS-1659: Ultimate touch button + charge ring — only when the run has a drafted ultimate.

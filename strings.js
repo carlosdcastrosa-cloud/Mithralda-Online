@@ -275,6 +275,8 @@ export const STR = {
   stagger: "¡ATURDIDO!",                             // CAS-1826: postura BREAK banner — the tier enemy is staggered (bonus-dmg window)
   execute: "¡REMATE!",                               // CAS-1831: the anti-Stagger REMATADOR banner — a melee hit punishes a staggered enemy (×extra dmg)
   backstab: "¡POR LA ESPALDA!",                      // CAS-1836: the POSITIONAL crit banner — a MELEE hit through the enemy's rear arc. Sinergia: rodar (Esquiva) tras un enemigo COMPROMETIDO (telegraph/lunge/carga/STAGGER) habilita el crítico posicional.
+  block: "¡BLOQUEO!",                                // CAS-1873: banner de mitigación del ESCUDO/BLOQUEO CON GUARDIA — un golpe MELEE frontal se absorbe a cambio de estamina.
+  guardBreak: "¡GUARDIA ROTA!",                      // CAS-1873: banner de RUPTURA DE GUARDIA — la estamina se agotó en un bloqueo ⇒ aturdimiento (mismo STAGGERED de CAS-1826) y el golpe entra completo.
   lockOnHint: "Tab: fija/cicla el objetivo — con lock, el héroe orbita en strafe y todos los ataques se orientan al enemigo enfocado.", // CAS-1847: ayuda del Enfoque de Objetivo (Lock-On)
   flaskHint: "U bebe del Frasco: cura parte de tu vida pero te enraíza y expone ~0.75s; moverte/atacar/rodar cancela el trago sin gastarlo; las cargas se rellenan al cambiar de zona.", // CAS-1854: ayuda del Frasco de Curación (Estus)
   bloodstainRecovered: "¡ESENCIA RECUPERADA!",       // CAS-1867: volviste a la Mancha de Sangre y recuperaste la Esencia en riesgo

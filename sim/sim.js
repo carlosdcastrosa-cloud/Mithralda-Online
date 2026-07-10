@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -322,6 +322,10 @@ function newHero(name,cls){
     // root + vulnerable), flaskZone = última zona vista para detectar la transición del refill. Fuera del allowlist
     // de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG (curación 100% timing/input).
     flaskCharges:FLASK.charges, flaskDrinkT:0, flaskZone:null,
+    // CAS-1873: ESCUDO / BLOQUEO CON GUARDIA — estado TRANSITORIO (mirror stam/flaskDrinkT). `blocking` = guardia
+    // arriba este frame (se re-fija cada fixed-frame desde io.blockHeld); la RUPTURA reusa `h.stun` (STAGGERED de
+    // CAS-1826, ya existe). Fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG.
+    blocking:false,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -3384,6 +3388,11 @@ export function update(dtMs){
   if(h.tt&&h.tt.regen>0 && h.hp>0){ const mhp=heroMaxHp(h); if(h.hp<mhp) h.hp=Math.min(mhp,h.hp+pactHeal(h.tt.regen*dt)); } // CAS-1763: Pacto Frágil cuts passive regen (×1.0 at heat=0 ⇒ byte-identical)
   // CAS-118: the hero SUFFERS statuses too — slow/stun timers wind down and DoTs tick.
   if(h.slowT>0) h.slowT-=dt; if(h.stun>0) h.stun-=dt;
+  // CAS-1873: ESCUDO / BLOQUEO CON GUARDIA — fija `h.blocking` cada fixed-frame desde el estado HELD de la tecla/botón
+  // (io.blockHeld). Gate: enabled + held + vivo + no rodando + no aturdido (una ruptura BAJA la guardia) + estamina > 0
+  // (agotarla en un bloqueo la baja, requisito del issue). Corre TRAS el tick de stun para que la ruptura de este frame
+  // ya cuente. OFF ⇒ SHIELD_BLOCK.enabled=false ⇒ h.blocking nunca sube ⇒ byte-idéntico a HEAD. 0 RNG (input puro).
+  h.blocking = SHIELD_BLOCK.enabled && io.blockHeld && !h.dead && !h.rolling && h.stun<=0 && (!STAMINA.enabled || h.stam>0);
   if(h.dots) tickDots(h,dt,true);
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
@@ -3403,7 +3412,7 @@ export function update(dtMs){
     mv=flaskMoveGate(h,mv);   // CAS-1854: Estus root/cancel-on-action (cross-platform, single source — ver flaskMoveGate). Bebiendo sin cancelar ⇒ mv=[0,0] ⇒ vx=vy=0, moved=false (ENRAIZADO); mover+cancelOnAction ⇒ aborta el trago (sin coste) y deja pasar el movimiento. OFF / no bebiendo ⇒ mv intacto ⇒ byte-id. Sin i-frames ⇒ VULNERABLE.
     const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
-    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz
+    const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1)*(h.blocking?SHIELD_BLOCK.moveMul:1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz · CAS-1873 strafe lento con la guardia arriba (gateado por h.blocking ⇒ OFF/no-bloqueando byte-id)
     h.vx=mv[0]*sp*atkSlow; h.vy=mv[1]*sp*atkSlow;
     h.moved=!!(mv[0]||mv[1]);
     if(h.moved){ moveEnt(h,h.vx*dt,h.vy*dt,12); h.walkT+=dt*8;
@@ -4123,6 +4132,29 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // in evasion. srand consumed only when the build HAS dodge (baseline unchanged).
   const tt=h.tt; if(tt&&tt.dodge>0 && srand()*100<tt.dodge){ h.iframe=Math.max(h.iframe,0.2);
     floater(h.x,h.y-34,STR.talentDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.32}); audio.sfx.roll(); return false; }
+  // CAS-1873: ESCUDO / BLOQUEO CON GUARDIA. Corre DESPUÉS de parry + i-frames + dodge-talent (una esquiva/roll sigue
+  // negando GRATIS y no malgasta estamina), ANTES de la armadura/hp. `src` presente SÓLO en golpes de CONTACTO (melee)
+  // ⇒ los proyectiles (src=null) NI ENTRAN a la rama = melee-only GRATIS, igual que Parry. Un golpe MELEE FRONTAL con la
+  // guardia arriba se MITIGA (no niega, SIN i-frames) a cambio de ESTAMINA; si la estamina no cubre el coste ⇒ RUPTURA
+  // DE GUARDIA (mismo `h.stun` STAGGERED de CAS-1826) y el golpe entra COMPLETO. Geometría/aritmética pura ⇒ 0 srand,
+  // NO existe `blockRng`. OFF ⇒ h.blocking nunca sube ⇒ rama muerta ⇒ byte-idéntico a HEAD.
+  if(SHIELD_BLOCK.enabled && h.blocking && src && src.hp>0 && !src.dead){
+    const toAtk=Math.atan2(src.y-h.y, src.x-h.x);                 // dir héroe→atacante (mirror parry ra)
+    if(Math.abs(angDiff(toAtk, h.facing)) < SHIELD_BLOCK.frontArcDeg*Math.PI/360){
+      const absorbed=dmg*SHIELD_BLOCK.mitigate;
+      const cost=STAMINA.enabled ? Math.round(absorbed*SHIELD_BLOCK.stamPerDmg) : 0;
+      if(STAMINA.enabled && h.stam < cost){                        // RUPTURA DE GUARDIA
+        h.stun=Math.max(h.stun||0, SHIELD_BLOCK.breakStunS); h.stam=0; h.blocking=false;
+        addFx("spark",h.x,h.y); floater(h.x,h.y-38,STR.guardBreak,"#ff9a4a"); shakeAdd(8); audio.sfx.hurt();
+        // NO se reduce dmg ⇒ el golpe entra COMPLETO; cae al flujo normal de armadura/hp/estado.
+      } else {                                                     // BLOQUEO OK
+        if(STAMINA.enabled){ h.stam=Math.max(0,h.stam-cost); h._stamRegenPauseT=STAMINA.regenDelay; }
+        dmg=Math.max(1, dmg-absorbed);                             // mitiga; NO niega. Sin i-frames.
+        addFx("dodgering",h.x,h.y,{life:0.22}); floater(h.x,h.y-34,STR.block,"#bfe3ff"); shakeAdd(4); audio.sfx.roll();
+        // cae al flujo normal con dmg reducido (armadura/hp/estado/reflect siguen igual).
+      }
+    }
+  }
   const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   h.hurtAnim=HURT_ANIM_DUR; // CAS-256: a landed hit plays the hit-react flinch strip (lower priority than an active cast)
@@ -6275,6 +6307,115 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     BLOODSTAIN.enabled=savE; BLOODSTAIN.lossPct=savL; G.bloodstain=null; G.bloodstainDirty=false;
     return { enabled:!!enabled, bloodstainFired:(enabled?(dropped&&recovered):false), fingerprint:fp }; },
+  // --- CAS-1873 ESCUDO / BLOQUEO CON GUARDIA (Shield Block) harness hooks (tools/cas1873-shield-block.mjs); additive,
+  // drive the REAL rama de bloqueo de damageHero (mitiga/coste/ruptura). Todo input/geometría/aritmética ⇒ 0 srand,
+  // NO blockRng. h.blocking transitorio (mirror stam); la ruptura reusa h.stun (STAGGERED de CAS-1826, ya existe). ---
+  shieldMeta(){ return { enabled:SHIELD_BLOCK.enabled, key:SHIELD_BLOCK.key, frontArcDeg:SHIELD_BLOCK.frontArcDeg, mitigate:SHIELD_BLOCK.mitigate, stamPerDmg:SHIELD_BLOCK.stamPerDmg, breakStunS:SHIELD_BLOCK.breakStunS, moveMul:SHIELD_BLOCK.moveMul }; },
+  shieldEnable(on){ SHIELD_BLOCK.enabled=!!on; return { enabled:SHIELD_BLOCK.enabled }; },
+  shieldState(){ const h=G.hero; if(!h) return null; return { blocking:!!h.blocking, stam:+((h.stam||0).toFixed(4)), stun:+((h.stun||0).toFixed(4)) }; },
+  // Clean warrior in play, arrays cleared, guardia ABAJO, estamina llena, sin combate/cooldown, maxHp enorme (los golpes
+  // de prueba no matan y el delta de hp es float limpio). facing=0 (mira +x ⇒ un atacante en +x es FRONTAL). Devuelve h.
+  _shieldArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; return h; },
+  // AC3 MITIGACIÓN + COSTE: golpe MELEE frontal con la guardia arriba ⇒ el daño absorbido == dmg·mitigate EXACTO
+  // (medido como diferencia del daño tomado bloqueado vs sin bloquear ⇒ independiente de la armadura) y la estamina baja
+  // round(absorbed·stamPerDmg) EXACTO. Mitiga, NO niega (dB>0).
+  shieldMitigateProbe(){ const savE=SHIELD_BLOCK.enabled, savS=STAMINA.enabled; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._shieldArm(); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    const dmg=200;
+    h.blocking=false; h.iframe=0; const hpU0=h.hp; damageHero(dmg,0,null,e); const dU=hpU0-h.hp;           // sin bloquear (referencia)
+    h.iframe=0; h.hp=hpU0; h.stam=STAMINA.max; const st0=h.stam; h.blocking=true; const hpB0=h.hp;
+    damageHero(dmg,0,null,e); const dB=hpB0-h.hp; const stSpent=st0-h.stam;                                // bloqueado
+    const absorbed=dmg*SHIELD_BLOCK.mitigate; const expectCost=Math.round(absorbed*SHIELD_BLOCK.stamPerDmg);
+    const mitigateExact=(Math.abs((dU-dB)-absorbed)<1e-6), costExact=(stSpent===expectCost), stillHurt=(dB>0);
+    SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; this._shieldArm();
+    return { dU, dB, absorbed, expectCost, stSpent, mitigateExact, costExact, stillHurt, ok:(mitigateExact&&costExact&&stillHurt) }; },
+  // AC4 FRONTAL-ONLY: mismo golpe MELEE por la ESPALDA (fuera del arco) con la guardia arriba ⇒ daño COMPLETO, sin
+  // coste de estamina (el atacante está en −x, fuera del cono frontal de frontArcDeg centrado en facing=+x).
+  shieldArcProbe(){ const savE=SHIELD_BLOCK.enabled, savS=STAMINA.enabled; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._shieldArm();
+    const eRear=spawnEnemy("wolf",h.x-40,h.y); if(eRear){ eRear.maxHp=eRear.hp=1e9; eRear.dead=false; }
+    h.facing=0; h.blocking=true; h.iframe=0; h.stam=STAMINA.max; const st0=h.stam; const hp0=h.hp;
+    damageHero(200,0,null,eRear); const dRear=hp0-h.hp; const noCost=(h.stam===st0);
+    const eF=spawnEnemy("wolf",h.x+40,h.y); if(eF){ eF.maxHp=eF.hp=1e9; eF.dead=false; }
+    h.blocking=false; h.iframe=0; h.hp=hp0; const hpf=h.hp; damageHero(200,0,null,eF); const dFull=hpf-h.hp;  // referencia daño completo
+    const fullDamage=(Math.abs(dRear-dFull)<1e-6);
+    SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; this._shieldArm();
+    return { dRear, dFull, noCost, fullDamage, ok:(fullDamage&&noCost) }; },
+  // AC5 MELEE-ONLY / SIN I-FRAMES: golpe RANGED (src=null) con la guardia arriba ⇒ NI ENTRA a la rama ⇒ daño COMPLETO,
+  // sin coste; y la i-frame tras un golpe BLOQUEADO == la i-frame de un golpe SIN bloquear (la 0.25 de mercy de siempre)
+  // ⇒ el bloqueo NO otorga i-frames extra.
+  shieldRangedProbe(){ const savE=SHIELD_BLOCK.enabled, savS=STAMINA.enabled; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._shieldArm();
+    h.facing=0; h.blocking=true; h.iframe=0; h.stam=STAMINA.max; const st0=h.stam; const hp0=h.hp;
+    damageHero(200,0,null,null); const dRanged=hp0-h.hp; const noCost=(h.stam===st0);                       // src=null ⇒ ranged
+    const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.blocking=false; h.iframe=0; h.hp=hp0; const hpf=h.hp; damageHero(200,0,null,e); const dFull=hpf-h.hp; const ifUnblocked=h.iframe;
+    const notMitigated=(Math.abs(dRanged-dFull)<1e-6);
+    h.iframe=0; h.hp=hp0; h.stam=STAMINA.max; h.blocking=true; damageHero(200,0,null,e); const ifBlocked=h.iframe;
+    const noExtraIframe=(Math.abs(ifBlocked-ifUnblocked)<1e-9);
+    SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; this._shieldArm();
+    return { dRanged, dFull, noCost, notMitigated, ifBlocked, ifUnblocked, noExtraIframe, ok:(notMitigated&&noCost&&noExtraIframe) }; },
+  // AC6 RUPTURA DE GUARDIA: bloqueo cuyo coste > h.stam ⇒ h.stun se fija a breakStunS (mismo STAGGERED de CAS-1826),
+  // el golpe entra COMPLETO (no se reduce dmg) y h.stam→0. Compara el daño tomado con el daño completo de referencia.
+  shieldBreakProbe(){ const savE=SHIELD_BLOCK.enabled, savS=STAMINA.enabled; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._shieldArm(); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.blocking=false; h.iframe=0; const hpU0=h.hp; damageHero(200,0,null,e); const dFull=hpU0-h.hp;         // referencia daño completo
+    h.iframe=0; h.hp=hpU0; h.stun=0; h.stam=10; h.blocking=true; const hp0=h.hp;                            // stam(10) < coste(78)
+    damageHero(200,0,null,e); const dTaken=hp0-h.hp;
+    const stunVal=+h.stun, brokeStun=(Math.abs(h.stun-SHIELD_BLOCK.breakStunS)<1e-9), stamZero=(h.stam===0), guardDown=(h.blocking===false);
+    const fullOnBreak=(Math.abs(dTaken-dFull)<1e-6);
+    SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; this._shieldArm();
+    return { dFull, dTaken, stun:stunVal, brokeStun, stamZero, guardDown, fullOnBreak, ok:(brokeStun&&stamZero&&guardDown&&fullOnBreak) }; },
+  // AC1 OFF byte-id: SHIELD_BLOCK.enabled=false ⇒ la rama de bloqueo está MUERTA aunque se fuerce h.blocking=true ⇒ un
+  // golpe MELEE frontal hace daño COMPLETO, sin coste de estamina, sin stun ⇒ comportamiento byte-idéntico a HEAD.
+  shieldOffProbe(){ const savE=SHIELD_BLOCK.enabled, savS=STAMINA.enabled; SHIELD_BLOCK.enabled=false; STAMINA.enabled=true;
+    const h=this._shieldArm(); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.facing=0; h.blocking=true; h.iframe=0; h.stun=0; h.stam=STAMINA.max; const st0=h.stam; const hp0=h.hp;
+    damageHero(200,0,null,e); const dTaken=hp0-h.hp; const noCost=(h.stam===st0), noStun=(h.stun<=0);
+    h.iframe=0; h.hp=hp0; h.blocking=false; const hpf=h.hp; damageHero(200,0,null,e); const dFull=hpf-h.hp;
+    const fullDamage=(Math.abs(dTaken-dFull)<1e-6);
+    SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; this._shieldArm();
+    return { dTaken, dFull, noCost, noStun, fullDamage, ok:(fullDamage&&noCost&&noStun) }; },
+  // AC7 SAVE byte-id: h.blocking transitorio (fuera del allowlist) + la ruptura reusa h.stun (ya fuera del allowlist)
+  // ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave block*. (Nombre del héroe SIN "block"/"shield" ⇒ el grep de
+  // clave no falsea — mirror gotcha VigorBot/FocusBot/EstusQA/GraveQA.)
+  shieldSaveByteId(){ const savE=SHIELD_BLOCK.enabled;
+    SHIELD_BLOCK.enabled=true; const h=this._shieldArm(); h.blocking=true; h.stun=0.5;
+    const onStr=JSON.stringify(serializeSave());
+    SHIELD_BLOCK.enabled=false; const offStr=JSON.stringify(serializeSave());
+    SHIELD_BLOCK.enabled=savE; this._shieldArm();
+    return { byteId:(offStr===onStr), hasKey:/"_?block[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !/"_?block[a-zA-Z]*":/i.test(onStr)) }; },
+  // AC2 0-RNG STRONG: fingerprint del srand alrededor del BLOQUEO DISPARANDO REAL — un bloqueo que MITIGA (gasta stam)
+  // y una RUPTURA de guardia (fija h.stun) — ON vs OFF. Todo es geometría/aritmética (NO blockRng) ⇒ el stream srand es
+  // BYTE-IDÉNTICO ON==OFF incluso con la feature disparando de verdad.
+  shieldSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savE=SHIELD_BLOCK.enabled, savS=STAMINA.enabled; SHIELD_BLOCK.enabled=!!enabled; STAMINA.enabled=true;
+    const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+      h.atkCD=0; h.atkT=0; h.parryT=0; h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max;
+      h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.facing=0; h.blocking=false; }
+    G.scene="play";
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let blocked=false, broke=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+        h.facing=0; h.blocking=true; h.iframe=0; h.stam=STAMINA.max; const stb=h.stam;
+        damageHero(200,0,null,e); blocked=(enabled ? (h.stam<stb) : (h.stam===stb));               // bloqueo que MITIGA (0 draws)
+        h.blocking=true; h.iframe=0; h.stun=0; h.stam=5; damageHero(200,0,null,e); broke=(enabled ? (h.stun>0) : (h.stun<=0)); // RUPTURA (0 draws)
+        h.iframe=0; h.stun=0; }
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; if(h){ h.blocking=false; h.stun=0; }
+    return { enabled:!!enabled, blockFired:(enabled?(blocked&&broke):false), fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

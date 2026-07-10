@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -33,6 +33,10 @@ export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], d
 export const stick = { active:false, id:-1, cx:0, cy:0, x:0, y:0 };
 export let isTouch = false;        // live binding consumed by sim (io) + render
 let aimActive = false;
+// CAS-1873: ESCUDO / BLOQUEO CON GUARDIA — estado HELD del bloqueo (mirror aimActive). Desktop: SHIELD_BLOCK.key
+// (ShiftLeft) fija true en keydown / false en keyup. Móvil: el botón HUD hold `tb.block` lo mantiene mientras el
+// dedo (blockPointerId) siga abajo. El sim lo lee vía io.blockHeld y fija h.blocking cada fixed-frame (gated).
+let blockHeld = false, blockPointerId = -1;
 let mouseX = view.VW/2, mouseY = view.VH/2;
 
 const keys = new Set();
@@ -119,9 +123,14 @@ function onKeyDown(e){
   // play action, or the numeric attack alias) so scrolling / find-on-page don't fire.
   // CAS-1847: suprime el default del navegador para la tecla de lock cuando está enabled (Tab mueve el foco del
   // navegador si no se hace preventDefault). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
-  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key)) e.preventDefault();
+  // CAS-1873: suprime el default del navegador para la tecla de bloqueo cuando está enabled (ShiftLeft es un
+  // modificador; sin esto podría interferir con atajos). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
+  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key)) e.preventDefault();
 }
-function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md); }
+function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md);
+  // CAS-1873: soltar la tecla de bloqueo BAJA la guardia (HELD). Siempre se limpia (aunque OFF) ⇒ el estado no queda
+  // colgado si el knob se apaga con la tecla pulsada. El sim ya gatea h.blocking en enabled, así que esto es inocuo OFF.
+  if(e.code===SHIELD_BLOCK.key) blockHeld=false; }
 function edge(code){
   // CAS-277: end-of-run recap — PRIMARY "otra ronda" (Space/Enter or the bound attack key)
   // → fresh run; SECONDARY "pueblo/menú" (Escape) → respawn into the calm pause hub.
@@ -264,6 +273,11 @@ function edge(code){
   // KeyH parry / COMBO.heavyKey / LOCK_ON.key: never touches REBINDS/settings.binds). El cancel-on-action se resuelve
   // en el sim (mover/atacar/rodar), así que desktop y móvil comparten la lógica de abortar el trago.
   if(code===FLASK.key && FLASK.enabled){ sim.drinkFlask(); return; }
+  // CAS-1873: dedicated SHIELD_BLOCK.key (default ShiftLeft) LEVANTA la guardia mientras se MANTIENE — gated on
+  // SHIELD_BLOCK.enabled, so con la feature off la tecla es inerte (falls through, no state change). Es HELD (no edge):
+  // fija blockHeld=true aquí y lo baja onKeyUp. No es una acción rebindable (deliberate, como KeyH parry / FLASK.key:
+  // never touches REBINDS/settings.binds). El sim decide si la guardia realmente sube (estamina/stun/rolling gate).
+  if(code===SHIELD_BLOCK.key && SHIELD_BLOCK.enabled){ blockHeld=true; return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
@@ -284,6 +298,11 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
       G.abilCursor=r.idx; const id=pool[r.idx].id; const at=G.abilChosen.indexOf(id);
       if(at>=0) G.abilChosen.splice(at,1); else if(G.abilChosen.length<2) G.abilChosen.push(id); return; } } return; }
   if(G.scene==="inventory"){ invDown(x,y,e.pointerId); return; } // CAS-419: arm DnD / tap-defer
+  // CAS-1873: botón táctil HOLD del ESCUDO/BLOQUEO — se resuelve ANTES del dispatch de tap (handleUITap) porque es
+  // press-and-hold, no tap: recuerda el pointerId y mantiene blockHeld hasta que ESE dedo se levante (onPointerUp).
+  // Gated a play+touch+enabled ⇒ OFF / desktop ni entra. Consume el evento (no dispara un ataque detrás del botón).
+  if(isTouch && SHIELD_BLOCK.enabled && G.scene==="play"){ const tb=tbtns();
+    if(tb.block && dist2tap(x,y,tb.block.x,tb.block.y)<tb.block.r*tb.block.r){ blockHeld=true; blockPointerId=e.pointerId; return; } }
   if(handleUITap(x,y)) return;
   if(G.scene==="play"){
     // CAS: the fixed left sidebar owns the whole left column — a press there fires its
@@ -306,7 +325,9 @@ function onPointerMove(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
 }
 function onPointerUp(e){ uiLayout.canvasUp(); // CAS-418: commit (clamp+persist) a widget drag; no-op otherwise
   invUp(e.pointerId, e.type==="pointercancel"); // CAS-419: resolve drop / deferred tap (cancel = no action)
-  if(stick.active&&e.pointerId===stick.id){ stick.active=false; } aimActive=false; }
+  if(stick.active&&e.pointerId===stick.id){ stick.active=false; } aimActive=false;
+  // CAS-1873: levantar el dedo que sostenía el botón de bloqueo BAJA la guardia (HELD táctil).
+  if(e.pointerId===blockPointerId){ blockHeld=false; blockPointerId=-1; } }
 function faceMouse(){ const h=G.hero; if(!h) return; const wx=G.cam.x+mouseX/zoom(), wy=G.cam.y+mouseY/zoom(); h.facing=Math.atan2(wy-h.y,wx-h.x); }
 
 function moveVec(){
@@ -353,6 +374,11 @@ export function tbtns(){ // returns button rects for current scene
     // botón ⇒ el layout de controles es byte-idéntico a HEAD. Mover el joystick durante el trago lo cancela (mismo
     // seam del sim que desktop). Junto al botón de recoger (F) en el cluster izquierdo. $0 arte (glifo procedural).
     ...(FLASK.enabled ? { flask:{x:m+bs*1.55, y:VH-m-bs*2.2, r:bs*0.4, label:"⚕", act:()=>sim.drinkFlask()} } : {}),
+    // CAS-1873: botón táctil HOLD del ESCUDO/BLOQUEO CON GUARDIA — SÓLO cuando SHIELD_BLOCK.enabled, así con el knob
+    // OFF no hay botón ⇒ el layout de controles es byte-idéntico a HEAD (mirror tb.flask). Es HOLD, no tap: onPointerDown
+    // fija blockHeld mientras el dedo siga abajo (ver blockPointerId), onPointerUp lo suelta. `act` no-op (el hold lo
+    // maneja el pointer handler, no el dispatch de tap). $0 arte (glifo procedural 🛡). Cluster izquierdo, sobre pick/⚕.
+    ...(SHIELD_BLOCK.enabled ? { block:{x:m+bs*2.6, y:VH-m-bs*2.2, r:bs*0.4, label:"🛡", act:()=>{} } } : {}),
     bs
   };
 }
@@ -678,6 +704,7 @@ export const io = {
   moveVec, pollPad, aim: faceMouse,
   get isTouch(){ return isTouch; },
   get aimActive(){ return aimActive; },
+  get blockHeld(){ return blockHeld; },   // CAS-1873: estado HELD del bloqueo (ShiftLeft / botón táctil hold) — el sim fija h.blocking desde aquí
 };
 
 // bind DOM listeners; called once by the orchestrator with the canvas + inputs
