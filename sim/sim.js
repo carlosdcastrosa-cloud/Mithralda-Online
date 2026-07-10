@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3038,7 +3038,13 @@ function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n
 export function doRoll(){ const h=G.hero; if(h.rolling||h.rollCD>0) return; let ax,ay;
   if(G.settings.rollAim){ ax=Math.cos(h.facing); ay=Math.sin(h.facing); }
   else { const mv=io.moveVec(); if(mv[0]===0&&mv[1]===0){ ax=Math.cos(h.facing); ay=Math.sin(h.facing);} else {[ax,ay]=mv;} }
-  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=CFG.rollIFrame+((h.bb&&h.bb.iframeAdd)||0)+metaDashIframe(); h.rollCD=CFG.rollCD; h.rollX=ax; h.rollY=ay; // CAS-1565: +Evasión meta i-frames (read-live)
+  // CAS-1814: ESQUIVA RODANTE — when DODGE.enabled the roll's iframe/cooldown/distance derive from the
+  // reactive knob band (vs CFG.roll*); the existing bonuses (bb.iframeAdd + metaDashIframe + Estela
+  // Ardiente) still SUM in unchanged. rollTime is held fixed (animation/fade timing byte-identical); the
+  // knob distance is applied as a per-roll speed (h.rollSpd, transient run-state, NOT serialized). OFF ⇒
+  // CFG.rollIFrame/rollCD/rollSpeed EXACT (h.rollSpd=CFG.rollSpeed ⇒ movement byte-identical). 0-RNG.
+  const dg=DODGE.enabled;
+  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=(dg?DODGE.iframeMs/1000:CFG.rollIFrame)+((h.bb&&h.bb.iframeAdd)||0)+metaDashIframe(); h.rollCD=dg?DODGE.cooldownMs/1000:CFG.rollCD; h.rollSpd=dg?DODGE.distance/CFG.rollTime:CFG.rollSpeed; h.rollX=ax; h.rollY=ay; // CAS-1565: +Evasión meta i-frames (read-live)
   if(h.bb&&h.bb.trail>0) h._trailSet=new Set(); // CAS-388: fresh per-roll set so Estela Ardiente burns each enemy once per dash
   audio.sfx.roll(); } // CAS-383: Viento Veloz widens the dodge window
 
@@ -3112,7 +3118,7 @@ export function update(dtMs){
   if(h.dots) tickDots(h,dt,true);
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
-  if(h.rolling){ h.rollT-=dt; const sp=CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12);
+  if(h.rolling){ h.rollT-=dt; const sp=h.rollSpd||CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12); // CAS-1814: per-roll speed (DODGE distance); ||CFG.rollSpeed ⇒ OFF byte-identical
     // CAS-388: Estela Ardiente legendary — the dash lays a fire wake. Enemies the roll passes
     // through take a burn DoT once per dash (h._trailSet dedupes), turning the dodge into an
     // offensive tool. Guarded on trail>0 so a boonless roll is byte-identical. Reuses the burn
@@ -4998,6 +5004,70 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
     TELEGRAPH.enabled=sav;
     return { enabled:!!enabled, fired, fingerprint:fp }; },
+  // --- CAS-1814 ESQUIVA RODANTE (dodge roll i-frames) harness hooks (tools/cas1814-dodge.mjs); additive, drive the REAL doRoll/damageHero paths ---
+  dodgeMeta(){ return { enabled:DODGE.enabled, cooldownMs:DODGE.cooldownMs, iframeMs:DODGE.iframeMs, distance:DODGE.distance }; },
+  dodgeEnabled(){ return DODGE.enabled; },
+  dodgeEnable(on){ DODGE.enabled=!!on; return { enabled:DODGE.enabled }; },
+  // Zero the transient roll run-state so a probe starts clean (mirror fresh newHero; rollSpd is new run-state).
+  dodgeReset(){ const h=G.hero; if(!h) return null; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.rollSpd=0; h._pdCD=0; h.riposte=0; h.dead=false; if(h.hp<=0) h.hp=h.maxHp; return this.dodgeState(); },
+  dodgeState(){ const h=G.hero; if(!h) return null;
+    return { enabled:DODGE.enabled, rolling:!!h.rolling, iframe:+((h.iframe||0).toFixed(4)), rollCD:+((h.rollCD||0).toFixed(4)), rollSpd:+((h.rollSpd||0).toFixed(4)) }; },
+  // Fire the REAL doRoll(). rollAim=true forces the facing branch (no io.moveVec in the DOM-free harness).
+  // force ⇒ clear rolling+cooldown first so the roll always fires; force=false respects the live cooldown
+  // (used by the cooldown probe). Returns whether a roll is now active.
+  _dodgeFire(force){ const h=G.hero; if(!h) return false; const sav=G.settings.rollAim; G.settings.rollAim=true;
+    if(force!==false){ h.rolling=false; h.rollCD=0; } doRoll(); G.settings.rollAim=sav; return !!h.rolling; },
+  // AC1/AC-derive: with DODGE ON the roll's iframe/cooldown/speed come from the knob band; OFF ⇒ CFG.roll* EXACT.
+  // Fresh warrior (no bb.iframeAdd, no meta) ⇒ the sums are 0 so the raw params are directly observable.
+  dodgeParamsProbe(enabled){ const sav=DODGE.enabled; DODGE.enabled=!!enabled; this.dodgeReset(); this._dodgeFire(true);
+    const h=G.hero; const out={ enabled:!!enabled, iframe:+((h.iframe||0).toFixed(5)), rollCD:+((h.rollCD||0).toFixed(5)), rollSpd:+((h.rollSpd||0).toFixed(5)), rolling:!!h.rolling,
+      cfg:{ rollIFrame:CFG.rollIFrame, rollCD:CFG.rollCD, rollSpeed:CFG.rollSpeed }, knob:{ iframe:+((DODGE.iframeMs/1000).toFixed(5)), cd:+((DODGE.cooldownMs/1000).toFixed(5)), spd:+((DODGE.distance/CFG.rollTime).toFixed(5)) } };
+    DODGE.enabled=sav; this.dodgeReset(); return out; },
+  // AC3-melee: a roll's i-frame negates a REAL melee hit (src=enemy). Baseline (no roll) lands for contrast.
+  dodgeMeleeProbe(){ const h=G.hero; if(!h) return null; this.dodgeReset(); G.enemies.length=0;
+    const e=spawnEnemy("skeleton", h.x+30, h.y); if(!e) return null; e.hp=500; e.maxHp=500; const ang=Math.atan2(h.y-e.y,h.x-e.x);
+    h.hp=h.maxHp; const b0=h.hp; const baseRet=damageHero(40, ang, null, e); const heroDmgBase=Math.round(b0-h.hp);
+    this.dodgeReset(); h.hp=h.maxHp; this._dodgeFire(true); const r0=h.hp; const ret=damageHero(40, ang, null, e); const heroDmg=Math.round(r0-h.hp);
+    const out={ heroDmgBase, baseNegated:baseRet===false, rolling:!!h.rolling, iframe:+((h.iframe||0).toFixed(3)), negated:ret===false, heroDmg };
+    G.enemies.length=0; this.dodgeReset(); return out; },
+  // AC3-ranged: the SAME i-frame choke negates a projectile (src=null) — ranged evasion is free (universal i-frame).
+  dodgeRangedProbe(){ const h=G.hero; if(!h) return null; this.dodgeReset(); G.enemies.length=0;
+    h.hp=h.maxHp; const b0=h.hp; const baseRet=damageHero(40, 0, null, null); const heroDmgBase=Math.round(b0-h.hp);
+    this.dodgeReset(); h.hp=h.maxHp; this._dodgeFire(true); const r0=h.hp; const ret=damageHero(40, 0, null, null); const heroDmg=Math.round(r0-h.hp);
+    const out={ heroDmgBase, baseNegated:baseRet===false, rolling:!!h.rolling, iframe:+((h.iframe||0).toFixed(3)), negated:ret===false, heroDmg };
+    this.dodgeReset(); return out; },
+  // AC4: a second roll INSIDE the cooldown is a no-op; after the cooldown drains it re-arms. cd reads the knob band.
+  dodgeCooldownProbe(){ const h=G.hero; if(!h) return null; const sav=DODGE.enabled; DODGE.enabled=true; this.dodgeReset();
+    const armed1=this._dodgeFire(true); const cd=+((h.rollCD||0).toFixed(4));   // first roll fires + sets cooldown
+    h.rolling=false; h.rollT=0;                                                  // roll movement ended, cooldown persists
+    const armed2=this._dodgeFire(false);                                         // second attempt inside CD ⇒ blocked
+    h.rollCD=0; const armed3=this._dodgeFire(false);                             // cooldown drained ⇒ re-arms
+    DODGE.enabled=sav; this.dodgeReset();
+    return { armed1, cd, blockedInCD:armed2===false, rearmed:armed3===true, cooldownMs:DODGE.cooldownMs }; },
+  // AC-RNG-STRONG: fingerprint the gameplay srand around a REAL roll FIRING (+ a negated hit) and a run of loot
+  // kills, DODGE ON vs OFF. The roll/i-frame path opens NO srand stream (timing only), so the stream is
+  // BYTE-IDENTICAL ON==OFF even though the roll actually fires and negates a hit. 2*probeN draws.
+  dodgeSrandProbe(enabled, seedVal, probeN, fire){ probeN=Math.max(4,probeN|0);
+    const sav=DODGE.enabled; DODGE.enabled=!!enabled; const h=G.hero;
+    if(h){ h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.rollSpd=0; h._pdCD=0; h.riposte=0; h.dead=false; if(h.hp<=0) h.hp=h.maxHp; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    let fired=false;
+    if(fire!==false && h){ G.enemies.length=0; const e=spawnEnemy("skeleton",h.x+30,h.y);
+      if(e){ e.hp=500; e.maxHp=500; this._dodgeFire(true); fired=(damageHero(40,Math.atan2(h.y-e.y,h.x-e.x),null,e)===false && h.rolling); }
+      G.enemies.length=0;
+      for(let i=0;i<6;i++){ const k=spawnEnemy("skeleton",h.x+40+i,h.y); if(k){ k.hp=0; killEnemy(k); } }
+      G.enemies.length=0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    DODGE.enabled=sav;
+    return { enabled:!!enabled, fired:(enabled?fired:fired), fingerprint:fp }; },
+  // AC6: the roll run-state (incl. the new rollSpd) is NEVER serialized. Hot roll fields ⇒ SAME save.v1 bytes as a
+  // clean state, no roll/dodge key; and DODGE ON vs OFF ⇒ byte-identical save. Mirror of parrySaveByteId.
+  dodgeSaveByteId(){ const h=G.hero; if(!h) return null; const sav=DODGE.enabled;
+    DODGE.enabled=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.rollSpd=0; const offStr=JSON.stringify(serializeSave());
+    DODGE.enabled=true; h.rolling=true; h.rollT=0.2; h.rollCD=0.9; h.iframe=0.28; h.rollSpd=460; const onStr=JSON.stringify(serializeSave());
+    DODGE.enabled=sav; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.rollSpd=0;
+    return { byteId:offStr===onStr, hasKey:/"(_?roll[a-zA-Z]*|dodge[a-z]*)":/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
   // AC-SAVE: telegraph is presentation + transient (e.st + fx), NEVER serialized. Serialize with the knob ON vs
   // a clean HEAD-style state and assert byte-identity + NO telegraph key. Mirror of parrySaveByteId.
   telegraphSaveByteId(){ const sav=TELEGRAPH.enabled;
