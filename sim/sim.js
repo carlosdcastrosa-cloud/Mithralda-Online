@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -339,6 +339,10 @@ function newHero(name,cls){
     // (bloquea attack/heavy/art/throw + root), buffZone = última zona vista (detecta el refill). TODOS fuera del allowlist
     // de serializeSave ⇒ save.v1 byte-id on/off y SIN clave buff*/wbuff*. 0 RNG (aritmética/timing deterministas).
     buffSel:WEAPON_BUFFS.order[0], emberCharges:WEAPON_BUFFS.types.ember.charges, whetCharges:WEAPON_BUFFS.types.whet.charges, frostCharges:WEAPON_BUFFS.types.frost.charges, _wbuff:null, wbuffT:0, applyBuffT:0, buffZone:null,
+    // CAS-1954: CENIZAS DE ESPÍRITU (Spirit Summon) — recurso transitorio (mirror flaskCharges). summonCharges = cargas restantes
+    // (refill a tope al cambiar de zona / hoguera), summonZone = última zona vista (detecta el refill). La entidad viva del espíritu
+    // vive en G._spirit (no en el héroe). TODO fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave summon*. 0 RNG.
+    summonCharges:SUMMON.charges, summonZone:null,
     // CAS-1873: ESCUDO / BLOQUEO CON GUARDIA — estado TRANSITORIO (mirror stam/flaskDrinkT). `blocking` = guardia
     // arriba este frame (se re-fija cada fixed-frame desde io.blockHeld); la RUPTURA reusa `h.stun` (STAGGERED de
     // CAS-1826, ya existe). Fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG.
@@ -1588,6 +1592,7 @@ export function loadSave(d){
     if(FLASK.enabled){ h.flaskCharges=FLASK.charges; h.flaskDrinkT=0; h.flaskZone=null; }   // CAS-1854: Estus a tope al arrancar run (gated ⇒ OFF byte-id)
     if(THROWABLES.enabled){ refillThrowables(h); h.throwSel=THROWABLES.order[0]; h.throwCD=0; h.throwWind=0; h.throwZone=null; }   // CAS-1920: arrojadizos a tope al arrancar run (gated ⇒ OFF byte-id)
     if(WEAPON_BUFFS.enabled){ refillBuffs(h); h.buffSel=WEAPON_BUFFS.order[0]; h._wbuff=null; h.wbuffT=0; h.applyBuffT=0; h.buffZone=null; }   // CAS-1926: resinas a tope + sin buff activo al arrancar run (gated ⇒ OFF byte-id)
+    if(SUMMON.enabled){ h.summonCharges=SUMMON.charges; h.summonZone=null; G._spirit=null; }   // CAS-1954: cargas de invocación a tope + sin espíritu activo al reanudar run (gated ⇒ OFF byte-id)
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -1992,6 +1997,84 @@ function tickFlask(h,dt){
         const heal=Math.max(1,Math.round(pactHeal(heroMaxHp(h)*FLASK.healPct)));
         h.hp=Math.min(heroMaxHp(h), h.hp+heal); floater(h.x,h.y-30,"+"+heal,"#5fd66a"); audio.sfx.heal&&audio.sfx.heal(); } } }
 }
+// ===================== CAS-1954: CENIZAS DE ESPÍRITU (Spirit Summon) =====================
+// Aliado IA 100% LOCAL (NO netcode). Todo determinista ⇒ 0 draws srand; SUMMON.enabled=false ⇒ ninguna de estas rutas se toca
+// (G._spirit jamás se crea, ambos SEAMs no-op) ⇒ byte-idéntico a HEAD. Estado transitorio (G._spirit + h.summonCharges/summonZone),
+// nunca serializado ⇒ save.v1 byte-id. El espíritu reusa el molde de spawnEnemy (sin empujarlo a G.enemies: NO es un enemigo, no
+// entra en updateEnemies/killEnemy) y pega vía hitEnemy(...,{spirit:true}) que gatea el kit del héroe a daño plano ×1.
+// SEAM 1 (updateEnemies): un enemigo cuya amenaza MÁS CERCANA es el espíritu lo persigue/encara (regla "nearest", 0 draws).
+function spiritAggroTarget(e){ const sp=G._spirit;
+  if(SUMMON.enabled && sp && sp.hp>0){
+    const dh=Math.hypot(G.hero.x-e.x, G.hero.y-e.y);   // distancia enemigo→héroe
+    const ds=Math.hypot(sp.x-e.x, sp.y-e.y);           // distancia enemigo→espíritu
+    if(ds<dh) return sp;                                // el espíritu es la amenaza más cercana ⇒ el enemigo va a por ÉL
+  }
+  return G.hero; }
+// Objetivo del espíritu: LOCK_ON del héroe si vivo (artTarget-parity), si no el enemigo HOSTIL vivo MÁS CERCANO al espíritu. 0 draws.
+function spiritTarget(){ const sp=G._spirit, h=G.hero; if(!sp||!h) return null;
+  if(LOCK_ON.enabled && h.lockTarget && !h.lockTarget.dead && h.lockTarget.hp>0) return h.lockTarget;
+  let best=null, bd=Infinity;
+  for(const e of G.enemies){ if(e.dead||e.hp<=0) continue; if(e.tpl.neutral && !e.hostile) continue;   // no aggro a neutrales pacíficos
+    const dx=e.x-sp.x, dy=e.y-sp.y, d2=dx*dx+dy*dy; if(d2<bd){ bd=d2; best=e; } }
+  return best; }
+// Invoca al espíritu junto al héroe (offset hacia el enemigo más cercano para que entre en combate). Gasta 1 carga. Devuelve bool.
+// Gate compartido por el input y el dev-hook: cargas>0 && (sin espíritu ó replaceOnRecast) && escena play && héroe vivo.
+export function spawnSpirit(){ const h=G.hero;
+  if(!SUMMON.enabled || !h || h.dead || G.scene!=="play") return false;
+  if(!(h.summonCharges>0)) { audio.sfx.deny&&audio.sfx.deny(); return false; }
+  if(G._spirit && G._spirit.hp>0 && !SUMMON.replaceOnRecast) { audio.sfx.deny&&audio.sfx.deny(); return false; }
+  const sc=SUMMON.spirit, tpl=ETPL[sc.mold]||ETPL.skeleton;
+  // posición segura junto al héroe, sesgada hacia el enemigo más cercano (así entra en rango de combate)
+  let ax=Math.cos(h.facing||0), ay=Math.sin(h.facing||0);
+  { let best=null,bd=Infinity; for(const e of G.enemies){ if(e.dead||e.hp<=0||(e.tpl.neutral&&!e.hostile)) continue; const dx=e.x-h.x,dy=e.y-h.y,d2=dx*dx+dy*dy; if(d2<bd){bd=d2;best=e;} }
+    if(best){ const n=norm(best.x-h.x,best.y-h.y); ax=n[0]; ay=n[1]; } }
+  const sx=h.x+ax*30, sy=h.y+ay*30;
+  const maxHp=Math.max(1, Math.round(heroMaxHp(h)*sc.hpPct));
+  G._spirit={ ally:true, type:"_spirit", x:sx, y:sy, tpl, hp:maxHp, maxHp,
+    facing:Math.atan2(ay,ax), state:"idle", animState:"idle", animT:0, gaitPhase:(sx*0.7+sy*0.9),
+    atkCD:0, life:SUMMON.summonMs/1000, hurtFlash:0, knockX:0, knockY:0, slow:1, slowT:0, poise:0, poiseMax:0 };
+  h.summonCharges--;
+  addFx("novacast",sx,sy,{r:52,col:sc.tint,life:0.5}); addFx("spellburst",sx,sy,{col:sc.tint});
+  floater(sx,sy-42,"¡Cenizas de Espíritu!",sc.tint,{pop:1.4});
+  audio.sfx.boss&&audio.sfx.boss();
+  return true; }
+// El espíritu ABSORBE el golpe redirigido (SEAM 2). Resta HP propio, VFX; a hp<=0 se disipa. Sin i-frames/parry/dodge. 0 RNG.
+function hitSpirit(sp,dmg){ if(!sp||sp.hp<=0) return; sp.hp-=dmg; sp.hurtFlash=0.16;
+  addFx("spark",sp.x,sp.y); addFx("blood",sp.x,sp.y,{ang:0});
+  floater(sp.x,sp.y-((sp.tpl&&sp.tpl.size)||18),"-"+Math.round(dmg),SUMMON.spirit.tint,{small:true}); audio.sfx.ehurt&&audio.sfx.ehurt();
+  if(sp.hp<=0){ sp.hp=0; despawnSpirit(); } }
+function despawnSpirit(){ const sp=G._spirit; if(!sp) return; const tint=SUMMON.spirit.tint;
+  addFx("spellburst",sp.x,sp.y,{col:tint}); addFx("novacast",sp.x,sp.y,{r:48,col:tint,life:0.4});
+  for(let i=0;i<8;i++) addFx("spark",sp.x+frr(-14,14),sp.y+frr(-14,14),{col:tint});
+  floater(sp.x,sp.y-40,"El espíritu se disipa",tint);
+  G._spirit=null; }
+// IA del espíritu (aditivo): timer + steer hacia el target + ataque en rango en su propio cooldown. Reusa moveEnt/hitEnemy. 0 draws.
+function updateSpirit(dt){ if(!SUMMON.enabled) return; const sp=G._spirit; if(!sp) return; const h=G.hero;
+  sp.hurtFlash=Math.max(0,(sp.hurtFlash||0)-dt);
+  if(sp.atkCD>0) sp.atkCD-=dt;
+  sp.life-=dt; if(sp.life<=0 || sp.hp<=0){ despawnSpirit(); return; }
+  const tgt=spiritTarget();
+  if(!tgt){ // sin enemigos: regresa junto al héroe y espera
+    const d=Math.hypot(h.x-sp.x,h.y-sp.y);
+    if(d>SUMMON.spirit.range*1.4){ const ang=Math.atan2(h.y-sp.y,h.x-sp.x); const spd=(sp.tpl.spd||70)*SUMMON.spirit.moveMul;
+      sp.facing=ang; moveEnt(sp,Math.cos(ang)*spd*dt,Math.sin(ang)*spd*dt,(sp.tpl.size||18)*0.6); sp.animState="walk"; }
+    else sp.animState="idle";
+    sp.animT=(sp.animT||0)+dt; return; }
+  sp.facing=Math.atan2(tgt.y-sp.y, tgt.x-sp.x);
+  const d=Math.hypot(tgt.x-sp.x, tgt.y-sp.y), range=SUMMON.spirit.range;
+  if(d>range){ const spd=(sp.tpl.spd||70)*SUMMON.spirit.moveMul;
+    moveEnt(sp,Math.cos(sp.facing)*spd*dt,Math.sin(sp.facing)*spd*dt,(sp.tpl.size||18)*0.6); sp.animState="walk"; }
+  else if(sp.atkCD<=0){ sp.atkCD=SUMMON.spirit.atkCdMs/1000;
+    const dmg=Math.max(1, Math.round(equippedDmg(h)*SUMMON.spirit.dmgMul));   // daño PLANO baseline; hitEnemy {spirit:true} lo deja ×1 (0 srand)
+    hitEnemy(tgt, dmg, sp.facing, {melee:true, spirit:true});
+    sp.animState="attack"; sp.animT=0; addFx("strikeflash",sp.x,sp.y,{ang:sp.facing,range:range,life:0.16}); }
+  else sp.animState="idle";
+  sp.animT=(sp.animT||0)+dt; }
+// Refill de cargas por transición de zona (mirror EXACTO de tickFlask) — recurso escaso. Hook BONFIRE aparte (ver interact).
+function tickSummon(h,dt){ if(!SUMMON.enabled||!h) return;
+  if(SUMMON.refillOnZone){ const z=zoneOf(world,h.x,h.y);
+    if(h.summonZone!==null && h.summonZone!==undefined && z!==h.summonZone) h.summonCharges=SUMMON.charges;   // transición de zona ⇒ recarga
+    h.summonZone=z; } }
 // CAS-1867: recuperación de la MANCHA DE SANGRE — check de distancia determinista en el tick del héroe (gated).
 // Si hay mancha activa Y estamos en su MISMA zona Y dentro de recoverRadius ⇒ banca su amount a la meta, borra la
 // mancha + su store, banner + floater. Sólo se recupera en la zona donde caíste (entrar a otra zona NO borra la mancha;
@@ -2144,6 +2227,12 @@ function hitEnemy(e,dmg,ang,opt){
   // (smoke/determinism baseline) leaves the sequence byte-identical.
   const tt=G.hero?G.hero.tt:null;
   const bb=G.hero?G.hero.bb:null; // CAS-383: cached boon bundle
+  // CAS-1954: un golpe del ESPÍRITU invocado (opt.spirit) es daño PLANO baseline ×1 — GATEA todo multiplicador de BUILD del héroe
+  // (onhit/mperk/legacy/frenesí/riposte/crit) + boons/lifesteal/procs/WEAPON_BUFFS/afijo/talento/bleed + carga de Ultimate, para no
+  // heredar el kit del héroe y NO consumir NI UN draw srand desde el espíritu (RNG-neutral STRONG). Se MANTIENEN los bonus de ESTADO
+  // del objetivo (acumulación de POISTURA — divide postura del jefe = payoff — + bonus por stagger/backstab/combo/vuln, todos sin RNG),
+  // así el espíritu participa del bucle read-punish. spirit=false ⇒ rama byte-idéntica a HEAD.
+  const spirit=!!(opt&&opt.spirit);
   // CAS-121: a boss under its frost CARAPACE is damage-IMMUNE. The hit still funnels the
   // same on-hit STATUS procs (so a build that applies veneno/quemadura/aturdir SHATTERS
   // the shield — applyStatus flags it), but all damage/knock/crit is skipped and an
@@ -2155,26 +2244,26 @@ function hitEnemy(e,dmg,ang,opt){
       if(tt.stunChance>0 && srand()*100<tt.stunChance) applyStatus(e,"stun"); }
     return;
   }
-  const oh=(G.hero?affixTotals(G.hero).onhit:0)+(tt?tt.onhit:0); if(oh) dmg+=oh;
+  if(!spirit){ const oh=(G.hero?affixTotals(G.hero).onhit:0)+(tt?tt.onhit:0); if(oh) dmg+=oh; }   // CAS-1954: onhit del héroe NO se hereda al golpe del espíritu
   // CAS-150: Elite-Mastery reward-track perks fold into the same chokepoint every hero hit
   // funnels through. dmgPct scales ALL hero damage; eliteDmgPct adds on top vs elite-class
   // targets (the headline anti-elite reward). Multiplicative, applied before the crit roll.
   const mk=G.hero?G.hero.mperk:null;
-  if(mk){ let mul=1+(mk.dmgPct||0)/100;
+  if(mk && !spirit){ let mul=1+(mk.dmgPct||0)/100;   // CAS-1954: perks de maestría del héroe NO aplican al espíritu (daño plano)
     if((mk.eliteDmgPct||0)>0 && (e.elite||e.champion||e.isBoss)) mul+=(mk.eliteDmgPct||0)/100;
     if(mul!==1) dmg*=mul; }
   // CAS-1649: leg_cazador legacy — +10%/stack damage vs elite-class targets (affixed mobs, champions,
   // élite-campeones, bosses). Deterministic multiply on the damage number — consumes NO srand, so
   // 0 stacks → byte-identical hit sequence.
-  { const cz=legacyCount("leg_cazador"); if(cz>0 && (e.elite||e.champion||e.champElite||e.isBoss||mobAffixes(e).length>0)) dmg*=(1+0.10*cz); }
+  { const cz=legacyCount("leg_cazador"); if(cz>0 && !spirit && (e.elite||e.champion||e.champElite||e.isBoss||mobAffixes(e).length>0)) dmg*=(1+0.10*cz); }   // CAS-1954: legado del héroe NO al espíritu
   // CAS-1773: Frenesí — +perStack.dmgPct% damage per active stack. Deterministic multiply, consumes
   // NO srand, so 0 stacks (or disabled) → ×1 → byte-identical hit sequence. The one dmg choke.
-  if(FRENZY.enabled && G.hero && G.hero.frenzyStacks>0) dmg*=(1+G.hero.frenzyStacks*FRENZY.perStack.dmgPct/100);
+  if(FRENZY.enabled && !spirit && G.hero && G.hero.frenzyStacks>0) dmg*=(1+G.hero.frenzyStacks*FRENZY.perStack.dmgPct/100);   // CAS-1954: frenesí del héroe NO al espíritu
   // CAS-1785: PARADA CON TEMPO riposte — a successful parry arms a consumable 1-hit buff; the NEXT hero
   // hit lands ×riposteMul, then it's spent. Deterministic multiply, consumes NO srand ⇒ no riposte (or
   // disabled) → ×1 → byte-identical. The counter hit itself sets the buff AFTER its own hitEnemy, so the
   // counter is not self-boosted; the player's follow-up swing is.
-  if(PARRY.enabled && G.hero && G.hero._parryRiposte>0){ dmg*=PARRY.riposteMul; G.hero._parryRiposte=0; }
+  if(PARRY.enabled && !spirit && G.hero && G.hero._parryRiposte>0){ dmg*=PARRY.riposteMul; G.hero._parryRiposte=0; }   // CAS-1954: riposte del héroe NO lo consume el espíritu
   // CAS-1826: ATURDIMIENTO POR POSTURA — accrue hidden postura on this tier enemy; crossing e.poiseMax BREAKS
   // it into a STAGGER: set e.stun (reuses the AI-freeze gate ⇒ 0 new IA) + e.staggerT (the bonus-dmg window).
   // Pure arithmetic threshold — consumes NO srand (there is no poiseRng), so a firing stagger leaves the srand
@@ -2220,14 +2309,17 @@ function hitEnemy(e,dmg,ang,opt){
   // CAS-1654: Cazador set (+20% crit dmg at 3pz) adds to the crit multiplier — read-live off
   // G.hero's equipped set pieces; no set → +0 → byte-identical. Shared by both crit paths below.
   const setCritMult=(G.hero?setTotals(G.hero).critDmgPct:0)/100;
+  // CAS-1954: el crit del HÉROE (incl. el ÚNICO srand del melee) queda GATEADO fuera para el golpe del espíritu ⇒ 0 draws, sin crit.
+  if(!spirit){
   if(G.hero && G.hero.riposte>0){ riposted=true; crit=true; G.hero.riposte=0;
     dmg*=CFG.riposteMult*(CRIT_BASE+((tt&&tt.critMult)||0)/100+setCritMult); }
   else if(critPct>0 && srand()*100<critPct){ crit=true; dmg*=(CRIT_BASE+((tt&&tt.critMult)||0)/100+setCritMult); }
+  }
   // CAS-1768: resolve the equipped weapon's on-hit affix ONCE per hit — gated, and null unless the feature
   // is enabled, the equipped weapon carries a `wa`, and this is NOT a chain rebound (opt.noAffix). Disabled /
   // no-affix ⇒ this is never evaluated ⇒ byte-identical. `m` is the tier-derived magnitude (never stored).
   let wAf=null;
-  if(WEAPON_AFFIXES.enabled && !(opt&&opt.noAffix) && G.hero){ const w=G.hero.equip&&G.hero.equip.weapon;
+  if(WEAPON_AFFIXES.enabled && !spirit && !(opt&&opt.noAffix) && G.hero){ const w=G.hero.equip&&G.hero.equip.weapon;   // CAS-1954: el afijo del arma del héroe (incl. proc stun con affixRng) NO se hereda al espíritu ⇒ wAf=null ⇒ applyWeaponAffix nunca corre
     if(w&&w.wa){ const def=WEAPON_AFFIXES.defs.find(d=>d.id===w.wa);
       if(def){ const tier=(gearDef("weapon",w.defId)||{}).tier||1; wAf={def, m:def.mag*(1+WEAPON_AFFIXES.magPerTier*Math.max(0,tier-1))}; } } }
   // CAS-247 ARMORED affix: a metallic-tinted elite absorbs a fixed fraction of EVERY incoming
@@ -2263,7 +2355,7 @@ function hitEnemy(e,dmg,ang,opt){
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
   // poison DoT (reuses applyStatus → the existing status stack/feedback). Sed de Sangre leeches
   // on MELEE connects only (heroMeleeHit flag). All deterministic (no srand).
-  if(bb){
+  if(bb && !spirit){   // CAS-1954: boons on-hit del héroe (quemadura/veneno/robo de vida) NO se heredan al espíritu (daño plano, sin procs)
     // CAS-1931: on-hit elemental boons FEED the buildup meter when STATUS_BUILDUP.enabled (statusOrBuildup); OFF ⇒ instant applyStatus byte-id.
     if(bb.burn>0)   statusOrBuildup(e,"burn",  {dmg:Math.max(1,Math.round(dmg*bb.burn))}, false);
     if(bb.poison>0) statusOrBuildup(e,"poison",{dmg:Math.max(1,Math.round(dmg*bb.poison))}, false);
@@ -2275,14 +2367,14 @@ function hitEnemy(e,dmg,ang,opt){
   // Rama gateada tras el bloque de boons: ember⇒burn DoT (reusa STATUS.burn, mismo que afijo Ardiente / boon Sangre de Brasa);
   // frost⇒slow (reusa STATUS.slow, mismo que los mobs infligen). whet (element:null) ⇒ sin applyStatus. 0 srand.
   // OFF / sin buff / expirado / no-melee ⇒ rama muerta ⇒ byte-idéntico a HEAD.
-  if(WEAPON_BUFFS.enabled && opt && opt.melee){ const wh=G.hero; if(wh && wh._wbuff && wh.wbuffT>0){
+  if(WEAPON_BUFFS.enabled && !spirit && opt && opt.melee){ const wh=G.hero; if(wh && wh._wbuff && wh.wbuffT>0){   // CAS-1954: la resina del héroe NO recubre el golpe del espíritu
     const bt=WEAPON_BUFFS.types[wh._wbuff];
     // CAS-1931: la resina elemental FEED el medidor cuando STATUS_BUILDUP.enabled; OFF ⇒ status instantáneo byte-id.
     if(bt){ if(bt.element==="burn" && bt.burn) statusOrBuildup(e,"burn",{dmg:bt.burn.dmg}, false);
       else if(bt.element==="frost" && bt.slow) statusOrBuildup(e,"slow",bt.slow, false); } } }
   // CAS-1931: TODO golpe físico melee alimenta el medidor de SANGRADO (bleed) — siempre-on, HEADLINE observable (el jugador
   // ve el medidor subir golpeando y la ráfaga % HP máx al llenarse). OFF ⇒ rama muerta ⇒ byte-idéntico a HEAD. 0 srand.
-  if(STATUS_BUILDUP.enabled && opt && opt.melee) addBuildup(e, "bleed", 1, false);
+  if(STATUS_BUILDUP.enabled && !spirit && opt && opt.melee) addBuildup(e, "bleed", 1, false);   // CAS-1954: el sangrado es del héroe; el espíritu no lo alimenta (sin infl salvo config)
   // CAS-317: a rich-anim boss (dragon) plays a brief one-shot HURT flinch on a non-lethal
   // hit. Suppressed mid-attack (the animState resolver never overrides windup/strike) so a
   // committed swing reads through, and skipped on the killing blow (death takes over).
@@ -2318,17 +2410,17 @@ function hitEnemy(e,dmg,ang,opt){
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
   // affix decision now changes how combat FEELS, not just the damage panel.
-  if(G.hero){ const procs=weaponProcs(G.hero); if(procs) for(const pr of procs) applyStatus(e, pr.proc, {dmg:pr.amt}); }
+  if(G.hero && !spirit){ const procs=weaponProcs(G.hero); if(procs) for(const pr of procs) applyStatus(e, pr.proc, {dmg:pr.amt}); }   // CAS-1954: procs de arma del héroe NO del espíritu
   // CAS-1768: the equipped WEAPON's on-hit affix (lifesteal/chain/burn/stun; pierce already applied above).
   // Resolved once at the top of the hit; the chain rebound passes {noAffix} so it never re-procs (no cascade).
   if(wAf) applyWeaponAffix(wAf, e, dmg, ang);
   // CAS-119: talent on-hit procs — a poison build (druid/mage 'Toque tóxico') ignites
   // veneno every hit; a stun-chance build aturde on a srand roll. Both reuse CAS-118.
-  if(tt){ const tp=talentPoison(tt); if(tp) applyStatus(e,"poison",tp);
+  if(tt && !spirit){ const tp=talentPoison(tt); if(tp) applyStatus(e,"poison",tp);   // CAS-1954: procs de talento del héroe (incl. srand stunChance) NO del espíritu ⇒ 0 draws
     if(tt.stunChance>0 && srand()*100<tt.stunChance) applyStatus(e,"stun"); }
   // CAS-1659: charge the Ultimate meter from damage dealt (∝ final post-crit dmg). PURE arithmetic,
   // gated behind a drafted ultimate so a no-Ultimate run touches NOTHING — RNG-neutral + zero cost.
-  if(G.hero && G.hero.ultId) G.hero.ultCharge=Math.min(1, (G.hero.ultCharge||0) + dmg*ULT_CHARGE_PER_DMG);
+  if(G.hero && !spirit && G.hero.ultId) G.hero.ultCharge=Math.min(1, (G.hero.ultCharge||0) + dmg*ULT_CHARGE_PER_DMG);   // CAS-1954: el daño del espíritu no carga la Definitiva del héroe (hero-state-neutral)
   if(e.tpl.neutral && !e.hostile){ makeHostile(e); registerSkull(); }
   if(e.hp<=0) killEnemy(e);
   else if(e.tpl.neutral) { /* stays hostile */ }
@@ -3154,6 +3246,7 @@ export function beginRun(){ const h=G.hero; if(!h) return;
           affix0:h.affixKills|0, // CAS-1586: baseline the lifetime affix-kill counter for this run's Esencia delta
           champElite0:h.champElites|0, // CAS-1590: baseline lifetime champion kills for this run's guaranteed-Esencia delta
           champ0:h.champKills|0, lvl0:h.lvl|0 };
+  G._spirit=null;   // CAS-1954: ningún espíritu invocado sobrevive a un nuevo baseline de run (transitorio, no serializado ⇒ byte-neutral)
   G.recap=null; }
 // Build the FROZEN recap delta from current counters minus the run baseline. Time uses
 // playT (active-play seconds) so menu/pause time never inflates it. Deltas clamp at 0
@@ -3304,6 +3397,7 @@ export function interact(){
       if(BONFIRE.refillFlasks && FLASK.enabled) h.flaskCharges=FLASK.charges;   // recarga Estus (reusa CAS-1854, misma asignación que el refill de zona)
       if(BONFIRE.refillFlasks && THROWABLES.enabled && THROWABLES.refillOnZone) refillThrowables(h);   // CAS-1920: la hoguera recarga los arrojadizos (mismo hook que el Estus / refill de zona)
       if(BONFIRE.refillFlasks && WEAPON_BUFFS.enabled && WEAPON_BUFFS.refillOnZone) refillBuffs(h);   // CAS-1926: la hoguera recarga las resinas (mismo hook que el Estus / refill de zona)
+      if(BONFIRE.refillFlasks && SUMMON.enabled && SUMMON.refillOnZone){ h.summonCharges=SUMMON.charges; h.summonZone=zoneOf(world,h.x,h.y); }   // CAS-1954: la hoguera recarga las cargas de invocación (mismo hook que el Estus)
       if(BONFIRE.respawnEnemies) bonfireRespawn(rest);             // world reset DETERMINISTA 0-draw de los no-jefes de la zona (jefes intactos)
       toast(STR.bonfireRest); audio.sfx.heal(); return;
     }
@@ -3787,6 +3881,7 @@ export function update(dtMs){
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
   tickBuff(h,dt);   // CAS-1926: refill de resinas por zona + wind-down del buff activo/windup de aplicación (aritmética/timing, no RNG, gated on WEAPON_BUFFS.enabled)
+  tickSummon(h,dt); // CAS-1954: refill de cargas de invocación por zona (aritmética/timing, no RNG, gated on SUMMON.enabled)
   tickBloodstain(h);// CAS-1867: recuperación de la Mancha de Sangre (walk-over misma zona, dist² pura, no RNG, gated on BLOODSTAIN.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
@@ -3859,6 +3954,9 @@ export function update(dtMs){
   const s=G.skull; if(s.t>0){ s.t-=dt; if(s.t<=0){ s.level=0; s.kills=0; } }
   if(s.killT>0){ s.killT-=dt; if(s.killT<=0) s.kills=0; }
 
+  // CAS-1954: el espíritu se mueve/ataca ANTES que los enemigos, así el SEAM 1 de updateEnemies lee su posición fresca al retargetear.
+  // Gated en SUMMON.enabled + G._spirit ⇒ OFF / sin espíritu ⇒ no-op ⇒ byte-idéntico. 0 draws.
+  updateSpirit(dt);
   // enemies
   updateEnemies(dt);
   updateCorpses(dt); // CAS-317: age + reap rich-anim boss death corpses (presentation-only)
@@ -3933,6 +4031,11 @@ function teleArmWindup(type, heavy){ G.enemies.length=0; G.projectiles.length=0;
 }
 function updateEnemies(dt){ const h=G.hero;
   for(const e of G.enemies){
+    // CAS-1954 SEAM 1: un enemigo cuya amenaza más cercana es el espíritu lo persigue/encara/ataca a ÉL (h block-scoped SOMBREA al
+    // externo ⇒ TODO el retargeting de movimiento/facing/rango de más abajo apunta al target correcto). enabled:false o sin espíritu
+    // ⇒ spiritAggroTarget devuelve G.hero ⇒ h===G.hero ⇒ e._sumAggro=false ⇒ byte-idéntico a HEAD. 0 draws (regla "nearest").
+    const h = (SUMMON.enabled ? spiritAggroTarget(e) : G.hero);
+    e._sumAggro = (h !== G.hero);   // marca para el redirect de daño (SEAM 2 en damageHero)
     e.hurtFlash=Math.max(0,e.hurtFlash-dt);
     if(e.hurtT>0) e.hurtT=Math.max(0,e.hurtT-dt); // CAS-317: one-shot hurt-flinch window (rich-anim boss)
     if(e.slowT>0) e.slowT-=dt;
@@ -3951,8 +4054,10 @@ function updateEnemies(dt){ const h=G.hero;
     // h.slow/h.slowT channel (HUD tint + movespd drag already wired at :2130), so stepping out of
     // range lets the short (0.2s) timer expire on its own. Gated hard on e.affix==="frost" and the
     // mob being alive → 0 frost mobs = 0 work = byte-identical sim. Radius/slow read from the data.
-    if(e.hp>0 && !e.dead && h && !h.dead && mobAffixes(e).includes("frost")){ const af=MOB_AFFIX.frost; // CAS-1590: a champion carrying Aura Gélida radiates the same slow field
-      if(Math.hypot(h.x-e.x,h.y-e.y)<=af.auraR){ h.slow=Math.min(h.slow||1, af.auraSlow); h.slowT=Math.max(h.slowT||0, 0.2); } }
+    // CAS-1954: el Aura Gélida afecta al HÉROE (su canal h.slow/HUD), NO al target de aggro ⇒ lee G.hero EXPLÍCITO (no el `h` sombreado
+    // por SEAM 1, que podría ser el espíritu). Fuera del gate SUMMON ⇒ semántica byte-idéntica a HEAD cuando OFF (h===G.hero de todos modos).
+    if(e.hp>0 && !e.dead && G.hero && !G.hero.dead && mobAffixes(e).includes("frost")){ const af=MOB_AFFIX.frost; // CAS-1590: a champion carrying Aura Gélida radiates the same slow field
+      if(Math.hypot(G.hero.x-e.x,G.hero.y-e.y)<=af.auraR){ G.hero.slow=Math.min(G.hero.slow||1, af.auraSlow); G.hero.slowT=Math.max(G.hero.slowT||0, 0.2); } }
     // CAS-118: DoTs tick first so a burning/poisoned enemy keeps losing HP even while
     // stunned. A lethal tick runs the REAL killEnemy path (drops/xp/clear), then we skip
     // this corpse for the rest of the frame.
@@ -4548,6 +4653,11 @@ function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0
   floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.36});
   addFx("shockring",h.x,h.y,{r:30,life:0.34}); audio.sfx.roll(); }
 function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
+  // CAS-1954 SEAM 2: si el enemigo atacante está aggroed al ESPÍRITU (e._sumAggro, marcado en SEAM 1), el golpe de CONTACTO lo COME el
+  // espíritu, no el héroe — sin i-frames/parry/dodge (el espíritu no los tiene). `src` sólo está presente en golpes de contacto (los
+  // proyectiles pasan src=null ⇒ nunca entran ⇒ el espíritu no absorbe ranged, coherente con el spec). enabled:false / sin _sumAggro /
+  // sin espíritu ⇒ nunca se toma ⇒ byte-idéntico a HEAD. Es la HEADLINE: el jefe pega al espíritu, su HP baja, el del héroe NO.
+  if(SUMMON.enabled && src && src._sumAggro && G._spirit && G._spirit.hp>0){ hitSpirit(G._spirit, dmg); return false; }
   // CAS-1785: PARADA CON TEMPO. A live parry window (armed by tryParry) that catches a CONTACT
   // (melee) strike negates it entirely and fires a short counter. `src` is present ONLY for contact
   // hits — projectiles pass null (see thorns/reflect below) — so the parry is melee-only WITHOUT any
@@ -8803,4 +8913,86 @@ export const dev = {
     SIGNATURE_BOSS.enabled=sav;
     const hasKey=onStr.includes("_sb")||onStr.includes("sbPhase")||onStr.includes("signature");
     return { ok: offStr===onStr && !hasKey && marked, byteId:offStr===onStr, marked, noSbKey:!hasKey, offLen:offStr.length, onLen:onStr.length }; },
+
+  // ============ CAS-1954: CENIZAS DE ESPÍRITU (Spirit Summon) dev hooks ============
+  // Ejercitan las funciones REALES (spawnSpirit/updateSpirit/hitSpirit/tickSummon + los dos SEAMs vía updateEnemies/damageHero)
+  // sobre un héroe parqueado + dummies spawneados por el spawnEnemy genuino. Sin atajos alrededor de la IA/daño reales.
+  summonMeta(){ return { enabled:SUMMON.enabled, key:SUMMON.key, charges:SUMMON.charges, refillOnZone:SUMMON.refillOnZone,
+    summonMs:SUMMON.summonMs, threat:SUMMON.threat, replaceOnRecast:SUMMON.replaceOnRecast, maxActive:SUMMON.maxActive,
+    spirit:{...SUMMON.spirit} }; },
+  // Aísla el escenario: toggle FIRST, limpia enemigos/fx/drops, parquea un héroe tanque en una posición conocida. Devuelve el héroe.
+  _sumArm(enabled){ SUMMON.enabled=!!enabled; G.enemies.length=0; G.projectiles.length=0; G.fx.length=0; G.drops.length=0; G._spirit=null;
+    const h=G.hero; h.x=500; h.y=500; h.maxHp=1e6; h.hp=1e6; h.stam=STAMINA.max; h.dead=false; h.rolling=false; h.iframe=0; h.stun=0;
+    h.slowT=0; h.slow=1; h.bld=null; h.dots=null; h.lockTarget=null; h.facing=0; h.summonCharges=SUMMON.charges; h.summonZone=null; return h; },
+  // AC2: invocar gasta 1 carga; re-invocar con replaceOnRecast=false es no-op (sin gasto); 0 cargas ⇒ deny.
+  _sumSpawnProbe(){ const h=this._sumArm(true); h.summonCharges=2; const before=h.summonCharges;
+    const ok1=spawnSpirit(); const spawned=!!(G._spirit&&G._spirit.hp>0); const after=h.summonCharges;
+    const rc=spawnSpirit(); const noReplace=(rc===false && h.summonCharges===after);
+    h.summonCharges=0; G._spirit=null; const denied=(spawnSpirit()===false && !G._spirit);
+    return { ok1, spawned, before, after, spent:(before-after===1), noReplace, denied,
+      ok: ok1 && spawned && (before-after===1) && noReplace && denied }; },
+  // AC3: refill por transición de zona (mirror EXACTO de tickFlask). Misma zona ⇒ sin refill; zona nueva ⇒ a tope; seed (zone null) ⇒ sólo registra.
+  _sumRefillProbe(){ const h=this._sumArm(true); const z=zoneOf(world,h.x,h.y);
+    h.summonCharges=1; h.summonZone=z; tickSummon(h,0.016); const sameZoneNoRefill=(h.summonCharges===1);
+    h.summonZone="__elsewhere__"; tickSummon(h,0.016); const zoneRefill=(h.summonCharges===SUMMON.charges && h.summonZone===z);
+    h.summonCharges=1; h.summonZone=null; tickSummon(h,0.016); const seedNoRefill=(h.summonCharges===1 && h.summonZone===z);
+    return { sameZoneNoRefill, zoneRefill, seedNoRefill, ok: sameZoneNoRefill && zoneRefill && seedNoRefill }; },
+  // AC4: target = enemigo HOSTIL más cercano al espíritu; el LOCK_ON del héroe (si activo) manda.
+  _sumTargetProbe(){ const h=this._sumArm(true); const near=spawnEnemy("skeleton",h.x+40,h.y); const far=spawnEnemy("skeleton",h.x+400,h.y);
+    near.state=far.state="chase"; h.summonCharges=1; spawnSpirit(); const sp=G._spirit; sp.x=near.x-8; sp.y=near.y;
+    const t1=spiritTarget(); const nearest=(t1===near);
+    h.lockTarget=far; const t2=spiritTarget(); const lockWins=(LOCK_ON.enabled ? t2===far : t2===near);
+    h.lockTarget=null; return { nearest, lockWins, lockOn:LOCK_ON.enabled, ok: nearest && lockWins }; },
+  // AC5 HEADLINE: el daño del espíritu es PLANO baseline ×1 SIN crit y consume 0 draws srand — aunque el héroe tenga 100% crit.
+  // Contraste: un golpe del HÉROE con el mismo crit SÍ dibuja srand (prueba que el gate {spirit:true} es real).
+  _sumDamageProbe(){ const h=this._sumArm(true); const base=Math.max(1,Math.round(equippedDmg(h)*SUMMON.spirit.dmgMul));
+    h.tt=Object.assign({},h.tt,{crit:100,critMult:200}); // build con crit garantizado
+    const e=spawnEnemy("skeleton",h.x+30,h.y); e.hp=e.maxHp=1e9; e.facing=Math.PI; e.staggerT=0; e.staggerCD=1e9; e.poise=0; e.poiseMax=0;
+    e.hp=e.maxHp; hitEnemy(e, base, 0, {melee:true, spirit:true}); const dealt=e.maxHp-e.hp; const flat=Math.abs(dealt-base)<1e-6;
+    seed(999); hitEnemy(e, base, 0, {melee:true, spirit:true}); const a1=srand(); seed(999); const a2=srand(); const zeroDraw=(a1===a2);
+    const e2=spawnEnemy("skeleton",h.x+30,h.y+40); e2.hp=e2.maxHp=1e9; e2.facing=Math.PI; e2.staggerT=0; e2.staggerCD=1e9; e2.poise=0;
+    seed(999); hitEnemy(e2, base, 0, {melee:true}); const b1=srand(); seed(999); const b2=srand(); const heroDraws=(b1!==b2);
+    return { base, dealt:+dealt.toFixed(2), flat, zeroDraw, heroDraws, ok: flat && zeroDraw && heroDraws }; },
+  // AC6 SEAM1: un espíritu junto al enemigo (y el héroe lejos) marca e._sumAggro y hace que el enemigo lo ENCARE. OFF ⇒ nunca se marca.
+  _sumSeam1Probe(){ const h=this._sumArm(true); h.x=100; h.y=100; const e=spawnEnemy("skeleton",600,600); e.state="chase"; e.stun=0;
+    h.summonCharges=1; spawnSpirit(); const sp=G._spirit; sp.x=588; sp.y=600;
+    updateEnemies(1/60); const aggro=!!e._sumAggro; const toSp=Math.atan2(sp.y-e.y,sp.x-e.x); const faceSpirit=Math.abs(angDiff(e.facing,toSp))<0.25;
+    SUMMON.enabled=false; e._sumAggro=undefined; updateEnemies(1/60); const offNoMark=(e._sumAggro===false); SUMMON.enabled=true;
+    return { aggro, faceSpirit, offNoMark, ok: aggro && faceSpirit && offNoMark }; },
+  // AC7 SEAM2 HEADLINE: con e._sumAggro, el golpe de contacto lo COME el espíritu (su HP baja) y el HÉROE queda intacto. Sin aggro ⇒ el héroe lo recibe.
+  _sumSeam2Probe(){ const h=this._sumArm(true); const e=spawnEnemy("skeleton",h.x+20,h.y);
+    h.summonCharges=1; spawnSpirit(); const sp=G._spirit; sp.hp=sp.maxHp=500;
+    e._sumAggro=true; const hp0=h.hp, sphp0=sp.hp; const ret=damageHero(40,0,null,e);
+    const spiritTook=(sp.hp===sphp0-40); const heroIntact=(h.hp===hp0); const negated=(ret===false);
+    e._sumAggro=false; const hp1=h.hp; damageHero(40,0,null,e); const heroTookWhenNotAggro=(h.hp<hp1);
+    return { spiritTook, heroIntact, negated, heroTookWhenNotAggro, ok: spiritTook && heroIntact && negated && heroTookWhenNotAggro }; },
+  // AC8: el espíritu expira por timer (life<=0) o por HP (hp<=0), y hitSpirit hasta 0 lo disipa.
+  _sumExpireProbe(){ const h=this._sumArm(true); h.summonCharges=9;
+    spawnSpirit(); const sp=G._spirit; sp.life=0.0001; updateSpirit(1/60); const timerExpire=(G._spirit==null);
+    G._spirit=null; spawnSpirit(); const sp2=G._spirit; sp2.hp=0; updateSpirit(1/60); const hpExpire=(G._spirit==null);
+    G._spirit=null; spawnSpirit(); const sp3=G._spirit; hitSpirit(sp3, sp3.hp+10); const hitExpire=(G._spirit==null);
+    return { timerExpire, hpExpire, hitExpire, ok: timerExpire && hpExpire && hitExpire }; },
+  // AC9 RNG-STRONG: srand ON==OFF a través de TODO el ciclo (spawn + ataque + ambos SEAMs draw ZERO srand). Fingerprint pre/post idéntico.
+  _sumSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0); const sav=SUMMON.enabled;
+    const h=this._sumArm(enabled); h.summonCharges=3;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    let spawned=false, attacked=false, seamed=false;
+    if(enabled){ const e=spawnEnemy("skeleton",h.x+30,h.y); e.hp=e.maxHp=1e9; e.state="chase";
+      spawned=spawnSpirit(); const sp=G._spirit; sp.x=e.x-8; sp.y=e.y; sp.atkCD=0;
+      updateSpirit(1/60); attacked=(sp.atkCD>0);
+      updateEnemies(1/60); seamed=!!e._sumAggro;      // SEAM1 (0 draws)
+      damageHero(10,0,null,e);                        // SEAM2 redirige al espíritu ⇒ return antes del dodge-srand (0 draws)
+    }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    SUMMON.enabled=sav; G._spirit=null;
+    return { enabled:!!enabled, spawned, attacked, seamed, fingerprint:fp }; },
+  // AC10 SAVE: el estado del espíritu vive en G._spirit / h.summonCharges/summonZone (nunca serializado) ⇒ save.v1 byte-id ON/OFF, sin clave summon/_spirit.
+  _sumSaveByteId(){ const sav=SUMMON.enabled; const h=G.hero; const c0=h.summonCharges, z0=h.summonZone;
+    SUMMON.enabled=false; G._spirit=null; h.summonCharges=SUMMON.charges; h.summonZone=null; const offStr=JSON.stringify(serializeSave());
+    SUMMON.enabled=true; h.summonCharges=1; h.summonZone="forest"; G._spirit={ ally:true, x:1, y:2, hp:5, maxHp:10, life:3 };
+    const onStr=JSON.stringify(serializeSave());
+    SUMMON.enabled=sav; G._spirit=null; h.summonCharges=c0; h.summonZone=z0;
+    const hasKey=/summon|_spirit|spirit/i.test(onStr);
+    return { ok: offStr===onStr && !hasKey, byteId:offStr===onStr, noKey:!hasKey, offLen:offStr.length, onLen:onStr.length }; },
 };

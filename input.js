@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -125,7 +125,7 @@ function onKeyDown(e){
   // navegador si no se hace preventDefault). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
   // CAS-1873: suprime el default del navegador para la tecla de bloqueo cuando está enabled (ShiftLeft es un
   // modificador; sin esto podría interferir con atajos). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
-  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key) || (THROWABLES.enabled && (e.code===THROWABLES.throwKey || e.code===THROWABLES.cycleKey)) || (WEAPON_BUFFS.enabled && (e.code===WEAPON_BUFFS.applyKey || e.code===WEAPON_BUFFS.cycleKey))) e.preventDefault();
+  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key) || (THROWABLES.enabled && (e.code===THROWABLES.throwKey || e.code===THROWABLES.cycleKey)) || (WEAPON_BUFFS.enabled && (e.code===WEAPON_BUFFS.applyKey || e.code===WEAPON_BUFFS.cycleKey)) || (SUMMON.enabled && e.code===SUMMON.key)) e.preventDefault();
 }
 function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md);
   // CAS-1873: soltar la tecla de bloqueo BAJA la guardia (HELD). Siempre se limpia (aunque OFF) ⇒ el estado no queda
@@ -301,6 +301,11 @@ function edge(code){
   // como KeyH parry / WEAPON_ARTS.key: never touches REBINDS/settings.binds ⇒ snapshot byte-id). El sim decide (gated en escena play).
   if(code===WEAPON_BUFFS.applyKey && WEAPON_BUFFS.enabled){ sim.applyWeaponBuff(); return; }
   if(code===WEAPON_BUFFS.cycleKey && WEAPON_BUFFS.enabled){ sim.cycleBuff(); return; }
+  // CAS-1954: dedicated SUMMON.key (default KeyN — KeyF ya es "pickup" y KeyZ es "ability1", ambas REBINDABLES; KeyN es la única letra libre)
+  // INVOCA las CENIZAS DE ESPÍRITU. Gated on SUMMON.enabled, so con la feature off la tecla es inerte (falls through, no state change) ⇒
+  // snapshot byte-id. NO es rebindable (deliberate, como KeyH parry / WEAPON_BUFFS.key: never touches REBINDS/settings.binds). El sim
+  // decide (spawnSpirit gated en escena play + héroe vivo + cargas + maxActive). Cross-platform (móvil = botón HUD tb.summon).
+  if(code===SUMMON.key && SUMMON.enabled){ sim.spawnSpirit(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
@@ -422,6 +427,10 @@ export function tbtns(){ // returns button rects for current scene
     // $0 arte (glifos procedurales). Cluster izquierdo, encima de los Arrojadizos.
     ...(WEAPON_BUFFS.enabled ? { weaponbuff:{x:m+bs*6.95, y:VH-m-bs*2.2, r:bs*0.4, label:buffGlyph(), chargeKey:buffCKey(), act:()=>sim.applyWeaponBuff()} } : {}),
     ...(WEAPON_BUFFS.enabled ? { buffcycle:{x:m+bs*6.95, y:VH-m-bs*3.15, r:bs*0.3, label:"⟳", act:()=>sim.cycleBuff()} } : {}),
+    // CAS-1954: botón táctil de las CENIZAS DE ESPÍRITU — SÓLO cuando SUMMON.enabled, así con el knob OFF no hay botón ⇒ el layout de
+    // controles es byte-idéntico a HEAD (mirror tb.weaponbuff). Es un TAP (no hold): handleUITap llama `act` ⇒ sim.spawnSpirit() invoca al
+    // espíritu (mismo seam del sim que desktop; se atenúa sin cargas — chargeKey summonCharges, ver render). $0 arte (glifo procedural 👻).
+    ...(SUMMON.enabled ? { summon:{x:m+bs*8.05, y:VH-m-bs*2.2, r:bs*0.4, label:"👻", chargeKey:"summonCharges", act:()=>sim.spawnSpirit()} } : {}),
     bs
   };
 }

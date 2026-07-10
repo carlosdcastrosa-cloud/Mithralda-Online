@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -705,6 +705,8 @@ export function createRenderer(ctx){
     // CAS-1867: la mancha de sangre entra en el y-sort SÓLO si su zona coincide con la del héroe (no se ve en otras zonas).
     if(BLOODSTAIN.enabled && G.bloodstain && G.bloodstain.zone===zoneOf(world,h.x,h.y)) list.push({y:G.bloodstain.y,draw:()=>drawBloodstain(G.bloodstain)});
     for(const e of G.enemies) list.push({y:e.y,draw:()=>drawEnemy(e)});
+    // CAS-1954: el ESPÍRITU invocado entra en el y-sort SÓLO cuando SUMMON.enabled && vivo ⇒ OFF / sin espíritu no dibuja nada ⇒ byte-idéntico.
+    if(SUMMON.enabled && G._spirit && G._spirit.hp>0) list.push({y:G._spirit.y,draw:()=>drawSpirit(G._spirit)});
     for(const c of G.corpses) list.push({y:c.y,draw:()=>drawCorpse(c)}); // CAS-317: dragon death-anim corpses, y-sorted with the living
     for(const n of world.npcs) list.push({y:n.y,draw:()=>drawNPC(n)});
     list.push({y:h.y,draw:()=>drawHero(h)});
@@ -767,6 +769,30 @@ export function createRenderer(ctx){
       ctx.lineTo(px, py);
       ctx.lineTo(px+Math.cos(b2)*len, py+Math.sin(b2)*len);
       ctx.stroke(); }
+    ctx.restore(); ctx.globalAlpha=1;
+  }
+
+  // CAS-1954: dibuja el ESPÍRITU invocado — $0 arte, 100% procedural. Reusa el sprite del molde (drawEnemy) con ALPHA espectral +
+  // tinte cian aditivo (idiom "lighter"/halo de render.js:1141) para leerlo como aliado etéreo, y añade anillo de suelo + pip de HP +
+  // timer sutil sobre la cabeza. Sin assets nuevos, sin RNG, sin estado del sim mutado. Sólo se llama gated (SUMMON.enabled && vivo).
+  function drawSpirit(sp){ const sc=SUMMON.spirit, tint=sc.tint, sz=(sp.tpl&&sp.tpl.size)||18;
+    // halo espectral aditivo + anillo de suelo cian pulsante (marca "aliado", distinto de las auras enemigas)
+    ctx.save(); ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=0.14+0.06*(0.5+0.5*Math.sin(G.t*4));
+    ctx.fillStyle=tint; ctx.beginPath(); ctx.arc(sp.x,sp.y-sz*0.4,sz*1.05,0,6.28); ctx.fill();
+    ctx.globalCompositeOperation="source-over"; ctx.globalAlpha=0.5; ctx.strokeStyle=tint; ctx.lineWidth=2;
+    const pr=sz*1.15+Math.sin(G.t*4)*2; ctx.beginPath(); ctx.ellipse(sp.x,sp.y+sz*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
+    ctx.restore();
+    // sprite del molde con ALPHA espectral (la blit procedural interior hereda este globalAlpha)
+    ctx.save(); ctx.globalAlpha=sc.alpha; drawEnemy(sp); ctx.restore();
+    // tinte cian aditivo sobre la masa del sprite (source render.js:901/1141: lighter) — lo "espectraliza" sin arte nuevo
+    ctx.save(); ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=0.22; ctx.fillStyle=tint;
+    ctx.beginPath(); ctx.arc(sp.x,sp.y-sz*0.4,sz*0.9,0,6.28); ctx.fill(); ctx.restore();
+    // barra/pip de HP (cian) + timer sutil sobre la cabeza
+    const w=sz*1.4, x0=sp.x-w/2, y0=sp.y-sz-10;
+    const hpF=Math.max(0,Math.min(1,sp.hp/sp.maxHp)), tF=Math.max(0,Math.min(1,sp.life/(SUMMON.summonMs/1000)));
+    ctx.save(); ctx.globalAlpha=0.9; ctx.fillStyle="#10141c"; ctx.fillRect(x0-1,y0-1,w+2,5);
+    ctx.fillStyle=tint; ctx.fillRect(x0,y0,w*hpF,2);
+    ctx.globalAlpha=0.6; ctx.fillStyle="#cfe9ff"; ctx.fillRect(x0,y0+2.6,w*tF,1.2);   // vida restante (timer)
     ctx.restore(); ctx.globalAlpha=1;
   }
 
@@ -1399,6 +1425,48 @@ export function createRenderer(ctx){
     else if(e.affix && MOB_AFFIX[e.affix]){ ctx.fillStyle=MOB_AFFIX[e.affix].col; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("✦ "+MOB_AFFIX[e.affix].name,e.x,yy-3); }
     // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
     drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
+  }
+  // CAS-1954: dibujar el ESPÍRITU invocado (Cenizas de Espíritu) — $0 arte. Reusa el sprite PROCEDURAL del molde
+  // (skeleton, SP[tpl.sprite]) con tratamiento ESPECTRAL: silueta translúcida (alpha) + halo aditivo cian (lighter,
+  // paleta cianizada = patrón whiten/redden) + anillo de suelo cian que lo marca como ALIADO (distinto del rojo/oro
+  // enemigo) + pip de HP y sub-barra de temporizador en cian. Mismo bob/squash-stretch que los mobs (mobGait). NO lee
+  // estado de sim más allá de la entidad, NO muta nada, 0 RNG. Sólo se invoca desde renderEntities cuando
+  // SUMMON.enabled && G._spirit vivo ⇒ OFF / sin espíritu NO dibuja nada ⇒ byte-idéntico a HEAD.
+  function cyanize(pal){ const o={}; for(const k in pal) o[k]=SUMMON.spirit.tint; o.o=pal.o||SUMMON.spirit.tint; return o; }
+  function drawSpirit(sp){ const tint=SUMMON.spirit.tint, spr=SP[sp.tpl.sprite]; if(!spr) return;
+    const px=(sp.tpl.size>20?4:3), fl=Math.cos(sp.facing||0)<0;
+    const rows=spr.rows, hh=rows.length, feetY=sp.y+(hh*px)/2;
+    const ph=(sp.gaitPhase!==undefined?sp.gaitPhase:(sp.x*0.7+sp.y*0.9)), st=sp.animState||"idle", gait=mobGait(sp);
+    ctx.save();
+    // anillo de suelo cian — marca de ALIADO (pulsa suave), leído bajo los pies
+    { const pr=sp.tpl.size*1.12 + Math.sin(G.t*4)*2; ctx.globalAlpha=0.42; ctx.strokeStyle=tint; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(sp.x, sp.y+sp.tpl.size*0.5, pr, pr*0.42, 0, 0, 6.28); ctx.stroke();
+      ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=0.10+0.05*(0.5+0.5*Math.sin(G.t*5));
+      ctx.fillStyle=tint; ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.tpl.size*1.05, 0, 6.28); ctx.fill();
+      ctx.globalCompositeOperation="source-over"; }
+    // cuerpo: mismo bob/squash-stretch que los mobs (procedural blit path)
+    let bsx=1, bsy=1, bob=0;
+    if(!G.settings.reduceMotion){
+      if(st==="walk"){ const b=Math.abs(Math.sin(G.t*gait.w+ph)); bob=-b*2.2; bsy=1+b*0.06; bsx=1-b*0.05; }
+      else if(st==="attack"){ const a=Math.sin(G.t*5+ph); bsy=0.95+0.02*a; bsx=1.05-0.02*a; bob=1.2; }
+      else { const br=Math.sin(G.t*2.3+ph); bsy=1+br*0.045; bsx=1-br*0.03; bob=br*0.7; }
+    }
+    ctx.translate(sp.x, feetY+bob); ctx.scale(bsx,bsy);
+    // silueta translúcida (alpha espectral)
+    ctx.globalAlpha=SUMMON.spirit.alpha; blit(ctx, rows, spr.pal, 0, -(hh*px)/2, px, fl);
+    // halo aditivo cian encima (glow espectral; brilla al recibir golpe)
+    ctx.globalCompositeOperation="lighter";
+    ctx.globalAlpha=0.28+((sp.hurtFlash||0)>0?0.5*Math.min(1,sp.hurtFlash*4):0.10*(0.5+0.5*Math.sin(G.t*3)));
+    blit(ctx, rows, cyanize(spr.pal), 0, -(hh*px)/2, px, fl);
+    ctx.restore(); ctx.globalAlpha=1; ctx.globalCompositeOperation="source-over";
+    // pip de HP (cian ALIADO, no rojo enemigo) + sub-barra de temporizador de invocación + etiqueta
+    const w=Math.max(20,sp.tpl.size*1.4), yy=sp.y-sp.tpl.size-8;
+    ctx.fillStyle=COL.out; ctx.fillRect(sp.x-w/2-1,yy-1,w+2,6);
+    ctx.fillStyle="#0a2630"; ctx.fillRect(sp.x-w/2,yy,w,3);
+    ctx.fillStyle=tint; ctx.fillRect(sp.x-w/2,yy,w*clamp(sp.hp/sp.maxHp,0,1),3);
+    const tf=clamp((sp.life||0)/(SUMMON.summonMs/1000),0,1);
+    ctx.globalAlpha=0.7; ctx.fillStyle="#bfeaff"; ctx.fillRect(sp.x-w/2,yy+3.5,w*tf,1.4); ctx.globalAlpha=1;
+    ctx.fillStyle=tint; ctx.font="bold 8px "+FF; ctx.textAlign="center"; ctx.fillText("espíritu", sp.x, yy-3);
   }
   // CAS-317: a rich-anim boss corpse — plays the DEATH strip ONE-SHOT, holds the collapsed
   // final frame, then fades out over the last 0.6s of its life. Grounding shadow + L/R flip
