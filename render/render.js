@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -1375,7 +1375,18 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.hpb; ctx.fillRect(e.x-w/2,yy,w,hh);
     const champCol=e.capstone?(e.enraged?"#ff4636":"#ff9a3a"):"#ffcf4d";
     ctx.fillStyle=e.champion?champCol:(e.champElite?CHAMPION.col:(e.hostile?"#ff5a4a":COL.hpf)); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
-    if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px "+FF; ctx.textAlign="center"; ctx.fillText(e.tpl.bossLabel||"GÓLEM ANCESTRAL",e.x,yy-4); } // CAS-317: data-driven boss name (dragon = "DRAGÓN ANCESTRAL")
+    if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px "+FF; ctx.textAlign="center"; ctx.fillText(e.tpl.bossLabel||"GÓLEM ANCESTRAL",e.x,yy-4); // CAS-317: data-driven boss name (dragon = "DRAGÓN ANCESTRAL")
+      // CAS-1947: SIGNATURE_BOSS — indicador de fase (glyph procedural sobre la barra, $0 arte).
+      // Fase 1 = "◆ I", Fase 2 = "◆◆ II" en rojo. Flash en ventana de vulnerabilidad.
+      if(SIGNATURE_BOSS.enabled && e._sbPhase){
+        const ph=e._sbPhase; const vuln=e._sbVuln;
+        ctx.fillStyle=vuln?"#ffee44":(ph===2?"#ff5520":"#ffb040");
+        ctx.font="bold 9px "+FF; ctx.textAlign="left";
+        const glyph=ph===2?"◆◆ FASE II":"◆ FASE I";
+        ctx.fillText(glyph, e.x-w/2, yy-4);
+        if(vuln){ ctx.fillStyle="#ffee44aa"; ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh); }
+      }
+    }
     else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px "+FF; ctx.textAlign="center";
       ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
     // CAS-1590: the champion nameplate names BOTH affixes in gold so its two modifiers read at a glance.

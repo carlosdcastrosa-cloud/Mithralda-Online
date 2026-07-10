@@ -1601,3 +1601,24 @@ export const CONQUEST_ZONES = ["forest","ruins","caves","swamp"];
 //   apexDepth— depth bonus of the APEX draft itself (≥ CURSE_DEPTH_BONUS: the apex hand is
 //              the richest draft in the game, and ensureLegendary floors it at 1 legendary)
 export const WORLD_TIER = { cap:5, hpPct:0.25, dmgPct:0.25, affixPct:0.25, depthPer:2, apexDepth:6 };
+
+// CAS-1947 — EVO Pilar 22: JEFE FIRMA MULTI-FASE (SIGNATURE_BOSS).
+// $0 arte: tinte/glyph/flash/escala procedural únicamente. NO PixelLab. 1 knob, OFF byte-idéntico a HEAD.
+// RNG-neutral STRONG: comportamiento determinista/telegrafiado; stream bossRng si se necesita variación;
+// OFF byte-idéntico (save.v1 + srand). Todo estado de fase/timers = transitorio (_sb*, fuera del allowlist).
+export const SIGNATURE_BOSS = {
+  enabled: true,
+  boss: "calderatyrant",
+  zone: "caldera",
+  phase2HpPct: 0.5,
+  transitionWindowMs: 1500,
+  transitionVulnMul: 1.5,
+  poiseBreakStunMs: 1200,
+  phases: {
+    p1: { specialEvery:3, windup:1.0, slamCount:14, slamDmg:24, poiseMul:1.0 },
+    p2: { specialEvery:2, windup:1.0, slamCount:18, slamDmg:26, poiseMul:1.4,
+          slamInfl:{ type:"frost", amt:0.4, dur:1.8 } },
+  },
+  ailmentsToHero: { buildPerHit:18, cap:70 },
+  rewards: { essenceBonus:200, guaranteedRarity:"rare" },
+};
