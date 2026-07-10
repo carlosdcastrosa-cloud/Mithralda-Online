@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -835,7 +835,7 @@ export function createRenderer(ctx){
       ctx.restore();
     }
     if(h.iframe>0 && !h.dead && Math.floor(G.t*20)%2===0) ctx.globalAlpha=0.45;
-    const flip=Math.cos(ang)<0, tint=h.hurtFlash>0?"#ffffff":null;
+    const flip=Math.cos(ang)<0, tint=h.hurtFlash>0?"#ffffff":(h._wbuff&&h.wbuffT>0&&WEAPON_BUFFS&&WEAPON_BUFFS.types[h._wbuff])?(WEAPON_BUFFS.types[h._wbuff].tint):null; // CAS-1926: tinte del color de la resina activa (hurtFlash tiene prioridad); OFF / sin buff ⇒ null ⇒ byte-id
     const bob=(state==="idle")?Math.sin(G.t*2)*1.2:0;   // gentle idle breathing only
     // CAS-97: procedural movement feel for the single-pose class hero — same
     // hop/squash/lunge/breathing as the CAS-82 hooded hero. Deterministic, derived
@@ -3707,6 +3707,11 @@ export function createRenderer(ctx){
     if(tb.throwable){ const h=G.hero; const noThrow=!h || h.throwCD>0 || h.throwWind>0 || (h[tb.throwable.chargeKey]||0)<=0; btn(tb.throwable, noThrow?"#7a5a3a":"#e0a45a"); // CAS-1920: botón del ARROJADIZO (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA sin cargas / en cooldown / durante el windup; muestra el glyph del tipo activo
       if(h){ ctx.font="bold 9px "+FF; ctx.textAlign="center"; const cn=""+(h[tb.throwable.chargeKey]||0); ctx.fillStyle=COL.out; ctx.fillText(cn,tb.throwable.x+1,tb.throwable.y+tb.throwable.r+10); ctx.fillStyle=noThrow?"#caa27a":"#ffd9a0"; ctx.fillText(cn,tb.throwable.x,tb.throwable.y+tb.throwable.r+9); } } // conteo de cargas bajo el botón
     if(tb.throwcycle) btn(tb.throwcycle, "#c79a55"); // CAS-1920: botón de CICLAR el tipo de arrojadizo (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id)
+    if(tb.weaponbuff){ const h=G.hero; const t=h&&h._wbuff&&h.wbuffT>0&&WEAPON_BUFFS.types[h._wbuff]; const noBuff=!h||h.applyBuffT>0||(h[tb.weaponbuff.chargeKey]||0)<=0;
+      btn(tb.weaponbuff, noBuff?"#5a5a3a":(t?t.tint:"#c8b86e")); // CAS-1926: botón de APLICAR resina (present only when WEAPON_BUFFS.enabled ⇒ undefined OFF ⇒ byte-id); se ilumina con el tinte del buff activo / atenúa sin cargas / durante el windup
+      if(h){ ctx.font="bold 9px "+FF; ctx.textAlign="center"; const cn=""+(h[tb.weaponbuff.chargeKey]||0); ctx.fillStyle=COL.out; ctx.fillText(cn,tb.weaponbuff.x+1,tb.weaponbuff.y+tb.weaponbuff.r+10); ctx.fillStyle=noBuff?"#8a8a6a":"#ffd9a0"; ctx.fillText(cn,tb.weaponbuff.x,tb.weaponbuff.y+tb.weaponbuff.r+9); }
+      if(t){ ctx.save(); ctx.globalAlpha=0.6; ctx.strokeStyle=t.tint; ctx.lineWidth=2.5; ctx.beginPath(); ctx.arc(tb.weaponbuff.x,tb.weaponbuff.y,tb.weaponbuff.r+2.5,-Math.PI/2,-Math.PI/2+(h.wbuffT/WEAPON_BUFFS.types[h._wbuff].buffS)*6.2832,false); ctx.stroke(); ctx.restore(); } } // anillo de duración restante
+    if(tb.buffcycle) btn(tb.buffcycle, "#a09848"); // CAS-1926: botón de CICLAR el tipo de resina (present only when WEAPON_BUFFS.enabled ⇒ undefined OFF ⇒ byte-id)
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
     if(top.cdx) btn(top.cdx,COL.textGold); // CAS-1751: Códice touch button (present only when enabled)
     // CAS-1659: Ultimate touch button + charge ring — only when the run has a drafted ultimate.

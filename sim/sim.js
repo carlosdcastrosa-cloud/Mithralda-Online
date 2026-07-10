@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -327,6 +327,12 @@ function newHero(name,cls){
     // throwWind = ventana de commit/recuperación (bloquea attack/move), throwZone = última zona vista (detecta el refill). TODOS
     // fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave throw*. 0 RNG (spawn/geometría/timing deterministas).
     throwSel:THROWABLES.order[0], knifeCharges:THROWABLES.types.knife.charges, bombCharges:THROWABLES.types.firebomb.charges, throwCD:0, throwWind:0, throwZone:null,
+    // CAS-1926: RESINAS / BUFFS DE ARMA — recurso transitorio (mirror throwSel/flaskCharges). buffSel = tipo de resina
+    // seleccionado del ciclo, ember/whet/frostCharges = cargas por tipo (refill al cambiar de zona / hoguera), _wbuff =
+    // tipo del buff ACTIVO (null = sin buff), wbuffT = segundos restantes del buff, applyBuffT = windup de aplicación
+    // (bloquea attack/heavy/art/throw + root), buffZone = última zona vista (detecta el refill). TODOS fuera del allowlist
+    // de serializeSave ⇒ save.v1 byte-id on/off y SIN clave buff*/wbuff*. 0 RNG (aritmética/timing deterministas).
+    buffSel:WEAPON_BUFFS.order[0], emberCharges:WEAPON_BUFFS.types.ember.charges, whetCharges:WEAPON_BUFFS.types.whet.charges, frostCharges:WEAPON_BUFFS.types.frost.charges, _wbuff:null, wbuffT:0, applyBuffT:0, buffZone:null,
     // CAS-1873: ESCUDO / BLOQUEO CON GUARDIA — estado TRANSITORIO (mirror stam/flaskDrinkT). `blocking` = guardia
     // arriba este frame (se re-fija cada fixed-frame desde io.blockHeld); la RUPTURA reusa `h.stun` (STAGGERED de
     // CAS-1826, ya existe). Fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG.
@@ -1572,6 +1578,7 @@ export function loadSave(d){
     h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max;   // always respawn at full (CAS-1841: vigor a tope, mirror mp)
     if(FLASK.enabled){ h.flaskCharges=FLASK.charges; h.flaskDrinkT=0; h.flaskZone=null; }   // CAS-1854: Estus a tope al arrancar run (gated ⇒ OFF byte-id)
     if(THROWABLES.enabled){ refillThrowables(h); h.throwSel=THROWABLES.order[0]; h.throwCD=0; h.throwWind=0; h.throwZone=null; }   // CAS-1920: arrojadizos a tope al arrancar run (gated ⇒ OFF byte-id)
+    if(WEAPON_BUFFS.enabled){ refillBuffs(h); h.buffSel=WEAPON_BUFFS.order[0]; h._wbuff=null; h.wbuffT=0; h.applyBuffT=0; h.buffZone=null; }   // CAS-1926: resinas a tope + sin buff activo al arrancar run (gated ⇒ OFF byte-id)
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2019,7 +2026,7 @@ function heroAttack(){
   // CAS-1854: Estus — atacar mientras se bebe CANCELA el trago sin gastar carga (cancelOnAction); si no, el
   // `||flaskDrinkT>0` de abajo ENRAIZA (el trago es no-interrumpible ⇒ no ataca). OFF ⇒ ambas ramas inertes ⇒ byte-id.
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;
-  if(h.atkCD>0||h.rolling||h.stun>0||(FLASK.enabled&&h.flaskDrinkT>0)||(THROWABLES.enabled&&h.throwWind>0)) return; // CAS-118: stun gates the swing · CAS-1920: el windup del arrojadizo bloquea el ataque (commit punible)
+  if(h.atkCD>0||h.rolling||h.stun>0||(FLASK.enabled&&h.flaskDrinkT>0)||(THROWABLES.enabled&&h.throwWind>0)||(WEAPON_BUFFS.enabled&&h.applyBuffT>0)) return; // CAS-118: stun gates the swing · CAS-1920: windup del arrojadizo · CAS-1926: windup de aplicar resina bloquea el ataque (commit punible)
   tutMark("atk"); // CAS-128: a real swing teaches the attack step
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const dmg=equippedDmg(h)*cfg.dmgMul;
@@ -2062,7 +2069,7 @@ function heroAttack(){
 export function heavyAttack(){
   const h=G.hero;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: el pesado cancela el trago (sin coste); si no, enraiza vía el gate
-  if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0)) return; // CAS-118 stun gate, same as heroAttack · CAS-1920: windup del arrojadizo bloquea el pesado
+  if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0) || (WEAPON_BUFFS.enabled&&h.applyBuffT>0)) return; // CAS-118 stun gate, same as heroAttack · CAS-1920: windup del arrojadizo · CAS-1926: windup de aplicar resina bloquea el pesado
   const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                        // v1: heavy is a melee-only power swing
   if(!spendStam(h,Math.round(STAMINA.cost.heavy*twoHandStamMul(h)*heroArch(h).stamMul))) return;   // CAS-1841: el pesado cuesta vigor · CAS-1895: a dos manos ×stamMul · CAS-1907: ×archStamMul (OFF/sword ⇒ round(cost·1)=cost byte-id)
   tutMark("atk");
@@ -2092,7 +2099,9 @@ function applyHeroMelee(){
   // arquetipo × TWO_HAND (los tres se multiplican, ninguno pisa al otro). Fuera de la ventana del Arte ⇒ ART_UNIT (todo ×1) ⇒
   // byte-idéntico. dmg ×wart.dmgMul, alcance ×wart.reachMul, arco ×wart.arcMul; el poise-damage escala en hitEnemy vía opt.art.
   const wart = heroArtMul(h);
-  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul;
+  // CAS-1926: la RESINA / BUFF de arma activo (h._wbuff, ventana wbuffT>0) reescala ESTE swing como ÚLTIMO factor del sink ⇒
+  // compone MULTIPLICATIVAMENTE tras arquetipo × TWO_HAND × Arte (ninguno pisa). Sin buff / OFF ⇒ buffMul(h)=1 ⇒ byte-idéntico.
+  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h);
   heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
@@ -2241,6 +2250,14 @@ function hitEnemy(e,dmg,ang,opt){
       if(h.hp<mhp){ const heal=Math.max(1,Math.round(pactHeal(dmg*bb.lifesteal))); h.hp=Math.min(mhp,h.hp+heal); // CAS-1763: Pacto Frágil cuts lifesteal (×1.0 at heat=0 ⇒ byte-identical)
         floater(h.x,h.y-30,"+"+heal,"#ff5d8a",{small:true}); } }
   }
+  // CAS-1926: elemento on-hit de la RESINA activa (sólo golpes melee; opt.melee lo distingue del resto de hitEnemy).
+  // Rama gateada tras el bloque de boons: ember⇒burn DoT (reusa STATUS.burn, mismo que afijo Ardiente / boon Sangre de Brasa);
+  // frost⇒slow (reusa STATUS.slow, mismo que los mobs infligen). whet (element:null) ⇒ sin applyStatus. 0 srand.
+  // OFF / sin buff / expirado / no-melee ⇒ rama muerta ⇒ byte-idéntico a HEAD.
+  if(WEAPON_BUFFS.enabled && opt && opt.melee){ const wh=G.hero; if(wh && wh._wbuff && wh.wbuffT>0){
+    const bt=WEAPON_BUFFS.types[wh._wbuff];
+    if(bt){ if(bt.element==="burn" && bt.burn) applyStatus(e,"burn",{dmg:bt.burn.dmg});
+      else if(bt.element==="frost" && bt.slow) applyStatus(e,"slow",bt.slow); } } }
   // CAS-317: a rich-anim boss (dragon) plays a brief one-shot HURT flinch on a non-lethal
   // hit. Suppressed mid-attack (the animState resolver never overrides windup/strike) so a
   // committed swing reads through, and skipped on the killing blow (death takes over).
@@ -3185,6 +3202,7 @@ export function interact(){
     if(BONFIRE.enabled){                                            // CAS-1879: la hoguera AÑADE recarga Estus + world reset
       if(BONFIRE.refillFlasks && FLASK.enabled) h.flaskCharges=FLASK.charges;   // recarga Estus (reusa CAS-1854, misma asignación que el refill de zona)
       if(BONFIRE.refillFlasks && THROWABLES.enabled && THROWABLES.refillOnZone) refillThrowables(h);   // CAS-1920: la hoguera recarga los arrojadizos (mismo hook que el Estus / refill de zona)
+      if(BONFIRE.refillFlasks && WEAPON_BUFFS.enabled && WEAPON_BUFFS.refillOnZone) refillBuffs(h);   // CAS-1926: la hoguera recarga las resinas (mismo hook que el Estus / refill de zona)
       if(BONFIRE.respawnEnemies) bonfireRespawn(rest);             // world reset DETERMINISTA 0-draw de los no-jefes de la zona (jefes intactos)
       toast(STR.bonfireRest); audio.sfx.heal(); return;
     }
@@ -3441,6 +3459,9 @@ export function weaponArchName(h){ const c=WEAPON_ARCHETYPES; const inst=h&&h.eq
 // del Arte activo. heroArtMul devuelve uno u otro SIN asignar por-frame (0 GC en el bucle de applyHeroMelee).
 const ART_UNIT = { dmgMul:1, poiseDmgMul:1, reachMul:1, arcMul:1 };
 function heroArtMul(h){ return (WEAPON_ARTS.enabled && h && h._art && h._artCls) ? h._artCls : ART_UNIT; }
+// CAS-1926: multiplicador de daño melee de la RESINA activa. ÚLTIMO factor del sink (tras TWO_HAND×ARCHETYPES×ARTS).
+// Melee-only (sólo applyHeroMelee lo llama). OFF / sin buff / expirado ⇒ 1 ⇒ byte-idéntico a HEAD.
+function buffMul(h){ return (WEAPON_BUFFS.enabled && h && h._wbuff && h.wbuffT>0) ? (WEAPON_BUFFS.types[h._wbuff]||{dmgMul:1}).dmgMul : 1; }
 
 export function doRoll(){ const h=G.hero;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: rodar cancela el trago (sin coste); si no, enraiza vía el gate
@@ -3483,7 +3504,7 @@ export function weaponArt(){
   const h=G.hero;
   if(!WEAPON_ARTS.enabled || G.scene!=="play" || !h || h.dead) return;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: el Arte cancela el trago (sin coste); si no, enraiza vía el gate
-  if(h.artCD>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0)) return;   // mismo gate que un swing + cooldown propio · CAS-1920: windup del arrojadizo bloquea el Arte
+  if(h.artCD>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0) || (WEAPON_BUFFS.enabled&&h.applyBuffT>0)) return;   // mismo gate que un swing + cooldown propio · CAS-1920: windup del arrojadizo · CAS-1926: windup de aplicar resina bloquea el Arte
   const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                       // v1: el Arte es un poder MELEE (mirror heavyAttack)
   const name=weaponArchName(h); const art=WEAPON_ARTS.classes[name] || WEAPON_ARTS.classes.sword;
   if(!spendStam(h, art.stam)) return;                                                   // sin vigor ⇒ deny (spendStam flashea); NO cooldown, NO disparo
@@ -3525,6 +3546,19 @@ function tickThrow(h,dt){ if(!THROWABLES.enabled||!h) return;
   if(h.throwCD>0) h.throwCD=Math.max(0,h.throwCD-dt);
   if(h.throwWind>0) h.throwWind=Math.max(0,h.throwWind-dt);
 }
+// CAS-1926: RESINAS / BUFFS DE ARMA. Mapa tipo⇒campo de cargas del héroe (mirror THROW_CHARGE_KEY). Recarga TODAS las cargas.
+const BUFF_CHARGE_KEY = { ember:"emberCharges", whet:"whetCharges", frost:"frostCharges" };
+function buffChargeKey(sel){ return BUFF_CHARGE_KEY[sel] || (sel+"Charges"); }
+function refillBuffs(h){ if(!WEAPON_BUFFS.enabled||!h) return; const ty=WEAPON_BUFFS.types; for(const k in ty) h[buffChargeKey(k)]=ty[k].charges; }
+// Avanza el estado transitorio de las resinas (llamado junto a tickThrow, gated). Refill al CAMBIAR de zona (mirror throwZone).
+// Decrementa wbuffT (duración del buff; <=0 ⇒ limpiar _wbuff) + applyBuffT (windup de aplicación). 0 RNG.
+function tickBuff(h,dt){ if(!WEAPON_BUFFS.enabled||!h) return;
+  if(WEAPON_BUFFS.refillOnZone){ const z=zoneOf(world,h.x,h.y);
+    if(h.buffZone!==null && z!==h.buffZone) refillBuffs(h);   // transición de zona ⇒ recarga
+    h.buffZone=z; }
+  if(h.wbuffT>0){ h.wbuffT=Math.max(0,h.wbuffT-dt); if(h.wbuffT<=0) h._wbuff=null; }
+  if(h.applyBuffT>0) h.applyBuffT=Math.max(0,h.applyBuffT-dt);
+}
 // CAS-1920: CICLAR el tipo de arrojadizo seleccionado (tecla Slash / botón HUD). Avanza en THROWABLES.order (wrap). Gated en
 // escena play + héroe vivo. h.throwSel transitorio (fuera del allowlist de save). 0 RNG. OFF ⇒ return ⇒ byte-idéntico a HEAD.
 export function cycleThrow(){
@@ -3546,7 +3580,7 @@ export function throwItem(){
   const h=G.hero;
   if(!THROWABLES.enabled || G.scene!=="play" || !h || h.dead) return;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // lanzar cancela el trago (sin coste); si no, el gate de abajo enraiza
-  if(h.throwCD>0 || h.throwWind>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0)) return;   // mismo gate que un swing + cd/windup propios
+  if(h.throwCD>0 || h.throwWind>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (WEAPON_BUFFS.enabled&&h.applyBuffT>0)) return;   // mismo gate que un swing + cd/windup propios · CAS-1926: windup de aplicar resina bloquea el lanzamiento
   const sel=h.throwSel||THROWABLES.order[0]; const t=THROWABLES.types[sel]; if(!t) return;
   const ck=throwChargeKey(sel);
   if((h[ck]||0)<=0){ audio.sfx.deny(); return; }                                       // recurso agotado ⇒ deny (NO gasta vigor)
@@ -3558,6 +3592,32 @@ export function throwItem(){
   G.projectiles.push({ x:h.x+ca*18, y:h.y-2+sa*18, vx:ca*t.spd, vy:sa*t.spd, life:t.life, dmg:t.dmg, kind:t.kind, ang:a,
     aoe:t.aoe||0, burstFx:t.burstFx, col:t.col, infl:t.burn?Object.assign({type:"burn"},t.burn):null });   // BORROW molde de hechizo (2834): el resto ya vive en updateProjectiles
   audio.sfx.fire(); shakeAdd(t.aoe?3:2.4);
+}
+// CAS-1926: CICLAR el tipo de resina seleccionado (tecla BracketLeft / botón HUD). Avanza en WEAPON_BUFFS.order (wrap). Gated
+// en WEAPON_BUFFS.enabled + escena play + héroe vivo. h.buffSel transitorio (fuera del allowlist de save). 0 RNG. OFF ⇒ return.
+export function cycleBuff(){
+  const h=G.hero;
+  if(!WEAPON_BUFFS.enabled || G.scene!=="play" || !h || h.dead) return;
+  const order=WEAPON_BUFFS.order; const cur=order.indexOf(h.buffSel||order[0]);
+  h.buffSel = order[(cur+1)%order.length];
+}
+// CAS-1926: APLICAR la resina seleccionada al arma (tecla BracketRight / botón HUD). RECURSO LIMITADO. Gated en
+// WEAPON_BUFFS.enabled + escena play + héroe vivo + applyBuffT<=0 (no re-aplica durante el windup) + mismo gate de interrupción
+// que un swing. Sin cargas ⇒ deny. Al aplicar: decrementa la carga, arma applyBuffT (windup punible, bloquea attack/heavy/art/
+// throw), activa h._wbuff=buffSel + h.wbuffT=buffS (ventana del buff). Re-aplicar o cambiar tipo refresca/sobreescribe la ventana
+// (gasta 1 carga). 0 srand. $0 arte (tinte del sprite por type.tint). OFF ⇒ input gated jamás lo llama ⇒ byte-idéntico a HEAD.
+export function applyWeaponBuff(){
+  const h=G.hero;
+  if(!WEAPON_BUFFS.enabled || G.scene!=="play" || !h || h.dead) return;
+  if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // aplicar cancela el trago (sin coste); si no, el gate de abajo enraiza
+  if(h.applyBuffT>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0)) return;
+  const sel=h.buffSel||WEAPON_BUFFS.order[0]; const t=WEAPON_BUFFS.types[sel]; if(!t) return;
+  const ck=buffChargeKey(sel);
+  if((h[ck]||0)<=0){ audio.sfx.deny(); return; }   // sin cargas ⇒ deny
+  h[ck]--;
+  h.applyBuffT = WEAPON_BUFFS.applyMs/1000;   // windup punible (commit; bloquea attack/heavy/art/throw)
+  h._wbuff = sel; h.wbuffT = t.buffS;         // activa el buff (re-aplicar sobreescribe la ventana)
+  addFx("spark",h.x,h.y-14,{col:t.tint,life:0.45}); audio.sfx.heal();   // $0 arte: chispa de color + sfx existente
 }
 
 // ====================================================================
@@ -3625,6 +3685,7 @@ export function update(dtMs){
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
+  tickBuff(h,dt);   // CAS-1926: refill de resinas por zona + wind-down del buff activo/windup de aplicación (aritmética/timing, no RNG, gated on WEAPON_BUFFS.enabled)
   tickBloodstain(h);// CAS-1867: recuperación de la Mancha de Sangre (walk-over misma zona, dist² pura, no RNG, gated on BLOODSTAIN.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
@@ -3659,6 +3720,7 @@ export function update(dtMs){
   else { let mv=io.moveVec();
     mv=flaskMoveGate(h,mv);   // CAS-1854: Estus root/cancel-on-action (cross-platform, single source — ver flaskMoveGate). Bebiendo sin cancelar ⇒ mv=[0,0] ⇒ vx=vy=0, moved=false (ENRAIZADO); mover+cancelOnAction ⇒ aborta el trago (sin coste) y deja pasar el movimiento. OFF / no bebiendo ⇒ mv intacto ⇒ byte-id. Sin i-frames ⇒ VULNERABLE.
     if(THROWABLES.enabled && h.throwWind>0) mv=[0,0];   // CAS-1920: el windup del arrojadizo ENRAIZA brevemente (commit punible, mirror el root del trago). OFF/sin windup ⇒ mv intacto ⇒ byte-id.
+    if(WEAPON_BUFFS.enabled && h.applyBuffT>0) mv=[0,0];   // CAS-1926: el windup de aplicar la resina ENRAIZA brevemente (unta el arma, comprometido). OFF/sin windup ⇒ mv intacto ⇒ byte-id.
     const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
     const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1)*(h.blocking?SHIELD_BLOCK.moveMul:1)*(EQUIP_LOAD.enabled?EQUIP_LOAD.mul[equipLoad(h).band].move:1)*((TWO_HAND.enabled&&h.twoHand)?TWO_HAND.moveMul:1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz · CAS-1873 strafe lento con la guardia arriba · CAS-1889 factor de carga de equipo por banda (OFF/mid ⇒ ×1 byte-id) · CAS-1895 factor a dos manos (OFF/sin twoHand ⇒ ×1 byte-id; moveMul:1.0 default ⇒ sin efecto hasta retune del CEO)
@@ -8144,4 +8206,154 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     EQUIP_LOAD.enabled=savE; DODGE.enabled=savD; STAMINA.enabled=savS; if(h){ h.rolling=false; }
     return { enabled:!!enabled, rollFired:!!rolled, fingerprint:fp }; },
+
+  // =====================================================================
+  // CAS-1926 — RESINAS / BUFFS DE ARMA (Weapon Grease) dev hooks
+  // =====================================================================
+  buffMeta(){ return { enabled:WEAPON_BUFFS.enabled, applyKey:WEAPON_BUFFS.applyKey, cycleKey:WEAPON_BUFFS.cycleKey,
+    applyMs:WEAPON_BUFFS.applyMs, refillOnZone:WEAPON_BUFFS.refillOnZone, order:[...WEAPON_BUFFS.order],
+    types:JSON.parse(JSON.stringify(WEAPON_BUFFS.types)) }; },
+
+  _buffArm(type){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.slow=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h.atkAnim=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0; h.flaskDrinkT=0;
+    h.cls="warrior"; h._comboFin=false; h._heavy=false; h._art=false; h._artCls=null; h._artHyper=false; h.artCD=0; h.lockTarget=null; h.lockCd=0;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; h.twoHand=false;
+    h.buffSel=type||WEAPON_BUFFS.order[0]; h._wbuff=null; h.wbuffT=0; h.applyBuffT=0; h.buffZone=zoneOf(world,h.x,h.y); refillBuffs(h);
+    return h; },
+
+  buffOffProbe(){ const savWB=WEAPON_BUFFS.enabled, savS=STAMINA.enabled; WEAPON_BUFFS.enabled=false; STAMINA.enabled=true;
+    const h=this._buffArm("ember"); const ckBefore=h.emberCharges;
+    applyWeaponBuff(); cycleBuff(); const inert=h._wbuff==null && h.wbuffT===0 && h.applyBuffT===0;
+    const cycleInert=(h.buffSel||WEAPON_BUFFS.order[0])===WEAPON_BUFFS.order[0]; // unchanged by cycleBuff when disabled
+    WEAPON_BUFFS.enabled=savWB; STAMINA.enabled=savS;
+    return { ok: inert && cycleInert, inert, cycleInert }; },
+
+  buffBaselineProbe(){ const savWB=WEAPON_BUFFS.enabled; WEAPON_BUFFS.enabled=true;
+    const h=this._buffArm("ember"); const ch0=h.emberCharges, s0=+(h.stam||0).toFixed(3);
+    update(16); const unchanged=h.emberCharges===ch0 && +(h.stam||0).toFixed(3)===s0 && !h._wbuff;
+    WEAPON_BUFFS.enabled=savWB;
+    return { ok: unchanged, chargesUnchanged:h.emberCharges===ch0, stamUnchanged:+(h.stam||0).toFixed(3)===s0, noBuff:!h._wbuff }; },
+
+  buffEmberProbe(){ const savWB=WEAPON_BUFFS.enabled, savS=STAMINA.enabled;
+    const h=this._buffArm("ember"); const ch0=h.emberCharges, s0=+h.stam.toFixed(3);
+    applyWeaponBuff(); // apply with 1 charge
+    const chargeSpent=h.emberCharges===ch0-1, applyStarted=h.applyBuffT>0;
+    // fast-forward windup
+    h.applyBuffT=0; // skip windup for probe
+    const buffActive=h._wbuff==="ember" && h.wbuffT>0;
+    // check dmgMul via a melee hit
+    const e=spawnEnemy("skeleton",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=Math.PI;
+    TWO_HAND.enabled=false; WEAPON_ARCHETYPES.enabled=false; WEAPON_ARTS.enabled=false;
+    STAMINA.enabled=false; const baseDmg=equippedDmg(h)*ATK[h.cls||"warrior"].dmgMul;
+    G.enemies.length=0; G.enemies.push(e); h._atkHits=new Set(); h.atkAng=0; h._mcfg=ATK[h.cls||"warrior"]; h._heavy=false; h._comboFin=false; h._art=false; const hp0=e.hp; applyHeroMelee();
+    const dmgApplied=Math.round(hp0-e.hp); const dmgExpect=Math.round(baseDmg*WEAPON_BUFFS.types.ember.dmgMul);
+    const dmgOk=Math.abs(dmgApplied-dmgExpect)<=2;
+    // check burn DoT applied on hit
+    const burnApplied=e.dots && e.dots.burn && e.dots.burn.dmg>0;
+    G.enemies.length=0; h.applyBuffT=0; h.wbuffT=0; h._wbuff=null;
+    WEAPON_BUFFS.enabled=savWB; STAMINA.enabled=savS; TWO_HAND.enabled=TWO_HAND.enabled; WEAPON_ARCHETYPES.enabled=WEAPON_ARCHETYPES.enabled; WEAPON_ARTS.enabled=WEAPON_ARTS.enabled;
+    return { ok: chargeSpent && buffActive && dmgOk && burnApplied, chargeSpent, buffActive, dmgApplied, dmgExpect, dmgOk, burnApplied }; },
+
+  buffWhetProbe(){ const savWB=WEAPON_BUFFS.enabled, savS=STAMINA.enabled, savTW=TWO_HAND.enabled, savWA=WEAPON_ARCHETYPES.enabled, savART=WEAPON_ARTS.enabled;
+    const h=this._buffArm("whet"); const ch0=h.whetCharges;
+    applyWeaponBuff(); h.applyBuffT=0;
+    const buffActive=h._wbuff==="whet" && h.wbuffT>0; const chargeSpent=h.whetCharges===ch0-1;
+    const e=spawnEnemy("skeleton",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=Math.PI;
+    TWO_HAND.enabled=false; WEAPON_ARCHETYPES.enabled=false; WEAPON_ARTS.enabled=false; STAMINA.enabled=false;
+    const baseDmg=equippedDmg(h)*ATK[h.cls||"warrior"].dmgMul;
+    G.enemies.length=0; G.enemies.push(e); h._atkHits=new Set(); h.atkAng=0; h._mcfg=ATK[h.cls||"warrior"]; h._heavy=false; h._comboFin=false; h._art=false; const hp0=e.hp; applyHeroMelee();
+    const dmgApplied=Math.round(hp0-e.hp); const dmgExpect=Math.round(baseDmg*WEAPON_BUFFS.types.whet.dmgMul);
+    const dmgOk=Math.abs(dmgApplied-dmgExpect)<=2;
+    const noElement=!(e.dots && (e.dots.burn||e.dots.slow));
+    G.enemies.length=0; h.applyBuffT=0; h.wbuffT=0; h._wbuff=null;
+    TWO_HAND.enabled=savTW; WEAPON_ARCHETYPES.enabled=savWA; WEAPON_ARTS.enabled=savART; WEAPON_BUFFS.enabled=savWB; STAMINA.enabled=savS;
+    return { ok: chargeSpent && buffActive && dmgOk && noElement, chargeSpent, buffActive, dmgApplied, dmgExpect, dmgOk, noElement }; },
+
+  buffFrostProbe(){ const savWB=WEAPON_BUFFS.enabled, savS=STAMINA.enabled, savTW=TWO_HAND.enabled, savWA=WEAPON_ARCHETYPES.enabled, savART=WEAPON_ARTS.enabled;
+    const h=this._buffArm("frost"); const ch0=h.frostCharges;
+    applyWeaponBuff(); h.applyBuffT=0;
+    const buffActive=h._wbuff==="frost" && h.wbuffT>0; const chargeSpent=h.frostCharges===ch0-1;
+    const e=spawnEnemy("skeleton",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=Math.PI;
+    TWO_HAND.enabled=false; WEAPON_ARCHETYPES.enabled=false; WEAPON_ARTS.enabled=false; STAMINA.enabled=false;
+    const baseDmg=equippedDmg(h)*ATK[h.cls||"warrior"].dmgMul;
+    G.enemies.length=0; G.enemies.push(e); h._atkHits=new Set(); h.atkAng=0; h._mcfg=ATK[h.cls||"warrior"]; h._heavy=false; h._comboFin=false; h._art=false; const hp0=e.hp; applyHeroMelee();
+    const dmgApplied=Math.round(hp0-e.hp); const dmgExpect=Math.round(baseDmg*WEAPON_BUFFS.types.frost.dmgMul);
+    const dmgOk=Math.abs(dmgApplied-dmgExpect)<=2;
+    const slowApplied=e.slowT>0 && (e.slow||1)<1;
+    G.enemies.length=0; h.applyBuffT=0; h.wbuffT=0; h._wbuff=null;
+    TWO_HAND.enabled=savTW; WEAPON_ARCHETYPES.enabled=savWA; WEAPON_ARTS.enabled=savART; WEAPON_BUFFS.enabled=savWB; STAMINA.enabled=savS;
+    return { ok: chargeSpent && buffActive && dmgOk && slowApplied, chargeSpent, buffActive, dmgApplied, dmgExpect, dmgOk, slowApplied }; },
+
+  buffComposeProbe(){ // AC5: buffMul composes MULTIPLICATIVELY with TwoHand×Arch×Art
+    const savWB=WEAPON_BUFFS.enabled, savTW=TWO_HAND.enabled, savWA=WEAPON_ARCHETYPES.enabled, savART=WEAPON_ARTS.enabled, savS=STAMINA.enabled;
+    WEAPON_BUFFS.enabled=true; TWO_HAND.enabled=true; WEAPON_ARCHETYPES.enabled=true; WEAPON_ARTS.enabled=true; STAMINA.enabled=false;
+    const h=this._buffArm("whet"); h.whetCharges=10;
+    // equip greatsword for archetype + twoHand
+    h.equip.weapon={slot:"weapon",defId:"w_steel",rarity:"common"};
+    h.twoHand=true;
+    applyWeaponBuff(); h.applyBuffT=0; // whet active
+    // arm a greatsword weaponArt (heavyCharge dmgMul:1.8)
+    const art=WEAPON_ARTS.classes.greatsword; h._art=true; h._artCls={dmgMul:art.dmgMul||1.8,poiseDmgMul:art.poiseDmgMul||2.2,reachMul:art.reachMul||1,arcMul:art.arcMul||1};
+    const wa=heroArch(h); const wart=heroArtMul(h); const th=TWO_HAND.enabled&&h.twoHand;
+    const baseDmg=equippedDmg(h)*ATK[h.cls||"warrior"].dmgMul;
+    const expectedDmg=Math.round(baseDmg*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h));
+    const e=spawnEnemy("skeleton",h.x+20,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+20; e.y=h.y; e.facing=Math.PI;
+    G.enemies.length=0; G.enemies.push(e); h._atkHits=new Set(); h.atkAng=0; h._mcfg=ATK[h.cls||"warrior"]; h._heavy=false; h._comboFin=false; const hp0=e.hp; applyHeroMelee();
+    const actualDmg=Math.round(hp0-e.hp);
+    const dmgOk=Math.abs(actualDmg-expectedDmg)<=3; // ±3 for rounding
+    G.enemies.length=0; h._wbuff=null; h.wbuffT=0; h.applyBuffT=0; h.twoHand=false; h._art=false; h._artCls=null;
+    WEAPON_BUFFS.enabled=savWB; TWO_HAND.enabled=savTW; WEAPON_ARCHETYPES.enabled=savWA; WEAPON_ARTS.enabled=savART; STAMINA.enabled=savS;
+    return { ok:dmgOk, actualDmg, expectedDmg, dmgOk }; },
+
+  buffResourceProbe(){ // AC6: cargas decrementan; zona no refilla; cambio zona refilla
+    const savWB=WEAPON_BUFFS.enabled, savS=STAMINA.enabled; WEAPON_BUFFS.enabled=true; STAMINA.enabled=true;
+    const h=this._buffArm("ember");
+    const t=WEAPON_BUFFS.types.ember; const ch0=h.emberCharges;
+    // drain all charges
+    for(let i=0;i<ch0;i++){ h.applyBuffT=0; h._wbuff=null; h.wbuffT=0; applyWeaponBuff(); }
+    const drained=h.emberCharges===0;
+    // try again — should deny (no new charge spent)
+    h.applyBuffT=0; applyWeaponBuff(); const deny=h.emberCharges===0;
+    // same zone — tickBuff (no zone change): should NOT refill
+    const z0=h.buffZone; tickBuff(h,0.1); const sameZoneNoRefill=h.emberCharges===0;
+    // force zone change ⇒ refill
+    h.buffZone="__other__"; tickBuff(h,0.1); const zoneRefill=h.emberCharges===t.charges;
+    h._wbuff=null; h.wbuffT=0; h.applyBuffT=0;
+    WEAPON_BUFFS.enabled=savWB; STAMINA.enabled=savS;
+    return { ok: drained && deny && sameZoneNoRefill && zoneRefill, drained, deny, sameZoneNoRefill, zoneRefill }; },
+
+  buffWindupProbe(){ // AC7: applyBuffT>0 bloquea attack (heroAttack gate)
+    const savWB=WEAPON_BUFFS.enabled, savS=STAMINA.enabled; WEAPON_BUFFS.enabled=true; STAMINA.enabled=true;
+    const h=this._buffArm("ember"); h.applyBuffT=0; h._wbuff=null;
+    applyWeaponBuff(); // sets applyBuffT>0
+    const applyBlocks=h.applyBuffT>0;
+    const cd0=h.atkCD; heroAttack(); const attackBlocked=h.atkCD===cd0 && h.applyBuffT>0; // heroAttack should be gated
+    h.applyBuffT=0; h._wbuff=null; h.wbuffT=0;
+    WEAPON_BUFFS.enabled=savWB; STAMINA.enabled=savS;
+    return { ok: applyBlocks && attackBlocked, applyBlocks, attackBlocked }; },
+
+  buffSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savWB=WEAPON_BUFFS.enabled, savS=STAMINA.enabled, savTW=TWO_HAND.enabled, savWA=WEAPON_ARCHETYPES.enabled, savART=WEAPON_ARTS.enabled;
+    WEAPON_BUFFS.enabled=enabled; TWO_HAND.enabled=false; WEAPON_ARCHETYPES.enabled=false; WEAPON_ARTS.enabled=false; STAMINA.enabled=true;
+    const h=this._buffArm("whet"); h._wbuff=null; h.wbuffT=0; h.applyBuffT=0;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    // apply whet buff if enabled
+    let buffFired=false;
+    if(enabled){ applyWeaponBuff(); buffFired=h._wbuff==="whet"; h.applyBuffT=0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    // force zone-refill (clean up applyBuffT)
+    h.applyBuffT=0; h._wbuff=null; h.wbuffT=0;
+    WEAPON_BUFFS.enabled=savWB; STAMINA.enabled=savS; TWO_HAND.enabled=savTW; WEAPON_ARCHETYPES.enabled=savWA; WEAPON_ARTS.enabled=savART;
+    return { enabled:!!enabled, buffFired, fingerprint:fp }; },
+
+  buffSaveByteId(){ // AC9: serializeSave() byte-id ON/OFF
+    const savWB=WEAPON_BUFFS.enabled; WEAPON_BUFFS.enabled=false;
+    this._buffArm("whet"); const offStr=JSON.stringify(serializeSave()); WEAPON_BUFFS.enabled=true;
+    const h=this._buffArm("whet"); h.applyBuffT=0; applyWeaponBuff(); h.applyBuffT=0;
+    const onStr=JSON.stringify(serializeSave()); WEAPON_BUFFS.enabled=savWB;
+    const hasBuff=onStr.includes("buff")||onStr.includes("whet")||onStr.includes("ember")||onStr.includes("frost")||onStr.includes("wbuff");
+    return { ok: offStr===onStr && !hasBuff, byteId: offStr===onStr, noBuffKey: !hasBuff, offLen:offStr.length, onLen:onStr.length }; },
 };
