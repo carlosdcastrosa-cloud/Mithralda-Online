@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2059,6 +2059,16 @@ function hitEnemy(e,dmg,ang,opt){
   // punish (ranged hit, un-staggered enemy, or COMBO disabled) ⇒ ×1 ⇒ byte-identical. `punish` gates the VFX below.
   let punish=false;
   if(COMBO.enabled && e.staggerT>0 && opt && opt.melee){ dmg*=COMBO.staggerPunishMul; punish=true; }
+  // CAS-1836: GOLPE POR LA ESPALDA — un crítico POSICIONAL. Un golpe MELEE (opt.melee) que entra por el ARCO
+  // TRASERO del enemigo (el vector de ataque `ang` alineado con `e.facing` ⇒ el héroe está DETRÁS) aplica
+  // ×mult daño y ×knockMul knockback. De frente el enemigo re-encara al héroe cada frame ⇒ ang y e.facing
+  // opuestos ⇒ |angDiff|≈π ⇒ NO backstab; el arco sólo se abre cuando el facing está COMPROMETIDO (telegraph/
+  // lunge/carga/STAGGER). Geometría 100% pura — consume NO srand ⇒ ranged, frontal, o BACKSTAB.enabled=false
+  // ⇒ ×1 ⇒ byte-idéntico. Apila sobre POISE.bonusDmg + el rematador CAS-1831 (los tres multiplican en el sink).
+  let backstab=false;
+  if(BACKSTAB.enabled && opt && opt.melee && e.facing!==undefined
+     && Math.abs(angDiff(ang, e.facing)) < BACKSTAB.rearArcDeg*Math.PI/360){
+    dmg*=BACKSTAB.mult; backstab=true; }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -2076,7 +2086,8 @@ function hitEnemy(e,dmg,ang,opt){
   // committed swing reads through, and skipped on the killing blow (death takes over).
   if(e.tpl.richAnim && e.hp>0) e.hurtT=0.26;
   // CAS-1831: a COMBO finisher amplifies knockback (opt.knockMul); default 1 ⇒ byte-identical for every other hit.
-  const knockMul=(opt&&opt.knockMul)||1;
+  // CAS-1836: a BACKSTAB stacks its knockMul onto the existing branch (default 1×1 ⇒ byte-identical otherwise).
+  const knockMul=((opt&&opt.knockMul)||1)*(backstab?BACKSTAB.knockMul:1);
   e.knockX+=Math.cos(ang)*e.tpl.knock*knockMul; e.knockY+=Math.sin(ang)*e.tpl.knock*knockMul;
   // CAS-127: crits read LOUDER — distinct bright SFX, a bigger popping number, an extra
   // shake kick. Normal hits get a subtle number pop. Pure feel (damage already applied).
@@ -2097,6 +2108,10 @@ function hitEnemy(e,dmg,ang,opt){
   // shake, and a "¡REMATE!" banner over the staggered enemy. Pure feel ($0 art, reuses existing fx), damage already applied.
   if(punish){ addFx("spellburst",e.x,e.y-2,{col:"#ffd24a"}); addFx("shockring",e.x,e.y,{r:56,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(7);
     floater(e.x,e.y-34,STR.execute||"¡REMATE!","#ffd24a",{crit:true,pop:2.0,life:1.1}); }
+  // CAS-1836: a BACKSTAB reads with a COLD-cyan burst (distinct from the golden REMATE) — a positional crit banner
+  // over the enemy's back. Pure feel ($0 art, reuses existing fx), damage already applied.
+  if(backstab){ addFx("spellburst",e.x,e.y-2,{col:"#8fe3ff"}); addFx("shockring",e.x,e.y,{r:52,life:0.4}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(6);
+    floater(e.x,e.y-34,STR.backstab||"¡POR LA ESPALDA!","#8fe3ff",{crit:true,pop:1.9,life:1.05}); }
   freeze(Math.min(7, (crit?4:2)+Math.floor(dmg/14))); // hit pops harder the bigger the blow; crits bite deepest
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
@@ -5564,6 +5579,95 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
     COMBO.enabled=sav; POISE.enabled=savP;
     return { enabled:!!enabled, finisherFired:(enabled?finisherFired:false), punishFired:(enabled?punishFired:false), fingerprint:fp }; },
+  // --- CAS-1836 GOLPE POR LA ESPALDA (Backstab / positional crit) harness hooks (tools/cas1836-backstab.mjs) ---
+  // Additive; drive the REAL hitEnemy sink. Backstab is pure geometry (|angDiff(ang,e.facing)| < rearArcDeg/2) ⇒ 0 srand.
+  backstabMeta(){ return { enabled:BACKSTAB.enabled, rearArcDeg:BACKSTAB.rearArcDeg, mult:BACKSTAB.mult, knockMul:BACKSTAB.knockMul }; },
+  backstabEnabled(){ return BACKSTAB.enabled; },
+  backstabEnable(on){ BACKSTAB.enabled=!!on; return { enabled:BACKSTAB.enabled }; },
+  // Fresh warrior melee attacker (0 crit/talents ⇒ hitEnemy draws 0 srand) + one huge-HP dummy facing +x (facing=0). Returns the dummy.
+  _bsArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; if(!h) return null;
+    h.dead=false; h.rolling=false; h.stun=0; h.iframe=0; h.riposte=0; h._parryRiposte=0; h.frenzyStacks=0;
+    h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.maxHp=1e6; h.hp=1e6;
+    const e=spawnEnemy("wolf", h.x+20, h.y); if(!e) return null;
+    e.maxHp=e.hp=1e9; e.knockX=0; e.knockY=0; e.stun=0; e.poise=0; e.staggerT=0; e.staggerCD=0; e.facing=0; return e; },
+  // AC3: sweep the attack angle around the 60° rear-arc edge (enemy facing=0). Inside the arc (|ang|<60°) ⇒ ×mult dmg +
+  // ×knockMul knock; outside (edge+, side 90°, frontal 180°) ⇒ ×1 EXACT. oh cancels in the ratio (mult applies post-flat).
+  backstabArcProbe(){ const savB=BACKSTAB.enabled, savP=POISE.enabled, savC=COMBO.enabled;
+    BACKSTAB.enabled=true; POISE.enabled=false; COMBO.enabled=false;
+    const half=BACKSTAB.rearArcDeg/2, D2R=Math.PI/180;
+    const at=(deg)=>{ const e=this._bsArm(); e.facing=0; e.hp=1e9; e.knockX=0; e.knockY=0;
+      hitEnemy(e,100,deg*D2R,{melee:true}); return { dmg:+(1e9-e.hp).toFixed(3), knock:+Math.hypot(e.knockX,e.knockY).toFixed(3) }; };
+    const rear0=at(0), rear50=at(50), edgeIn=at(half-5), edgeOut=at(half+5), side=at(90), front=at(180);
+    const base=front.dmg, m=BACKSTAB.mult;
+    const out={ half, degs:{rear0:rear0.dmg,rear50:rear50.dmg,edgeIn:edgeIn.dmg,edgeOut:edgeOut.dmg,side:side.dmg,front:front.dmg},
+      rearMul:+(rear0.dmg/base).toFixed(3), edgeInMul:+(edgeIn.dmg/base).toFixed(3), edgeOutMul:+(edgeOut.dmg/base).toFixed(3),
+      knockRearMul:+(rear0.knock/front.knock).toFixed(3), expectMul:m, expectKnock:BACKSTAB.knockMul,
+      arcOk:(Math.abs(rear0.dmg/base-m)<0.02 && Math.abs(rear50.dmg/base-m)<0.02 && Math.abs(edgeIn.dmg/base-m)<0.02
+          && Math.abs(edgeOut.dmg/base-1)<1e-6 && Math.abs(side.dmg/base-1)<1e-6 && Math.abs(front.dmg-base)<1e-9),
+      knockOk:Math.abs(rear0.knock/front.knock-BACKSTAB.knockMul)<0.02 };
+    G.enemies.length=0; BACKSTAB.enabled=savB; POISE.enabled=savP; COMBO.enabled=savC; return out; },
+  // AC4: melee-only. A rear-arc hit WITHOUT opt.melee (a projectile/nova) ⇒ ×1 (== a frontal melee baseline); the backstab
+  // ×mult appears solely on the opt.melee rear hit. Consistent with the ranged rule of Parada CAS-1785 / rematador CAS-1831.
+  backstabMeleeOnlyProbe(){ const savB=BACKSTAB.enabled, savP=POISE.enabled, savC=COMBO.enabled;
+    BACKSTAB.enabled=true; POISE.enabled=false; COMBO.enabled=false;
+    const eF=this._bsArm(); eF.facing=0; eF.hp=1e9; hitEnemy(eF,100,Math.PI,{melee:true}); const frontDmg=1e9-eF.hp;   // frontal melee ⇒ ×1 baseline
+    const eR=this._bsArm(); eR.facing=0; eR.hp=1e9; hitEnemy(eR,100,0);                    const rangedDmg=1e9-eR.hp;   // rear arc, NO opt.melee ⇒ ×1
+    const eM=this._bsArm(); eM.facing=0; eM.hp=1e9; hitEnemy(eM,100,0,{melee:true});       const meleeDmg=1e9-eM.hp;    // rear arc + melee ⇒ ×mult
+    const out={ frontDmg:+frontDmg.toFixed(2), rangedDmg:+rangedDmg.toFixed(2), meleeDmg:+meleeDmg.toFixed(2),
+      ratio:+(meleeDmg/frontDmg).toFixed(3), expect:BACKSTAB.mult,
+      meleeOnly:(Math.abs(rangedDmg-frontDmg)<1e-6 && Math.abs(meleeDmg/frontDmg-BACKSTAB.mult)<0.02) };
+    G.enemies.length=0; BACKSTAB.enabled=savB; POISE.enabled=savP; COMBO.enabled=savC; return out; },
+  // AC5: STACKS. A rear MELEE hit on a STAGGERED élite = backstab ×mult × POISE.bonusDmg × rematador ×staggerPunishMul —
+  // the three multiply in the one sink. Baseline = frontal, un-staggered melee (×1). Ratio is exact (oh cancels).
+  backstabStackProbe(){ const savB=BACKSTAB.enabled, savP=POISE.enabled, savC=COMBO.enabled;
+    BACKSTAB.enabled=true; POISE.enabled=true; COMBO.enabled=true;
+    const mk=()=>{ const e=this._bsArm(); e.elite=true; e.poiseMax=poiseCeil(e); e.poise=0; e.staggerCD=0; e.hp=1e9; return e; };
+    const eBase=mk(); eBase.facing=0; eBase.staggerT=0;  hitEnemy(eBase,100,Math.PI,{melee:true}); const baseDmg=1e9-eBase.hp;  // frontal, not staggered ⇒ ×1
+    const eFull=mk(); eFull.facing=0; eFull.staggerT=1.0; hitEnemy(eFull,100,0,{melee:true});      const fullDmg=1e9-eFull.hp;  // rear + staggered + melee ⇒ ×(mult·bonus·punish)
+    const bonus=POISE.elite.bonusDmg, punish=COMBO.staggerPunishMul, mult=BACKSTAB.mult, expect=bonus*punish*mult;
+    const out={ baseDmg:+baseDmg.toFixed(2), fullDmg:+fullDmg.toFixed(2), ratio:+(fullDmg/baseDmg).toFixed(3),
+      expect:+expect.toFixed(3), parts:{mult,bonus,punish}, stacksOk:Math.abs(fullDmg/baseDmg-expect)<0.05 };
+    G.enemies.length=0; BACKSTAB.enabled=savB; POISE.enabled=savP; COMBO.enabled=savC; return out; },
+  // AC1 OFF: BACKSTAB.enabled=false ⇒ a rear-arc MELEE hit == a frontal hit (dmg + knock byte-identical) — no branch runs.
+  backstabOffProbe(){ const savB=BACKSTAB.enabled, savP=POISE.enabled, savC=COMBO.enabled;
+    BACKSTAB.enabled=false; POISE.enabled=false; COMBO.enabled=false;
+    const at=(deg)=>{ const e=this._bsArm(); e.facing=0; e.hp=1e9; e.knockX=0; e.knockY=0;
+      hitEnemy(e,100,deg*Math.PI/180,{melee:true}); return { dmg:+(1e9-e.hp).toFixed(3), knock:+Math.hypot(e.knockX,e.knockY).toFixed(3) }; };
+    const rear=at(0), front=at(180);
+    const out={ rearDmg:rear.dmg, frontDmg:front.dmg, rearKnock:rear.knock, frontKnock:front.knock,
+      offOk:(Math.abs(rear.dmg-front.dmg)<1e-9 && Math.abs(rear.knock-front.knock)<1e-9) };
+    G.enemies.length=0; BACKSTAB.enabled=savB; POISE.enabled=savP; COMBO.enabled=savC; return out; },
+  // AC6 SAVE: e.facing already exists and G.enemies is not serialized; backstab adds NO hero/enemy field. Fire a REAL backstab,
+  // then serialize with the SAME hero state ON vs OFF ⇒ byte-identical + no backstab key. Mirror of the COMBO transient guarantee.
+  backstabSaveByteId(){ const sav=BACKSTAB.enabled;
+    BACKSTAB.enabled=true; const e=this._bsArm(); e.facing=0; hitEnemy(e,100,0,{melee:true});   // land a backstab (adds nothing to save)
+    const onStr=JSON.stringify(serializeSave());
+    BACKSTAB.enabled=false; const offStr=JSON.stringify(serializeSave());                        // only the knob toggles; hero state unchanged
+    BACKSTAB.enabled=sav; G.enemies.length=0;
+    return { byteId:offStr===onStr, hasKey:/"_?backstab[a-zA-Z]*":/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
+  // AC2 RNG-STRONG: fingerprint the gameplay srand around a REAL backstab (rear-arc MELEE ×mult firing) + loot kills, ON vs OFF.
+  // Backstab is pure geometry/arithmetic (no backstabRng) ⇒ the srand stream is BYTE-IDENTICAL ON==OFF even while it fires.
+  backstabSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const sav=BACKSTAB.enabled; BACKSTAB.enabled=!!enabled; const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.stun=0; h.iframe=0; h.atkCD=0; h.atkT=0; h.parryT=0; h.riposte=0; h._parryRiposte=0;
+      h.frenzyStacks=0; h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false;
+      h.maxHp=1e6; h.hp=1e6; h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.facing=0; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    let backstabFired=false;
+    { const e0=G.enemies.length;
+      G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const e=spawnEnemy("wolf",(h?h.x:0)+20,(h?h.y:0));
+      if(e){ e.maxHp=e.hp=1e9; e.facing=0; e.poise=0; e.staggerT=0; e.staggerCD=0; e.knockX=0; e.knockY=0;
+        const d0=e.hp; hitEnemy(e,100,0,{melee:true}); backstabFired=(e.hp < d0-140); }   // rear MELEE ⇒ ×mult (>140 dmg) only when enabled
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    BACKSTAB.enabled=sav;
+    return { enabled:!!enabled, backstabFired:(enabled?backstabFired:false), fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

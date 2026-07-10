@@ -1130,6 +1130,17 @@ export const COMBO = {
   staggerPunishMul:2.2 // × extra al golpear MELEE a un enemigo con e.staggerT>0 (apila sobre POISE.bonusDmg)
 };
 
+// CAS-1836: GOLPE POR LA ESPALDA — crítico POSICIONAL. Cierra el loop Souls-like por el eje de POSICIONAMIENTO
+// (complementa TIMING: Telegrafía/Esquiva/Parada/Poise/Combos) y convierte la Esquiva Rodante (CAS-1814) en
+// OFENSIVA: rodar detrás de un enemigo con facing COMPROMETIDO (wind-up telegrafiado, lunge, carga, o STAGGER)
+// habilita el crítico. Un golpe MELEE (opt.melee) cuyo vector de ataque entra por el ARCO TRASERO del enemigo
+// (|angDiff(ang,e.facing)| < rearArcDeg/2) aplica ×mult daño + ×knockMul knockback. Geometría 100% PURA sobre
+// `e.facing` (que ya vive y no se serializa) ⇒ CERO draws, NO existe `backstabRng` (nada que sembrar) ⇒ srand
+// ON==OFF incluso con el backstab disparando de verdad; NO añade estado al héroe ni al enemigo ⇒ save.v1 byte-id
+// y SIN clave nueva. Apila sobre POISE.bonusDmg + el rematador CAS-1831 (los tres multiplican en el mismo sink).
+// HARD-GATED: enabled:false ⇒ ninguna rama corre ⇒ dmg/knock/VFX/save/srand byte-idénticos a HEAD.
+export const BACKSTAB = { enabled:true, rearArcDeg:120, mult:1.8, knockMul:1.6 };
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
