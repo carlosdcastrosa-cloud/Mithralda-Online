@@ -1363,6 +1363,28 @@ export const WEAPON_ARTS = {
   },
 };
 
+// CAS-1920: CONSUMIBLES ARROJADIZOS / Throwing Items (Pilar 19). La primera herramienta a distancia de RECURSO LIMITADO
+// tras 18 pilares melee: 2 consumibles firma (cuchillo recto / bomba incendiaria) para abrir peleas, castigar rangeds/casters
+// y aplicar presión sin comprometerse a melee. 100% BORROW sobre seams vivos (proyectil de hechizo, LOCK_ON aim, STAMINA coste,
+// refill-por-zona tipo Estus, status `burn`), $0 arte, RNG/save-neutral. enabled:false ⇒ throwItem() rama muerta byte-id a HEAD.
+// Números = FEEL/CEO, config-tunables sin rebuild. Teclas (Quote/Slash) = CODEs LIBRES (26 letras + Semicolon ocupadas), alias
+// fijo gated en input.js (NO rebindable ⇒ snapshot byte-id). 1 tecla lanza el tipo seleccionado, 1 tecla cicla el tipo.
+export const THROWABLES = {
+  enabled: true,
+  throwKey: "Quote",     // ' — lanza el tipo seleccionado; alias fijo gated (input.js, NO rebindable), FEEL/CEO-tunable
+  cycleKey: "Slash",     // / — cicla el tipo seleccionado (order)
+  windupMs: 200,         // ventana de commit/recuperación tras lanzar (transitorio h.throwWind, mirror atkAnim); punible (bloquea attack/move)
+  cooldownMs: 500,       // cd por-lanzamiento (transitorio h.throwCD, NO save)
+  refillOnZone: true,    // recarga cargas al cambiar de zona (reusa seam flaskZone) + BONFIRE (recurso escaso, NO infinito)
+  order: ["knife","firebomb"],   // orden del ciclo
+  types: {
+    // Cuchillo Arrojadizo: proyectil recto rápido, daño moderado, barato. Apertura / castigo a distancia (infl:null ⇒ sin burn).
+    knife:    { name:"Cuchillo Arrojadizo", charges:6, stam:8,  spd:520, dmg:14, life:0.9, kind:"knife",    col:"#d8dee8" },
+    // Bomba Incendiaria: arco corto, impacto en área pequeña, aplica burn (reusa DoT). Más cara, más escasa.
+    firebomb: { name:"Bomba Incendiaria",   charges:3, stam:20, spd:300, dmg:10, life:0.7, kind:"firebomb", col:"#ff7a3c", aoe:26, burn:{dmg:6}, burstFx:"flame", arc:true },
+  },
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

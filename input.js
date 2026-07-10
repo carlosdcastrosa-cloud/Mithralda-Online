@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -125,7 +125,7 @@ function onKeyDown(e){
   // navegador si no se hace preventDefault). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
   // CAS-1873: suprime el default del navegador para la tecla de bloqueo cuando está enabled (ShiftLeft es un
   // modificador; sin esto podría interferir con atajos). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
-  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key)) e.preventDefault();
+  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key) || (THROWABLES.enabled && (e.code===THROWABLES.throwKey || e.code===THROWABLES.cycleKey))) e.preventDefault();
 }
 function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md);
   // CAS-1873: soltar la tecla de bloqueo BAJA la guardia (HELD). Siempre se limpia (aunque OFF) ⇒ el estado no queda
@@ -288,6 +288,13 @@ function edge(code){
   // No es una acción rebindable (deliberate, como KeyH parry / TWO_HAND.key: never touches REBINDS/settings.binds ⇒ snapshot byte-id).
   // El sim decide (weaponArt gated en escena play + héroe vivo + cooldown/estamina). Cross-platform (móvil = botón HUD tb.weaponart).
   if(code===WEAPON_ARTS.key && WEAPON_ARTS.enabled){ sim.weaponArt(); return; }
+  // CAS-1920: dedicated THROWABLES.throwKey (default Quote) LANZA el consumible arrojadizo seleccionado + THROWABLES.cycleKey
+  // (default Slash) CICLA el tipo — ambos CODEs LIBRES (26 letras + Semicolon ocupadas). Gated on THROWABLES.enabled, so con la
+  // feature off ambas teclas son inertes (falls through, no state change). NO son acciones rebindables (deliberate, como KeyH parry /
+  // WEAPON_ARTS.key: never touches REBINDS/settings.binds ⇒ snapshot byte-id). El sim decide (throwItem/cycleThrow gated en escena
+  // play + héroe vivo + cd/windup/estamina/cargas). Cross-platform (móvil = botones HUD tb.throwable + tb.throwcycle).
+  if(code===THROWABLES.throwKey && THROWABLES.enabled){ sim.throwItem(); return; }
+  if(code===THROWABLES.cycleKey && THROWABLES.enabled){ sim.cycleThrow(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
@@ -397,6 +404,12 @@ export function tbtns(){ // returns button rects for current scene
     // controles es byte-idéntico a HEAD (mirror tb.twohand). Es un TAP (no hold): handleUITap llama `act` ⇒ sim.weaponArt() dispara
     // el Arte firma del arquetipo equipado (mismo seam del sim que desktop). $0 arte (glifo procedural ✦). Cluster izquierdo.
     ...(WEAPON_ARTS.enabled ? { weaponart:{x:m+bs*4.75, y:VH-m-bs*2.2, r:bs*0.4, label:"✦", act:()=>sim.weaponArt()} } : {}),
+    // CAS-1920: botones táctiles de los CONSUMIBLES ARROJADIZOS — SÓLO cuando THROWABLES.enabled, así con el knob OFF no hay botón ⇒
+    // el layout de controles es byte-idéntico a HEAD (mirror tb.weaponart). Son TAPs (no hold): handleUITap llama `act`. `throwable`
+    // LANZA el tipo activo (glyph + chargeKey del tipo seleccionado, se atenúa sin cargas/en cd — ver render); `throwcycle` (más
+    // pequeño, encima) CICLA el tipo. $0 arte (glifos procedurales). Cluster izquierdo, encima del Arte de Arma.
+    ...(THROWABLES.enabled ? { throwable:{x:m+bs*5.85, y:VH-m-bs*2.2, r:bs*0.4, label:throwGlyph(), chargeKey:throwChargeKey(), act:()=>sim.throwItem()} } : {}),
+    ...(THROWABLES.enabled ? { throwcycle:{x:m+bs*5.85, y:VH-m-bs*3.15, r:bs*0.3, label:"⟳", act:()=>sim.cycleThrow()} } : {}),
     bs
   };
 }
@@ -404,6 +417,13 @@ export function tbtns(){ // returns button rects for current scene
 function abilGlyph(slot){ const lo=(G.hero&&G.hero.loadout)||[]; const a=ABILITY_MAP[lo[slot]]; return a?a.glyph:String(slot+1); }
 // CAS-1659: current drafted-ultimate glyph for the touch button (falls back to ★).
 function ultGlyph(){ const u=G.hero&&ULTIMATE_MAP[G.hero.ultId]; return u?u.glyph:"★"; }
+// CAS-1920: glyph + charge-field del tipo de arrojadizo ACTIVO (h.throwSel), para el botón HUD (glyph del tipo + conteo de cargas).
+// $0 arte (glifos procedurales; knife=🗡 firebomb=💣). El chargeKey mapea el tipo al campo de cargas del héroe (mirror sim.throwChargeKey).
+const THROW_GLYPHS = { knife:"🗡", firebomb:"💣" };
+const THROW_CHARGE_KEYS = { knife:"knifeCharges", firebomb:"bombCharges" };
+function throwSel(){ return (G.hero&&G.hero.throwSel) || THROWABLES.order[0]; }
+function throwGlyph(){ return THROW_GLYPHS[throwSel()] || "◆"; }
+function throwChargeKey(){ const s=throwSel(); return THROW_CHARGE_KEYS[s] || (s+"Charges"); }
 export function topBtns(){ const VW=view.VW, VH=view.VH; const s=Math.min(VW,VH); const b=Math.max(38,s*0.075); const y=14+b/2;
   // CAS-1751: the Códice button only exists when the feature is enabled — with it OFF there is NO HUD
   // affordance at all (byte-identical HUD to a build without the feature). Its presence shifts the row.

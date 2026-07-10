@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -322,6 +322,11 @@ function newHero(name,cls){
     // root + vulnerable), flaskZone = última zona vista para detectar la transición del refill. Fuera del allowlist
     // de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG (curación 100% timing/input).
     flaskCharges:FLASK.charges, flaskDrinkT:0, flaskZone:null,
+    // CAS-1920: CONSUMIBLES ARROJADIZOS — recurso transitorio (mirror flaskCharges/comboCount/stam). throwSel = tipo seleccionado
+    // del ciclo, knifeCharges/bombCharges = cargas por tipo (refill al cambiar de zona / hoguera), throwCD = cd por-lanzamiento,
+    // throwWind = ventana de commit/recuperación (bloquea attack/move), throwZone = última zona vista (detecta el refill). TODOS
+    // fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave throw*. 0 RNG (spawn/geometría/timing deterministas).
+    throwSel:THROWABLES.order[0], knifeCharges:THROWABLES.types.knife.charges, bombCharges:THROWABLES.types.firebomb.charges, throwCD:0, throwWind:0, throwZone:null,
     // CAS-1873: ESCUDO / BLOQUEO CON GUARDIA — estado TRANSITORIO (mirror stam/flaskDrinkT). `blocking` = guardia
     // arriba este frame (se re-fija cada fixed-frame desde io.blockHeld); la RUPTURA reusa `h.stun` (STAGGERED de
     // CAS-1826, ya existe). Fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG.
@@ -1566,6 +1571,7 @@ export function loadSave(d){
     reconcileMeta(h);
     h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max;   // always respawn at full (CAS-1841: vigor a tope, mirror mp)
     if(FLASK.enabled){ h.flaskCharges=FLASK.charges; h.flaskDrinkT=0; h.flaskZone=null; }   // CAS-1854: Estus a tope al arrancar run (gated ⇒ OFF byte-id)
+    if(THROWABLES.enabled){ refillThrowables(h); h.throwSel=THROWABLES.order[0]; h.throwCD=0; h.throwWind=0; h.throwZone=null; }   // CAS-1920: arrojadizos a tope al arrancar run (gated ⇒ OFF byte-id)
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2013,7 +2019,7 @@ function heroAttack(){
   // CAS-1854: Estus — atacar mientras se bebe CANCELA el trago sin gastar carga (cancelOnAction); si no, el
   // `||flaskDrinkT>0` de abajo ENRAIZA (el trago es no-interrumpible ⇒ no ataca). OFF ⇒ ambas ramas inertes ⇒ byte-id.
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;
-  if(h.atkCD>0||h.rolling||h.stun>0||(FLASK.enabled&&h.flaskDrinkT>0)) return; // CAS-118: stun gates the swing
+  if(h.atkCD>0||h.rolling||h.stun>0||(FLASK.enabled&&h.flaskDrinkT>0)||(THROWABLES.enabled&&h.throwWind>0)) return; // CAS-118: stun gates the swing · CAS-1920: el windup del arrojadizo bloquea el ataque (commit punible)
   tutMark("atk"); // CAS-128: a real swing teaches the attack step
   const cfg=ATK[h.cls||"warrior"]; const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const dmg=equippedDmg(h)*cfg.dmgMul;
@@ -2056,7 +2062,7 @@ function heroAttack(){
 export function heavyAttack(){
   const h=G.hero;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: el pesado cancela el trago (sin coste); si no, enraiza vía el gate
-  if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0)) return; // CAS-118 stun gate, same as heroAttack
+  if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0)) return; // CAS-118 stun gate, same as heroAttack · CAS-1920: windup del arrojadizo bloquea el pesado
   const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                        // v1: heavy is a melee-only power swing
   if(!spendStam(h,Math.round(STAMINA.cost.heavy*twoHandStamMul(h)*heroArch(h).stamMul))) return;   // CAS-1841: el pesado cuesta vigor · CAS-1895: a dos manos ×stamMul · CAS-1907: ×archStamMul (OFF/sword ⇒ round(cost·1)=cost byte-id)
   tutMark("atk");
@@ -3178,6 +3184,7 @@ export function interact(){
     h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.respawn={x:rest.x,y:rest.y+TS};   // CAS-1841: la fuente restaura vigor
     if(BONFIRE.enabled){                                            // CAS-1879: la hoguera AÑADE recarga Estus + world reset
       if(BONFIRE.refillFlasks && FLASK.enabled) h.flaskCharges=FLASK.charges;   // recarga Estus (reusa CAS-1854, misma asignación que el refill de zona)
+      if(BONFIRE.refillFlasks && THROWABLES.enabled && THROWABLES.refillOnZone) refillThrowables(h);   // CAS-1920: la hoguera recarga los arrojadizos (mismo hook que el Estus / refill de zona)
       if(BONFIRE.respawnEnemies) bonfireRespawn(rest);             // world reset DETERMINISTA 0-draw de los no-jefes de la zona (jefes intactos)
       toast(STR.bonfireRest); audio.sfx.heal(); return;
     }
@@ -3476,7 +3483,7 @@ export function weaponArt(){
   const h=G.hero;
   if(!WEAPON_ARTS.enabled || G.scene!=="play" || !h || h.dead) return;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: el Arte cancela el trago (sin coste); si no, enraiza vía el gate
-  if(h.artCD>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0)) return;   // mismo gate que un swing + cooldown propio
+  if(h.artCD>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0)) return;   // mismo gate que un swing + cooldown propio · CAS-1920: windup del arrojadizo bloquea el Arte
   const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                       // v1: el Arte es un poder MELEE (mirror heavyAttack)
   const name=weaponArchName(h); const art=WEAPON_ARTS.classes[name] || WEAPON_ARTS.classes.sword;
   if(!spendStam(h, art.stam)) return;                                                   // sin vigor ⇒ deny (spendStam flashea); NO cooldown, NO disparo
@@ -3501,6 +3508,56 @@ export function weaponArt(){
   h._artCls={ dmgMul:art.dmgMul||1, poiseDmgMul:art.poiseDmgMul||1, reachMul:art.reachMul||1, arcMul:art.arcMul||1 };
   h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(4.2);
   addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.4*(art.windupMul||1)});
+}
+
+// CAS-1920: CONSUMIBLES ARROJADIZOS. Mapa tipo⇒campo de cargas del héroe (spec fija h.knifeCharges / h.bombCharges; fallback
+// data-driven para tipos futuros). Recarga TODAS las cargas por tipo a su tope de config (refill por zona / hoguera).
+const THROW_CHARGE_KEY = { knife:"knifeCharges", firebomb:"bombCharges" };
+function throwChargeKey(sel){ return THROW_CHARGE_KEY[sel] || (sel+"Charges"); }
+function refillThrowables(h){ if(!THROWABLES.enabled||!h) return; const ty=THROWABLES.types; for(const k in ty) h[throwChargeKey(k)]=ty[k].charges; }
+// Avanza el estado transitorio de arrojadizos (llamado junto a tickFlask, gated). Refill al CAMBIAR de zona (mirror flaskZone:
+// throwZone arranca en null ⇒ la 1ª lectura sólo siembra la zona, sin recarga ⇒ recurso escaso, NO infinito en la misma zona).
+// Decrementa throwCD (cd por-lanzamiento) + throwWind (ventana de commit/recuperación). 0 RNG. OFF ⇒ return ⇒ byte-idéntico.
+function tickThrow(h,dt){ if(!THROWABLES.enabled||!h) return;
+  if(THROWABLES.refillOnZone){ const z=zoneOf(world,h.x,h.y);
+    if(h.throwZone!==null && z!==h.throwZone) refillThrowables(h);   // transición de zona ⇒ recarga
+    h.throwZone=z; }
+  if(h.throwCD>0) h.throwCD=Math.max(0,h.throwCD-dt);
+  if(h.throwWind>0) h.throwWind=Math.max(0,h.throwWind-dt);
+}
+// CAS-1920: CICLAR el tipo de arrojadizo seleccionado (tecla Slash / botón HUD). Avanza en THROWABLES.order (wrap). Gated en
+// escena play + héroe vivo. h.throwSel transitorio (fuera del allowlist de save). 0 RNG. OFF ⇒ return ⇒ byte-idéntico a HEAD.
+export function cycleThrow(){
+  const h=G.hero;
+  if(!THROWABLES.enabled || G.scene!=="play" || !h || h.dead) return;
+  const order=THROWABLES.order; const cur=order.indexOf(h.throwSel||order[0]);
+  h.throwSel = order[(cur+1)%order.length];
+}
+// CAS-1920: LANZAR el consumible arrojadizo seleccionado (tecla Quote / botón HUD). RECURSO LIMITADO a distancia. Gated en
+// THROWABLES.enabled + escena play + héroe vivo + throwCD<=0 + throwWind<=0 (no re-lanza durante la recuperación) + mismo gate de
+// interrupción que un swing (no rodando/aturdido/bebiendo). Sin cargas ⇒ deny; sin vigor ⇒ deny (spendStam flashea) — en ambos
+// casos NO gasta carga ni arma cooldown. Al disparar: gasta art.stam vía spendStam, decrementa la carga del tipo, arma throwCD +
+// throwWind (commit punible: bloquea attack/move breve). Apunta vía artTarget (reusa LOCK_ON Pilar 12): objetivo enfocado / más
+// cercano, o h.facing si no hay. Spawna reusando el MOLDE de proyectil de hechizo (G.projectiles.push, sim.js:2834): la colisión /
+// hitEnemy / applyStatus(burn) / aoe / filtro life>0 YA están vivos (updateProjectiles) ⇒ el daño compone con defensas/backstab/
+// afijos y la bomba reusa el DoT `burn`. El cuchillo (infl:null, recto) y la bomba (infl:burn, aoe) sólo difieren por DATOS del
+// knob. 0 srand (no throwRng). $0 arte (render de proyectil + burstFx). OFF ⇒ input gated jamás lo llama ⇒ byte-idéntico a HEAD.
+export function throwItem(){
+  const h=G.hero;
+  if(!THROWABLES.enabled || G.scene!=="play" || !h || h.dead) return;
+  if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // lanzar cancela el trago (sin coste); si no, el gate de abajo enraiza
+  if(h.throwCD>0 || h.throwWind>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0)) return;   // mismo gate que un swing + cd/windup propios
+  const sel=h.throwSel||THROWABLES.order[0]; const t=THROWABLES.types[sel]; if(!t) return;
+  const ck=throwChargeKey(sel);
+  if((h[ck]||0)<=0){ audio.sfx.deny(); return; }                                       // recurso agotado ⇒ deny (NO gasta vigor)
+  if(!spendStam(h, t.stam)) return;                                                     // sin vigor ⇒ deny (spendStam flashea); NO carga, NO cooldown
+  h[ck]--;
+  h.throwCD = THROWABLES.cooldownMs/1000; h.throwWind = THROWABLES.windupMs/1000;       // cooldown por-lanzamiento + commit/recuperación (bloquea attack/move)
+  const tgt=artTarget(h); const a = tgt ? Math.atan2(tgt.y-h.y, tgt.x-h.x) : h.facing; // apunta al objetivo enfocado/cercano (LOCK_ON Pilar 12) o al facing
+  h.facing=a; const ca=Math.cos(a), sa=Math.sin(a);
+  G.projectiles.push({ x:h.x+ca*18, y:h.y-2+sa*18, vx:ca*t.spd, vy:sa*t.spd, life:t.life, dmg:t.dmg, kind:t.kind, ang:a,
+    aoe:t.aoe||0, burstFx:t.burstFx, col:t.col, infl:t.burn?Object.assign({type:"burn"},t.burn):null });   // BORROW molde de hechizo (2834): el resto ya vive en updateProjectiles
+  audio.sfx.fire(); shakeAdd(t.aoe?3:2.4);
 }
 
 // ====================================================================
@@ -3567,6 +3624,7 @@ export function update(dtMs){
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
+  tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
   tickBloodstain(h);// CAS-1867: recuperación de la Mancha de Sangre (walk-over misma zona, dist² pura, no RNG, gated on BLOODSTAIN.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
@@ -3600,6 +3658,7 @@ export function update(dtMs){
     if(h.rollT<=0) h.rolling=false; h.moved=false; }
   else { let mv=io.moveVec();
     mv=flaskMoveGate(h,mv);   // CAS-1854: Estus root/cancel-on-action (cross-platform, single source — ver flaskMoveGate). Bebiendo sin cancelar ⇒ mv=[0,0] ⇒ vx=vy=0, moved=false (ENRAIZADO); mover+cancelOnAction ⇒ aborta el trago (sin coste) y deja pasar el movimiento. OFF / no bebiendo ⇒ mv intacto ⇒ byte-id. Sin i-frames ⇒ VULNERABLE.
+    if(THROWABLES.enabled && h.throwWind>0) mv=[0,0];   // CAS-1920: el windup del arrojadizo ENRAIZA brevemente (commit punible, mirror el root del trago). OFF/sin windup ⇒ mv intacto ⇒ byte-id.
     const atkSlow=(h.atkAnim>0)?0.45:1; // commit to the swing — no free strafe-spam
     const statusSlow=(h.slowT>0)?(h.slow||1):1; // CAS-118: a mob-inflicted slow drags the hero down (readable: HUD tint + icon)
     const sp=(h.moveSpeed||CFG.heroSpeed)*(1+(affixTotals(h).movespd+(h.tt?h.tt.movespd:0))/100)*statusSlow*((h.bb&&h.bb.moveMul)||1)*(h.blocking?SHIELD_BLOCK.moveMul:1)*(EQUIP_LOAD.enabled?EQUIP_LOAD.mul[equipLoad(h).band].move:1)*((TWO_HAND.enabled&&h.twoHand)?TWO_HAND.moveMul:1); // CAS-100 class mobility · CAS-117 affix + CAS-119 talent +vel.mov · CAS-383 Viento Veloz · CAS-1873 strafe lento con la guardia arriba · CAS-1889 factor de carga de equipo por banda (OFF/mid ⇒ ×1 byte-id) · CAS-1895 factor a dos manos (OFF/sin twoHand ⇒ ×1 byte-id; moveMul:1.0 default ⇒ sin efecto hasta retune del CEO)
@@ -7117,6 +7176,144 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     WEAPON_ARTS.enabled=savA; STAMINA.enabled=savS; COMBO.enabled=savC; WEAPON_ARCHETYPES.enabled=savArch; BACKSTAB.enabled=savB;
     return { enabled:!!enabled, weaponArtFired:(enabled?fired:false), fingerprint:fp }; },
+
+  // --- CAS-1920 CONSUMIBLES ARROJADIZOS (Throwing Items, tools/cas1920-throwables.mjs); additive, ejercitan los REALES throwItem /
+  // cycleThrow / tickThrow / refillThrowables + el seam de proyectil vivo (updateProjectiles ⇒ hitEnemy / applyStatus(burn) / aoe).
+  // Todo spawn/geometría/timing determinista (NO throwRng) ⇒ srand ON==OFF byte-idéntico aun lanzando. La QA live (hija) re-verifica
+  // sobre el build servido. El nombre del héroe (creado en el harness) NO contiene "throw"/"knife"/"bomb" ⇒ el grep de save no falsea. ---
+  throwMeta(){ return { enabled:THROWABLES.enabled, throwKey:THROWABLES.throwKey, cycleKey:THROWABLES.cycleKey,
+    windupMs:THROWABLES.windupMs, cooldownMs:THROWABLES.cooldownMs, refillOnZone:THROWABLES.refillOnZone,
+    order:THROWABLES.order.slice(), types:JSON.parse(JSON.stringify(THROWABLES.types)) }; },
+  // Héroe LIMPIO en el pueblo (mirror _artArm) con arrojadizos a tope y un tipo seleccionado; estamina llena, maxHp enorme, facing=0,
+  // sin cooldowns/combate/windup. throwZone sembrado a la zona actual (sin refill espurio).
+  _throwArm(sel){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.slow=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h.atkAnim=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0; h.flaskDrinkT=0;
+    h.cls="warrior"; h._comboFin=false; h._heavy=false; h._art=false; h._artCls=null; h._artHyper=false; h.artCD=0; h.lockTarget=null; h.lockCd=0;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; h.twoHand=false;
+    h.throwSel=sel||THROWABLES.order[0]; h.throwCD=0; h.throwWind=0; h.throwZone=zoneOf(world,h.x,h.y); refillThrowables(h);
+    return h; },
+  // AC0 OFF byte-id: THROWABLES.enabled=false ⇒ throwItem()/cycleThrow() rama muerta (no proyectil, no gasto, no cooldown, no ciclo).
+  throwOffProbe(){ const savT=THROWABLES.enabled, savS=STAMINA.enabled; THROWABLES.enabled=false; STAMINA.enabled=true;
+    const h=this._throwArm("knife"); const c0=h.knifeCharges, s0=h.stam, sel0=h.throwSel; const b=G.projectiles.length;
+    throwItem(); const inert=(G.projectiles.length===b && h.knifeCharges===c0 && h.stam===s0 && (h.throwCD||0)===0 && (h.throwWind||0)===0);
+    cycleThrow(); const cycleInert=(h.throwSel===sel0);
+    THROWABLES.enabled=savT; STAMINA.enabled=savS; this._throwArm();
+    return { inert, cycleInert, ok:(inert&&cycleInert) }; },
+  // AC1 baseline: ON pero SIN lanzar ⇒ un tick no consume nada (sin proyectil, cargas/estamina intactas) ⇒ combate byte-id (feel 18 pilares).
+  throwBaselineProbe(){ const savT=THROWABLES.enabled; THROWABLES.enabled=true;
+    const h=this._throwArm("knife"); const c0=h.knifeCharges, s0=h.stam; const b=G.projectiles.length;
+    h.throwZone=zoneOf(world,h.x,h.y); tickThrow(h,0.016);
+    const baselineOk=(G.projectiles.length===b && h.knifeCharges===c0 && h.stam===s0 && (h.throwCD||0)===0 && (h.throwWind||0)===0);
+    THROWABLES.enabled=savT; this._throwArm();
+    return { baselineOk, ok:baselineOk }; },
+  // AC2 cuchillo: throwSel=knife ⇒ spawn proyectil RECTO kind:"knife" (facing 0 ⇒ +x), infl:null (sin burn), sin aoe; gasta stam+1 carga;
+  // arma throwCD (bloquea re-lanzar); al impactar ⇒ hitEnemy aplica dmg.
+  throwKnifeProbe(){ const savT=THROWABLES.enabled, savS=STAMINA.enabled; THROWABLES.enabled=true; STAMINA.enabled=true;
+    const t=THROWABLES.types.knife; const h=this._throwArm("knife"); h.lockTarget=null; h.facing=0; const c0=h.knifeCharges, s0=h.stam;
+    throwItem(); const p=G.projectiles[0]||null;
+    const spawned=!!p && p.kind==="knife"; const straight=!!p && Math.abs(p.vy)<1e-6 && p.vx>0;
+    const noInfl=!!p && !p.infl; const noAoe=!!p && !(p.aoe>0);
+    const chargeSpent=(h.knifeCharges===c0-1); const stamSpent=(s0-h.stam===t.stam); const cdArmed=(h.throwCD>0 && h.throwWind>0);
+    // impacto ⇒ hitEnemy baja hp (defensas/backstab/afijos componen dentro de hitEnemy)
+    let hitApplied=false, burnApplied=false;
+    if(p){ const e=spawnEnemy("wolf",p.x+8,p.y); e.maxHp=e.hp=1e9; e.dead=false; e.x=p.x+8; e.y=p.y; e.facing=Math.PI; const eh0=e.hp;
+      for(let i=0;i<12 && p.life>0 && e.hp===eh0;i++) updateProjectiles(0.016);
+      hitApplied=(e.hp<eh0); burnApplied=!!(e.dots&&e.dots.burn); G.enemies.length=0; }
+    // re-lanzar dentro del cd ⇒ bloqueado (sin proyectil nuevo, sin gastar otra carga)
+    G.projectiles.length=0; h.throwWind=0; const cBefore=h.knifeCharges; throwItem(); const cdBlocks=(G.projectiles.length===0 && h.knifeCharges===cBefore);
+    THROWABLES.enabled=savT; STAMINA.enabled=savS; this._throwArm();
+    return { spawned, straight, noInfl, noAoe, chargeSpent, stamSpent, cdArmed, hitApplied, burnApplied, cdBlocks,
+      ok:(spawned&&straight&&noInfl&&noAoe&&chargeSpent&&stamSpent&&cdArmed&&hitApplied&&!burnApplied&&cdBlocks) }; },
+  // AC3 bomba: throwSel=firebomb ⇒ proyectil kind:"firebomb" con aoe>0 + infl:burn; al impactar ⇒ applyStatus(burn) DoT + daño de
+  // ÁREA a un 2º enemigo dentro del aoe; más cara (stam mayor) + menos cargas que el cuchillo.
+  throwBombProbe(){ const savT=THROWABLES.enabled, savS=STAMINA.enabled; THROWABLES.enabled=true; STAMINA.enabled=true;
+    const kn=THROWABLES.types.knife, fb=THROWABLES.types.firebomb;
+    const h=this._throwArm("firebomb"); h.lockTarget=null; h.facing=0; const c0=h.bombCharges, s0=h.stam;
+    throwItem(); const p=G.projectiles[0]||null;
+    const spawned=!!p && p.kind==="firebomb"; const hasAoe=!!p && p.aoe>0; const hasBurn=!!(p&&p.infl&&p.infl.type==="burn");
+    const chargeSpent=(h.bombCharges===c0-1); const stamSpent=(s0-h.stam===fb.stam);
+    const pricier=(fb.stam>kn.stam && fb.charges<kn.charges);
+    let directHit=false, burnApplied=false, aoeHit=false;
+    if(p){ const e1=spawnEnemy("wolf",p.x+8,p.y); e1.maxHp=e1.hp=1e9; e1.dead=false; e1.x=p.x+8; e1.y=p.y; e1.facing=Math.PI;
+      const e2=spawnEnemy("wolf",p.x+8,p.y+ (p.aoe? p.aoe-6 : 12)); e2.maxHp=e2.hp=1e9; e2.dead=false; e2.x=p.x+8; e2.y=p.y+(p.aoe?p.aoe-6:12); e2.facing=Math.PI;
+      const e1h0=e1.hp, e2h0=e2.hp;
+      for(let i=0;i<12 && p.life>0 && e1.hp===e1h0;i++) updateProjectiles(0.016);
+      directHit=(e1.hp<e1h0); burnApplied=!!(e1.dots&&e1.dots.burn); aoeHit=(e2.hp<e2h0); G.enemies.length=0; }
+    THROWABLES.enabled=savT; STAMINA.enabled=savS; this._throwArm();
+    return { spawned, hasAoe, hasBurn, chargeSpent, stamSpent, pricier, directHit, burnApplied, aoeHit, knStam:kn.stam, fbStam:fb.stam, knCh:kn.charges, fbCh:fb.charges,
+      ok:(spawned&&hasAoe&&hasBurn&&chargeSpent&&stamSpent&&pricier&&directHit&&burnApplied&&aoeHit) }; },
+  // AC4 apuntado: con lockTarget vivo ⇒ ángulo hacia el objetivo (artTarget, LOCK_ON Pilar 12); sin lock ⇒ ángulo = h.facing. Puro (0-draw).
+  throwAimProbe(){ const savT=THROWABLES.enabled; THROWABLES.enabled=true;
+    const h=this._throwArm("knife"); h.facing=0;
+    const e=spawnEnemy("wolf",h.x,h.y-100); e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x; e.y=h.y-100; e.facing=Math.PI; h.lockTarget=e;
+    throwItem(); const p=G.projectiles[0]; const expLock=Math.atan2(e.y-h.y,e.x-h.x);
+    const lockOk=!!p && Math.abs(angDiff(p.ang,expLock))<1e-6;
+    const h2=this._throwArm("knife"); h2.facing=1.2; h2.lockTarget=null;   // _throwArm limpia G.enemies ⇒ artTarget=null ⇒ facing
+    throwItem(); const p2=G.projectiles[0]; const faceOk=!!p2 && Math.abs(angDiff(p2.ang,1.2))<1e-6;
+    THROWABLES.enabled=savT; this._throwArm();
+    return { lockOk, faceOk, lockAng:p?+p.ang.toFixed(6):null, faceAng:p2?+p2.ang.toFixed(6):null, ok:(lockOk&&faceOk) }; },
+  // AC5 recurso: las cargas DECRECEN por lanzamiento; a 0 ⇒ no lanza (deny); MISMA zona ⇒ no refill; CAMBIO de zona ⇒ refill a tope
+  // (reusa el seam flaskZone); refillThrowables (hook BONFIRE) ⇒ refill a tope. Recurso escaso, NO infinito.
+  throwResourceProbe(){ const savT=THROWABLES.enabled, savS=STAMINA.enabled; THROWABLES.enabled=true; STAMINA.enabled=true;
+    const cap=THROWABLES.types.knife.charges; const h=this._throwArm("knife"); const z=zoneOf(world,h.x,h.y);
+    let throws=0, guard=0; while(h.knifeCharges>0 && guard++<30){ h.throwCD=0; h.throwWind=0; h.stam=STAMINA.max; const b=G.projectiles.length; throwItem(); if(G.projectiles.length>b) throws++; G.projectiles.length=0; }
+    const drained=(h.knifeCharges===0), drainCount=(throws===cap);
+    h.throwCD=0; h.throwWind=0; h.stam=STAMINA.max; const b0=G.projectiles.length; throwItem(); const emptyDenies=(G.projectiles.length===b0 && h.knifeCharges===0);
+    h.throwZone=z; tickThrow(h,0.016); const sameZoneNoRefill=(h.knifeCharges===0 && h.throwZone===z);
+    h.throwZone="__elsewhere__"; tickThrow(h,0.016); const zoneRefill=(h.knifeCharges===cap && h.throwZone===z);
+    // hook BONFIRE ⇒ refillThrowables (misma asignación que el descanso en hoguera)
+    h.knifeCharges=0; h.bombCharges=0; refillThrowables(h); const bonfireRefill=(h.knifeCharges===cap && h.bombCharges===THROWABLES.types.firebomb.charges);
+    THROWABLES.enabled=savT; STAMINA.enabled=savS; this._throwArm();
+    return { cap, throws, drained, drainCount, emptyDenies, sameZoneNoRefill, zoneRefill, bonfireRefill,
+      ok:(drained&&drainCount&&emptyDenies&&sameZoneNoRefill&&zoneRefill&&bonfireRefill) }; },
+  // AC6 coste estamina: lanzar gasta stam vía spendStam; vigor insuficiente ⇒ no lanza (0 cargas gastadas, sin cooldown).
+  throwStamProbe(){ const savT=THROWABLES.enabled, savS=STAMINA.enabled; THROWABLES.enabled=true; STAMINA.enabled=true;
+    const t=THROWABLES.types.firebomb;
+    let h=this._throwArm("firebomb"); h.stam=t.stam-1; const c0=h.bombCharges; const b=G.projectiles.length;
+    throwItem(); const denied=(G.projectiles.length===b && h.bombCharges===c0 && (h.throwCD||0)===0 && (h.throwWind||0)===0);
+    h=this._throwArm("firebomb"); h.stam=t.stam+5; const s0=h.stam; const c1=h.bombCharges; throwItem();
+    const fired=(G.projectiles.length>0 && h.bombCharges===c1-1); const spent=(s0-h.stam===t.stam);
+    THROWABLES.enabled=savT; STAMINA.enabled=savS; this._throwArm();
+    return { denied, fired, spent, cost:t.stam, ok:(denied&&fired&&spent) }; },
+  // AC7 windup punible: tras lanzar, throwWind>0 BLOQUEA attack (heroAttack no arma) + move (mv rooteado ⇒ vx=0); expirado ⇒ ambos libres.
+  throwWindupProbe(){ const savT=THROWABLES.enabled; THROWABLES.enabled=true; const savMv=io.moveVec; io.moveVec=()=>[1,0];
+    const h=this._throwArm("knife"); throwItem(); const windOn=(h.throwWind>0);
+    h.atkCD=0; h.atkT=0; heroAttack(); const atkBlocked=(h.atkT===0 && h.atkCD===0);
+    h.atkAnim=0; h.slowT=0; h.blocking=false; h.rolling=false; update(16); const vxWind=+(h.vx||0).toFixed(6); const moveBlocked=(vxWind===0 && h.throwWind>0);
+    const h2=this._throwArm("knife"); h2.throwWind=0; h2.throwCD=0; h2.atkAnim=0; h2.slowT=0; update(16); const vxFree=+(h2.vx||0).toFixed(6); const moveFree=(vxFree>0);
+    h2.atkCD=0; h2.atkT=0; h2.throwWind=0; heroAttack(); const atkFree=(h2.atkT>0 || h2.atkCD>0);
+    io.moveVec=savMv; THROWABLES.enabled=savT; this._throwArm();
+    return { windOn, atkBlocked, moveBlocked, vxWind, moveFree, vxFree, atkFree, ok:(windOn&&atkBlocked&&moveBlocked&&moveFree&&atkFree) }; },
+  // AC9 SAVE byte-id: h.throwSel/knifeCharges/bombCharges/throwCD/throwWind/throwZone transitorios (fuera del allowlist) ⇒ serializeSave()
+  // byte-idéntico ON/OFF y SIN clave throw*/knifeCharges/bombCharges. (Nombre del héroe SIN "throw"/"knife"/"bomb" ⇒ el grep no falsea.)
+  throwSaveByteId(){ const savT=THROWABLES.enabled;
+    THROWABLES.enabled=true; const h=this._throwArm("firebomb"); h.throwSel="firebomb"; h.knifeCharges=2; h.bombCharges=1; h.throwCD=0.4; h.throwWind=0.15; h.throwZone="forest";
+    const onStr=JSON.stringify(serializeSave());
+    THROWABLES.enabled=false; this._throwArm("knife"); const offStr=JSON.stringify(serializeSave());
+    THROWABLES.enabled=savT; this._throwArm();
+    const hasKey=/"_?(throw[a-zA-Z]*|knifecharges|bombcharges)":/i.test(onStr);
+    return { byteId:(offStr===onStr), hasKey, onLen:onStr.length, offLen:offStr.length, ok:(offStr===onStr && !hasKey) }; },
+  // AC8 0-RNG STRONG: fingerprint del srand alrededor de LANZAR una bomba (spawn proyectil + gasto) — ON vs OFF. Todo spawn/geometría/
+  // timing (NO throwRng) ⇒ stream srand BYTE-IDÉNTICO ON==OFF aun lanzando. throwableFired observable pero 0-draw.
+  throwSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savT=THROWABLES.enabled, savS=STAMINA.enabled;
+    THROWABLES.enabled=!!enabled; STAMINA.enabled=true;
+    const h=this._throwArm("firebomb");
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let fired=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      if(h){ if(enabled){ h.throwCD=0; h.throwWind=0; h.stam=STAMINA.max; const b=G.projectiles.length; throwItem(); fired=(G.projectiles.length>b); }   // lanza (0 draws)
+        G.projectiles.length=0; }
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } } // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    if(h){ h.throwWind=0; h.throwCD=0; }   // limpia el windup/cd transitorio ⇒ no bloquea heroAttack en las probes REG posteriores (mismo héroe)
+    THROWABLES.enabled=savT; STAMINA.enabled=savS;
+    return { enabled:!!enabled, throwableFired:(enabled?fired:false), fingerprint:fp }; },
   // --- CAS-1879 HOGUERA / REST SITE (Bonfire) harness hooks (tools/cas1879-bonfire.mjs); additive, drive the REAL
   // rama de descanso de interact() (heal + ancla + recarga Estus + world reset) + los helpers bonfireUnsafe/bonfireRespawn.
   // Todo geometría/aritmética + spawnEnemy/applyZoneScale (0-RNG) ⇒ sin bonfireRng ⇒ srand ON==OFF byte-idéntico. El
