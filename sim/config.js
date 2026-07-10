@@ -1105,6 +1105,31 @@ export const POISE = {
   boss:{  max:280, dur:1.0, bonusDmg:1.9 },   // jefe: más postura, aturdimiento más corto, apertura MAYOR (clímax)
 };
 
+// CAS-1831: SISTEMA DE COMBOS / MOVESET con rematador anti-Stagger. Cierra el loop Souls-like por el lado
+// OFENSIVO: cadena ligera L→L→L (el 3º swing = FINISHER: +daño/+knockback), un ataque PESADO en tecla dedicada
+// (más lento, más daño, alimenta POISE.gain.heavy ⇒ vía natural para romper postura CAS-1826), y el REMATADOR:
+// un × extra al golpe MELEE sobre un enemigo con e.staggerT>0 (marcador de CAS-1826) que apila sobre POISE.bonusDmg.
+// 100% TIMING/INPUT: la cadena avanza por ventana de tiempo y el rematador por umbral aritmético ⇒ CERO draws,
+// NO existe `comboRng` (nada que sembrar) ⇒ srand ON==OFF incluso con el combo disparando de verdad. El estado
+// (comboCount/comboT) es run-transitorio del héroe (mirror frenzyStacks) ⇒ serializeSave (allowlist) lo excluye ⇒
+// save.v1 byte-idéntico y SIN clave `mithralda.combo.*` nueva. HARD-GATED: enabled:false ⇒ ninguna rama corre,
+// botón de ataque intacto, tecla pesada inerte ⇒ comportamiento byte-idéntico a HEAD.
+export const COMBO = {
+  enabled:true,
+  // --- cadena ligera (L→L→L) ---
+  windowMs:900,        // ventana de encadenado; si expira ⇒ comboCount=0 (la cadena se enfría)
+  chainLen:3,          // golpes hasta el finisher (el chainLen-ésimo swing ES el finisher)
+  finisherMul:1.6,     // daño × del finisher de cadena
+  finisherKnock:1.7,   // knockback × del finisher de cadena
+  // --- ataque pesado (tecla dedicada) ---
+  heavyKey:"KeyN",     // v1 desktop: tecla dedicada, aislada (mirror KeyH de Parry). KeyG del spec choca con `forge`.
+  heavyCdMul:1.9,      // más lento (cooldown ×)
+  heavyDmgMul:1.7,     // más daño
+  heavyPoise:"heavy",  // alimenta POISE.gain.heavy(26) ⇒ vía natural de romper postura
+  // --- rematador anti-Stagger (corazón) ---
+  staggerPunishMul:2.2 // × extra al golpear MELEE a un enemigo con e.staggerT>0 (apila sobre POISE.bonusDmg)
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 

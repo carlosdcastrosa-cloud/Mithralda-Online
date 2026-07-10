@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -296,6 +296,11 @@ function newHero(name,cls){
     // _parryRiposte = consumable 1-hit counter-buff. NO RNG. Transient — never serialized (a fresh
     // boot / new run / load starts at 0 ⇒ save.v1 byte-identical with the feature on or off).
     parryT:0, parryCD:0, _parryRiposte:0,
+    // CAS-1831: SISTEMA DE COMBOS — same transient pattern as frenzyStacks/parryT. comboCount = light-chain
+    // swings landed (resets after the finisher or when the window lapses), comboT = the chain-window timer
+    // (>0 = chain still alive). _comboFin flags the swing that is the finisher. NO RNG (100% input/timing).
+    // Transient — never serialized (out of serializeSave's allowlist ⇒ save.v1 byte-identical on/off).
+    comboCount:0, comboT:0, _comboFin:false,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -1861,6 +1866,14 @@ function tickParry(h,dt){ if(!PARRY.enabled||!h) return;
   if(h.parryCD>0) h.parryCD=Math.max(0,h.parryCD-dt);
 }
 
+// CAS-1831: SISTEMA DE COMBOS window tick — single source of truth (called from update(dt) and the harness
+// step hook). Winds down the light-chain window; once it lapses the chain COOLS (comboCount→0) so the next
+// swing starts fresh. Pure arithmetic, 0 RNG, gated on COMBO.enabled ⇒ when off these fields stay 0 (byte-
+// identical). Mirror of tickFrenzy/tickParry.
+function tickCombo(h,dt){ if(!COMBO.enabled||!h) return;
+  if(h.comboT>0){ h.comboT-=dt; if(h.comboT<=0){ h.comboT=0; h.comboCount=0; } }
+}
+
 // CAS-1785: arm the parry window. Dedicated KeyH (input.js) → this export, mirroring how KeyK/KeyY/KeyL
 // call read-side actions outside the rebindable `binds` table. Gated on PARRY.enabled + play scene +
 // alive + off-cooldown. Arms parryT (active window) and parryCD (whiff cooldown), plus a subtle $0
@@ -1882,6 +1895,18 @@ function heroAttack(){
   // atkspd term that shortens the swing cooldown — one legible, deterministic formula.
   const atkspd=heroAtkspd(h);
   h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd/(1+atkspd/100); h._atkHits=new Set();
+  // CAS-1831: advance the light COMBO chain on a MELEE swing (pure input/timing, 0 RNG). Within the window
+  // each swing bumps comboCount; the chainLen-th swing is the FINISHER (bigger dmg/knockback + feeds POISE
+  // heavy) and resets the count so the 4th swing starts a fresh chain. Gated on COMBO.enabled + melee class ⇒
+  // ranged/nova classes and the disabled build leave _comboFin=false (byte-identical). _heavy is cleared here
+  // (a plain swing is never heavy); heroHeavyAttack() sets its own flags.
+  h._heavy=false;
+  if(COMBO.enabled && cfg.type==="melee"){
+    h.comboCount = (h.comboT>0) ? Math.min(COMBO.chainLen, h.comboCount+1) : 1;
+    h.comboT = COMBO.windowMs/1000;
+    h._comboFin = (h.comboCount>=COMBO.chainLen);   // this swing is the finisher
+    if(h._comboFin) h.comboCount=0;                 // reset after firing the finisher
+  } else { h._comboFin=false; }
   if(cfg.type==="proj"){ h.atkT=0; audio.sfx.fire();
     G.projectiles.push({x:h.x+ca*18,y:h.y-2+sa*18,vx:ca*cfg.spd,vy:sa*cfg.spd,life:1.4,dmg,kind:cfg.kind,ang:a}); shakeAdd(2.4); }
   else if(cfg.type==="nova"){ h.atkT=0; audio.sfx.rune();
@@ -1891,15 +1916,39 @@ function heroAttack(){
   else { h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(2.6);
     addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.26}); }
 }
+// CAS-1831: the dedicated HEAVY attack (input.js binds COMBO.heavyKey → sim.heavyAttack()). A melee-class-only
+// power swing: SLOWER (atkCD ×heavyCdMul), HARDER (applyHeroMelee reads h._heavy ⇒ dmg ×heavyDmgMul), and it feeds
+// POISE heavy (opt.heavy) — the reliable path to BREAK an enemy's postura (CAS-1826). It is NOT a chain finisher
+// (leaves the light chain's comboCount/comboT untouched, just flags THIS swing heavy). Same gate as heroAttack.
+// HARD-GATED: COMBO.enabled=false or a ranged/nova class ⇒ no-op ⇒ the normal attack + chain are untouched (byte-id).
+// Mirror of heroAttack's melee branch; reuses the existing swing anim/fx (longer `life` ⇒ heavier read), $0 art.
+export function heavyAttack(){
+  const h=G.hero; if(!COMBO.enabled || !h || h.atkCD>0 || h.rolling || h.stun>0) return; // CAS-118 stun gate, same as heroAttack
+  const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return;                        // v1: heavy is a melee-only power swing
+  tutMark("atk");
+  const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
+  const atkspd=heroAtkspd(h);
+  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cfg.cd*COMBO.heavyCdMul/(1+atkspd/100); h._atkHits=new Set();
+  h._heavy=true; h._comboFin=false;   // this swing is HEAVY (×dmg + POISE heavy), not a chain finisher
+  h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(3.6);
+  addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.4});
+}
 function applyHeroMelee(){
-  const h=G.hero; const cfg=h._mcfg||ATK.warrior; const dmg=equippedDmg(h)*cfg.dmgMul;
+  const h=G.hero; const cfg=h._mcfg||ATK.warrior;
+  // CAS-1831: a chain FINISHER (chainLen-th light) or a HEAVY swing multiplies this swing's damage; the finisher
+  // also amplifies knockback. Both carry opt.heavy ⇒ POISE.gain.heavy (the natural stagger-break path), and
+  // opt.melee arms the anti-Stagger REMATADOR in hitEnemy. All deterministic (0 RNG): COMBO off, or a plain
+  // non-finisher light, ⇒ ×1 + opt inert (byte-identical). knockMul rides the existing knockback branch.
+  const fin = COMBO.enabled && h._comboFin;
+  const heavy = COMBO.enabled && h._heavy;
+  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1);
   heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
     const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range+e.tpl.size) continue;
     const ang=Math.atan2(e.y-h.y,e.x-h.x);
     if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc/2){
-      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng); shakeAdd(5.5);
+      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1)}); shakeAdd(5.5);
       // CAS-204: a bold crimson→white crescent sweeps through the struck enemy on a melee connect,
       // so the swing reads as cleaving INTO the target rather than next to it (FOUNTAINS slash juice).
       addFx("slashArc",e.x,e.y,{ang:h.atkAng,life:0.2});
@@ -2004,6 +2053,12 @@ function hitEnemy(e,dmg,ang,opt){
   // CAS-1826: a STAGGERED tier enemy takes bonus damage for the whole window (the read→punish payoff). Mirror of
   // the FRENZY/PARRY multiply — deterministic, consumes NO srand ⇒ no stagger (or disabled) → ×1 → byte-identical.
   if(POISE.enabled && e.staggerT>0) dmg*=(e.isBoss?POISE.boss:POISE.elite).bonusDmg;
+  // CAS-1831: the anti-Stagger REMATADOR — a MELEE hit (opt.melee) on an enemy inside its STAGGER window
+  // (e.staggerT>0, the CAS-1826 marker) lands for an extra ×staggerPunishMul, STACKING on top of the POISE
+  // bonus above (the intended read→aturdes→rematas payoff). Deterministic multiply, consumes NO srand ⇒ no
+  // punish (ranged hit, un-staggered enemy, or COMBO disabled) ⇒ ×1 ⇒ byte-identical. `punish` gates the VFX below.
+  let punish=false;
+  if(COMBO.enabled && e.staggerT>0 && opt && opt.melee){ dmg*=COMBO.staggerPunishMul; punish=true; }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -2020,7 +2075,9 @@ function hitEnemy(e,dmg,ang,opt){
   // hit. Suppressed mid-attack (the animState resolver never overrides windup/strike) so a
   // committed swing reads through, and skipped on the killing blow (death takes over).
   if(e.tpl.richAnim && e.hp>0) e.hurtT=0.26;
-  e.knockX+=Math.cos(ang)*e.tpl.knock; e.knockY+=Math.sin(ang)*e.tpl.knock;
+  // CAS-1831: a COMBO finisher amplifies knockback (opt.knockMul); default 1 ⇒ byte-identical for every other hit.
+  const knockMul=(opt&&opt.knockMul)||1;
+  e.knockX+=Math.cos(ang)*e.tpl.knock*knockMul; e.knockY+=Math.sin(ang)*e.tpl.knock*knockMul;
   // CAS-127: crits read LOUDER — distinct bright SFX, a bigger popping number, an extra
   // shake kick. Normal hits get a subtle number pop. Pure feel (damage already applied).
   if(crit){ audio.sfx.crit(); floater(e.x,e.y-e.tpl.size,"¡"+Math.round(dmg)+"!","#ff5d5d",{crit:true,pop:1.9,life:1.05}); addFx("spark",e.x,e.y); shakeAdd(3.5);
@@ -2036,6 +2093,10 @@ function hitEnemy(e,dmg,ang,opt){
   addFx("spark",e.x,e.y); addFx("blood",e.x,e.y,{ang}); addFx("impact",e.x,e.y,{ang,life:0.26});
   addFx("hitburst",e.x,e.y,{ang,life:0.22}); addFx("debris",e.x,e.y,{ang,life:0.42});
   addFx("bloodstain",e.x,e.y+e.tpl.size*0.4,{ang,life:1.8}); // FOUNTAINS: violence leaves a lingering mark
+  // CAS-1831: the REMATADOR reads LOUDER than a normal connect — a golden burst + shockring + debris fan, a hard
+  // shake, and a "¡REMATE!" banner over the staggered enemy. Pure feel ($0 art, reuses existing fx), damage already applied.
+  if(punish){ addFx("spellburst",e.x,e.y-2,{col:"#ffd24a"}); addFx("shockring",e.x,e.y,{r:56,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(7);
+    floater(e.x,e.y-34,STR.execute||"¡REMATE!","#ffd24a",{crit:true,pop:2.0,life:1.1}); }
   freeze(Math.min(7, (crit?4:2)+Math.floor(dmg/14))); // hit pops harder the bigger the blow; crits bite deepest
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
@@ -3145,6 +3206,7 @@ export function update(dtMs){
   if(h.atkspdBuffT>0){ h.atkspdBuffT-=dt; if(h.atkspdBuffT<=0){ h.atkspdBuffT=0; h.atkspdBuffAmt=0; } }
   tickFrenzy(h,dt); // CAS-1773: window wind-down + gradual stack decay (arithmetic, no RNG, gated)
   tickParry(h,dt);  // CAS-1785: parry window + cooldown wind-down (arithmetic, no RNG, gated on PARRY.enabled)
+  tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   if(h.consumCD){ for(const k in h.consumCD){ if(h.consumCD[k]>0) h.consumCD[k]=Math.max(0,h.consumCD[k]-dt); } }
   if(h.defBuffT>0){ h.defBuffT-=dt; if(h.defBuffT<=0){ h.defBonus-=h.defBuffAmt; h.defBuffAmt=0; } }
   if(h.hotT>0){ h.hotT-=dt; h.hp=Math.min(heroMaxHp(h),h.hp+pactHeal(h.hotRate*dt)); if(h.hotT<=0) h.hotRate=0; } // CAS-1763: Pacto Frágil cuts the HoT tick (×1.0 at heat=0 ⇒ byte-identical)
@@ -5359,6 +5421,149 @@ export const dev = {
     if(h){ const e=spawnEnemy("wolf", h.x+30, h.y); if(e){ e.elite=true; e.poiseMax=poiseCeil(e); e.poise=e.poiseMax*0.6; e.staggerT=1.2; e.staggerCD=3.0; e._poiseDecayT=0.4; hot=true; } }
     const onStr=JSON.stringify(serializeSave()); G.enemies.length=e0; POISE.enabled=sav;
     return { byteId:offStr===onStr, hotPoise:hot, hasKey:/"_?(poise|stagger)[a-zA-Z]*":/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
+  // --- CAS-1831 SISTEMA DE COMBOS / MOVESET harness hooks (tools/cas1831-combo.mjs); additive, drive the REAL
+  // heroAttack / heavyAttack / applyHeroMelee / hitEnemy / tickCombo paths. Combo is 100% timing/input (0 srand). ---
+  comboMeta(){ return { enabled:COMBO.enabled, windowMs:COMBO.windowMs, chainLen:COMBO.chainLen,
+    finisherMul:COMBO.finisherMul, finisherKnock:COMBO.finisherKnock, heavyKey:COMBO.heavyKey, heavyCdMul:COMBO.heavyCdMul,
+    heavyDmgMul:COMBO.heavyDmgMul, heavyPoise:COMBO.heavyPoise, staggerPunishMul:COMBO.staggerPunishMul }; },
+  comboEnabled(){ return COMBO.enabled; },
+  comboEnable(on){ COMBO.enabled=!!on; return { enabled:COMBO.enabled }; },
+  // Clean the arena + hero into a fresh MELEE attacker and spawn one huge-HP dummy in melee range. Fresh warrior ⇒
+  // no crit/talents/boons ⇒ hitEnemy draws 0 srand. Returns the dummy enemy (or null).
+  _comboArm(cls){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+    const h=G.hero; if(!h) return null;
+    h.dead=false; h.rolling=false; h.stun=0; h.iframe=0; h.atkCD=0; h.atkT=0; h._atkHits=null;
+    h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false;
+    h.frenzyStacks=0; h.frenzyT=0; h.riposte=0; h.parryT=0; h.parryCD=0; h._parryRiposte=0;
+    h.cls=cls||"warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.maxHp=1e6; h.hp=1e6; h.facing=0;
+    const cfg=ATK[h.cls]; const reach=(cfg.type==="melee")?(cfg.range*0.4):20;
+    const e=spawnEnemy("wolf", h.x+reach, h.y); if(!e) return null;
+    e.maxHp=e.hp=1e9; e.knockX=0; e.knockY=0; e.stun=0; return e; },
+  // Land ONE swing (light or heavy) on `e` through the REAL heroAttack/heavyAttack→applyHeroMelee path; returns the
+  // chain state + this swing's dealt damage + resulting knockback magnitude. Resets atkCD/hp so swings chain freely.
+  _comboSwing(e, heavy){ const h=G.hero; h.atkCD=0; h.atkT=0; e.hp=1e9; e.knockX=0; e.knockY=0;
+    if(heavy) heavyAttack(); else heroAttack(); applyHeroMelee();
+    return { count:h.comboCount, fin:!!h._comboFin, heavy:!!h._heavy, dmg:+(1e9-e.hp).toFixed(3), knock:+Math.hypot(e.knockX,e.knockY).toFixed(3), cd:+h.atkCD.toFixed(4) }; },
+  // AC3: three swings within the window ⇒ the 3rd is the FINISHER (dmg×finisherMul, knock×finisherKnock, count resets);
+  // the 4th starts a fresh chain. oh-exact: the flat on-hit is measured off equippedDmg so the finisher mul is precise.
+  comboChainProbe(){ const sav=COMBO.enabled; COMBO.enabled=true; const h=G.hero;
+    const e=this._comboArm("warrior"); if(!e){ COMBO.enabled=sav; return null; }
+    const s=[]; for(let i=0;i<4;i++) s.push(this._comboSwing(e,false));    // no tick between ⇒ all within the window
+    const cfg=ATK["warrior"]; const D=equippedDmg(h)*cfg.dmgMul; const oh=s[0].dmg-D;   // s[0] is a plain (non-finisher) swing
+    const expectFin=D*COMBO.finisherMul+oh;
+    const out={ counts:s.map(x=>x.count), fins:s.map(x=>x.fin), dmgs:s.map(x=>x.dmg), knocks:s.map(x=>x.knock),
+      firstTwoBuild:(s[0].count===1 && s[0].fin===false && s[1].count===2 && s[1].fin===false),
+      thirdIsFinisher:(s[2].fin===true && s[2].count===0),
+      finDmg:s[2].dmg, expectFinDmg:+expectFin.toFixed(3), finDmgOk:Math.abs(s[2].dmg-expectFin)<0.5,
+      finKnockMul:+(s[2].knock/s[0].knock).toFixed(3), expectKnockMul:COMBO.finisherKnock, finKnockOk:Math.abs(s[2].knock/s[0].knock-COMBO.finisherKnock)<0.02,
+      fourthResets:(s[3].count===1 && s[3].fin===false) };
+    G.enemies.length=0; COMBO.enabled=sav; return out; },
+  // AC4: a gap longer than the window (ticked through tickCombo) COOLS the chain ⇒ comboCount→0; the next swing is a
+  // fresh count=1 (no finisher). Proves the window is real (a dropped combo doesn't bank).
+  comboExpireProbe(){ const sav=COMBO.enabled; COMBO.enabled=true; const h=G.hero;
+    const e=this._comboArm("warrior"); if(!e){ COMBO.enabled=sav; return null; }
+    this._comboSwing(e,false); this._comboSwing(e,false);   // build to count 2
+    const before=h.comboCount;
+    const steps=Math.ceil(((COMBO.windowMs/1000)+0.2)*60); for(let i=0;i<steps;i++) tickCombo(h,1/60);   // let the window lapse
+    const afterTick=h.comboCount, windowGone=h.comboT<=0;
+    const sw=this._comboSwing(e,false);                     // next swing restarts the chain
+    const out={ before, afterTick, windowGone, resumeCount:sw.count, resumeFin:sw.fin,
+      reset:(afterTick===0 && windowGone && sw.count===1 && sw.fin===false) };
+    G.enemies.length=0; COMBO.enabled=sav; return out; },
+  // AC5: the HEAVY swing is slower (atkCD×heavyCdMul), harder (dmg×heavyDmgMul), and feeds POISE heavy (gain.heavy>gain.light).
+  comboHeavyProbe(){ const sav=COMBO.enabled, savP=POISE.enabled; COMBO.enabled=true; const h=G.hero;
+    const eL=this._comboArm("warrior"); const light=this._comboSwing(eL,false); const lightCd=light.cd;
+    const eH=this._comboArm("warrior"); const heavy=this._comboSwing(eH,true);  const heavyCd=heavy.cd;
+    const cfg=ATK["warrior"]; const D=equippedDmg(h)*cfg.dmgMul; const oh=light.dmg-D; const expectHeavyDmg=D*COMBO.heavyDmgMul+oh;
+    // POISE heavy: a heavy hit fills more postura than a light hit on the same ÉLITE (opt.heavy ⇒ gain.heavy)
+    POISE.enabled=true;
+    const poiseGain=(heavyKind)=>{ const e=this._comboArm("warrior"); e.elite=true; e.poise=0; e.poiseMax=poiseCeil(e); e.staggerT=0; e.staggerCD=0;
+      h.atkCD=0; h.atkT=0; e.hp=1e9; if(heavyKind) heavyAttack(); else heroAttack(); applyHeroMelee(); return e.poise; };
+    const lp=poiseGain(false), hp2=poiseGain(true);
+    const out={ lightCd, heavyCd, cdRatio:+(heavyCd/lightCd).toFixed(3), expectCdMul:COMBO.heavyCdMul, cdOk:Math.abs(heavyCd/lightCd-COMBO.heavyCdMul)<0.01,
+      lightDmg:light.dmg, heavyDmg:heavy.dmg, expectHeavyDmg:+expectHeavyDmg.toFixed(3), dmgOk:Math.abs(heavy.dmg-expectHeavyDmg)<0.5,
+      lightPoise:lp, heavyPoise:hp2, expectLightPoise:POISE.gain.light, expectHeavyPoise:POISE.gain.heavy,
+      poiseOk:(lp===POISE.gain.light && hp2===POISE.gain.heavy) };
+    G.enemies.length=0; COMBO.enabled=sav; POISE.enabled=savP; return out; },
+  // AC6 (heart): a MELEE hit on a STAGGERED enemy lands ×staggerPunishMul, STACKING on the POISE bonus (bonus×punish).
+  // oh cancels because both multipliers apply inside hitEnemy after the flat on-hit ⇒ the ratios are exact.
+  comboPunishProbe(){ const sav=COMBO.enabled, savP=POISE.enabled; COMBO.enabled=true; POISE.enabled=true;
+    const mk=()=>{ const e=this._comboArm("warrior"); e.elite=true; e.poiseMax=poiseCeil(e); e.poise=0; e.staggerCD=0; e.hp=1e9; return e; };
+    const eBase=mk(); eBase.staggerT=0; hitEnemy(eBase,100,0,{melee:true}); const baseDmg=1e9-eBase.hp;         // not staggered ⇒ no bonus, no punish
+    const ePoise=mk(); ePoise.staggerT=1.0; hitEnemy(ePoise,100,0);        const poiseDmg=1e9-ePoise.hp;        // staggered + RANGED ⇒ POISE bonus only
+    const eFull=mk(); eFull.staggerT=1.0; const fx0=G.fx.length; hitEnemy(eFull,100,0,{melee:true}); const fullDmg=1e9-eFull.hp; const vfx=G.fx.length>fx0;   // staggered + MELEE ⇒ bonus×punish
+    const bonus=POISE.elite.bonusDmg, punish=COMBO.staggerPunishMul;
+    const out={ baseDmg:+baseDmg.toFixed(2), poiseDmg:+poiseDmg.toFixed(2), fullDmg:+fullDmg.toFixed(2),
+      poiseRatio:+(poiseDmg/baseDmg).toFixed(3), expectPoise:bonus, fullRatio:+(fullDmg/baseDmg).toFixed(3), expectFull:+(bonus*punish).toFixed(3),
+      punishAbovePoise:fullDmg>poiseDmg, vfx, stacksOk:Math.abs(fullDmg/baseDmg-bonus*punish)<0.02 && Math.abs(poiseDmg/baseDmg-bonus)<0.02 };
+    G.enemies.length=0; COMBO.enabled=sav; POISE.enabled=savP; return out; },
+  // AC7: melee-only. A ranged class swing does NOT advance the light chain, and a ranged hit on a staggered enemy gets
+  // NO rematador (only the POISE bonus) — the punish ×-factor appears solely on the opt.melee hit.
+  comboMeleeOnlyProbe(){ const sav=COMBO.enabled, savP=POISE.enabled; COMBO.enabled=true; POISE.enabled=true; const h=G.hero;
+    this._comboArm("mage"); for(let i=0;i<3;i++){ h.atkCD=0; h.atkT=0; heroAttack(); }   // proj class swings
+    const chainNoAdvance=(h.comboCount===0 && h._comboFin===false);
+    const mk=()=>{ const g=this._comboArm("warrior"); g.elite=true; g.poiseMax=poiseCeil(g); g.poise=0; g.staggerT=1.0; g.staggerCD=0; g.hp=1e9; return g; };
+    const eR=mk(); hitEnemy(eR,100,0);              const rangedDmg=1e9-eR.hp;   // no opt.melee ⇒ POISE bonus only
+    const eM=mk(); hitEnemy(eM,100,0,{melee:true}); const meleeDmg=1e9-eM.hp;     // opt.melee ⇒ + rematador
+    const out={ chainNoAdvance, comboCountAfterProj:h.comboCount,
+      rangedDmg:+rangedDmg.toFixed(2), meleeDmg:+meleeDmg.toFixed(2), punishRatio:+(meleeDmg/rangedDmg).toFixed(3), expectPunish:COMBO.staggerPunishMul,
+      meleeOnly:(chainNoAdvance && Math.abs(meleeDmg/rangedDmg-COMBO.staggerPunishMul)<0.02) };
+    G.enemies.length=0; COMBO.enabled=sav; POISE.enabled=savP; return out; },
+  // AC8: synergy without regression — FRENZY dmg mult still multiplies a finisher, and PARRY riposte still multiplies a
+  // hero hit through the SAME hitEnemy sink (COMBO's seams are additive; the existing multipliers stack unchanged).
+  comboSynergyProbe(){ const sav=COMBO.enabled, savF=FRENZY.enabled, savPa=PARRY.enabled; COMBO.enabled=true; FRENZY.enabled=true; PARRY.enabled=true; const h=G.hero;
+    const finisher=(stacks)=>{ const e=this._comboArm("warrior"); let d=0;
+      for(let i=0;i<3;i++){ h.atkCD=0; h.atkT=0; e.hp=1e9; h.frenzyStacks=stacks; heroAttack(); applyHeroMelee(); d=+(1e9-e.hp).toFixed(3); } return d; };
+    const finNoFrenzy=finisher(0), finFrenzy=finisher(5); const frenzyMul=1+5*FRENZY.perStack.dmgPct/100;
+    const eP=this._comboArm("warrior"); eP.hp=1e9; hitEnemy(eP,100,0,{melee:true}); const plain=1e9-eP.hp;
+    const eP2=this._comboArm("warrior"); eP2.hp=1e9; h._parryRiposte=1; hitEnemy(eP2,100,0,{melee:true}); const ripo=1e9-eP2.hp;
+    const out={ finNoFrenzy, finFrenzy, frenzyRatio:+(finFrenzy/finNoFrenzy).toFixed(3), expectFrenzy:+frenzyMul.toFixed(3), frenzyOk:Math.abs(finFrenzy/finNoFrenzy-frenzyMul)<0.03,
+      plain:+plain.toFixed(2), ripo:+ripo.toFixed(2), riposteRatio:+(ripo/plain).toFixed(3), expectRiposte:PARRY.riposteMul, riposteOk:Math.abs(ripo/plain-PARRY.riposteMul)<0.02 };
+    G.enemies.length=0; COMBO.enabled=sav; FRENZY.enabled=savF; PARRY.enabled=savPa; return out; },
+  // AC9 SAVE: comboCount/comboT are transient hero run-state — NOT in serializeSave's allowlist. A HOT chain ⇒ save.v1
+  // byte-identical ON/OFF and carries NO combo key. Mirror of the frenzy transient-state guarantee.
+  comboSaveByteId(){ const sav=COMBO.enabled; const h=G.hero;
+    COMBO.enabled=false; h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false; const offStr=JSON.stringify(serializeSave());
+    COMBO.enabled=true; h.comboCount=2; h.comboT=0.7; h._comboFin=true; h._heavy=true; const onStr=JSON.stringify(serializeSave());
+    h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false; COMBO.enabled=sav;
+    return { byteId:offStr===onStr, hasKey:/"_?combo[a-zA-Z]*":/i.test(onStr), offLen:offStr.length, onLen:onStr.length }; },
+  // AC1 OFF: with COMBO disabled the swing SEQUENCE is unchanged — every swing deals the SAME base damage (no finisher
+  // spike), _comboFin never sets, and the heavy key is INERT (heavyAttack() early-returns ⇒ no swing armed).
+  comboOffProbe(){ const sav=COMBO.enabled; COMBO.enabled=false; const h=G.hero;
+    const e=this._comboArm("warrior"); if(!e){ COMBO.enabled=sav; return null; }
+    const s=[]; for(let i=0;i<4;i++) s.push(this._comboSwing(e,false));
+    const uniform=s.every(x=>Math.abs(x.dmg-s[0].dmg)<1e-6 && x.fin===false);          // no finisher spike
+    const uniformKnock=s.every(x=>Math.abs(x.knock-s[0].knock)<1e-6);                  // no finisher launch
+    // heavy inert: from rest, heavyAttack() must NOT arm a swing (atkT stays 0)
+    this._comboArm("warrior"); h.atkCD=0; h.atkT=0; heavyAttack(); const heavyInert=(h.atkT===0 && h._heavy===false);
+    const out={ dmgs:s.map(x=>x.dmg), fins:s.map(x=>x.fin), uniform, uniformKnock, heavyInert, offOk:(uniform && uniformKnock && heavyInert) };
+    G.enemies.length=0; COMBO.enabled=sav; return out; },
+  // AC2 RNG-STRONG: fingerprint the gameplay srand around a REAL light-chain FINISHER + a REAL rematador (+ a heavy swing)
+  // and a run of loot kills, COMBO ON vs OFF. The combo is pure timing/arithmetic (no comboRng) ⇒ the srand stream is
+  // BYTE-IDENTICAL ON==OFF even while the finisher lands and the rematador fires. 2*probeN draws around the firing.
+  comboSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const sav=COMBO.enabled, savP=POISE.enabled; COMBO.enabled=!!enabled; POISE.enabled=true; const h=G.hero;
+    if(h){ h.dead=false; h.rolling=false; h.stun=0; h.iframe=0; h.atkCD=0; h.atkT=0; h.parryT=0; h.riposte=0; h._parryRiposte=0;
+      h.frenzyStacks=0; h.comboCount=0; h.comboT=0; h._comboFin=false; h._heavy=false;
+      h.maxHp=1e6; h.hp=1e6; h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.facing=0; }
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));            // pre-segment
+    let finisherFired=false, punishFired=false;
+    { const e0=G.enemies.length;
+      G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const e=spawnEnemy("wolf",(h?h.x:0)+20,(h?h.y:0));
+      if(e){ e.elite=true; e.maxHp=e.hp=1e9; e.poise=0; e.poiseMax=poiseCeil(e); e.staggerT=0; e.staggerCD=0; e.knockX=0; e.knockY=0;
+        for(let i=0;i<3;i++){ h.atkCD=0; h.atkT=0; e.hp=1e9; heroAttack(); applyHeroMelee(); }   // FILL → FINISHER
+        finisherFired=(h._comboFin===true);
+        e.staggerT=1.0; e.hp=1e9; const d0=e.hp; h.atkCD=0; h.atkT=0; heroAttack(); applyHeroMelee(); punishFired=(e.hp<d0);   // REMATADOR
+        if(COMBO.enabled){ h.atkCD=0; h.atkT=0; e.hp=1e9; heavyAttack(); applyHeroMelee(); }     // heavy (0-srand either way)
+      }
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",(h?h.x:0)+60+i,(h?h.y:0)); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                         // post-segment
+    COMBO.enabled=sav; POISE.enabled=savP;
+    return { enabled:!!enabled, finisherFired:(enabled?finisherFired:false), punishFired:(enabled?punishFired:false), fingerprint:fp }; },
   // --- CAS-1659 HABILIDAD DEFINITIVA (Ultimate) harness hooks (tools/cas1659-ultimate.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the 4 ultimates, the offer size, the live draft rate.
   ultMeta(){ return { offerN:ULT_OFFER_N, liveRate:ultRate, perDmg:ULT_CHARGE_PER_DMG, perKill:ULT_CHARGE_PER_KILL,

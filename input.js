@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -249,6 +249,10 @@ function edge(code){
   // the feature off KeyH is inert (falls through, no new state, settings snapshot byte-identical). Not a
   // rebindable action (deliberate: never touches REBINDS/settings.binds). Mirrors the fixed KeyK/KeyY/KeyL.
   if(code==="KeyH" && PARRY.enabled){ sim.tryParry(); return; }
+  // CAS-1831: dedicated COMBO.heavyKey (default KeyN) fires the HEAVY attack — gated on COMBO.enabled, so with
+  // the feature off the key is inert (falls through, no state change). Not a rebindable action (deliberate, like
+  // KeyH parry: never touches REBINDS/settings.binds ⇒ the attack button + settings snapshot stay byte-identical).
+  if(code===COMBO.heavyKey && COMBO.enabled){ sim.heavyAttack(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
