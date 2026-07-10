@@ -42,7 +42,7 @@ import { findChromium, LAUNCH_ARGS, ROOT } from "./harness.mjs";
 
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 const LIVE = BASE + "/index.html?dev";
-const EXPECT_BUILD = "71c18b32fe19";
+const EXPECT_BUILD = "71160e07eaab";  // CAS-1921: Pilar 18 Weapon Arts deploy (was 71c18b32fe19)
 const UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const report = { live: LIVE, expectBuild: EXPECT_BUILD, checks: [], errors: [], shots: [], pass: false };
@@ -68,6 +68,17 @@ async function enterPlay(page, name, digit = "Digit1", suppress = true) {
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })); }, name, suppress);
   await page.waitForFunction("window.__dev.scene()==='classsel'", { timeout: 8000 });
   await key(page, digit);
+  // CAS-169 wardrobe (customize) + CAS-1570 ability draft (abilitysel) now sit between
+  // classsel and play. Confirm wardrobe with Enter, then accept the pre-seeded default
+  // loadout (CAS-1580/1659) with Enter. Mirrors tools/playtest-live.mjs.
+  await page.waitForFunction("['customize','abilitysel','play'].includes(window.__dev.scene())", { timeout: 8000 });
+  if (await page.evaluate(() => window.__dev.scene()) === "customize") {
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
+    await page.waitForFunction("['abilitysel','play'].includes(window.__dev.scene())", { timeout: 8000 });
+  }
+  if (await page.evaluate(() => window.__dev.scene()) === "abilitysel") {
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
+  }
   await page.waitForFunction("window.__dev.scene()==='play'", { timeout: 8000 });
 }
 
