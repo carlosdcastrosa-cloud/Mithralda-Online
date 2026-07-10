@@ -1505,6 +1505,22 @@ export function createRenderer(ctx){
       ctx.save(); ctx.globalCompositeOperation="lighter"; ctx.fillStyle="#eafff0"; // orbiting motes
       for(let i=0;i<3;i++){ const oa=G.t*7+i*2.094, orr=8+pu*2; ctx.globalAlpha=0.55+0.35*Math.sin(oa*1.7);
         ctx.fillRect(p.x+Math.cos(oa)*orr-1.5,p.y+Math.sin(oa)*orr*0.6-1.5,3,3); } ctx.restore(); }
+    // CAS-1920: CUCHILLO ARROJADIZO — hoja de acero recta que gira en vuelo (tinte/glyph procedural, $0 asset).
+    else if(p.kind==="knife"){ const a=p.ang!==undefined?p.ang:Math.atan2(p.vy,p.vx); const spin=G.t*24+p.x*0.3;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(a+Math.sin(spin)*0.5);
+      ctx.fillStyle="#8a94a4"; ctx.fillRect(-7,-1.6,14,3.2);                 // hoja
+      ctx.fillStyle=p.col||"#d8dee8"; ctx.beginPath(); ctx.moveTo(9,0); ctx.lineTo(1,-2.4); ctx.lineTo(1,2.4); ctx.closePath(); ctx.fill(); // punta brillante
+      ctx.fillStyle="#3a2c1e"; ctx.fillRect(-9,-1.8,3,3.6);                  // guarda/mango
+      ctx.restore();
+      fxCore(p.x+Math.cos(a)*6,p.y+Math.sin(a)*6,1.6,"#f2f6ff",0.7); }
+    // CAS-1920: BOMBA INCENDIARIA — orbe con mecha ardiente + estela de humo; estalla en burn+aoe al impacto (updateProjectiles).
+    else if(p.kind==="firebomb"){ const fl=Math.sin(G.t*20+p.x)*0.5+0.5;
+      fxTrail(p,"#c65a20",6,4);
+      fxGlow(p.x,p.y,14+fl*3,p.col||"#ff7a3c",0.8);
+      ctx.fillStyle="#3a2114"; ctx.beginPath(); ctx.arc(p.x,p.y,4.4,0,6.28); ctx.fill();     // vasija de barro
+      ctx.fillStyle=p.col||"#ff7a3c"; ctx.beginPath(); ctx.arc(p.x,p.y,2.6,0,6.28); ctx.fill();
+      ctx.fillStyle="#ffe08a"; ctx.beginPath(); ctx.arc(p.x-2,p.y-4,1.4+fl,0,6.28); ctx.fill(); // mecha
+      fxCore(p.x,p.y,1.3,"#fff3c8",0.9); }
     // ---- spell projectiles (paladin/mage/priest slot 2-4) ----
     else if(p.kind==="judgment"){ const pu=Math.sin(G.t*20)*0.5+0.5; // CAS-1545: descending bolt of light — radiant star + glow column
       fxGlow(p.x,p.y,18+pu*4,"#ffe39a",0.7); fxGlow(p.x,p.y,9,"#fff6d8",0.85);
@@ -3688,6 +3704,9 @@ export function createRenderer(ctx){
     if(tb.block) btn(tb.block, G.hero&&G.hero.blocking ? "#dff1ff" : "#7fb0d8"); // CAS-1873: botón HOLD del bloqueo (present only when SHIELD_BLOCK.enabled ⇒ undefined OFF ⇒ byte-id); se ilumina con la guardia arriba
     if(tb.twohand) btn(tb.twohand, G.hero&&G.hero.twoHand ? "#ffcf7a" : "#c79a55"); // CAS-1895: botón TOGGLE de empuñadura a dos manos (present only when TWO_HAND.enabled ⇒ undefined OFF ⇒ byte-id); se ilumina con la postura activa
     if(tb.weaponart) btn(tb.weaponart, G.hero&&(G.hero.artCD>0) ? "#6b5aa8" : "#b49af0"); // CAS-1914: botón del ARTE DE ARMA (present only when WEAPON_ARTS.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA durante el cooldown (artCD>0)
+    if(tb.throwable){ const h=G.hero; const noThrow=!h || h.throwCD>0 || h.throwWind>0 || (h[tb.throwable.chargeKey]||0)<=0; btn(tb.throwable, noThrow?"#7a5a3a":"#e0a45a"); // CAS-1920: botón del ARROJADIZO (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA sin cargas / en cooldown / durante el windup; muestra el glyph del tipo activo
+      if(h){ ctx.font="bold 9px "+FF; ctx.textAlign="center"; const cn=""+(h[tb.throwable.chargeKey]||0); ctx.fillStyle=COL.out; ctx.fillText(cn,tb.throwable.x+1,tb.throwable.y+tb.throwable.r+10); ctx.fillStyle=noThrow?"#caa27a":"#ffd9a0"; ctx.fillText(cn,tb.throwable.x,tb.throwable.y+tb.throwable.r+9); } } // conteo de cargas bajo el botón
+    if(tb.throwcycle) btn(tb.throwcycle, "#c79a55"); // CAS-1920: botón de CICLAR el tipo de arrojadizo (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id)
     btn(top.inv,COL.cream); btn(top.map,COL.cream); btn(top.pause,COL.cream);
     if(top.cdx) btn(top.cdx,COL.textGold); // CAS-1751: Códice touch button (present only when enabled)
     // CAS-1659: Ultimate touch button + charge ring — only when the run has a drafted ultimate.
