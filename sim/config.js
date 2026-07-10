@@ -1385,6 +1385,29 @@ export const THROWABLES = {
   },
 };
 
+// CAS-1926 — Pilar 20 RESINAS / BUFFS DE ARMA (Weapon Grease). Un consumible que UNTA el arma con un buff temporal
+// (daño ×dmgMul + elemento on-hit opcional vía applyStatus burn/slow) por una ventana corta ⇒ decisión de recurso
+// escaso (preparar el arma antes de un jefe/élite). 100% BORROW sobre el sink de daño melee (applyHeroMelee) + los
+// STATUS burn/slow vivos + el refill-por-zona del Estus/BONFIRE. dmgMul compone MULTIPLICATIVAMENTE como ÚLTIMO factor
+// tras TWO_HAND × WEAPON_ARCHETYPES × WEAPON_ARTS. Melee-only (no bypassa poise/i-frames). enabled:false ⇒ byte-id a HEAD.
+// Números = FEEL/CEO, tunables sin rebuild. RNG-neutral (0 draws) + save-neutral (todo estado transitorio).
+export const WEAPON_BUFFS = {
+  enabled: true,
+  applyKey: "BracketRight",   // ] — aplica la resina seleccionada; alias fijo gated (input.js, NO rebindable), FEEL/CEO-tunable
+  cycleKey: "BracketLeft",    // [ — cicla el tipo de resina seleccionado (order)
+  applyMs: 400,               // windup de aplicación (unta el arma, breve, punible; transitorio h.applyBuffT, mirror flaskDrinkT)
+  refillOnZone: true,         // recarga cargas al cambiar de zona (reusa seam flaskZone) + BONFIRE (recurso escaso, NO infinito)
+  order: ["ember","whet","frost"],   // orden del ciclo
+  types: {
+    // Resina Ardiente: +daño moderado + añade DoT burn en cada golpe melee (reusa STATUS.burn). Contra hordas / presión de DoT.
+    ember: { name:"Resina Ardiente",  charges:2, buffS:20, dmgMul:1.15, element:"burn",  burn:{dmg:5},          tint:"#ff7a3c" },
+    // Piedra de Afilar: +daño físico PURO alto, sin elemento. La opción de daño crudo para un jefe.
+    whet:  { name:"Piedra de Afilar", charges:3, buffS:25, dmgMul:1.35, element:null,                            tint:"#dfe7f2" },
+    // Escarcha: +daño leve + aplica slow (reusa STATUS.slow, mismo status que infligen los mobs) ⇒ control. Contra élites móviles.
+    frost: { name:"Escarcha",         charges:2, buffS:18, dmgMul:1.10, element:"frost", slow:{mul:0.6,dur:1.5}, tint:"#7fd3ff" },
+  },
+};
+
 // the objective text + the gate it reads come straight from here, no UI branching.
 export const STAGE1_GOAL = { zone:"frost", boss:"Guardián de la Cripta", req:FROST_POWER_REQ };
 
