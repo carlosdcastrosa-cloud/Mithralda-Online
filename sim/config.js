@@ -1727,7 +1727,7 @@ export const JUICE = {
 // teach* es un off-switch de accesibilidad independiente: false ⇒ DROP de exactamente ese paso del bloque
 // de combate; todos false (o enabled:false) ⇒ 0 pasos de combate ⇒ byte-id HEAD. Ver design/cas2016-combat-primer.md §3.
 export const ONBOARDING = {
-  enabled: false,          // DARK — Gate CEO flips live. false ⇒ TUT_STEPS == HEAD, byte-id.
+  enabled: true,           // LIVE — Gate CEO CAS-2020 GO'd (CAS-2021 flip). Combat Primer active on true first-run.
   teachDodge:   true,      // per-verb a11y sub-flags — cada false quita SÓLO su paso del bloque de combate
   teachParry:   true,
   teachLockOn:  true,
