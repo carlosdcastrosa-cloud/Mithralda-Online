@@ -968,6 +968,11 @@ export const PACTS = {
     { id:"celeridad", name:"Pacto de Celeridad", max:3, heat:12, effect:{kind:"enemySpd",  mag:0.08} }, // +8% velocidad enemigo / rango
     { id:"jauria",    name:"Pacto de Jauría",    max:3, heat:15, effect:{kind:"eliteRate", mag:0.25} }, // +25% prob. promoción élite / rango
     { id:"fragil",    name:"Pacto Frágil",       max:3, heat:12, effect:{kind:"healCut",   mag:0.20} }, // -20% curación jugador / rango
+    // CAS-2080 — 3 modificadores aditivos (Option B, aprobado CEO). Cada uno = threshold-shift / aritmética PURA
+    // sobre un valor que el sim YA lee (0 draws de RNG nuevos). Default rank 0 ⇒ inertes ⇒ save + srand byte-idénticos.
+    { id:"presagio",  name:"Pacto de Presagio",  max:3, heat:13, effect:{kind:"variantRate", mag:0.35} }, // +35% prob. variante de encuentro / rango (escala ENCOUNTER_VARIANTS.chancePerZone; NO toca enemyVariantRng)
+    { id:"corrosion", name:"Pacto de Corrosión", max:3, heat:11, effect:{kind:"statusBuild", mag:0.20} }, // +20% acumulación de estado SOBRE TI / rango (STATUS_BUILDUP, sink del héroe)
+    { id:"quebranto", name:"Pacto de Quebranto", max:3, heat:14, effect:{kind:"enemyPoise",  mag:0.15} }, // +15% postura enemiga / rango (más difícil staggerear) + ventana de parada −15% / rango
   ],
   // ── HEAT → REWARD tuning (the ONLY balance knobs; keep conservative) ─────────────
   essencePerHeat:0.004,  // Esencia mult = 1 + essencePerHeat*heat   (heat 100 ⇒ +40%)

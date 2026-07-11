@@ -2022,6 +2022,7 @@ export function createRenderer(ctx){
     renderAbilityBar(); // CAS-1570: the 2 drafted active-ability slots (radial cooldown)
     renderUltimateMeter(h); // CAS-1659: HABILIDAD DEFINITIVA charge meter + "listo" indicator
     renderFrenzyMeter(h);   // CAS-1773: MEDIDOR DE FRENESÍ pip bar (kill-streak momentum)
+    renderPactBadge(h);     // CAS-2080: INTENSIDAD badge — in-run Ardor + active pact ranks (only when heat>0)
     renderVitalsShoulders(h, mhp); // CAS-1611: HP/MP "hombreras" flanking the action bar
     // minimap
     if(!isTouch || true) renderMiniMap();
@@ -2259,6 +2260,29 @@ export function createRenderer(ctx){
     ctx.save(); ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.font="bold 10px "+FF;
     const lbl="×"+st+" FRENESÍ"; ctx.fillStyle=COL.out; ctx.fillText(lbl,x+barW/2+1,y-9);
     ctx.fillStyle=col; ctx.fillText(lbl,x+barW/2,y-10); ctx.restore(); ctx.textBaseline="alphabetic"; ctx.textAlign="left";
+  }
+  // CAS-2080 — INTENSIDAD badge ($0 art, pure canvas): a compact in-run read-out of the active Pactos covenant so
+  // its stakes are legible DURING play (today the Ardor/mults only show in the Pactos menu, renderPacts). Reads
+  // sim.pactsSnap() (PURE read, 0 sim). HARD-GATED: only drawn while PACTS.enabled AND heat>0 (a run with no pact
+  // ranked ⇒ heat 0 ⇒ nothing drawn ⇒ byte-identical to HEAD). Anchored top-centre over the game area (usually clear).
+  function renderPactBadge(h){
+    if(!PACTS.enabled || G.scene!=="play" || !h) return;
+    const snap=sim.pactsSnap(); if(!(snap.heat>0)) return;
+    const act=snap.items.filter(i=>i.rank>0);
+    const head="⚔ INTENSIDAD · Ardor "+snap.heat;
+    const sub="Esencia ×"+snap.essMul.toFixed(2)+"   Botín ×"+snap.dropMul.toFixed(2);
+    const chips=act.map(i=>i.name.replace(/^Pacto( de)? /,"")+" "+i.rank).join("  ·  ");
+    ctx.save(); ctx.textAlign="center";
+    ctx.font="bold 11px "+FF; const w1=ctx.measureText(head).width;
+    ctx.font="10px "+FF; const w2=ctx.measureText(sub).width, w3=chips?ctx.measureText(chips).width:0;
+    const boxW=Math.ceil(Math.max(w1,w2,w3))+22, boxH=chips?48:36;
+    const bx=Math.round(view.gcx()-boxW/2), by=8;
+    ctx.fillStyle="rgba(10,12,16,0.74)"; ctx.fillRect(bx,by,boxW,boxH);
+    ctx.strokeStyle="#e0813f"; ctx.lineWidth=1; ctx.strokeRect(bx+0.5,by+0.5,boxW-1,boxH-1);
+    ctx.font="bold 11px "+FF; ctx.fillStyle="#e0813f"; ctx.fillText(head, bx+boxW/2, by+15);
+    ctx.font="10px "+FF; ctx.fillStyle=COL.cream; ctx.fillText(sub, bx+boxW/2, by+29);
+    if(chips){ ctx.fillStyle=COL.textGold; ctx.fillText(chips, bx+boxW/2, by+42); }
+    ctx.restore(); ctx.textAlign="left";
   }
   function renderSpellBar(){ const h=G.hero; const n=4;
     if(isTouch) return; // touch uses buttons
@@ -2955,7 +2979,12 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.cream; ctx.font="12px "+FF;
     ctx.fillText("Sube el rango de un pacto para aumentar el Ardor y el botín · toca para +1", VW/2, y+48);
     ui.pactRects=[];
-    const pad=20, rowH=40, gap=5; let ry=y+64;
+    // CAS-2080: the table grew 5→8; size the row STRIDE to fit N rows above the footer. On a normal viewport the
+    // stride caps at 45 (rowH 40 + gap 5) ⇒ byte-identical to the pre-increment 5-row layout; it only compresses on
+    // a short window so the extra rows never clip the footer.
+    const pad=20, gap=5; let ry=y+64;
+    const stride=Math.min(45, ((y+bh-40)-ry)/Math.max(1,snap.items.length));
+    const rowH=Math.max(22, stride-gap);
     for(const it of snap.items){
       const rx=x+pad, rw=bw-2*pad; const active=it.rank>0;
       // row frame — active pacts lit gold, dormant dim
@@ -2975,7 +3004,7 @@ export function createRenderer(ctx){
       ctx.fillStyle= active?COL.cream:COL.textDim; ctx.font="bold 13px "+FF; ctx.fillText("Rango "+it.rank+"/"+it.max, rx+rw-14, ry+17);
       ctx.fillStyle= active?"#e0813f":"#5a6472"; ctx.font="10px "+FF; ctx.fillText(active?("Ardor +"+it.heatNow):("+"+it.heat+"/rango"), rx+rw-14, ry+31);
       ui.pactRects.push({x:rx,y:ry,w:rw,h:rowH,id:it.id});
-      ry += rowH+gap;
+      ry += stride;
     }
     // footer — total heat + live reward multipliers
     ctx.textAlign="center"; ctx.font="bold 12px "+FF;

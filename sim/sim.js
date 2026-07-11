@@ -1367,6 +1367,17 @@ function pactRewardMul(kind){ if(!PACTS.enabled) return 1; const heat=pactHeat()
   const cap=Math.min(heat, PACTS.rewardHeatCap|0);
   const per = kind==="essence" ? PACTS.essencePerHeat : PACTS.dropPerHeat;
   return 1 + per*cap; }
+// CAS-2080 — the 3 ADDITIVE modifier muls (Option B). Each is a threshold-shift / pure-arithmetic mul on a
+// value the sim ALREADY reads, adding NO new RNG draw. All return EXACTLY 1.0 (disabled / heat=0 / that kind
+// not ranked) ⇒ the scaled value is byte-identical to HEAD ⇒ srand ON==OFF. `mag` is per-rank (config table).
+// (a) variantRate — scale ENCOUNTER_VARIANTS.chancePerZone (the threshold the enemyVariantRng gate compares).
+function pactVariantMul(){ return pactStatMul("variantRate"); }
+// (b) statusBuild — scale the amount fed into the HERO's status-buildup meter (enemy afflictions land faster).
+function pactBuildupMul(){ return pactStatMul("statusBuild"); }
+// (c) enemyPoise — raise an enemy's postura ceiling (harder to stagger)…
+function pactPoiseMul(){ return pactStatMul("enemyPoise"); }
+// …and NARROW the hero's parry window by the SAME covenant (inverse, floored at 0.5 so it never becomes unparryable).
+function pactParryMul(){ const m=pactStatMulInv("enemyPoise"); return m<0.5?0.5:m; }
 // Player sets/raises a pact rank (tap in the panel → +1, wrap to 0 at max). Clamps to [0,max]; rank 0
 // drops the entry so the map stays clean (heat=0 ⇒ byte-identical). Marks the store dirty for a flush.
 // No-op (returns false) when disabled. Effects are read live in the seam — nothing is baked onto the hero.
@@ -1382,7 +1393,8 @@ export function cyclePactRank(id){ if(!PACTS.enabled) return false;
   const cur=(ensurePacts().ranks[id]|0); return setPactRank(id, cur>=def.max ? 0 : cur+1); }
 // human-readable per-rank effect text for the panel (pure presentation).
 const PACT_EFFECT_LABEL={ enemyDmg:"daño enemigo", enemyHp:"HP enemigo", enemySpd:"velocidad enemiga",
-  eliteRate:"prob. de élite", healCut:"curación propia" };
+  eliteRate:"prob. de élite", healCut:"curación propia",
+  variantRate:"prob. de variante", statusBuild:"aflicción sobre ti", enemyPoise:"postura enemiga" }; // CAS-2080
 function pactEffectText(d){ const pct=Math.round(d.effect.mag*100); const sign=d.effect.kind==="healCut"?"−":"+";
   return sign+pct+"% "+(PACT_EFFECT_LABEL[d.effect.kind]||d.effect.kind)+" / rango"; }
 // View model for renderPacts (PURE read; render adds no logic). Every def with its live rank + heat
@@ -2060,7 +2072,9 @@ function poiseCeil(e){ if(!POISE.enabled || !e || !e.tpl) return 0;
   // per-hit authoritative, 0 draws. Stacks under the SIGNATURE_BOSS phase-2 poise override (applied later in hitEnemy).
   // CAS-2071 Bastión: the Encounter-Variant poise× layers here the SAME way (mirror of ngPoiseMul) — read off the
   // per-entity e.variantPoiseMul baked by maybeVariant. Absent (no variant / OFF) ⇒ 1 ⇒ byte-identical to HEAD.
-  const m=ngPoiseMul()*(e.variantPoiseMul||1); return m===1?base:Math.round(base*m); }
+  // CAS-2080: the Pacto de Quebranto raises the postura ceiling the SAME multiplicative way (pactPoiseMul=1 at
+  // heat=0 ⇒ m unchanged ⇒ byte-identical). Pure arithmetic on the already-resolved base — 0 RNG.
+  const m=ngPoiseMul()*(e.variantPoiseMul||1)*pactPoiseMul(); return m===1?base:Math.round(base*m); }
 // CAS-342: the legacy positional caves boss (spawnBoss) is removed — the dragon is now the caves
 // ZONE CAPSTONE (HUNTS.caves.boss), summoned by spawnChampion when the kill quota is met, and
 // carries its 6-anim rich rendering + breath through the shared capstone path. The dev.spawn hook
@@ -2204,8 +2218,12 @@ function maybeVariant(e, spawnerIdx){
   const zone=e.scaleZone;                                            // set by applyZoneScale just above the caller
   const pool=ENCOUNTER_VARIANTS.byZone && ENCOUNTER_VARIANTS.byZone[zone];
   if(!pool || !pool.length) return e;                                // zone not opted in ⇒ no variant
-  const chance=(ENCOUNTER_VARIANTS.chancePerZone && ENCOUNTER_VARIANTS.chancePerZone[zone])||0;
+  let chance=(ENCOUNTER_VARIANTS.chancePerZone && ENCOUNTER_VARIANTS.chancePerZone[zone])||0;
   if(!(chance>0)) return e;                                          // absent ⇒ 0 ⇒ base mob (variant is salt, not replacement)
+  // CAS-2080: el Pacto de Presagio raises this THRESHOLD (mirror of the eliteRate pact in maybeAffix) — it
+  // scales the chance the SAME enemyVariantRng gate below already compares, NEVER a new/extra draw on that
+  // stream. 1.0 (heat=0) ⇒ chance unchanged ⇒ same gate ⇒ byte-identical. A zone with base 0 stays variant-free.
+  { const vm=pactVariantMul(); if(vm!==1) chance=Math.min(1, chance*vm); }
   // Deterministic per-spawn seed from (spawnerIdx, e.x, e.y) XOR rngSeed — reset the dedicated stream so the
   // assignment is a stable function of position (AC6), independent of how many spawns preceded it.
   const seed=((ENCOUNTER_VARIANTS.rngSeed>>>0) ^ (((spawnerIdx|0)*0x9e3779b9)>>>0) ^ ((Math.round(e.x)*374761393)>>>0) ^ ((Math.round(e.y)*668265263)>>>0))>>>0;
@@ -2540,7 +2558,8 @@ function flaskMoveGate(h, mv){
 export function tryParry(){ const h=G.hero;
   if(!PARRY.enabled || G.scene!=="play" || !h || h.dead || h.parryCD>0) return false;
   if(!spendStam(h,STAMINA.cost.parry)) return false;   // CAS-1841: la parada cuesta vigor (OFF ⇒ true, byte-id)
-  h.parryT=PARRY.windowMs/1000; h.parryCD=PARRY.cooldownS;
+  // CAS-2080: el Pacto de Quebranto NARROWS the active window (pactParryMul=1 at heat=0 ⇒ (windowMs/1000)×1 byte-id). Timing only, 0 RNG.
+  h.parryT=(PARRY.windowMs/1000)*pactParryMul(); h.parryCD=PARRY.cooldownS;
   addFx("dodgering",h.x,h.y,{life:0.20}); audio.sfx.roll();
   return true;
 }
@@ -3569,7 +3588,9 @@ function addBuildup(ent, btype, srcAmt, isHero){
   const type=STATUS_BUILDUP.types[btype]; if(!type) return false;
   if(!ent.bld) ent.bld={ bleed:0, poison:0, frost:0 };
   const boss=!!ent.isBoss;
-  ent.bld[btype] += type.build * (srcAmt==null?1:srcAmt) * (boss?STATUS_BUILDUP.bossBuildMul:1);
+  // CAS-2080: el Pacto de Corrosión accelerates buildup ON THE HERO only (enemy afflictions land faster —
+  // difficulty covenant). pactBuildupMul=1 at heat=0 ⇒ ×1 exact ⇒ byte-identical; enemy-side feeds (isHero=false) untouched.
+  ent.bld[btype] += type.build * (srcAmt==null?1:srcAmt) * (boss?STATUS_BUILDUP.bossBuildMul:1) * (isHero?pactBuildupMul():1);
   const thr=type.threshold;
   if(ent.bld[btype] >= thr){ ent.bld[btype]=0; procBuildup(ent, btype, isHero); return true; }
   return false;
@@ -6297,6 +6318,25 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                               // post-segment
     const heat=pactHeat(); PACTS.enabled=savEn; G.pacts=pactsDefault();
     return { enabled:!!enabled, heat, mobHp, fingerprint:fp }; },
+  // --- CAS-2080 — the 3 ADDITIVE modifier seams (Option B). Read the REAL helper muls + the value each seam feeds. ---
+  // Live muls (all EXACTLY 1.0 at heat=0 ⇒ every seam byte-identical to HEAD). parryWindowMul is the INVERSE (floored 0.5).
+  pactModMuls(){ return { variantRate:+pactVariantMul().toFixed(6), statusBuild:+pactBuildupMul().toFixed(6),
+    enemyPoise:+pactPoiseMul().toFixed(6), parryWindowMul:+pactParryMul().toFixed(6) }; },
+  // (a) variant chance: config base for a zone vs the pact-scaled THRESHOLD actually gated on in maybeVariant.
+  pactVariantChance(zone){ const z=zone||"forest"; const base=(ENCOUNTER_VARIANTS.chancePerZone&&ENCOUNTER_VARIANTS.chancePerZone[z])||0;
+    return { zone:z, base:+base.toFixed(6), scaled:+Math.min(1, base*pactVariantMul()).toFixed(6) }; },
+  // (b) hero buildup: hits to PROC a hero-side meter under the live Corrosión pact vs baseline. Drives the REAL
+  // addBuildup(hero,…,true) so the pactBuildupMul path is exercised; counts hits until the first proc. 0 RNG.
+  pactHeroBuildupHits(btype){ const bt=btype||"frost"; const t=STATUS_BUILDUP.types[bt]; if(!t) return null;
+    const savEn=STATUS_BUILDUP.enabled; STATUS_BUILDUP.enabled=true;
+    const dummy={ isBoss:false, bld:null }; let n=0;
+    while(n<9999){ n++; if(addBuildup(dummy, bt, 1, true)) break; }  // REAL hero-side feed (isHero=true ⇒ pactBuildupMul path)
+    STATUS_BUILDUP.enabled=savEn;
+    return { btype:bt, baseHits:Math.ceil(t.threshold/t.build), pactHits:n }; },
+  // (c) enemy postura ceiling (élite profile) + hero parry window under the live Quebranto pact. 0 RNG.
+  pactPoiseParry(){ const base=POISE.elite.max;
+    return { poiseBase:base, poiseScaled:Math.round(base*pactPoiseMul()),
+      parryMsBase:PARRY.windowMs, parryMsScaled:+(PARRY.windowMs*pactParryMul()).toFixed(2) }; },
   // --- CAS-1768 AFIJOS DE ARMA on-hit harness hooks (tools/cas1768-weapon-affixes.mjs); additive, drive the REAL paths ---
   // Static config off the data (no sim step): the fixed pool of 5, the tuning knobs.
   waMeta(){ return { enabled:WEAPON_AFFIXES.enabled, magPerTier:WEAPON_AFFIXES.magPerTier, chainRange:WEAPON_AFFIXES.chainRange,
