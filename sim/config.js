@@ -1277,7 +1277,7 @@ export const GUARD_COUNTER = {
 // a HEAD (OFF==baseline). Números = defaults sanos para QA; el CEO retunea + flipea enabled:false→true en el Gate CAS-2111
 // (config-only 1 línea). $0 arte (VFX = primitiva canvas existente, render sin tocar).
 export const DODGE_COUNTER = {
-  enabled:false,          // SHIP DARK — el CEO flipea false→true en el Gate CAS-2111 (mirror CAS-2105/2093/2075)
+  enabled:true,           // LIVE — CEO flip false→true en Gate CAS-2111 GO (mec #34, mirror CAS-2105/2093/2075). Reversible→false.
   windowS:0.5,            // ventana de contragolpe (s) tras una esquiva perfecta
   dmgMul:1.5,             // < guard counter (1.8): la esquiva es más accesible que el bloqueo con escudo
   poiseMul:2.0,           // < guard counter (2.5): daño de POISE del contragolpe de esquiva
