@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, ENCOUNTER_VARIANTS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -3553,7 +3553,9 @@ export function createRenderer(ctx){
     ctx.textAlign="center";
     ctx.fillStyle=COL.textGold; ctx.font="bold 19px "+FF; ctx.fillText(STR.brTitle,VW/2,y+28);
     ctx.fillStyle=COL.cream; ctx.font="bold 13px "+FF; ctx.fillText(STR.brComplete,VW/2,y+48);
-    // ---- total time (right-aligned value) + record/delta ----
+    // CAS-2090: en Desafío con Semilla, banner con el CÓDIGO compartible bajo el header (para comparar/compartir el run).
+    // Gateado en rc.seededCode ⇒ un recap de Boss Rush normal NO lo dibuja ⇒ overlay byte-idéntico a HEAD.
+    if(rc.seededCode){ ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.fillText("⚑ Semilla: "+rc.seededCode,VW/2,y+64); }
     ctx.textAlign="left"; let cy=y+78;
     ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF; ctx.fillText(STR.brTimeLabel,cx,cy);
     ctx.textAlign="right"; ctx.fillStyle=COL.cream; ctx.fillText(fmtBRTime(rc.timeMs),rx,cy); cy+=16;
@@ -4073,6 +4075,10 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.fillText(label,cx,y);
     if(BR.resting){ ctx.font="12px "+FF; ctx.fillStyle=COL.cream;
       ctx.fillText("Hoguera… se acerca el siguiente jefe",cx,y+18); }
+    // CAS-2090: en Desafío con Semilla, indicador + código compartible activo SOBRE la banda de ronda ($0 art, canvas text).
+    // Gateado en seededChallengeMode ⇒ un Boss Rush normal NO lo dibuja ⇒ HUD byte-idéntico a HEAD.
+    if(G.seededChallengeMode && G.seededCode){ ctx.font="12px "+FF; const sl="⚑ DESAFÍO · "+G.seededCode;
+      ctx.fillStyle=COL.out; ctx.fillText(sl,cx+1,y-17); ctx.fillStyle=COL.textGold; ctx.fillText(sl,cx,y-18); }
     // CAS-2047 Time-Attack: running clock during play (canvas text, $0 art). Gated on timeAttack + showTimer ⇒ off = dead.
     // Timer FREEZES during the bonfire rest (combatMs doesn't accrue) — drawn under the rest note so it doesn't collide.
     if(BOSS_RUSH.timeAttack && BOSS_RUSH.showTimer){ const clk=fmtBRTime(BR.combatMs||0); const ty=y+(BR.resting?36:18);
@@ -4119,6 +4125,16 @@ export function createRenderer(ctx){
       if(br>0){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
         ctx.fillText(br>=N ? ("Gauntlet COMPLETA ("+N+"/"+N+")") : ("Mejor ronda: "+br+"/"+N),VW/2,ry+rh+14); } }
     else ui.menuBossRushRect={x:0,y:0,w:0,h:0};
+    // CAS-2090: a FOURTH entry — Desafío con Semilla (run determinista compartible). Entra con la semilla del día
+    // (menú, NO hotkey de play). $0 art (reusa la chrome del botón). HARD-GATED: enabled:false ⇒ NO se dibuja y su
+    // hit-rect queda en cero (menú inalcanzable ⇒ byte-idéntico vs HEAD). Muestra el récord del código del día si existe.
+    if(SEEDED_CHALLENGE.enabled){ const cw2=200,ch2=42,cx2=VW/2-cw2/2,cy2=(BOSS_RUSH.enabled?(ui.menuBossRushRect.y+ui.menuBossRushRect.h):(ui.menuArenaRect.y+ui.menuArenaRect.h))+24; ui.menuSeededRect={x:cx2,y:cy2,w:cw2,h:ch2};
+      ctx.fillStyle="#1a2e26"; ctx.fillRect(cx2,cy2,cw2,ch2); ctx.fillStyle=COL.panelB; ctx.fillRect(cx2,cy2,cw2,4); ctx.fillRect(cx2,cy2+ch2-4,cw2,4);
+      ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="bold 18px "+FF; ctx.fillText("Desafío con Semilla",VW/2,cy2+27);
+      const code=(G.seededDailyCode||null); const rec=code&&G.seededRecords&&G.seededRecords[code];
+      if(rec&&(rec.score|0)>0){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("Semilla del día · Mejor: "+(rec.score|0),VW/2,cy2+ch2+14); }
+      else { ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("Semilla del día — run determinista compartible",VW/2,cy2+ch2+14); } }
+    else ui.menuSeededRect={x:0,y:0,w:0,h:0};
     ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.fillText(STR.controlsHintPC((a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a])),VW/2,VH-40);
     ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.version,VW/2,VH-18);
   }

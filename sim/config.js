@@ -1718,6 +1718,25 @@ export const BOSS_RUSH = {
   scoreCleanBonus: 10000,         // bonus por run impecable (hitsReceived===0)
 };
 
+// CAS-2090 (EVO CAS-2090) — DESAFÍO CON SEMILLA (Seeded Challenge Run). El 4º meta-modo de replay (tras NG+, Boss
+// Rush, Pactos); su valor NUEVO = REPRODUCIBILIDAD COMPARTIBLE: una semilla (código "MITH-XXXX" o la fecha del día)
+// siembra el `srand` MAESTRO ⇒ dos jugadores con la misma semilla juegan el MISMO run determinista y comparan score.
+// COMPONE la stack existente en vez de agregar un sistema aislado: reusa el gauntlet de Boss Rush como RULESET FIJO
+// (BOSS_RUSH.sequence) + su scoring time-attack (BOSS_RUSH.score*, 0 RNG, 0 fórmula nueva) + el recap overlay.
+// HARD-GATED: enabled:false ⇒ la entrada de menú NO se dibuja ⇒ pendingSeededChallenge nunca se arma ⇒
+// startSeededChallenge (ÚNICO sitio que resiembra el master srand) NUNCA corre ⇒ srand byte-idéntico a HEAD. El
+// seed dedicado SÓLO se aplica al ENTRAR al modo (mirror pendingBossRush) — el juego normal jamás lo toca (probar
+// 48-draw ON-inactivo == OFF byte-id). Records AISLADOS por semilla en mithralda.seededchallenge.v1 (nunca save.v1).
+// Reversible: Gate CEO flippea enabled:false→true (config-only, mirror CAS-2043/2055). Sin arte, sin path de daño nuevo.
+//   key         — tecla de la escena MENÚ (NO un hotkey de play — mirror BOSS_RUSH.key/ARENA.key ⇒ 0 colisión de combate,
+//                 lección directa del audit CAS-2085 donde SUMMON.key colisionó en play). La entrada de menú usa la semilla del día.
+//   codePrefix  — formato del código compartible (etiqueta HUD/recap; la semilla del día concatena la fecha estable).
+export const SEEDED_CHALLENGE = {
+  enabled: false,                 // DARK ship; Gate CEO flippea enabled:false→true (config-only, reversible, mirror CAS-2043/2055)
+  key: "KeyC",                    // entrada por la escena menú (KeyC libre en menu; NO es hotkey de play ⇒ sin colisión de combate)
+  codePrefix: "MITH-",            // prefijo del código compartible; la semilla del día = codePrefix + fecha estable (YYYYMMDD)
+};
+
 // CAS-2071 (EVO CAS-2071) — VARIEDAD DE ENCUENTROS. Variantes de COMPORTAMIENTO de mob a $0 arte: reusan el
 // sprite + la telegrafía/AI existentes y sólo MODULAN stats (windup/lunge/hp/spd/dmg/poiseMax) sobre un CLONE del
 // tpl (mirror applyZoneScale) ⇒ cada una fuerza una herramienta distinta del kit (parry/dodge, combo+rotura, AoE).

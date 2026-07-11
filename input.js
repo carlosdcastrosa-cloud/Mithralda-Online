@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, ARENA, COMBAT_CODEX } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -25,7 +25,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], bossRushRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], titleRects:[], pactRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, legacyRects:[], legacyChoose:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, menuArenaRect:{x:0,y:0,w:0,h:0}, menuBossRushRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], bossRushRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], titleRects:[], pactRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, legacyRects:[], legacyChoose:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, menuArenaRect:{x:0,y:0,w:0,h:0}, menuBossRushRect:{x:0,y:0,w:0,h:0}, menuSeededRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
   // CAS-419 inventory DnD: live drag state (render draws the ghost/highlights from it),
   // last rejected drop rect (render shakes it red until `until`, sim time), and the
   // backpack list area rect render publishes so an equip-slot drag can target empty rows.
@@ -90,9 +90,10 @@ function onKeyDown(e){
     if(code!=="Escape" && code!=="Tab") settings.setBind(G.rebind, code);
     G.rebind=null; e.preventDefault(); return; }
   if(G.scene==="menu"){ if(document.activeElement===nameInput && e.code!=="Enter") return;
-    if(e.code==="Enter"){ G.pendingArena=false; G.pendingBossRush=false; startGame(); }       // CAS-1664: Enter = normal adventure
-    else if(e.code===ARENA.key){ G.pendingArena=true; G.pendingBossRush=false; startGame(); }   // CAS-1664: A = Arena de Oleadas (CAS-1996: lee ARENA.key, antes literal "KeyA" — behavior-identical, data-driven)
-    else if(e.code===BOSS_RUSH.key && BOSS_RUSH.enabled){ G.pendingBossRush=true; G.pendingArena=false; startGame(); } // CAS-1988: B = Modo Boss Rush (gated ⇒ enabled:false ⇒ tecla inerte, menú no muestra la entrada)
+    if(e.code==="Enter"){ G.pendingArena=false; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); }       // CAS-1664: Enter = normal adventure
+    else if(e.code===ARENA.key){ G.pendingArena=true; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); }   // CAS-1664: A = Arena de Oleadas (CAS-1996: lee ARENA.key, antes literal "KeyA" — behavior-identical, data-driven)
+    else if(e.code===BOSS_RUSH.key && BOSS_RUSH.enabled){ G.pendingBossRush=true; G.pendingArena=false; G.pendingSeededChallenge=false; startGame(); } // CAS-1988: B = Modo Boss Rush (gated ⇒ enabled:false ⇒ tecla inerte, menú no muestra la entrada)
+    else if(e.code===SEEDED_CHALLENGE.key && SEEDED_CHALLENGE.enabled){ G.pendingSeededChallenge=true; G.pendingArena=false; G.pendingBossRush=false; G.seededCode=G.seededDailyCode||null; startGame(); } // CAS-2090: C = Desafío con Semilla (entrada de menú; usa la semilla del día; gated ⇒ enabled:false ⇒ tecla inerte, menú no muestra la entrada)
     return; }
   if(G.scene==="classsel"){ const c=e.code;
     if(c==="Digit1"||c==="Numpad1") chooseClass(CLASS_LIST[0]);
@@ -329,9 +330,10 @@ function edge(code){
 // ----------------------------- pointer ---------------------------------
 function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.clientX-r.left, y=e.clientY-r.top;
   audio.resume();
-  if(G.scene==="menu"){ if(BOSS_RUSH.enabled && menuBossRushHit(x,y)){ G.pendingBossRush=true; G.pendingArena=false; startGame(); } // CAS-1988: Modo Boss Rush entry (gated)
-    else if(menuArenaHit(x,y)){ G.pendingArena=true; G.pendingBossRush=false; startGame(); } // CAS-1664: Arena de Oleadas entry
-    else if(menuPlayHit(x,y)){ G.pendingArena=false; G.pendingBossRush=false; startGame(); } return; }
+  if(G.scene==="menu"){ if(SEEDED_CHALLENGE.enabled && menuSeededHit(x,y)){ G.pendingSeededChallenge=true; G.pendingArena=false; G.pendingBossRush=false; G.seededCode=G.seededDailyCode||null; startGame(); } // CAS-2090: Desafío con Semilla entry (gated; semilla del día)
+    else if(BOSS_RUSH.enabled && menuBossRushHit(x,y)){ G.pendingBossRush=true; G.pendingArena=false; G.pendingSeededChallenge=false; startGame(); } // CAS-1988: Modo Boss Rush entry (gated)
+    else if(menuArenaHit(x,y)){ G.pendingArena=true; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); } // CAS-1664: Arena de Oleadas entry
+    else if(menuPlayHit(x,y)){ G.pendingArena=false; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); } return; }
   if(G.scene==="classsel"){ const pc=ui.classCustomRect; if(pc&&pc.w&&x>=pc.x&&x<=pc.x+pc.w&&y>=pc.y&&y<=pc.y+pc.h){ customizeNewHero(CLASS_LIST[G.classSel]); return; }
     for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
   if(G.scene==="abilitysel"){ // CAS-1570: tap an ability card to toggle it, tap Listo to confirm
@@ -725,6 +727,7 @@ function forgeTap(x,y){ for(const r of (ui.forgeRects||[])){ if(x>=r.x&&x<=r.x+r
 function menuPlayHit(x,y){ const r=ui.menuPlayRect; return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
 function menuArenaHit(x,y){ const r=ui.menuArenaRect; return r&&r.w&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; } // CAS-1664
 function menuBossRushHit(x,y){ const r=ui.menuBossRushRect; return r&&r.w&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; } // CAS-1988
+function menuSeededHit(x,y){ const r=ui.menuSeededRect; return r&&r.w&&x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; } // CAS-2090
 
 // ----------------------------- menu flow -------------------------------
 function startGame(){
