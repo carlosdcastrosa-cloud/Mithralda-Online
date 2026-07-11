@@ -1,13 +1,15 @@
 // ---------------------------------------------------------------------------
-// CAS-2102 (QA for CAS-2094 DARK) — QA HOLISTIC FULL-BUILD REGRESSION vs LIVE 56d227365b17 (799 files).
-// Go-forward delta of tools/cas2095-fullbuild-regression.mjs. The ONE build change since CAS-2095 is:
-//   · CAS-2096/CAS-2097/CAS-2101 — PELIGROS DE ARENA / Environmental Hazards (32nd mechanic), shipped
-//     DARK (ARENA_HAZARDS.enabled:false). 3 behavior blobs changed at source (config/sim/render) but the
-//     knob is OFF ⇒ maybeSpawnHazard no-ops on its first line ⇒ 0 draws on ANY stream ⇒ served md5 ==
-//     HEAD for all 8 behavior blobs (byte-fidelity verified separately). So the 32nd mechanic adds 0
-//     regression to the 31 live mechanics (proven by [DETERM] below). OBSERVABLE proof (telegraph, capped
-//     damage, i-frame roll evade, RNG-neutral byte-id, live-canvas glyph render, 60fps desktop+mobile)
-//     lives in tools/cas2094-arena-hazards-live-qa.mjs (browser desktop+mobile PASS×2).
+// CAS-2104 (QA post-flip for CAS-2094) — QA HOLISTIC FULL-BUILD REGRESSION vs LIVE 648093bda064 (799 files).
+// CAS-2102 lineage (DARK). CAS-2104 bumps EXPECT_BUILD 56d227365b17→648093bda064 and flips the [HAZARDS]
+// audit DARK→LIVE. The ONE live change since CAS-2102 is:
+//   · CAS-2103 — GO-LIVE flip ARENA_HAZARDS.enabled false→true (config-only 1-line, reversible). PELIGROS
+//     DE ARENA / Environmental Hazards (32nd mechanic) is now ENABLED-BY-DEFAULT. sim/render blobs are
+//     BYTE-IDENTICAL to CAS-2102 QA-proven (d8576810/837161ce); only sim/config.js changed (md5 ae5cd58a,
+//     enabled:true @1793). The knob spawns hazards ONLY while a boss/elite is present (bossOrElite gate),
+//     so in a normal run the gate is closed ⇒ maybeSpawnHazard returns after the gate check ⇒ 0 draws ⇒
+//     the flip adds 0 regression to the other 31 mechanics (proven by [DETERM] below). ENABLED-BY-DEFAULT
+//     OBSERVABLE proof (natural boss-window telegraph→active, capped damage, i-frame roll evade, RNG-neutral
+//     byte-id, live-canvas glyph render, 60fps) lives in tools/cas2104-arena-hazards-live-postflip.mjs.
 //
 // Historical delta banner (kept):
 // CAS-2095 (QA for CAS-2090 post-flip) — QA HOLISTIC FULL-BUILD REGRESSION vs LIVE d06698422a9b (799 files).
@@ -37,7 +39,7 @@ import * as cfg from "../sim/config.js";
 import * as sim from "../sim/sim.js";
 import { G, update, composeTutSteps } from "../sim/sim.js";
 
-const EXPECT_BUILD = "56d227365b17"; // CAS-2102: bumped from d06698422a9b after CAS-2094 DARK ship (ARENA_HAZARDS.enabled:false; 3 source blobs config/sim/render changed but gated OFF ⇒ served md5==HEAD for all 8 behavior blobs).
+const EXPECT_BUILD = "648093bda064"; // CAS-2104: bumped from 56d227365b17 after CAS-2103 GO-LIVE flip (ARENA_HAZARDS.enabled false→true, config-only 1-line; served config.js md5 ae5cd58a @1793, sim/render UNCHANGED d8576810/837161ce ⇒ only config byte-changed).
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 
 let ok = true;
@@ -194,10 +196,10 @@ function auditHazards() {
     && A.spawnGate && A.spawnGate.bossOrElite === true && A.markerLabel === true
     && A.maxActive > 0 && A.telegraphMs > 0 && A.activeMs > 0 && A.dmgFlat > 0 && A.dmgFracCap > 0 && A.dmgFracCap < 1
     && A.types && A.types.magma && A.types.magma.glyph && A.types.collapse && A.byZone && Array.isArray(A.byZone.caldera);
-  const dark = A && A.enabled === false;   // ships DARK (Gate CEO flips live, reversible)
-  if (shapeOk && dark)
-    pass(`[HAZARDS] ARENA_HAZARDS DARK (32nd mech, CAS-2094) — enabled:false, full knob shape, bossOrElite gate, maxActive=${A.maxActive}, telegraphMs=${A.telegraphMs}, dmgFracCap=${A.dmgFracCap} (≤maxHp*cap, never one-shot), types=[${Object.keys(A.types).join(",")}] — OFF ⇒ 0 draws / byte-id HEAD`);
-  else fail(`[HAZARDS] shapeOk=${shapeOk} dark=${dark} A=${JSON.stringify(A && { enabled: A.enabled, gate: A.spawnGate, marker: A.markerLabel })}`);
+  const liveOn = A && A.enabled === true;   // GO-LIVE post-flip CAS-2103 (config-only, reversible→false)
+  if (shapeOk && liveOn)
+    pass(`[HAZARDS] ARENA_HAZARDS LIVE (32nd mech, CAS-2094) — enabled:TRUE (post-flip CAS-2103), full knob shape, bossOrElite gate, maxActive=${A.maxActive}, telegraphMs=${A.telegraphMs}, dmgFracCap=${A.dmgFracCap} (≤maxHp*cap, never one-shot), types=[${Object.keys(A.types).join(",")}] — gate closed in a normal run ⇒ 0 draws (boss/elite-only spawn)`);
+  else fail(`[HAZARDS] shapeOk=${shapeOk} liveOn=${liveOn} A=${JSON.stringify(A && { enabled: A.enabled, gate: A.spawnGate, marker: A.markerLabel })}`);
 }
 
 function auditNgPlus() {
@@ -282,7 +284,7 @@ function fingerprintRun() {
 function determinism() {
   const a = fingerprintRun();
   const b = fingerprintRun();
-  if (a === b && !a.startsWith("ERR:")) pass(`[DETERM] sim cycle fingerprint identical across 2 runs (len ${a.length}) — 32 mechanics (Arena Hazards DARK) add 0 draws to a normal run`);
+  if (a === b && !a.startsWith("ERR:")) pass(`[DETERM] sim cycle fingerprint identical across 2 runs (len ${a.length}) — 32 mechanics (Arena Hazards LIVE, gate closed w/o boss) add 0 draws to a normal run`);
   else fail(`[DETERM] fingerprints differ or errored a=${a.slice(0, 60)} b=${b.slice(0, 60)}`);
 }
 
@@ -299,5 +301,5 @@ auditJuice();
 determinism();
 
 log("");
-if (ok) log(`✅ CAS-2102 HOLISTIC FULL-BUILD REGRESSION — ALL PASS (24 systems + 5 go-live + TIME-ATTACK(29) + VARIANTS(30,LIVE) + SEEDED CHALLENGE(31,LIVE) + ARENA HAZARDS(32,DARK) + NG_PLUS + onboarding + 7 balance + JUICE + determinism on ${EXPECT_BUILD})`);
+if (ok) log(`✅ CAS-2102 HOLISTIC FULL-BUILD REGRESSION — ALL PASS (24 systems + 5 go-live + TIME-ATTACK(29) + VARIANTS(30,LIVE) + SEEDED CHALLENGE(31,LIVE) + ARENA HAZARDS(32,LIVE) + NG_PLUS + onboarding + 7 balance + JUICE + determinism on ${EXPECT_BUILD})`);
 else { console.error("❌ CAS-2102 HOLISTIC FULL-BUILD REGRESSION — FAIL"); process.exit(1); }
