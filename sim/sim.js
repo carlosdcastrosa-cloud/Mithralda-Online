@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, ENCOUNTER_VARIANTS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -126,6 +126,14 @@ const abilityRng = createRNG(0x0ab111a7);
 // sim byte-identical to a build without it ([AC8] RNG-neutral STRONG). Like other dedicated streams,
 // seed() does NOT reset it — harness neutralises via SIGNATURE_BOSS.enabled=false.
 const bossRng = createRNG(0xb055f17a);
+// CAS-2071 — DEDICATED Encounter-Variants stream (distinct seed 0x0ec02071; NOT one of the used seeds above).
+// maybeVariant SEEDS this stream deterministically from (spawnerIdx, e.x, e.y) then draws the gate + variant pick
+// ONLY from here — never the authoritative srand — so the shared stream is byte-identical ON==OFF at ANY
+// chancePerZone. HARD-GATED behind ENCOUNTER_VARIANTS.enabled: with the knob off maybeVariant returns on its first
+// line and no draw happens on ANY stream ⇒ spawns byte-identical to a build without the feature ([AC0/AC1]
+// RNG-neutral STRONG). Per-spawn seeding (not append-only) makes the variant a pure function of position ⇒ the
+// same seed/pos yields the same variant every time (AC6), independent of spawn order. seed() reset is intrinsic.
+const enemyVariantRng = createRNG(0x0ec02071);
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -2043,10 +2051,16 @@ function poiseCeil(e){ if(!POISE.enabled || !e || !e.tpl) return 0;
   if(e.isBoss) base=POISE.boss.max;
   else if(e.elite||e.champion||e.champElite) base=POISE.elite.max;
   else if(POISE.basicMelee && !e.tpl.neutral && (e.tpl.dmg||0)>0 && (e.tpl.range||0)<=60) base=POISE.elite.max;
+  // CAS-2071 Bastión: the poise-tank variant GRANTS a postura pool to an otherwise poise-less basic mob (that IS
+  // its gimmick — shrug off single hits, break on a combo). Only when the variant flag is set ⇒ OFF / no variant
+  // ⇒ this branch never fires ⇒ byte-identical to HEAD. Damaging non-neutral only (a 0-dmg support carrier reads as noise).
+  else if(e.variantPoiseMul && !e.tpl.neutral && (e.tpl.dmg||0)>0) base=POISE.elite.max;
   else return 0;
   // CAS-2024 NG+: optional per-cycle poise× (sub-flag, default 0 ⇒ mul 1 ⇒ byte-id HEAD). Post-spawn,
   // per-hit authoritative, 0 draws. Stacks under the SIGNATURE_BOSS phase-2 poise override (applied later in hitEnemy).
-  const m=ngPoiseMul(); return m===1?base:Math.round(base*m); }
+  // CAS-2071 Bastión: the Encounter-Variant poise× layers here the SAME way (mirror of ngPoiseMul) — read off the
+  // per-entity e.variantPoiseMul baked by maybeVariant. Absent (no variant / OFF) ⇒ 1 ⇒ byte-identical to HEAD.
+  const m=ngPoiseMul()*(e.variantPoiseMul||1); return m===1?base:Math.round(base*m); }
 // CAS-342: the legacy positional caves boss (spawnBoss) is removed — the dragon is now the caves
 // ZONE CAPSTONE (HUNTS.caves.boss), summoned by spawnChampion when the kill quota is met, and
 // carries its 6-anim rich rendering + breath through the shared capstone path. The dev.spawn hook
@@ -2173,6 +2187,47 @@ function applyAffix(e, id){
   t.gearChance=Math.min(1,(b.gearChance||0)+(A.gearBonus||0));       // higher Forja-gear drop chance (CAS-237 tie-in)
   e.tpl=t; e.hp=e.maxHp=t.hp;
   e.affix=id; e.affixGait=A.gaitMul||1;                              // render: tint/glow colour by id + swift gait scale
+  return e;
+}
+
+// CAS-2071 — roll a deterministic BEHAVIOUR VARIANT onto an eligible freshly-spawned trash mob, called
+// IMMEDIATELY AFTER maybeAffix in the natural-spawn loop. A variant reuses the mob's sprite + the shared
+// windup→strike→recover AI and ONLY modulates stats on a CLONE of the tpl (mirror applyAffix/applyZoneScale) —
+// no new AI, no new damage path, no new save. Each variant forces a distinct tool of the kit: Acechador (short
+// windup + long lunge ⇒ parry/dodge), Bastión (high poise ⇒ combo+break), Frágil (low hp + fast ⇒ AoE). The
+// selection draws ONLY from the DEDICATED enemyVariantRng stream, seeded per-spawn from (spawnerIdx, e.x, e.y),
+// so it NEVER touches the master srand (srand ON==OFF byte-identical) AND is a pure function of position (AC6).
+function maybeVariant(e, spawnerIdx){
+  if(!ENCOUNTER_VARIANTS.enabled) return e;                          // OFF ⇒ first line ⇒ 0 draws on ANY stream ⇒ byte-id HEAD
+  if(!e || e.elite || e.champion || e.champElite || e.isBoss || e.affix || e.tpl.neutral) return e; // same exclusions as maybeAffix + do NOT stack on an affixed body
+  if((e.tpl.dmg||0)<=0 || e.tpl.arch==="volatile") return e;         // supports / bombers make degenerate carriers (mirror maybeAffix)
+  const zone=e.scaleZone;                                            // set by applyZoneScale just above the caller
+  const pool=ENCOUNTER_VARIANTS.byZone && ENCOUNTER_VARIANTS.byZone[zone];
+  if(!pool || !pool.length) return e;                                // zone not opted in ⇒ no variant
+  const chance=(ENCOUNTER_VARIANTS.chancePerZone && ENCOUNTER_VARIANTS.chancePerZone[zone])||0;
+  if(!(chance>0)) return e;                                          // absent ⇒ 0 ⇒ base mob (variant is salt, not replacement)
+  // Deterministic per-spawn seed from (spawnerIdx, e.x, e.y) XOR rngSeed — reset the dedicated stream so the
+  // assignment is a stable function of position (AC6), independent of how many spawns preceded it.
+  const seed=((ENCOUNTER_VARIANTS.rngSeed>>>0) ^ (((spawnerIdx|0)*0x9e3779b9)>>>0) ^ ((Math.round(e.x)*374761393)>>>0) ^ ((Math.round(e.y)*668265263)>>>0))>>>0;
+  enemyVariantRng.seed(seed);
+  if(enemyVariantRng.srand()>=chance) return e;                      // gate — most spawns stay base
+  const id=pool[enemyVariantRng.ri(0,pool.length-1)];                // pick a zone-eligible variant
+  return applyVariant(e, id);
+}
+// Bake a SPECIFIC variant's stat modulations onto a mob — clones the template (never the shared ETPL row),
+// exactly like applyAffix. Only touches knobs the sim already reads (windup/lunge/hp/spd/dmg) + the per-entity
+// e.variantPoiseMul consumed by poiseCeil. No RNG. Records e.variant/e.variantTint for the procedural marker.
+function applyVariant(e, id){
+  const V=ENCOUNTER_VARIANTS.variants && ENCOUNTER_VARIANTS.variants[id]; if(!e||!V) return e;
+  const b=e.tpl, t=Object.assign({},b);
+  if(V.hpMul)  t.hp=Math.round(b.hp*V.hpMul);
+  if(V.spdMul) t.spd=Math.max(1,Math.round(b.spd*V.spdMul));
+  if(V.dmgMul) t.dmg=Math.round((b.dmg||0)*V.dmgMul);
+  if(V.windupMul){ let w=(b.windup||0)*V.windupMul; if(V.windupFloor!=null) w=Math.max(V.windupFloor,w); t.windup=w; } // floor keeps the tell parryable
+  if(V.lungeMul!=null && b.lunge!=null) t.lunge=Math.round(b.lunge*V.lungeMul);
+  e.tpl=t; e.hp=e.maxHp=t.hp;
+  if(V.poiseMaxMul) e.variantPoiseMul=V.poiseMaxMul;                 // read in poiseCeil (default 1 ⇒ byte-id); Bastión only
+  e.variant=id; e.variantTint=V.tint;                               // render: procedural tint/halo/label (mirror affix path)
   return e;
 }
 
@@ -4359,12 +4414,12 @@ export function update(dtMs){
   // CAS-1988: advance the PARALLEL Boss Rush round loop (rest countdown / round-clear → next round). Gated ⇒ OFF no-op.
   if(G.bossRushMode) tickBossRush(dt);
   // spawners — suppressed in arena so only the wave roster is present (CAS-1664)
-  if(!G.arenaMode && !G.bossRushMode) for(const sp of world.spawners){ sp.t-=dt; const count=G.enemies.filter(e=>e.tpl && sp.types.includes(e.type)&&!e.isBoss).length; // CAS-1988: natural spawners suppressed in Boss Rush too (the ordered gauntlet owns the field — no trash)
+  if(!G.arenaMode && !G.bossRushMode) for(let _spi=0; _spi<world.spawners.length; _spi++){ const sp=world.spawners[_spi]; sp.t-=dt; const count=G.enemies.filter(e=>e.tpl && sp.types.includes(e.type)&&!e.isBoss).length; // CAS-1988: natural spawners suppressed in Boss Rush too (the ordered gauntlet owns the field — no trash)
     if(sp.t<=0 && count<sp.max){ sp.t=sp.cool; const tp=sp.types[ri(0,sp.types.length-1)];
       let tx,ty,tries=0; do{ tx=(sp.rect.x+rr(2,sp.rect.w-2))*TS; ty=(sp.rect.y+rr(2,sp.rect.h-2))*TS; tries++; }
         while((dist2(tx,ty,h.x,h.y)<300*300 || (world.wallSet&&world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS)))) && tries<10);
       const wallHere = world.wallSet && world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS));
-      if(!wallHere && dist2(tx,ty,h.x,h.y)>240*240) maybeAffix(applyZoneScale(spawnEnemy(tp,tx,ty), sp.zone)); } } // CAS-247: a fraction of natural spawns roll an elite affix
+      if(!wallHere && dist2(tx,ty,h.x,h.y)>240*240) maybeVariant(maybeAffix(applyZoneScale(spawnEnemy(tp,tx,ty), sp.zone)), _spi); } } // CAS-247: elite affix roll · CAS-2071: then a behaviour variant (OFF ⇒ no-op, 0 draws)
 
   if(h.hp<=0) heroDie();
   // camera (presentation-only; reads plain viewport numbers, never the DOM)
@@ -5397,6 +5452,71 @@ export const dev = {
   zoneTier(zone, type){ const e=applyZoneScale(spawnEnemy(type, -9999, -9999), zone);
     const z=ZONE_TIER[zone]; const r=z?{ tier:z.tier, hp:e.tpl.hp, dmg:e.tpl.dmg, spd:e.tpl.spd, xp:e.tpl.xp }:null;
     G.enemies.splice(G.enemies.indexOf(e),1); return r; },
+  // --- CAS-2071 Encounter-Variants harness hooks (tools/cas2071-variants.mjs); additive, drive the REAL paths ---
+  // Master toggle: flip ENCOUNTER_VARIANTS.enabled (mirror of the other feature enables). OFF ⇒ maybeVariant no-ops.
+  variantEnable(on){ ENCOUNTER_VARIANTS.enabled=!!on; return { enabled:ENCOUNTER_VARIANTS.enabled }; },
+  // Spawn one trash mob OFF-SCREEN through the REAL spawn+scale path, snapshot its BASE stats, bake a SPECIFIC
+  // variant onto its tpl CLONE via the REAL applyVariant, and report base-vs-variant stats + the resolved poise
+  // ceiling (AC2 windup/lunge, AC3 ceiling, AC4 hp/spd). Removes the throwaway mob. 0 srand.
+  variantMods(id, type, zone){
+    const e=applyZoneScale(spawnEnemy(type||"wolf", -9999, -9999), zone||"forest"); if(!e) return null;
+    const b=e.tpl;
+    const base={ windup:b.windup, lunge:(b.lunge==null?null:b.lunge), hp:b.hp, spd:b.spd, dmg:b.dmg, poiseCeil:poiseCeil(e) };
+    applyVariant(e, id);
+    const t=e.tpl;
+    const variant={ windup:t.windup, lunge:(t.lunge==null?null:t.lunge), hp:t.hp, spd:t.spd, dmg:t.dmg, poiseCeil:poiseCeil(e),
+      variant:e.variant, tint:e.variantTint, poiseMul:(e.variantPoiseMul||1) };
+    const i=G.enemies.indexOf(e); if(i>=0) G.enemies.splice(i,1);
+    return { id, base, variant };
+  },
+  // Run the REAL maybeVariant on a fresh scaled spawn at a FIXED (spawnerIdx, x, y) and report the assigned
+  // variant id (or null). Deterministic per-position ⇒ same inputs ⇒ same id (AC6); the gate lets most stay base.
+  variantAssign(zone, spawnerIdx, x, y, type){
+    const e=applyZoneScale(spawnEnemy(type||"wolf", x||0, y||0), zone||"forest"); if(!e) return null;
+    maybeVariant(e, spawnerIdx|0);
+    const out=e.variant||null; const i=G.enemies.indexOf(e); if(i>=0) G.enemies.splice(i,1); return out;
+  },
+  // AC0/AC1 [AC-RNG-STRONG]: fingerprint the gameplay srand around a FIXED spawn→scale→maybeAffix→maybeVariant
+  // script with variants ON vs OFF. maybeVariant draws ONLY from the dedicated enemyVariantRng (seeded locally),
+  // NEVER the master srand, so the fingerprint is BYTE-IDENTICAL ON==OFF — RNG-neutral STRONG by construction.
+  // The FIXED position grid makes the ON assignment reproducible; assigned[] proves the ON path actually produced
+  // variants (else the neutrality proof would be vacuous). probeN draws pre + post = 2*probeN total.
+  variantSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savEn=ENCOUNTER_VARIANTS.enabled; ENCOUNTER_VARIANTS.enabled=!!enabled;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));    // pre-segment
+    const assigned=[]; const zones=["forest","caves","swamp","abyss"];
+    for(let k=0;k<24;k++){ const z=zones[k&3]; const e=applyZoneScale(spawnEnemy("wolf", 100+k*7, 200+k*11), z);
+      maybeAffix(e); maybeVariant(e, k); assigned.push(e.variant||null);
+      const i=G.enemies.indexOf(e); if(i>=0) G.enemies.splice(i,1); }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                 // post-segment
+    ENCOUNTER_VARIANTS.enabled=savEn;
+    return { enabled:!!enabled, fingerprint:fp, variantCount:assigned.filter(Boolean).length, assigned }; },
+  // AC3 Bastión: drive the REAL poise accrual (hitEnemy) on a variant mob to prove a single LIGHT hit does NOT
+  // break its postura (poise < ceiling) but sustained hits (a combo) DO — ceiling == round(POISE.elite.max ×
+  // poiseMaxMul). Compares hits-to-stagger vs a plain poise-bearing elite baseline (Bastión is strictly tankier)
+  // and vs a HEAVY combo (breaks faster). e.hp is pinned huge so the mob can't die before it staggers. Needs a hero.
+  variantPoiseTest(id, type, zone){
+    const savEn=ENCOUNTER_VARIANTS.enabled; ENCOUNTER_VARIANTS.enabled=true;
+    if(!G.hero) createHero("VariantQA","warrior");
+    const arm=(applyVar, elite)=>{ const e=applyZoneScale(spawnEnemy(type||"orc", -9999, -9999), zone||"caves");
+      if(applyVar) applyVariant(e, id); if(elite) e.elite=true; e.hp=e.maxHp=1e9; e.poise=0; e.staggerT=0; e.staggerCD=0; e.poiseMax=poiseCeil(e); return e; };
+    const drop=(e)=>{ const i=G.enemies.indexOf(e); if(i>=0) G.enemies.splice(i,1); };
+    const hitsToStagger=(e, opt)=>{ let n=0; while(e.staggerT<=0 && n<400){ hitEnemy(e, 1, 0, opt); n++; } const st=e.staggerT>0; drop(e); return { hits:n, staggered:st }; };
+    // Bastión: one light hit must NOT break it (poise builds below the ceiling).
+    const eB=arm(true,false); const ceiling=eB.poiseMax; hitEnemy(eB,1,0,{melee:true});
+    const oneLightPoise=eB.poise, oneLightStagger=eB.staggerT>0; drop(eB);
+    const bastionLight=hitsToStagger(arm(true,false), {melee:true});          // a combo of lights DOES break it
+    const bastionHeavy=hitsToStagger(arm(true,false), {melee:true, heavy:true}); // heavies break it faster
+    const eBase=arm(false,true); const eliteCeiling=eBase.poiseMax;           // plain elite baseline (ceiling = elite.max)
+    const eliteLight=hitsToStagger(eBase, {melee:true});
+    ENCOUNTER_VARIANTS.enabled=savEn;
+    const V=(ENCOUNTER_VARIANTS.variants&&ENCOUNTER_VARIANTS.variants[id])||{};
+    return { ceiling, eliteCeiling, expectCeiling:Math.round(POISE.elite.max*(V.poiseMaxMul||1)), poiseMul:(V.poiseMaxMul||1),
+      gainLight:POISE.gain.light, oneLightPoise, oneLightStagger,
+      bastionLightHits:bastionLight.hits, bastionLightStaggered:bastionLight.staggered,
+      bastionHeavyHits:bastionHeavy.hits, bastionHeavyStaggered:bastionHeavy.staggered,
+      eliteLightHits:eliteLight.hits, eliteLightStaggered:eliteLight.staggered }; },
   // --- hunt-contract harness hooks (tools/hunt.mjs, CAS-63); additive ---
   // Read a zone's contract progress; champ reports the live elite's hp if summoned.
   huntState(zone){ const H=G.hunts&&G.hunts[zone]; const cfgH=HUNTS[zone]; if(!H||!cfgH) return null;

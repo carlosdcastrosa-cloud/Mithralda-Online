@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, ENCOUNTER_VARIANTS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -1180,6 +1180,17 @@ export function createRenderer(ctx){
           ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,A.auraR,A.auraR*0.5,0,0,6.28); ctx.stroke();
           if(ctx.setLineDash) ctx.setLineDash([]); }
         ctx.restore(); } }
+    // CAS-2071 ENCOUNTER VARIANT marker — PROCEDURAL, $0 art. Mirror of the affix halo/tint above (mutually
+    // exclusive with an affix by construction: maybeVariant never stacks on an affixed body). A soft ground ring
+    // + additive tint in the variant's colour reads the behaviour mod on the sprite mass. OFF ⇒ no e.variant is
+    // ever set ⇒ this branch is never entered ⇒ render behaviour byte-identical to HEAD.
+    if(e.variant && e.variantTint && !e.affix && !e.champElite && !e.elite && !e.champion && !e.isBoss){ const col=e.variantTint;
+      const pr=e.tpl.size*1.12 + Math.sin(G.t*6)*2; ctx.save();
+      ctx.globalAlpha=0.5; ctx.strokeStyle=col; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.ellipse(e.x,e.y+e.tpl.size*0.5,pr,pr*0.42,0,0,6.28); ctx.stroke();
+      ctx.globalCompositeOperation="lighter"; ctx.globalAlpha=0.12+0.05*(0.5+0.5*Math.sin(G.t*5));
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(e.x,e.y,e.tpl.size*1.05,0,6.28); ctx.fill();
+      ctx.restore(); }
     // CAS-121 CORAZA DE ESCARCHA telegraph: while the boss channels its Freeze Nova it
     // wears a pulsing ice shell (reads as IMMUNE) and a danger ring GROWS toward the nova
     // radius over the channel — the player reads "break it with a status, or roll out".
@@ -1427,6 +1438,8 @@ export function createRenderer(ctx){
     else if(e.elite){ ctx.fillStyle="#ff7a4d"; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("⚔ ÉLITE",e.x,yy-3); }
     // CAS-247: name the affix above the HP bar in its colour, so the modifier is unmistakable.
     else if(e.affix && MOB_AFFIX[e.affix]){ ctx.fillStyle=MOB_AFFIX[e.affix].col; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("✦ "+MOB_AFFIX[e.affix].name,e.x,yy-3); }
+    // CAS-2071: name the behaviour variant above the HP bar in its colour (procedural, mirror of the affix label).
+    else if(e.variant && ENCOUNTER_VARIANTS.markerLabel && ENCOUNTER_VARIANTS.variants[e.variant]){ const V=ENCOUNTER_VARIANTS.variants[e.variant]; ctx.fillStyle=V.tint; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("◈ "+V.name,e.x,yy-3); }
     // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
     drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
   }
