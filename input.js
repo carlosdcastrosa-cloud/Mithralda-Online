@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK, GUARD_BREAK } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK, GUARD_BREAK, LUNGE } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -327,6 +327,12 @@ function edge(code){
   // parry / WEAPON_ARTS.key: never touches REBINDS/settings.binds). El sim decide (guardBreakKick gated en play + vivo + estamina +
   // recuperación). Cross-platform (móvil = botón HUD tap tb.guardbreak). Es un TAP en el edge (no held) ⇒ 0 consumidor de keyup.
   if(code===GUARD_BREAK.key && GUARD_BREAK.enabled){ sim.guardBreakKick(); return; }
+  // CAS-2156: dedicated LUNGE.key (default Backslash "\" — code LIBRE; las 26 letras + Semicolon/Quote/Slash/Brackets/Comma/Period/KeyN/KeyE
+  // ocupadas) dispara la ESTOCADA DE AVANCE (verbo de movilidad-ofensiva anti-kite) — gated on LUNGE.enabled, so con la feature off la tecla
+  // es inerte (falls through, no state change ⇒ snapshot byte-id). NO es rebindable (deliberate, como KeyH parry / GUARD_BREAK.key: never
+  // touches REBINDS/settings.binds). El sim decide (lungeStrike gated en play + vivo + estamina + recuperación). Cross-platform (móvil =
+  // botón HUD tap tb.lunge). Es un TAP en el edge (no held) ⇒ 0 consumidor de keyup.
+  if(code===LUNGE.key && LUNGE.enabled){ sim.lungeStrike(); return; }
   // CAS-1920: dedicated THROWABLES.throwKey (default Quote) LANZA el consumible arrojadizo seleccionado + THROWABLES.cycleKey
   // (default Slash) CICLA el tipo — ambos CODEs LIBRES (26 letras + Semicolon ocupadas). Gated on THROWABLES.enabled, so con la
   // feature off ambas teclas son inertes (falls through, no state change). NO son acciones rebindables (deliberate, como KeyH parry /
@@ -487,6 +493,10 @@ export function tbtns(){ // returns button rects for current scene
     // controles es byte-idéntico a HEAD (mirror tb.weaponbuff). Es un TAP (no hold): handleUITap llama `act` ⇒ sim.spawnSpirit() invoca al
     // espíritu (mismo seam del sim que desktop; se atenúa sin cargas — chargeKey summonCharges, ver render). $0 arte (glifo procedural 👻).
     ...(SUMMON.enabled ? { summon:{x:m+bs*8.05, y:VH-m-bs*2.2, r:bs*0.4, label:"👻", chargeKey:"summonCharges", act:()=>sim.spawnSpirit()} } : {}),
+    // CAS-2156: botón táctil de la ESTOCADA DE AVANCE — SÓLO cuando LUNGE.enabled, así con el knob OFF no hay botón ⇒ el layout de
+    // controles es byte-idéntico a HEAD (mirror tb.guardbreak). Es un TAP (no hold): handleUITap llama `act` ⇒ sim.lungeStrike() dispara
+    // el dash ofensivo (mismo seam del sim que desktop; se atenúa durante la recuperación _lungeCd — ver render). $0 arte (glifo procedural ➤).
+    ...(LUNGE.enabled ? { lunge:{x:m+bs*9.15, y:VH-m-bs*2.2, r:bs*0.4, label:"➤", act:()=>sim.lungeStrike()} } : {}),
     bs
   };
 }
