@@ -1355,7 +1355,7 @@ export const WEAPON_ARTS = {
   // efecto por arquetipo (clave = weaponArchName). Números = FEEL/CEO, tunables sin rebuild. Campos ausentes ⇒ ×1 (ART_UNIT).
   classes: {
     // Golpe de Carga: overhead comprometido — ventana hyperarmor extendida (reusa Pilar 16), poise/daño masivo.
-    greatsword: { name:"Golpe de Carga",       stam:35, windupMul:1.6, dmgMul:1.8, poiseDmgMul:2.2, hyperarmor:true },
+    greatsword: { name:"Golpe de Carga",       stam:35, windupMul:1.6, dmgMul:1.8, poiseDmgMul:1.8, hyperarmor:true },
     // Filo Sombrío: dash corto que reposiciona DETRÁS del objetivo ⇒ setup auto-backstab (Pilar 6). Barato.
     dagger:     { name:"Filo Sombrío",         stam:12, dashDist:70,  dmgMul:0.9, autoBackstab:true },
     // Estocada Perforante: reach↑↑ arco estrecho, atraviesa la línea frontal. Espaciado.
