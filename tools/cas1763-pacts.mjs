@@ -44,9 +44,9 @@ try {
   sim.createHero("PactBot", "warrior");
   d.pactsEnable(true); d.pactsReset();
 
-  // ---------- content sanity: the fixed table of 5 pacts ----------
+  // ---------- content sanity: the fixed table of pacts (5 base CAS-1763 + 3 CAS-2080 increment) ----------
   const st0 = d.pactsState();
-  if (st0.enabled && st0.total === 5 && st0.active === 0 && st0.heat === 0 && st0.essMul === 1 && st0.dropMul === 1)
+  if (st0.enabled && st0.total === 8 && st0.active === 0 && st0.heat === 0 && st0.essMul === 1 && st0.dropMul === 1)
     pass(`content: fixed table of ${st0.total} pacts, none active, heat 0, reward muls 1.0`);
   else fail(`content wrong: ${J(st0)}`);
 
