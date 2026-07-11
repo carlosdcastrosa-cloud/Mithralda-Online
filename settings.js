@@ -56,7 +56,7 @@ export function defaultBinds(){ const o={}; for(const r of REBINDS) o[r.a]=r.def
 // the presentation/accessibility/controls fields we persist — NEVER gameplay state.
 function snapshot(){ const s=G.settings; return {
   shake:s.shake, crt:s.crt, rollAim:s.rollAim, reduceMotion:s.reduceMotion,
-  colorblind:s.colorblind, binds:s.binds }; }
+  colorblind:s.colorblind, hitStop:s.hitStop, flash:s.flash, binds:s.binds }; }
 
 let suppressed = false;
 export function save(){
@@ -80,6 +80,8 @@ export function boot(){
     if(typeof saved.rollAim === "boolean") s.rollAim = saved.rollAim;
     if(typeof saved.reduceMotion === "boolean") s.reduceMotion = saved.reduceMotion;
     if(typeof saved.colorblind === "boolean") s.colorblind = saved.colorblind;
+    if(typeof saved.hitStop === "boolean") s.hitStop = saved.hitStop;
+    if(typeof saved.flash === "boolean") s.flash = saved.flash;
     if(saved.binds && typeof saved.binds === "object"){
       const b = defaultBinds();    // start from defaults so a partial/old table still binds every action
       for(const r of REBINDS){ const c = saved.binds[r.a]; if(typeof c === "string" && c) b[r.a] = c; }

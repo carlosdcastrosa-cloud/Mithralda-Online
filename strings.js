@@ -241,6 +241,8 @@ export const STR = {
   resume: "VOLVER AL JUEGO",
   settingsTitle: "AJUSTES",
   settingShake: "Sacudida de pantalla",
+  settingHitStop: "Congelado de impacto",
+  settingFlash: "Destellos (crítico/espalda)",
   settingReduceMotion: "Movimiento reducido",
   settingCRT: "Filtro CRT",
   settingSidebar: "Barra lateral (clásico)",
