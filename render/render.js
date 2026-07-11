@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -2388,6 +2388,12 @@ export function createRenderer(ctx){
     let xMP=g.x0+g.total+gapB; const rEdge=sidebar?view.sbx():VW;
     if(xMP+wMP>rEdge-8) xMP=rEdge-8-wMP;                    // keep MP inside the game area / viewport
     bar(xHP,yHP,wHP,hHP, h.hp/mhp,          COL.hpf,COL.hpb, STR.hp+" "+Math.max(0,Math.ceil(h.hp))+"/"+mhp);
+    // CAS-2114: RECUPERACIÓN/RALLY — overlay 'ghost HP' translúcido verde sobre la barra de HP: segmento desde el fin del
+    // fill de HP hasta (hp+rallyPool) capado a mhp, mostrando el pool recuperable armado por el daño recibido. $0 arte:
+    // reusa la primitiva canvas (fillRect) ya viva. Gated: RALLY.enabled=false / pool ~0 ⇒ no dibuja ⇒ byte-id a HEAD.
+    if(RALLY.enabled && (h.rallyPool||0)>0.01){ const hpFrac=clamp(h.hp/mhp,0,1), poolFrac=clamp((h.hp+h.rallyPool)/mhp,0,1);
+      if(poolFrac>hpFrac){ ctx.save(); ctx.globalAlpha=0.5; ctx.fillStyle="#8fff9a";
+        ctx.fillRect(xHP+wHP*hpFrac, yHP, wHP*(poolFrac-hpFrac), hHP); ctx.restore(); } }
     bar(xMP,yMP,wMP,hMP, h.mp/h.maxMp,      COL.mpf,COL.mpb, STR.mp+" "+Math.ceil(h.mp)+"/"+h.maxMp);
     AR("vitals_hp", xHP-2, yHP-2, wHP+4, hHP+4); AR("vitals_mp", xMP-2, yMP-2, wMP+4, hMP+4);
   }

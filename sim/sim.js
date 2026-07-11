@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -414,6 +414,11 @@ function newHero(name,cls){
     // tras el rodar), consumida por el swing LIGHT en applyHeroMelee, decae por dt en tickDodgeCounter. Fuera del allowlist
     // de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG (no existe dodgeCounterRng).
     dodgeCounterT:0,
+    // CAS-2114: RECUPERACIÓN / RALLY — estado transitorio (mirror dodgeCounterT). rallyPool = HP recuperable acumulado
+    // por el daño recibido (armado en damageHero, capeado a RALLY.capFracMaxHp×HPmax); rallyT = segundos restantes de la
+    // ventana antes de forzar el pool a 0 (tickRally). Un golpe melee que conecta cura del pool (applyHeroMelee). Fuera del
+    // allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG (no existe rallyRng).
+    rallyPool:0, rallyT:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -2469,6 +2474,14 @@ function tickGuardCounter(h,dt){ if(!GUARD_COUNTER.enabled||!h) return;
 function tickDodgeCounter(h,dt){ if(!DODGE_COUNTER.enabled||!h) return;
   if(h.dodgeCounterT>0) h.dodgeCounterT=Math.max(0,h.dodgeCounterT-dt);
 }
+// CAS-2114: RECUPERACIÓN/RALLY tick — el pool recuperable (h.rallyPool, armado en damageHero) decae lineal
+// decayPerSec×HPmax/s mientras la ventana está viva; al expirar (rallyT→0) el pool se fuerza a 0 (windowS = techo duro).
+// Aritmética pura ⇒ 0 RNG, NO existe rallyRng. Gated on RALLY.enabled ⇒ off (o nunca armado) ⇒ rallyPool/rallyT quedan en 0
+// (byte-idéntico a HEAD). Mirror tickDodgeCounter.
+function tickRally(h,dt){ if(!RALLY.enabled||!h) return;
+  if(h.rallyPool>0) h.rallyPool=Math.max(0, h.rallyPool - RALLY.decayPerSec*heroMaxHp(h)*dt);
+  if(h.rallyT>0){ h.rallyT=Math.max(0,h.rallyT-dt); if(h.rallyT<=0) h.rallyPool=0; }
+}
 
 // CAS-1831: SISTEMA DE COMBOS window tick — single source of truth (called from update(dt) and the harness
 // step hook). Winds down the light-chain window; once it lapses the chain COOLS (comboCount→0) so the next
@@ -2770,18 +2783,29 @@ function applyHeroMelee(){
     if(STAMINA.enabled && DODGE_COUNTER.staminaCost>0){ h.stam=Math.max(0,h.stam-DODGE_COUNTER.staminaCost); h._stamRegenPauseT=STAMINA.regenDelay; }
     addFx("spellburst",h.x,h.y-2,{col:"#bfeaff"}); floater(h.x,h.y-40,STR.dodgeCounter||"¡CONTRA-ESQUIVA!","#bfeaff"); }   // $0 arte: primitiva canvas existente
   heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
+  let rallyLanded=false; // CAS-2114: ¿este swing conectó ≥1 enemigo? (arma la recuperación del pool tras el loop)
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
     const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range*wa.reachMul*wart.reachMul+e.tpl.size) continue;   // CAS-1907 alcance ×reachMul · CAS-1914 ×artReachMul (OFF/sword sin Arte ⇒ ×1)
     const ang=Math.atan2(e.y-h.y,e.x-h.x);
     if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc*wa.arcMul*wart.arcMul/2){                       // CAS-1907 arco ×arcMul · CAS-1914 ×artArcMul (OFF/sword sin Arte ⇒ ×1)
       h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th, arch:wa, art:wart, guardCounter:gc, dodgeCounter:dc}); shakeAdd(5.5);
+      rallyLanded=true;
       // CAS-204: a bold crimson→white crescent sweeps through the struck enemy on a melee connect,
       // so the swing reads as cleaving INTO the target rather than next to it (FOUNTAINS slash juice).
       addFx("slashArc",e.x,e.y,{ang:h.atkAng,life:0.2});
     }
   }
   heroMeleeHit=false; // CAS-383: disarm — subsequent ranged/spell hits must not leech
+  // CAS-2114: RECUPERACIÓN/RALLY — un swing melee que CONECTA (rallyLanded) devuelve una fracción del pool recuperable
+  // (armado por el daño recibido en damageHero) al HP. Una VEZ por swing (no por enemigo golpeado) ⇒ un barrido AoE no
+  // multiplica la cura. heal = pool×healPerHitFrac (healPerHitFrac<1 ⇒ nunca full-heal); se resta del pool y se suma a
+  // h.hp (capeado a HPmax). Aritmética pura ⇒ 0 draw. RALLY.enabled=false / requiresMelee=false / pool 0 / swing en vacío
+  // ⇒ rama muerta ⇒ byte-idéntico a HEAD. $0 arte: floater + spellburst (primitivas canvas ya vivas).
+  if(RALLY.enabled && RALLY.requiresMelee && rallyLanded && (h.rallyPool||0)>0){
+    const heal=Math.min(h.rallyPool*RALLY.healPerHitFrac, h.rallyPool);
+    h.rallyPool-=heal; h.hp=Math.min(heroMaxHp(h), h.hp+heal);
+    addFx("spellburst",h.x,h.y-2,{col:"#8fff9a"}); floater(h.x,h.y-40,STR.rally||"¡RECUPERA!","#8fff9a"); }
 }
 // CAS-383: set true only across the melee-swing loop (applyHeroMelee), so the Sed de Sangre
 // lifesteal boon leeches on melee connects but not on ranged/spell hits (all of which also
@@ -4565,6 +4589,7 @@ export function update(dtMs){
   tickParry(h,dt);  // CAS-1785: parry window + cooldown wind-down (arithmetic, no RNG, gated on PARRY.enabled)
   tickGuardCounter(h,dt); // CAS-2107: guard-counter window wind-down (arithmetic, no RNG, gated on GUARD_COUNTER.enabled)
   tickDodgeCounter(h,dt); // CAS-2110: dodge-counter window wind-down (arithmetic, no RNG, gated on DODGE_COUNTER.enabled)
+  tickRally(h,dt);  // CAS-2114: rally/regain pool decay + window expiry (arithmetic, no RNG, gated on RALLY.enabled)
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
@@ -5419,6 +5444,13 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   }
   const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
+  // CAS-2114: RECUPERACIÓN/RALLY — arma el pool recuperable con una fracción del DAÑO REAL que acaba de entrar (`real`,
+  // ya post-armadura/bloqueo). Corre DESPUÉS de todos los early-outs de negación (espíritu/parry/i-frame/dodge/block, que
+  // retornan arriba) ⇒ sólo el daño que de verdad restó HP alimenta el pool. Capeado a capFracMaxHp×HPmax (anti-abuse jefes).
+  // Aritmética pura ⇒ 0 draw (no existe rallyRng). RALLY.enabled=false ⇒ esta rama nunca corre ⇒ h.rallyPool queda en 0 ⇒
+  // ruta de daño byte-idéntica a HEAD (OFF==baseline). El pool decae en tickRally; un golpe melee lo consume (applyHeroMelee).
+  if(RALLY.enabled){ const hpMax=heroMaxHp(h);
+    h.rallyPool=Math.min((h.rallyPool||0)+real*RALLY.recoverFrac, RALLY.capFracMaxHp*hpMax); h.rallyT=RALLY.windowS; }
   // CAS-2047 Time-Attack: count a LANDED hit while in Boss Rush (all negate/dodge/parry paths returned above, so only
   // real damage counts). Boss-rush-gated ⇒ normal adventures never touch the counter; off ⇒ dead ⇒ HEAD byte-id.
   if(G.bossRushMode && BOSS_RUSH.timeAttack) G.bossRush.hitsReceived++;
@@ -8177,6 +8209,93 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     DODGE_COUNTER.enabled=savD; STAMINA.enabled=savS; this._dcArm();
     return { enabled:!!enabled, counterFired:(enabled?(opened&&countered):false), fingerprint:fp }; },
+  // --- CAS-2114 RECUPERACIÓN / RALLY / REGAIN (mecánica #35) harness hooks (tools/cas2114-rally-live-qa.mjs); additive,
+  // DRIVEN el loop REAL: damageHero (arma h.rallyPool con el daño REAL recibido, capeado), tickRally (decae lineal + expira),
+  // applyHeroMelee (swing que conecta cura del pool). Todo timing/aritmética ⇒ 0 srand, NO existe rallyRng. h.rallyPool/
+  // h.rallyT transitorios (mirror h.dodgeCounterT, fuera del allowlist de serializeSave) ⇒ save.v1 byte-id y SIN clave. ---
+  rallyMeta(){ return { enabled:RALLY.enabled, recoverFrac:RALLY.recoverFrac, windowS:RALLY.windowS, healPerHitFrac:RALLY.healPerHitFrac, decayPerSec:RALLY.decayPerSec, capFracMaxHp:RALLY.capFracMaxHp, requiresMelee:RALLY.requiresMelee }; },
+  rallyEnable(on){ RALLY.enabled=!!on; return { enabled:RALLY.enabled }; },
+  rallyState(){ const h=G.hero; if(!h) return null; return { rallyPool:+((h.rallyPool||0).toFixed(4)), rallyT:+((h.rallyT||0).toFixed(4)), hp:+((h.hp||0).toFixed(4)), hpMax:+(heroMaxHp(h).toFixed(4)) }; },
+  // AC APERTURA: recibir daño REAL arma el pool = real×recoverFrac (capeado) y rallyT=windowS. src=null (proyectil) ⇒ salta
+  // espíritu/parry/bloqueo; sin i-frame/rolling ⇒ el daño ENTRA. 0 srand.
+  rallyArmProbe(){ const savR=RALLY.enabled; RALLY.enabled=true;
+    const h=this._dcArm("warrior"); h.rallyPool=0; h.rallyT=0; const hpMax=heroMaxHp(h);
+    h.hp=hpMax*0.5; h.iframe=0; h.rolling=false; h.blocking=false; h.dead=false;
+    const e=spawnEnemy("wolf",h.x+400,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }   // lejos ⇒ no contamina
+    const hp0=h.hp; damageHero(100,0,null,null); const real=hp0-h.hp;
+    const expectPool=Math.min(real*RALLY.recoverFrac, RALLY.capFracMaxHp*hpMax), pool=h.rallyPool||0, rallyT=h.rallyT||0;
+    const poolOk=Math.abs(pool-expectPool)<1e-6, windowOk=Math.abs(rallyT-RALLY.windowS)<1e-9;
+    RALLY.enabled=savR; this._dcArm();
+    return { real:+real.toFixed(4), pool:+pool.toFixed(4), expectPool:+expectPool.toFixed(4), poolOk, rallyT:+rallyT.toFixed(4), windowOk, ok:(poolOk&&windowOk) }; },
+  // AC CONSUME: un swing melee que CONECTA cura min(pool×healPerHitFrac, pool), lo resta del pool y lo suma al HP. Una VEZ
+  // por swing — un barrido que golpea 2 enemigos cura IGUAL que 1 (heal fuera del loop). 0 srand.
+  rallyHealProbe(){ const savR=RALLY.enabled; RALLY.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior; h.rallyT=RALLY.windowS; const hpMax=heroMaxHp(h); h.hp=hpMax*0.5;
+    const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+30; e.y=h.y; }
+    h.rallyPool=100; const pool0=h.rallyPool, hp0=h.hp; h._atkHits=new Set(); applyHeroMelee();
+    const healed=h.hp-hp0, poolAfter=h.rallyPool, expectHeal=Math.min(pool0*RALLY.healPerHitFrac, pool0);
+    const healOk=Math.abs(healed-expectHeal)<1e-6, poolOk=Math.abs(poolAfter-(pool0-expectHeal))<1e-6;
+    // AoE una-vez: swing que golpea 2 enemigos cura UNA sola vez
+    const h2=this._dcArm("warrior"); h2.atkAng=0; h2._mcfg=ATK.warrior; h2.rallyT=RALLY.windowS; const hpMax2=heroMaxHp(h2); h2.hp=hpMax2*0.5;
+    const eA=spawnEnemy("wolf",h2.x+30,h2.y), eB=spawnEnemy("wolf",h2.x+30,h2.y+6);
+    if(eA){ eA.maxHp=eA.hp=1e9; eA.dead=false; eA.x=h2.x+30; eA.y=h2.y; } if(eB){ eB.maxHp=eB.hp=1e9; eB.dead=false; eB.x=h2.x+30; eB.y=h2.y+6; }
+    h2.rallyPool=100; const hp2=h2.hp; h2._atkHits=new Set(); applyHeroMelee();
+    const healed2=h2.hp-hp2, onceOk=Math.abs(healed2-Math.min(100*RALLY.healPerHitFrac,100))<1e-6;
+    RALLY.enabled=savR; this._dcArm();
+    return { healed:+healed.toFixed(4), expectHeal:+expectHeal.toFixed(4), healOk, poolAfter:+poolAfter.toFixed(4), poolOk, healedAoE:+healed2.toFixed(4), onceOk, ok:(healOk&&poolOk&&onceOk) }; },
+  // AC ANTI-ABUSE: un golpe ENORME intentaría armar real×recoverFrac >> cap ⇒ el pool se capea a capFracMaxHp×HPmax. 0 srand.
+  rallyCapProbe(){ const savR=RALLY.enabled; RALLY.enabled=true;
+    const h=this._dcArm("warrior"); h.rallyPool=0; h.rallyT=0; const hpMax=heroMaxHp(h);
+    h.hp=hpMax; h.iframe=0; h.rolling=false; h.blocking=false; h.dead=false;
+    damageHero(1e9,0,null,null); const cap=RALLY.capFracMaxHp*hpMax, pool=h.rallyPool||0;
+    const capOk=(Math.abs(pool-cap)<1e-3 && pool<=cap+1e-6);
+    RALLY.enabled=savR; this._dcArm();
+    return { pool:+pool.toFixed(4), cap:+cap.toFixed(4), capOk, ok:capOk }; },
+  // AC DECAY + EXPIRY: tickRally decae el pool decayPerSec×HPmax/s mientras rallyT>0; al expirar la ventana el pool se fuerza a 0. 0 srand.
+  rallyDecayProbe(){ const savR=RALLY.enabled; RALLY.enabled=true;
+    const h=this._dcArm("warrior"); const hpMax=heroMaxHp(h);
+    h.rallyPool=hpMax*0.3; h.rallyT=RALLY.windowS; const p0=h.rallyPool, dt=0.5; tickRally(h,dt); const p1=h.rallyPool;
+    const expectDrop=RALLY.decayPerSec*hpMax*dt, decayOk=Math.abs((p0-p1)-expectDrop)<1e-6;
+    h.rallyPool=hpMax*0.3; h.rallyT=0.1; tickRally(h,1.0); const expiredZero=(h.rallyPool===0 && h.rallyT===0);
+    RALLY.enabled=savR; this._dcArm();
+    return { p0:+p0.toFixed(4), p1:+p1.toFixed(4), expectDrop:+expectDrop.toFixed(4), decayOk, expiredZero, ok:(decayOk&&expiredZero) }; },
+  // AC OFF byte-id (OFF==baseline): RALLY.enabled=false ⇒ (a) recibir daño NUNCA arma el pool (rallyPool/rallyT quedan 0), y
+  // (b) forzar rallyPool>0 es INERTE en applyHeroMelee ⇒ el swing NO cura ⇒ hp idéntico con vs sin pool ⇒ ruta melee intacta = HEAD.
+  rallyOffProbe(){ const savR=RALLY.enabled; RALLY.enabled=false;
+    const h=this._dcArm("warrior"); h.rallyPool=0; h.rallyT=0; const hpMax=heroMaxHp(h);
+    h.hp=hpMax*0.5; h.iframe=0; h.rolling=false; h.blocking=false; h.dead=false;
+    damageHero(100,0,null,null); const noArm=((h.rallyPool||0)===0 && (h.rallyT||0)===0);
+    h.atkAng=0; h._mcfg=ATK.warrior; const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+30; e.y=h.y; }
+    h.hp=hpMax*0.5; h.rallyPool=500; h._atkHits=new Set(); const hpA=h.hp; applyHeroMelee(); const healA=h.hp-hpA;
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.hp=hpMax*0.5; h.rallyPool=0; h._atkHits=new Set(); const hpB=h.hp; applyHeroMelee(); const healB=h.hp-hpB;
+    const inert=(healA===healB && healA===0);
+    RALLY.enabled=savR; this._dcArm();
+    return { noArm, healA:+healA.toFixed(4), healB:+healB.toFixed(4), inert, ok:(noArm&&inert) }; },
+  // AC SAVE byte-id: h.rallyPool/h.rallyT transitorios (fuera del allowlist) ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave rally*.
+  rallySaveByteId(){ const savR=RALLY.enabled;
+    RALLY.enabled=true; const h=this._dcArm(); h.rallyPool=123.45; h.rallyT=1.5; const onStr=JSON.stringify(serializeSave());
+    RALLY.enabled=false; const offStr=JSON.stringify(serializeSave());
+    RALLY.enabled=savR; this._dcArm();
+    const keyRe=/"_?rally[a-zA-Z]*":/i;
+    return { byteId:(offStr===onStr), hasKey:keyRe.test(onStr), onLen:onStr.length, offLen:offStr.length, ok:(offStr===onStr && !keyRe.test(onStr)) }; },
+  // AC 0-RNG STRONG: fingerprint del srand alrededor del CICLO RALLY REAL (recibir daño arma pool → tickRally decae → swing
+  // melee cura) ON vs OFF. Todo aritmética/timing (NO rallyRng) ⇒ stream srand BYTE-IDÉNTICO ⇒ RNG-neutral estricto.
+  rallySrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savR=RALLY.enabled; RALLY.enabled=!!enabled; const h=this._dcArm(); const hpMax=heroMaxHp(h);
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+30; e.y=h.y; }
+      h.hp=hpMax*0.5; h.iframe=0; h.rolling=false; h.blocking=false; h.rallyPool=0; h.rallyT=0;
+      damageHero(100,0,null,null);                                   // arma pool (0 draws)
+      tickRally(h,0.1);                                              // decae (0 draws)
+      h.atkAng=0; h._mcfg=ATK.warrior; h._atkHits=new Set(); applyHeroMelee();  // cura del pool (0 draws)
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",h.x+60+i,h.y); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    RALLY.enabled=savR; this._dcArm();
+    return { enabled:!!enabled, fingerprint:fp }; },
   // --- CAS-1895 EMPUÑADURA A DOS MANOS (Two-Handing) harness hooks (tools/cas1895-two-hand.mjs); additive, drive los
   // seams REALES: equipLoad (escudo fuera a dos manos), applyHeroMelee (dmg ×dmgMul + poise ×poiseMul), heavyAttack (stam
   // ×stamMul), y la rama de bloqueo de damageHero (DENY a dos manos). Todo input/aritmética ⇒ 0 srand, NO twoHandRng.

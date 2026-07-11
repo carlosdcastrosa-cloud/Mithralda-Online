@@ -1286,6 +1286,34 @@ export const DODGE_COUNTER = {
   requiresShield:false,   // UNIVERSAL — paridad ranged/sin-escudo (documenta la intención; la esquiva no usa escudo)
 };
 
+// CAS-2114: RECUPERACIÓN / RALLY / REGAIN (mecánica #35). Icónica Souls/Bloodborne, ausente en las 34 vivas: al RECIBIR
+// daño una fracción del HP perdido queda RECUPERABLE por una ventana corta; GOLPEAR en melee dentro de la ventana devuelve
+// parte del pool. Premia la agresividad post-hit (identidad de riesgo/recompensa). Compone con dodge-counter (#34) y
+// guard-counter (#33) sin solaparse: aquellos amplifican el swing, éste convierte el swing en curación de un pool armado
+// por el daño recibido — ejes ortogonales.
+//   · Apertura: en damageHero, TRAS aplicar el daño real (h.hp-=real) ⇒ h.rallyPool += real×recoverFrac (capeado a
+//     capFracMaxHp×HPmax, anti-abuse jefes) y h.rallyT = windowS. Corre después de todos los early-outs de negación
+//     (parry/i-frame/dodge/block) ⇒ sólo el daño que DE VERDAD entró alimenta el pool.
+//   · Decaimiento: en tickRally (nuevo, junto a tickDodgeCounter) el pool decae lineal decayPerSec×HPmax/s mientras
+//     h.rallyT>0; al expirar la ventana el pool se fuerza a 0 (windowS = techo duro). Sin golpear ⇒ el pool se pierde.
+//   · Consumo: en applyHeroMelee, un swing que CONECTA al menos un enemigo cura min(rallyPool×healPerHitFrac, rallyPool)
+//     y lo resta del pool (healPerHitFrac<1 ⇒ nunca full-heal de un golpe). requiresMelee documenta que SÓLO el melee
+//     recupera (identidad de riesgo — el ranged no arriesga acercarse); la cura vive en la ruta melee ⇒ intrínsecamente melee.
+// Estado TRANSITORIO h.rallyPool/h.rallyT (mirror h.dodgeCounterT): FUERA del allowlist de serializeSave ⇒ save.v1 byte-id
+// on/off y SIN clave nueva. RNG-neutral ESTRICTO: 0 draws, NO existe rallyRng (timers/estado puros deterministas) ⇒ srand
+// byte-id ON==OFF. HARD-GATED: enabled:false ⇒ h.rallyPool nunca sube, ramas de daño/melee INTACTAS ⇒ build byte-idéntico
+// a HEAD (OFF==baseline). $0 arte: overlay 'ghost HP' translúcido en la barra existente (primitiva canvas ya viva) + floater.
+// Números = defaults sanos para QA; el CEO retunea + flipea enabled:false→true en el Gate (config-only 1 línea).
+export const RALLY = {
+  enabled:false,        // SHIP DARK — CEO flipea false→true en el Gate CAS-XXXX (mirror CAS-2111/2105). Reversible→false.
+  recoverFrac:0.35,     // fracción del daño REAL recibido que entra al pool recuperable
+  windowS:3.0,          // ventana (s) — techo duro; al expirar el pool se fuerza a 0
+  healPerHitFrac:0.5,   // fracción del pool que devuelve un golpe melee que conecta (<1 ⇒ nunca full-heal de un golpe)
+  decayPerSec:0.15,     // decaimiento lineal del pool (fracción de HPmax/s) mientras la ventana está viva
+  capFracMaxHp:0.4,     // el pool nunca excede 40% HPmax (anti-abuse jefes)
+  requiresMelee:true,   // sólo golpes melee recuperan (identidad de riesgo; la cura vive en la ruta melee)
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
