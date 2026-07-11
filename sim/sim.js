@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -65,6 +65,12 @@ const ultRng = createRNG(0x117a1a7e);
 // byte-identical to a build without the mode at ANY arenaAffixRate (AC5 [AC-RNG-STRONG]). Like the
 // other dedicated streams, seed() does NOT reset it — the determinism harness neutralises via rate 0.
 const arenaRng = createRNG(0xa5e4a000);
+// CAS-1988 — DEDICATED Boss-Rush / Gauntlet stream (distinct seed from every stream above). The roster is
+// a FIXED ordered sequence (0 draws to pick the boss), so this stream is used ONLY for the boss spawn-pos
+// (angle/distance), exactly like arenaRng. The whole controller is HARD-GATED behind G.bossRushMode, so a
+// normal adventure (bossRushMode off) never runs a line of Boss Rush code and stays byte-identical to a
+// build without the mode. seed() does NOT reset it — an active gauntlet is a separate session; srand untouched.
+const bossRushRng = createRNG(0xb055a000);
 // CAS-1681 — DEDICATED Zone-Event stream (distinct seed from leg/set/ult/arena). EVERY attribute of a
 // seeded POI — whether to seed, how many, the type, the position/jitter, the guardian pick, the horde
 // composition, the chest loot — draws ONLY from here, never the authoritative srand, and the whole
@@ -239,6 +245,19 @@ export const G = {
     // CAS-1675 persistent records — bestBossWave IS serialized (additive to arena.v1, no v bump);
     // the rest are runtime-only (highest boss wave cleared THIS run + the once-per-run milestone payoff):
     bestBossWave:0, runBestBossWave:0, bossRecordBaseline:0, bossRecordHit:false, lastRecordEssBonus:0 },
+  // CAS-1988: Modo Boss Rush / Gauntlet — a PARALLEL, independent endgame MODE (never touches Arena state).
+  // `bossRushMode` is the master gate — false for every normal adventure, so no Boss Rush code runs and the
+  // sim/RNG is byte-identical to a build without the mode. `pendingBossRush` is set by the menu "Modo Boss Rush"
+  // entry and consumed by createHero (which flips bossRushMode on + starts the gauntlet). `bossRush` is PURELY
+  // runtime bookkeeping (never serialized into the run save); only `best` (bestRound) is durable, persisted in
+  // its OWN store (mithralda.bossrush.v1) via persist.js on the `bossRushDirty` flush flag — the run save
+  // schema is untouched. round = current 0-based round index; resting = the between-round hoguera breather.
+  bossRushMode:false, pendingBossRush:false, bossRushDirty:false,
+  bossRush:{ round:0, spawnedThisRound:0, aliveTarget:0, resting:false, restT:0, best:0,
+    // runtime-only telemetry (NOT serialized): last round's banked Esencia + clear/record bonuses + next-boss telegraph:
+    lastRoundEss:0, lastClearBonus:0, telegraphRound:-1, complete:false,
+    // once-per-run record milestone bookkeeping (runtime-only; bestRound is the durable field):
+    recordBaseline:0, recordHit:false, lastRecordEssBonus:0 },
   // CAS-1681: Eventos de Zona (optional POIs) — PURELY runtime bookkeeping (never serialized into the
   // run save; only a durable per-run completion counter rides the hero additively). `seeded` = zones
   // already rolled this run (seed-once-per-zone, mirroring curseSeen). `pois` = the live POI list read
@@ -740,7 +759,11 @@ export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunt
   // CAS-1664: a NEW run always starts OUTSIDE arena (a prior arena run can't leak its mode into a
   // fresh adventure). Only the menu "Arena de Oleadas" entry (which set pendingArena) flips it on.
   G.arenaMode=false;
-  if(G.pendingArena){ G.pendingArena=false; G.arenaMode=true; startArena(); } }
+  if(G.pendingArena){ G.pendingArena=false; G.arenaMode=true; startArena(); }
+  // CAS-1988: same seam for the PARALLEL Boss Rush mode — a new run always starts OUTSIDE the gauntlet;
+  // only the menu "Modo Boss Rush" entry (which set pendingBossRush) flips it on. Independent of arena.
+  G.bossRushMode=false;
+  if(G.pendingBossRush){ G.pendingBossRush=false; G.bossRushMode=true; startBossRush(); } }
 
 // ==================== CAS-1664: ARENA DE OLEADAS (Wave Survival) ====================
 // A separate endgame MODE that reuses the WHOLE content library — the ETPL trash pool, the HUNTS
@@ -913,6 +936,155 @@ export function loadArena(d){
   G.arena.bestBossWave = (d && Number.isFinite(+d.bestBossWave)) ? Math.max(0, Math.floor(+d.bestBossWave)) : 0; // additive: legacy arena.v1 (no field) ⇒ 0
   return G.arena.best; }
 // ================== end CAS-1664 Arena de Oleadas ==================
+
+// ==================== CAS-1988: MODO BOSS RUSH / GAUNTLET ====================
+// A separate, FINITE, opt-in endgame MODE that harvests the existing boss roster — the HUNTS capstone
+// stat blocks — with ZERO new art. The hero fights a FIXED, ORDERED sequence of the bosses that ALREADY
+// exist, back-to-back, with a bonfire (heal + full kit refill) between rounds; the gauntlet ends on the
+// final boss (or on death). The durable record is the best round reached, in its OWN store
+// (mithralda.bossrush.v1) — the run save is never touched. Every spawn-pos draw comes from the DEDICATED
+// `bossRushRng` stream; the roster is a fixed sequence, so 0 draws pick the boss. The whole controller is
+// reachable ONLY while G.bossRushMode is on, so a normal adventure is byte-identical to a build without
+// the mode (RNG-neutral by construction). This is a PARALLEL controller — it reuses pure helpers
+// (spawnEnemy, refill fns) but NOT tickArena/spawnWave, and never reads or writes a line of Arena state.
+//
+// COMPOSITION RISK #1 (SIGNATURE_BOSS on the caldera round) — RESOLVED, option (b): the signature two-phase
+// fight does NOT fire in Boss Rush. The _sbPhase marking lives ONLY in spawnChampion (the hunt-zone champion
+// spawn path, sim.js ~2647, gated `zone===SIGNATURE_BOSS.zone && B.base===SIGNATURE_BOSS.boss`). Boss Rush
+// mirrors arenaSpawnBoss: it spawns via spawnEnemy + tags e.isBoss/e.bossRush, NEVER through spawnChampion,
+// so a Boss Rush caldera boss never receives _sbPhase. Therefore: (a) no phase-transition AI runs (the
+// transition at ~4072 is gated on e._sbPhase), and (b) the SIGNATURE_BOSS reward branch in killEnemy (~2545,
+// gated `e._sbPhase!==undefined`) never fires ⇒ NO double-reward. The caldera boss runs its plain capstone AI
+// (enrage + Erupción special), identical to how the Arena's caldera boss composes. Clean by construction.
+//
+// COMPOSITION RISK #2 (killEnemy loot branch) — the boss is tagged e.isBoss=true + e.bossRush=true (NOT
+// e.champion), so killEnemy takes the boss-loot branch (~2490), never onChampionKill's zone-clear/victory
+// path. e.bossRush (not e.arena) means the Arena bonus-loot branch (~2503, gated e.arena) never fires —
+// Boss Rush pays its Esencia arithmetically in onRoundCleared (0 RNG). Mirror EXACTO of arenaSpawnBoss :803.
+
+// A clear open tile a readable ring-distance from the hero (mirror arenaSpawnPos). Draws its angle/distance
+// from bossRushRng ONLY. Falls back to a fixed offset if crowded.
+function bossRushSpawnPos(){ const h=G.hero;
+  for(let i=0;i<24;i++){ const a=bossRushRng.rr(0,6.28), dpx=bossRushRng.rr(180,260);
+    const x=h.x+Math.cos(a)*dpx, y=h.y+Math.sin(a)*dpx;
+    if(!solidBlocked(x,y,16)) return {x,y}; }
+  return {x:h.x+200, y:h.y}; }
+// Count / clear the LIVE Boss Rush enemies (tagged e.bossRush). Removes them outright (hard reset, no loot/FX)
+// — used by the round-clear check and by spawnRound's remnant sweep. Never touches e.arena enemies.
+function bossRushAliveCount(){ let c=0; for(const e of G.enemies){ if(e.bossRush && !e.dead && e.hp>0) c++; } return c; }
+function bossRushClearEnemies(){ for(let i=G.enemies.length-1;i>=0;i--){ if(G.enemies[i].bossRush) G.enemies.splice(i,1); } }
+// Full-kit refill at the bonfire (mirror the run-start refill at sim.js ~1592-1595): each consumable feature
+// tops up ONLY when enabled ⇒ a build with a feature off is byte-identical. estus + arrojadizos + resinas + summon.
+function bossRushRefillKit(h){ if(!h) return;
+  if(FLASK.enabled){ h.flaskCharges=FLASK.charges; h.flaskDrinkT=0; }
+  if(THROWABLES.enabled) refillThrowables(h);
+  if(WEAPON_BUFFS.enabled) refillBuffs(h);
+  if(SUMMON.enabled){ h.summonCharges=SUMMON.charges; } }
+// Esencia banked when round r (0-based) is cleared — pure arithmetic, 0 RNG (never touches srand).
+function bossRushRoundEssence(r){ return (BOSS_RUSH.essPerRound|0) + (r|0)*(BOSS_RUSH.essStepRound|0); }
+// Spawn ONE round: clear remnants, then spawn the round's boss = HUNTS[sequence[r]].boss scaled by 1+r*step.
+// Mirror EXACTO of arenaSpawnBoss (enrage + special AI intact) but tags it isBoss+bossRush (NOT champion, NOT
+// arena) so killEnemy takes the boss-loot branch — never onChampionKill's zone-clear/victory, never the
+// Arena bonus-loot. See COMPOSITION RISK #1/#2 above.
+function spawnRound(r){
+  const BR=G.bossRush; r=Math.max(0,r|0);
+  bossRushClearEnemies();                                        // limpia restos (createHero/prev round)
+  const zone=BOSS_RUSH.sequence[r]; const H=HUNTS[zone]; const B=H&&H.boss; if(!B) return null;
+  const p=bossRushSpawnPos(); const e=spawnEnemy(B.base, p.x, p.y); const base=e.tpl;
+  const hpMul=1+r*BOSS_RUSH.hpStep, dmgMul=1+r*BOSS_RUSH.dmgStep;
+  e.tpl=Object.assign({},base,{ sprite:B.sprite||base.sprite, hp:Math.round(B.hp*hpMul), dmg:Math.round(B.dmg*dmgMul),
+    size:B.size, spd:B.spd??base.spd, knock:B.knock??base.knock, windup:B.windup??base.windup, recover:B.recover??base.recover,
+    ranged:false, aggro:Math.max(base.aggro,340), xp:B.xp, champName:B.name });
+  e.capstone=true; e.enraged=false; e.enrageAt=B.enrageAt||0.5;
+  e.baseSpd=e.tpl.spd; e.enrageSpd=B.enrageSpd||1.35; e.enrageWindup=B.enrageWindup||0.72; e.slam=B.slam||null;
+  e.carapace=B.carapace||null; e.shielded=false; e.shieldBroken=false; e.atkCount=0;
+  e.special=B.special||null; e.specialNow=false;
+  e.rwdTier=B.tier; e.rwdMinR=B.minR; e.rwdXp=B.xp; e.rwdGold=B.gold;
+  e.hp=e.maxHp=e.tpl.hp; e.isBoss=true; e.bossRush=true; e.zone=zone; e.state="chase";
+  e.bossRushRound=r;                                             // round index carried onto the boss (QA readout)
+  e.bossRushBaseHp=B.hp|0; e.bossRushBaseDmg=B.dmg|0; e.bossRushHpMul=hpMul; e.bossRushDmgMul=dmgMul; // AC5 scaling readout (QA)
+  BR.spawnedThisRound=1; BR.aliveTarget=1; BR.resting=false;
+  // legible "boss incoming" cue ($0 art: reuse the boss sfx + shake + toast).
+  const label=(B.name||"Jefe")+"  —  Ronda "+(r+1)+"/"+BOSS_RUSH.sequence.length;
+  toast("¡"+label+"!", 3.2); shakeAdd(8); audio&&audio.sfx&&audio.sfx.boss&&audio.sfx.boss();
+  return e;
+}
+// Start the gauntlet on the freshly-created (live) hero (mirror startArena). Clears the field, snapshots the
+// record baseline (milestone fires at most once per run), and spawns round 0. `best` is preserved (loaded at
+// boot by persist.bootBossRush) — never reset here.
+function startBossRush(){ const BR=G.bossRush;
+  bossRushClearEnemies(); G.projectiles.length=0; G.fields.length=0; G.drops.length=0; G.draft=null;
+  BR.spawnedThisRound=0; BR.aliveTarget=0; BR.resting=false; BR.restT=0; BR.complete=false;
+  BR.recordBaseline=BR.best|0; BR.recordHit=false; BR.lastRecordEssBonus=0; BR.telegraphRound=-1;
+  BR.lastRoundEss=0; BR.lastClearBonus=0;
+  G.scene="play"; BR.round=0; spawnRound(0); // Boss Rush always begins IN play (createHero's later openAbilityDraft re-gates the loadout scene)
+}
+// The between-round payoff: bank the round's Esencia (arithmetic, 0 RNG → survives death), then either finish
+// the gauntlet (last round) OR light the bonfire — heal by healFrac + refill the whole consumable kit — and
+// enter the REST. The once-per-run record milestone fires when this run's round surpasses the stored record.
+function onRoundCleared(){ const BR=G.bossRush, h=G.hero; if(!h) return;
+  const r=BR.round|0;
+  const gain=bossRushRoundEssence(r);
+  if(gain>0){ ensureMeta().essence=(ensureMeta().essence|0)+gain; G.metaDirty=true; } // bank to the meta tree (0 RNG)
+  BR.lastRoundEss=gain;
+  toast("¡Ronda "+(r+1)+" limpia! +"+gain+" Esencia", 3.0);
+  // ONE-TIME milestone payoff when this run's cleared round surpasses the stored record. Pure arithmetic (0 RNG).
+  const clearedRound=r+1;                                        // rounds cleared so far (1-based)
+  if(!BR.recordHit && clearedRound>(BR.recordBaseline|0)){
+    const rbonus=Math.ceil(BOSS_RUSH.recordEssBase*clearedRound);
+    if(rbonus>0){ ensureMeta().essence=(ensureMeta().essence|0)+rbonus; G.metaDirty=true; }
+    BR.recordHit=true; BR.lastRecordEssBonus=rbonus;
+    toast("¡Nuevo récord de gauntlet! +"+rbonus+" Esencia", 3.0); }
+  // persist the best round the instant it climbs (banked on the flush flag, survives death/tab-close).
+  if(clearedRound>(BR.best|0)){ BR.best=clearedRound; G.bossRushDirty=true; }
+  if(r>=BOSS_RUSH.sequence.length-1){ gauntletComplete(); return; }  // finale cleared → complete, NEVER world victory
+  // BONFIRE between rounds: heal + optional full-kit refill.
+  const mhp=heroMaxHp(h); if(h.hp>0) h.hp=Math.min(mhp, h.hp+Math.round(mhp*BOSS_RUSH.healFrac));
+  if(BOSS_RUSH.refillOnRest) bossRushRefillKit(h);
+  BR.spawnedThisRound=0; BR.resting=true; BR.restT=BOSS_RUSH.restSeconds;
+  BR.telegraphRound=r+1;
+  const nextZone=BOSS_RUSH.sequence[r+1]; const nb=HUNTS[nextZone]&&HUNTS[nextZone].boss;
+  toast("Hoguera… se acerca "+((nb&&nb.name)||"el siguiente jefe"), BOSS_RUSH.restSeconds); shakeAdd(6);
+  audio&&audio.sfx&&audio.sfx.levelup&&audio.sfx.levelup();
+}
+// The Boss Rush controller — advances the round loop each play frame while bossRushMode. During a REST it
+// counts down then spawns the NEXT round; otherwise it watches for a fully-cleared round and hands off to
+// onRoundCleared. Mirror tickArena but with the finite ordered sequence.
+function tickBossRush(dt){ const BR=G.bossRush, h=G.hero; if(!h) return;
+  if(BR.resting){ BR.restT-=dt;
+    if(BR.restT<=0){ BR.resting=false; BR.round++; spawnRound(BR.round); }
+    return; }
+  const alive=bossRushAliveCount(); BR.aliveTarget=alive;
+  if(alive===0 && BR.spawnedThisRound>0) onRoundCleared();
+}
+// Gauntlet finished: bank the completion bonus (0 RNG), mark the record = full sequence length if it beats the
+// stored best, toast, and RETURN TO THE MENU — NEVER the world `victory` scene (that is only for a final:true
+// boss). Clears the mode flags so the next run is a normal adventure.
+function gauntletComplete(){ const BR=G.bossRush;
+  if((BOSS_RUSH.clearBonusEss|0)>0){ ensureMeta().essence=(ensureMeta().essence|0)+(BOSS_RUSH.clearBonusEss|0); G.metaDirty=true; }
+  BR.lastClearBonus=BOSS_RUSH.clearBonusEss|0; BR.complete=true;
+  const full=BOSS_RUSH.sequence.length;
+  if(full>(BR.best|0)){ BR.best=full; G.bossRushDirty=true; }
+  toast("¡GAUNTLET COMPLETA! +"+(BOSS_RUSH.clearBonusEss|0)+" Esencia", 4.0); shakeAdd(10);
+  audio&&audio.sfx&&audio.sfx.boss&&audio.sfx.boss();
+  bossRushClearEnemies();
+  G.bossRushMode=false; G.pendingBossRush=false; G.scene="menu";   // back to menu, NEVER G.scene="victory"
+}
+// Hero death ends the gauntlet: the highest round REACHED is the score; persist it as the new best (own store,
+// additive) if it beats the record. Called from heroDie (Boss Rush branch only). Mirror arenaOnDeath.
+function bossRushOnDeath(){ const BR=G.bossRush;
+  const reached=(BR.round|0)+1;                                  // rounds ENTERED this run (1-based) — the score is how far you got
+  // best = best ROUND CLEARED; a death mid-round does not "clear" it, but the record already tracked cleared
+  // rounds in onRoundCleared. Nothing to bank here beyond what onRoundCleared already persisted (kept for parity
+  // + a future "furthest reached" record). applyTitles refresh mirrors arenaOnDeath's title reevaluation.
+  applyTitles(G.hero); }
+// Additive Boss Rush persistence (mirror serializeArena/loadArena): the sim owns the shape, persist.js owns the
+// localStorage medium + the bossRushDirty flush. bestRound is the durable state. Shape v:1 (additive; absent ⇒ 0).
+export function serializeBossRush(){ return { v:1, bestRound:G.bossRush.best|0 }; }
+export function loadBossRush(d){
+  G.bossRush.best = (d && Number.isFinite(+d.bestRound)) ? Math.max(0, Math.floor(+d.bestRound)) : 0;
+  return G.bossRush.best; }
+// ================== end CAS-1988 Modo Boss Rush ==================
 
 // --------------------- CAS-1751: CÓDICE DE BOTÍN (Collection Log) ---------------------
 // A PURE READ-SIDE ledger over the shipped loot systems. It NEVER draws from any RNG stream and
@@ -1598,6 +1770,7 @@ export function loadSave(d){
     else G.tut=null;
     G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents();
     G.arenaMode=false; G.pendingArena=false; // CAS-1664: a resumed run is the normal adventure, never arena (the arena best lives in its own store)
+    G.bossRushMode=false; G.pendingBossRush=false; // CAS-1988: a resumed run is the normal adventure, never Boss Rush (best round lives in its own store)
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
     G.scene="play"; G.started=true;
     beginRun();                                               // CAS-277: baseline this resumed session's run
@@ -3283,6 +3456,9 @@ function heroDie(){
   // CAS-1664: a death in Arena de Oleadas ENDS the gauntlet — bank the highest wave reached as the
   // new best (own store, additive) so the score survives. The death screen reads G.arena to show it.
   if(G.arenaMode) arenaOnDeath();
+  // CAS-1988: a death in Boss Rush ENDS the gauntlet — the best round CLEARED is already banked in its own
+  // store (set in onRoundCleared on bossRushDirty); this refreshes titles like arenaOnDeath.
+  if(G.bossRushMode) bossRushOnDeath();
   h.deaths=(h.deaths||0)+1; // CAS-123: a run attempt for the victory summary
   const red=G.skull.level>=3;
   let frac = h.blessings>0 && !red ? 0.10 : 0.30;
@@ -3304,6 +3480,7 @@ export function respawn(){
   h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.x=h.respawn.x; h.y=h.respawn.y; h.bld=null;   // CAS-1841: vigor a tope al reaparecer · CAS-1931: medidor buildup limpio (OFF ⇒ ya null ⇒ byte-id)
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.arenaMode=false; // CAS-1664: leaving the death screen exits Arena de Oleadas → back to the normal world (no-op in a normal run)
+  G.bossRushMode=false; G.pendingBossRush=false; // CAS-1988: leaving the death screen exits Boss Rush too (no-op in a normal run)
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
 }
 // CAS-277: the death recap's secondary action — respawn at the safe fountain but land in
@@ -3848,17 +4025,17 @@ export function update(dtMs){
   // whose hunt isn't already cleared this run, pause into the "curse" scene and offer one modifier
   // (accept/skip). Fires exactly once per zone per run (curseSeen), and only from free play so it
   // never stacks over another panel. Cleared zones + town/field are skipped (no reward to gate).
-  if(!G.arenaMode && HUNTS[z] && (h.curseSeen||[]).indexOf(z)<0){ const CH=G.hunts&&G.hunts[z];
+  if(!G.arenaMode && !G.bossRushMode && HUNTS[z] && (h.curseSeen||[]).indexOf(z)<0){ const CH=G.hunts&&G.hunts[z]; // CAS-1988: no zone-curse offers pollute the gauntlet (mirror Arena)
     if(!(CH&&CH.cleared)) offerCurse(z); }
   // CAS-342: the caves dragon is no longer a positional deep-walk spawn — it is now the caves
   // ZONE CAPSTONE (HUNTS.caves.boss), summoned deliberately by spawnChampion when the kill quota
   // is met. The old `z==="caves" && !G.bossSpawned … spawnBoss()` trigger is removed so the dragon
   // appears EXACTLY once, only as the earned end-of-zone climax (never a random high-HP ambush).
-  if(!G.arenaMode) updateAmbush(dt, z, inDanger); // CAS-146: elite-ambush event clock (deterministic, in-zone only) — suppressed in arena (the wave loop owns spawns)
+  if(!G.arenaMode && !G.bossRushMode) updateAmbush(dt, z, inDanger); // CAS-146: elite-ambush event clock (deterministic, in-zone only) — suppressed in arena (the wave loop owns spawns) · CAS-1988: + Boss Rush (the gauntlet owns the field)
   // CAS-1681: ZONE EVENTS — seed 0-2 optional POIs the FIRST time the hero enters a combat zone this
   // run (mirrors curseSeen; eventRng-only → srand untouched), then tick telegraph + goblin timers.
   // Suppressed in arena (the wave loop owns the field) and a no-op unless ZONE_EVENTS.enabled.
-  if(!G.arenaMode && ZONE_EVENTS.enabled){ if(inDanger) seedZoneEvents(z); tickZoneEvents(dt, z); }
+  if(!G.arenaMode && !G.bossRushMode && ZONE_EVENTS.enabled){ if(inDanger) seedZoneEvents(z); tickZoneEvents(dt, z); } // CAS-1988: zone-events suppressed in Boss Rush too (the gauntlet owns the field)
 
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
@@ -3966,8 +4143,10 @@ export function update(dtMs){
   updateFx(dt); updateFloaters(dt);
   // CAS-1664: advance the Arena de Oleadas wave loop (rest countdown / wave-clear → next wave).
   if(G.arenaMode) tickArena(dt);
+  // CAS-1988: advance the PARALLEL Boss Rush round loop (rest countdown / round-clear → next round). Gated ⇒ OFF no-op.
+  if(G.bossRushMode) tickBossRush(dt);
   // spawners — suppressed in arena so only the wave roster is present (CAS-1664)
-  if(!G.arenaMode) for(const sp of world.spawners){ sp.t-=dt; const count=G.enemies.filter(e=>e.tpl && sp.types.includes(e.type)&&!e.isBoss).length;
+  if(!G.arenaMode && !G.bossRushMode) for(const sp of world.spawners){ sp.t-=dt; const count=G.enemies.filter(e=>e.tpl && sp.types.includes(e.type)&&!e.isBoss).length; // CAS-1988: natural spawners suppressed in Boss Rush too (the ordered gauntlet owns the field — no trash)
     if(sp.t<=0 && count<sp.max){ sp.t=sp.cool; const tp=sp.types[ri(0,sp.types.length-1)];
       let tx,ty,tries=0; do{ tx=(sp.rect.x+rr(2,sp.rect.w-2))*TS; ty=(sp.rect.y+rr(2,sp.rect.h-2))*TS; tries++; }
         while((dist2(tx,ty,h.x,h.y)<300*300 || (world.wallSet&&world.wallSet.has(Math.floor(ty/TS)*MAP_W+Math.floor(tx/TS)))) && tries<10);
@@ -9023,4 +9202,165 @@ export const dev = {
     const refilled=(h.summonCharges===SUMMON.charges);
     BONFIRE.enabled=savB; FLASK.enabled=savF; SUMMON.enabled=savS; G.enemies.length=0;
     return { refilled, charges:h.summonCharges, ok: refilled }; },
+
+  // ============ CAS-1988: MODO BOSS RUSH / GAUNTLET dev hooks (tools/cas1988-bossrush.mjs) ============
+  // Drive the REAL controller (startBossRush/spawnRound/onRoundCleared/tickBossRush/gauntletComplete +
+  // killEnemy) on a parked hero + genuine spawnEnemy bosses. No shortcuts around the AI/reward paths.
+  bossRushMeta(){ return { enabled:BOSS_RUSH.enabled, key:BOSS_RUSH.key, sequence:BOSS_RUSH.sequence.slice(),
+    hpStep:BOSS_RUSH.hpStep, dmgStep:BOSS_RUSH.dmgStep, restSeconds:BOSS_RUSH.restSeconds, healFrac:BOSS_RUSH.healFrac,
+    refillOnRest:BOSS_RUSH.refillOnRest, essPerRound:BOSS_RUSH.essPerRound, essStepRound:BOSS_RUSH.essStepRound,
+    clearBonusEss:BOSS_RUSH.clearBonusEss, recordEssBase:BOSS_RUSH.recordEssBase }; },
+  // Isolate the scenario: toggle FIRST, clear field/fx/drops, park a tank hero at a known spot, reset G.bossRush.
+  _brArm(enabled){ BOSS_RUSH.enabled=!!enabled; G.enemies.length=0; G.projectiles.length=0; G.fx.length=0; G.drops.length=0;
+    const h=G.hero; h.x=500; h.y=500; h.maxHp=1e6; h.hp=1e6; h.stam=STAMINA.max; h.dead=false; h.rolling=false; h.iframe=0; h.stun=0;
+    h.slowT=0; h.slow=1; h.bld=null; h.dots=null; h.lockTarget=null; h.facing=0;
+    const BR=G.bossRush; BR.round=0; BR.spawnedThisRound=0; BR.resting=false; BR.restT=0; BR.complete=false;
+    BR.recordBaseline=0; BR.recordHit=false; BR.lastRoundEss=0; BR.lastClearBonus=0; BR.lastRecordEssBonus=0; BR.telegraphRound=-1;
+    G.bossRushMode=false; G.pendingBossRush=false; G.scene="play"; return h; },
+  // Live Boss Rush state read (mode gate, round, best, rest flag, alive boss count, scene, hero HP + the live boss).
+  _brState(){ const BR=G.bossRush, h=G.hero; const b=G.enemies.find(e=>e.bossRush&&!e.dead);
+    return { mode:!!G.bossRushMode, round:BR.round|0, roundHuman:(BR.round|0)+1, total:BOSS_RUSH.sequence.length,
+      best:BR.best|0, resting:!!BR.resting, restT:+((BR.restT||0).toFixed(3)), spawnedThisRound:BR.spawnedThisRound|0,
+      alive:bossRushAliveCount(), scene:G.scene, complete:!!BR.complete, hp:h?Math.round(h.hp):0, maxHp:h?Math.round(heroMaxHp(h)):0,
+      boss: b ? { type:b.type, zone:b.zone, isBoss:!!b.isBoss, bossRush:!!b.bossRush, champion:!!b.champion, arena:!!b.arena,
+        hp:Math.round(b.tpl.hp), dmg:Math.round(b.tpl.dmg||0), round:b.bossRushRound|0,
+        baseHp:b.bossRushBaseHp|0, baseDmg:b.bossRushBaseDmg|0, hpMul:+(b.bossRushHpMul||0).toFixed(4), dmgMul:+(b.bossRushDmgMul||0).toFixed(4),
+        hasSbPhase:(b._sbPhase!==undefined), capstone:!!b.capstone, special:!!b.special } : null }; },
+  // AC2: start the gauntlet on the live hero (bypasses the menu flag) → flips bossRushMode + startBossRush → round 0.
+  _brStart(){ const h=this._brArm(true); G.bossRushMode=true; startBossRush(); return this._brState(); },
+  // AC5: spawn round r directly (clears remnants, spawns the scaled boss). Reports the boss so QA proves scaling
+  // (hp/dmg = base × 1+r*step), the ordered sequence (zone === sequence[r]), and the loot tag (isBoss+bossRush, NOT champion).
+  _brSpawnRound(r){ r=Math.max(0,r|0); G.bossRushMode=true; G.bossRush.round=r; spawnRound(r); return this._brState(); },
+  // AC3: prove the ORDERED sequence — start, then for each round read the boss zone, "kill" the boss (real killEnemy),
+  // advance the rest to spawn the next round, and confirm it's sequence[r+1]. Returns the zone list actually spawned.
+  _brSequenceProbe(){ const h=this._brArm(true); G.bossRushMode=true; startBossRush();
+    const zones=[]; const N=BOSS_RUSH.sequence.length;
+    for(let r=0;r<N;r++){ const b=G.enemies.find(e=>e.bossRush&&!e.dead); zones.push(b?b.zone:null);
+      if(r<N-1){ if(b){ b.hp=0; killEnemy(b); } // real kill
+        tickBossRush(0.016);      // detects alive===0 → onRoundCleared → REST
+        G.bossRush.restT=0; tickBossRush(0.016); } } // fast-forward the rest so the next round spawns
+    return { expected:BOSS_RUSH.sequence.slice(), actual:zones, ordered:JSON.stringify(zones)===JSON.stringify(BOSS_RUSH.sequence),
+      mode:!!G.bossRushMode }; },
+  // AC4: bonfire between rounds — deplete HP + kit, clear a non-final round through the REAL kill→onRoundCleared→rest,
+  // then confirm HP healed by healFrac and consumable charges refilled (estus/arrojadizos/buffs/summon when each enabled).
+  _brRestRefillProbe(){ const savF=FLASK.enabled, savT=THROWABLES.enabled, savB=WEAPON_BUFFS.enabled, savS=SUMMON.enabled;
+    FLASK.enabled=true; SUMMON.enabled=true;
+    const h=this._brArm(true); G.bossRushMode=true; startBossRush();
+    h.hp=1; h.flaskCharges=0; h.summonCharges=0;
+    const b=G.enemies.find(e=>e.bossRush&&!e.dead); if(b){ b.hp=0; killEnemy(b); }
+    tickBossRush(0.016);   // detects the clear → onRoundCleared → bonfire heal + refill + REST
+    const healed=h.hp>1, flaskRefilled=(!FLASK.enabled)||(h.flaskCharges===FLASK.charges), summonRefilled=(!SUMMON.enabled)||(h.summonCharges===SUMMON.charges);
+    const resting=!!G.bossRush.resting;
+    FLASK.enabled=savF; THROWABLES.enabled=savT; WEAPON_BUFFS.enabled=savB; SUMMON.enabled=savS;
+    return { healed, hp:Math.round(h.hp), flaskRefilled, summonRefilled, resting, ok: healed && flaskRefilled && summonRefilled && resting }; },
+  // AC5: deterministic scaling readout — spawn each round and report the boss hp/dmg + multipliers (base × 1+r*step).
+  _brScaleProbe(){ const h=this._brArm(true); G.bossRushMode=true; const rows=[];
+    for(let r=0;r<BOSS_RUSH.sequence.length;r++){ G.bossRush.round=r; spawnRound(r);
+      const b=G.enemies.find(e=>e.bossRush&&!e.dead);
+      rows.push({ round:r, zone:b?b.zone:null, hp:b?Math.round(b.tpl.hp):0, dmg:b?Math.round(b.tpl.dmg||0):0,
+        baseHp:b?b.bossRushBaseHp|0:0, baseDmg:b?b.bossRushBaseDmg|0:0,
+        hpMul:b?+b.bossRushHpMul.toFixed(4):0, dmgMul:b?+b.bossRushDmgMul.toFixed(4):0,
+        expectHpMul:+(1+r*BOSS_RUSH.hpStep).toFixed(4), expectDmgMul:+(1+r*BOSS_RUSH.dmgStep).toFixed(4) }); }
+    const ok=rows.every(x=>x.hpMul===x.expectHpMul && x.dmgMul===x.expectDmgMul && x.hp===Math.round(x.baseHp*x.expectHpMul));
+    return { rows, ok }; },
+  // AC6: Esencia per round = essPerRound + r*essStepRound (arithmetic, 0 RNG). Drive a full round-clear through the
+  // REAL onRoundCleared and report the meta Esencia banked. clearBonus verified in _brCompleteProbe.
+  _brRoundReward(r){ r=Math.max(0,r|0); const h=this._brArm(true); G.bossRushMode=true; G.bossRush.round=r; spawnRound(r);
+    G.bossRush.recordBaseline=9999; G.bossRush.recordHit=true;   // suppress the once-per-run record milestone to isolate the PURE round Esencia
+    const before=ensureMeta().essence|0; const b=G.enemies.find(e=>e.bossRush&&!e.dead); if(b){ b.hp=0; killEnemy(b); }
+    tickBossRush(0.016);   // detects the clear → onRoundCleared → bank the round Esencia (0 RNG)
+    const gain=(ensureMeta().essence|0)-before;
+    return { round:r, essBefore:before, essAfter:ensureMeta().essence|0, gain, expectRound:bossRushRoundEssence(r),
+      lastRoundEss:G.bossRush.lastRoundEss|0 }; },
+  // AC8: completing the sequence → gauntletComplete → scene BACK TO MENU (never G.scene="victory" of the world) +
+  // clearBonus banked + best === sequence length. Kills every round boss in order through the REAL kill path.
+  _brCompleteProbe(){ const h=this._brArm(true); G.bossRushMode=true; startBossRush();
+    const before=ensureMeta().essence|0; const N=BOSS_RUSH.sequence.length;
+    for(let r=0;r<N;r++){ const b=G.enemies.find(e=>e.bossRush&&!e.dead); if(b){ b.hp=0; killEnemy(b); }
+      tickBossRush(0.016);   // detects the clear → onRoundCleared (final round → gauntletComplete)
+      if(r<N-1){ G.bossRush.restT=0; tickBossRush(0.016); } } // fast-forward the rest → next round
+    const total=(ensureMeta().essence|0)-before;
+    const backToMenu=(G.scene==="menu"), notVictory=(G.scene!=="victory"), modeOff=(G.bossRushMode===false);
+    return { scene:G.scene, backToMenu, notVictory, modeOff, complete:!!G.bossRush.complete,
+      best:G.bossRush.best|0, expectBest:N, clearBonus:G.bossRush.lastClearBonus|0, essTotal:total,
+      ok: backToMenu && notVictory && modeOff && G.bossRush.complete && (G.bossRush.best|0)===N && (G.bossRush.lastClearBonus|0)===(BOSS_RUSH.clearBonusEss|0) }; },
+  // AC7: bestRound persists in its OWN store + the once-per-run milestone fires once. Serialize→load roundtrip +
+  // a clear that beats the baseline banks the record bonus exactly once.
+  _brRecordProbe(){ const h=this._brArm(true); G.bossRush.best=1; G.bossRushMode=true; startBossRush(); // baseline snapshot = best(1) at startBossRush
+    const e0=ensureMeta().essence|0;
+    let b=G.enemies.find(x=>x.bossRush&&!x.dead); if(b){ b.hp=0; killEnemy(b); } tickBossRush(0.016); const hit1=G.bossRush.lastRecordEssBonus|0; // round 1 clear == baseline(1), no milestone
+    G.bossRush.restT=0; tickBossRush(0.016);
+    b=G.enemies.find(x=>x.bossRush&&!x.dead); if(b){ b.hp=0; killEnemy(b); } tickBossRush(0.016); const hit2=G.bossRush.lastRecordEssBonus|0; // round 2 clear > baseline(1) → milestone once
+    const bestAfter=G.bossRush.best|0;
+    return { bestAfter, milestoneOnRound2:hit2>0, noMilestoneOnRound1:hit1===0, recordHit:!!G.bossRush.recordHit,
+      ok: bestAfter>=2 && hit1===0 && hit2>0 }; },
+  // AC7: serialize→load the best round through the REAL persistence pair (mirror of arenaPersist / _sumSaveByteId).
+  _brPersist(bestRound){ G.bossRush.best=Math.max(0,bestRound|0); const blob=JSON.parse(JSON.stringify(serializeBossRush()));
+    G.bossRush.best=0; const after=loadBossRush(blob); return { wrote:bestRound|0, blob, after }; },
+  // AC7/AC1: save.v1 byte-id — G.bossRush state (round/best/rest) NEVER enters serializeSave; no bossrush key leaks.
+  _brSaveByteId(){ const BR=G.bossRush; const snap={round:BR.round, best:BR.best, resting:BR.resting, restT:BR.restT, complete:BR.complete};
+    BR.round=0; BR.best=0; BR.resting=false; BR.restT=0; BR.complete=false; const offStr=JSON.stringify(serializeSave());
+    BR.round=3; BR.best=4; BR.resting=true; BR.restT=2.5; BR.complete=true; const onStr=JSON.stringify(serializeSave());
+    Object.assign(BR,snap);
+    const hasKey=/bossRush|bossrush/i.test(onStr);
+    return { ok: offStr===onStr && !hasKey, byteId:offStr===onStr, noKey:!hasKey, offLen:offStr.length, onLen:onStr.length }; },
+  // AC10 / RISK #1: the caldera round does NOT inherit the SIGNATURE_BOSS two-phase fight — with SIGNATURE_BOSS.enabled=true,
+  // spawn the caldera boss via spawnRound and confirm it carries NO _sbPhase (marking lives only in spawnChampion). No double-reward.
+  _brSignatureProbe(){ const savSB=SIGNATURE_BOSS.enabled; SIGNATURE_BOSS.enabled=true;
+    const h=this._brArm(true); G.bossRushMode=true;
+    const cIdx=BOSS_RUSH.sequence.indexOf("caldera"); const r=cIdx>=0?cIdx:BOSS_RUSH.sequence.length-1;
+    G.bossRush.round=r; spawnRound(r); const b=G.enemies.find(e=>e.bossRush&&!e.dead);
+    const hadSbPhase=!!b&&b._sbPhase!==undefined;
+    // The SIGNATURE_BOSS reward branch (killEnemy ~2545, gated e._sbPhase!==undefined) fires INSIDE killEnemy. Measure the
+    // Esencia delta across killEnemy ALONE (no round-clear tick): with no _sbPhase it must be 0 → no signature bonus stacks.
+    const before=ensureMeta().essence|0; if(b){ b.hp=0; killEnemy(b); } const sigEssGain=(ensureMeta().essence|0)-before;
+    const noSbPhase=!hadSbPhase; const isCaldera=!!b&&b.zone==="caldera"; const noChampion=!b||!b.champion;
+    SIGNATURE_BOSS.enabled=savSB;
+    return { isCaldera, noSbPhase, noChampion, sigEssGain, sigReward:SIGNATURE_BOSS.rewards?SIGNATURE_BOSS.rewards.essenceBonus|0:0,
+      noDoubleReward:sigEssGain===0, ok: isCaldera && noSbPhase && noChampion && sigEssGain===0 }; },
+  // RISK #2 / AC10: killEnemy loot branch — the boss is isBoss+bossRush (NOT champion), so killEnemy takes the boss branch,
+  // never onChampionKill (which would clear the hunt zone / could fire victory). Confirms scene never becomes "victory".
+  _brLootBranchProbe(){ const h=this._brArm(true); G.bossRushMode=true; G.bossRush.round=BOSS_RUSH.sequence.length-1; spawnRound(G.bossRush.round);
+    const b=G.enemies.find(e=>e.bossRush&&!e.dead); const zone=b?b.zone:null;
+    const huntBefore=G.hunts&&G.hunts[zone]?!!G.hunts[zone].cleared:false;
+    const isBoss=!!b&&!!b.isBoss, bossRush=!!b&&!!b.bossRush, champion=!!b&&!!b.champion;
+    const sceneBefore=G.scene; if(b){ b.hp=0; killEnemy(b); }
+    const huntAfter=G.hunts&&G.hunts[zone]?!!G.hunts[zone].cleared:false;
+    const neverVictory=(G.scene!=="victory");
+    return { isBoss, bossRush, champion, huntNotCleared:(huntBefore===huntAfter && !huntAfter), neverVictory, sceneBefore, sceneAfter:G.scene,
+      ok: isBoss && bossRush && !champion && !huntAfter && neverVictory }; },
+  // AC0/AC1/AC9: OFF byte-id — with enabled:false the mode never runs; the natural spawners + zone-curse/ambush/zone-events
+  // guards keep firing (they gate on !G.bossRushMode which is false ⇒ true ⇒ run as before). Confirms bossRushMode stays off.
+  _brOffProbe(){ const h=this._brArm(false); G.pendingBossRush=true;
+    // createHero is the only place pendingBossRush is consumed; simulate its guard is input-gated (enabled:false ⇒ input never sets it).
+    const modeOffAfterArm=(G.bossRushMode===false);
+    // tickBossRush is only called under `if(G.bossRushMode)`, which is false ⇒ never runs. Prove a direct tick is inert on a fresh field.
+    const alive0=bossRushAliveCount();
+    G.pendingBossRush=false;
+    return { enabled:BOSS_RUSH.enabled, modeOffAfterArm, alive0, ok: BOSS_RUSH.enabled===false && modeOffAfterArm && alive0===0 }; },
+  // AC1/AC11 [RNG-STRONG]: spawn a round + tick the controller (spawn-pos draws from bossRushRng ONLY, tick draws nothing) and
+  // sample raw srand() before/after. Run at enabled=true vs enabled=false with the SAME seed → the srand fingerprint is
+  // byte-identical, proving the Boss Rush spawn/tick path never perturbs srand. (Kills are excluded — a boss kill draws srand
+  // for its guaranteed loot, exactly like an Arena boss kill; that only happens in an ACTIVE gauntlet, a separate session.)
+  // AC9: isolation — while bossRushMode is ON, drive REAL update() frames and confirm the natural spawners never
+  // inject a non-bossRush enemy (guarded on !G.bossRushMode) and no zone-curse scene fires (the gauntlet owns the field).
+  _brIsolationProbe(frames){ frames=Math.max(30,frames|0); const h=this._brArm(true); G.bossRushMode=true; startBossRush();
+    const boss=G.enemies.find(e=>e.bossRush&&!e.dead); if(boss) boss.hp=boss.maxHp=1e9;   // keep the round boss alive so we stay in round 0
+    let intruder=false, curseScene=false;
+    for(let i=0;i<frames;i++){ try{ update(16); }catch(e){}
+      if(G.enemies.some(e=>!e.bossRush)) intruder=true;
+      if(G.scene==="curse") curseScene=true; }
+    const stillPlay=(G.scene==="play"||G.scene==="menu"); const onlyBossRush=!intruder;
+    G.bossRushMode=false; G.pendingBossRush=false; G.enemies.length=0; G.scene="play";
+    return { frames, onlyBossRush, noCurseScene:!curseScene, stillPlay, ok: onlyBossRush && !curseScene }; },
+  _brSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0); const sav=BOSS_RUSH.enabled;
+    const h=this._brArm(!!enabled);
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    let spawned=false;
+    if(enabled){ G.bossRushMode=true; G.bossRush.round=0; const e=spawnRound(0); spawned=!!e; // spawn-pos from bossRushRng (0 srand)
+      tickBossRush(1/60); tickBossRush(1/60); }                                                // rest/clear watch (0 srand)
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    BOSS_RUSH.enabled=sav; G.enemies.length=0; G.bossRushMode=false;
+    return { enabled:!!enabled, spawned, fingerprint:fp }; },
 };

@@ -114,6 +114,7 @@ export function createGame(canvas, ctx, getView){
   // reads the live meta, and a fresh createHero applies it. Independent of any character.
   persist.bootMeta();
   persist.bootArena();  // CAS-1664: rehydrate the Arena de Oleadas best wave from its OWN store (independent of any character)
+  persist.bootBossRush(); // CAS-1988: rehydrate the Modo Boss Rush best round from its OWN store (mithralda.bossrush.v1 — independent of any character; never the run save)
   persist.bootCodex(); // CAS-1751: rehydrate the account-wide Códice de Botín ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile reads the live codex bonus (account-wide, independent of any character)
   persist.bootTitles(); // CAS-1758: rehydrate the account-wide Títulos de Gesta ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile caches the equipped title (account-wide, independent of any character)
   persist.bootPacts(); // CAS-1763: rehydrate the Pactos de Poder (Power Pacts) preference from its OWN store (account-wide, independent of any character; effects derive live in the seam each run)

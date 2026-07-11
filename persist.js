@@ -10,7 +10,7 @@
 // so the latest gold / XP / upgrades survive a refresh. All storage calls are
 // wrapped — private-mode / quota failures degrade silently, the game still runs.
 // ===========================================================================
-import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena, serializeCodex, loadCodex, serializeTitles, loadTitles, serializePacts, loadPacts } from "./sim/sim.js";
+import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena, serializeBossRush, loadBossRush, serializeCodex, loadCodex, serializeTitles, loadTitles, serializePacts, loadPacts } from "./sim/sim.js";
 import { BLOODSTAIN } from "./sim/config.js";   // CAS-1867: gate del store de la Mancha de Sangre (enabled:false ⇒ nunca leer/escribir)
 
 const KEY = "mithralda.save.v1";
@@ -28,6 +28,10 @@ const KEY_TUT = "mithralda.tut.v1";
 // (additive persistence; the run save schema is untouched). Same medium-ownership split: the sim
 // owns the shape (serializeArena / loadArena), this controller owns localStorage + the flush.
 const KEY_ARENA = "mithralda.arena.v1";
+// CAS-1988: the Modo Boss Rush / Gauntlet best-round store — its OWN key, SEPARATE from the run save + meta +
+// arena (additive persistence; save.v1 is untouched, and it never shares the arena key). Same medium-ownership
+// split: the sim owns the shape (serializeBossRush / loadBossRush), this controller owns localStorage + the flush.
+const KEY_BOSSRUSH = "mithralda.bossrush.v1";
 // CAS-1751: the account-wide CÓDICE DE BOTÍN (Collection Log) store — its OWN key, SEPARATE from the run
 // save + meta + arena (additive persistence; save.v1 is untouched). Same medium-ownership split: the sim
 // owns the shape (serializeCodex / loadCodex), this controller owns localStorage + the codexDirty flush.
@@ -91,6 +95,16 @@ export function saveArena(){ if(suppressed) return false;
 // Rehydrate the best wave at boot (independent of any run save — a brand-new player has best 0). A
 // corrupt/absent blob → loadArena installs 0.
 export function bootArena(){ loadArena(readArena()); G.arenaDirty=false; }
+
+// CAS-1988: Boss Rush best-round I/O (isolated from run save + meta + arena above). Wrapped — a private-mode /
+// quota failure degrades silently; the mode still runs with an in-memory best of 0.
+function readBossRush(){ try{ const raw=localStorage.getItem(KEY_BOSSRUSH); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+export function saveBossRush(){ if(suppressed) return false;
+  try{ const blob=serializeBossRush(); if(!blob) return false; localStorage.setItem(KEY_BOSSRUSH, JSON.stringify(blob)); return true; }
+  catch(e){ return false; } }
+// Rehydrate the best round at boot (independent of any run save — a brand-new player has best 0). A
+// corrupt/absent blob → loadBossRush installs 0.
+export function bootBossRush(){ loadBossRush(readBossRush()); G.bossRushDirty=false; }
 
 // CAS-1751: Códice de Botín I/O (isolated from run save + meta + arena above). Wrapped — a private-mode /
 // quota failure degrades silently; the game still runs with an in-memory empty codex (0 bonus).
@@ -170,6 +184,9 @@ export function tick(dtSec){
   // CAS-1664: flush the Arena best the instant it is beaten (set on arena death) — like the meta,
   // BEFORE the run-save scene gate, so a new record persists even on the death screen. One-shot.
   if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; }
+  // CAS-1988: flush the Boss Rush best round the instant it is beaten (set on round-clear) — like the arena best,
+  // BEFORE the run-save scene gate, so a new record persists even on the death screen / at the menu. One-shot.
+  if(G.bossRushDirty){ if(saveBossRush()) G.bossRushDirty=false; }
   // CAS-1751: flush the codex the instant a new entry is discovered (set on the first pickup of a
   // unique/set/rune) — BEFORE the run-save scene gate, so a discovery persists even if the tab closes
   // immediately. One-shot: the flag clears on write. Cheap (tiny flat blob, rare).
@@ -199,7 +216,7 @@ export function resetGame(){ suppress(); clear(); try{ if(typeof location!=="und
 // few seconds of progress between throttled autosaves.
 export function initFlush(){
   if(typeof window==="undefined") return;
-  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; } if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; } if(G.bloodstainDirty){ if(saveBloodstain()) G.bloodstainDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1751 codex + CAS-1758 titles + CAS-1763 pacts + CAS-1867 bloodstain ride the same unload flush
+  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.bossRushDirty){ if(saveBossRush()) G.bossRushDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; } if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; } if(G.bloodstainDirty){ if(saveBloodstain()) G.bloodstainDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1988 boss-rush best + CAS-1751 codex + CAS-1758 titles + CAS-1763 pacts + CAS-1867 bloodstain ride the same unload flush
   window.addEventListener("beforeunload", flush);
   window.addEventListener("pagehide", flush);
   if(typeof document!=="undefined")
