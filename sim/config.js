@@ -1233,6 +1233,30 @@ export const SHIELD_BLOCK = {
   moveMul:0.55,      // velocidad de strafe con la guardia arriba (gateado; OFF/no-bloqueando ⇒ sin efecto)
 };
 
+// CAS-2107: CONTRAGOLPE DE GUARDIA (Guard Counter, 33º mecánica · umbrella CAS-2105). Convierte el BLOQUEO con escudo
+// (SHIELD_BLOCK CAS-1873, hoy 100% defensivo/pasivo) en una oportunidad OFENSIVA: tras ABSORBER un golpe melee frontal
+// con la guardia SIN romperla, se abre una ventana breve (windowS) en la que el SIGUIENTE swing LIGHT del héroe se
+// convierte en un Contragolpe — daño ×dmgMul + poise-damage ×poiseMul (ALTO ⇒ eje de stagger/rotura). Da identidad
+// ofensiva al escudo y un eje activo turtle-vs-counter. NO exige timing en la parada (distinto de PARRY CAS-1785, que sí);
+// sólo absorber y responder rápido. 100% BORROW sobre pilares vivos:
+//   · La ventana se ARMA en la rama de BLOQUEO OK de damageHero (no-break); la rama de RUPTURA NO la abre (sin premio).
+//   · Ranged (src=null) NI ENTRA a la rama de bloqueo ⇒ nunca abre ventana (melee frontal-only heredado).
+//   · Dos manos (h.twoHand): el escudo está envainado ⇒ no hay bloqueo ⇒ no hay contragolpe (rides el gate existente).
+//   · Consumo: en applyHeroMelee, un swing LIGHT dentro de la ventana pega ×dmgMul, alimenta POISE.gain ×poiseMul (opt.guardCounter),
+//     gasta staminaCost (reusa STAMINA CAS-1841) y cierra la ventana (h.guardCounterT=0). Sin ventana ⇒ swing byte-idéntico.
+// Estado TRANSITORIO `h.guardCounterT` (mirror h.blocking/h.parryT): FUERA del allowlist de serializeSave ⇒ save.v1
+// byte-idéntico y SIN clave nueva; decae por dt cada fixed-frame. 100% timing/geometría/aritmética ⇒ CERO draws, NO existe
+// `guardCounterRng` ⇒ srand ON==OFF byte-idéntico incluso con el contragolpe disparando de verdad. HARD-GATED: enabled:false
+// ⇒ h.guardCounterT nunca sube, rama de ataque intacta ⇒ build byte-idéntico a HEAD (OFF==baseline). Números = defaults
+// sanos para QA; el CEO retunea + flipea enabled:false→true en el Gate (config-only 1 línea). $0 arte (VFX = primitiva canvas existente).
+export const GUARD_COUNTER = {
+  enabled:false,        // SHIP DARK. El CEO flipea false→true en el Gate (config-only 1 línea).
+  windowS:0.6,          // ventana de contragolpe (s) tras un bloqueo exitoso (no-break)
+  dmgMul:1.8,           // daño del contragolpe vs ataque light normal
+  poiseMul:2.5,         // daño de POISE del contragolpe (ALTO ⇒ eje de stagger/rotura)
+  staminaCost:10,       // estamina gastada en el contragolpe (reusa STAMINA; 0 = gratis)
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
@@ -1817,6 +1841,7 @@ export const ARENA_HAZARDS = {
     void:     { status:null,     statusDmg:0, tint:"#b070e0", glyph:"◈" },
   },
 };
+
 
 // CAS-1996 (EVO CAS-1995) — CÓDICE DE COMBATE + HINTS CONTEXTUALES. Descubribilidad pura: un panel de referencia
 // read-only (A) que lista las mecánicas de combate VIVAS con su binding REAL + descripción, y toasts one-time de

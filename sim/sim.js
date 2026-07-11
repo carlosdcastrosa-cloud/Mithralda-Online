@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -404,6 +404,11 @@ function newHero(name,cls){
     // arriba este frame (se re-fija cada fixed-frame desde io.blockHeld); la RUPTURA reusa `h.stun` (STAGGERED de
     // CAS-1826, ya existe). Fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG.
     blocking:false,
+    // CAS-2107: CONTRAGOLPE DE GUARDIA — ventana transitoria (mirror parryT). guardCounterT = segundos restantes de la
+    // ventana de contragolpe, armada en la rama de BLOQUEO OK de damageHero (no-break), consumida por el swing LIGHT en
+    // applyHeroMelee, decae por dt en tickGuardCounter. Fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y
+    // SIN clave nueva (arranca en 0 tras boot/load). 0 RNG (no existe guardCounterRng).
+    guardCounterT:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -2449,6 +2454,11 @@ function tickParry(h,dt){ if(!PARRY.enabled||!h) return;
   if(h.parryT>0) h.parryT=Math.max(0,h.parryT-dt);
   if(h.parryCD>0) h.parryCD=Math.max(0,h.parryCD-dt);
 }
+// CAS-2107: CONTRAGOLPE DE GUARDIA tick — winds down the counter window armed by a successful block. Pure arithmetic,
+// 0 RNG, gated on GUARD_COUNTER.enabled ⇒ when off (or never armed) guardCounterT stays 0 (byte-identical). Mirror tickParry.
+function tickGuardCounter(h,dt){ if(!GUARD_COUNTER.enabled||!h) return;
+  if(h.guardCounterT>0) h.guardCounterT=Math.max(0,h.guardCounterT-dt);
+}
 
 // CAS-1831: SISTEMA DE COMBOS window tick — single source of truth (called from update(dt) and the harness
 // step hook). Winds down the light-chain window; once it lapses the chain COOLS (comboCount→0) so the next
@@ -2727,16 +2737,26 @@ function applyHeroMelee(){
   // arquetipo × TWO_HAND (los tres se multiplican, ninguno pisa al otro). Fuera de la ventana del Arte ⇒ ART_UNIT (todo ×1) ⇒
   // byte-idéntico. dmg ×wart.dmgMul, alcance ×wart.reachMul, arco ×wart.arcMul; el poise-damage escala en hitEnemy vía opt.art.
   const wart = heroArtMul(h);
+  // CAS-2107: CONTRAGOLPE DE GUARDIA. Un swing LIGHT (no pesado) lanzado dentro de la ventana abierta por un bloqueo
+  // exitoso (h.guardCounterT>0, armada en damageHero) es un Contragolpe: ×dmgMul en el sink de daño y ×poiseMul en el
+  // poise-damage (opt.guardCounter ⇒ hitEnemy, mismo sink que TWO_HAND). Es el ÚLTIMO factor multiplicativo (compone con
+  // finisher/arquetipo/Arte/buff, ninguno pisa). Se consume (h.guardCounterT=0) y gasta staminaCost al LANZAR el swing —
+  // aunque no impacte — para cerrar la ventana determinista. OFF / sin ventana ⇒ gc=false ⇒ ×1 + opt.guardCounter ausente
+  // ⇒ swing byte-idéntico. Aritmética/timing puro ⇒ 0 draw (no existe guardCounterRng). Sólo swings LIGHT (heavy usa otra tecla).
+  const gc = GUARD_COUNTER.enabled && h.guardCounterT>0 && !heavy;
   // CAS-1926: la RESINA / BUFF de arma activo (h._wbuff, ventana wbuffT>0) reescala ESTE swing como ÚLTIMO factor del sink ⇒
   // compone MULTIPLICATIVAMENTE tras arquetipo × TWO_HAND × Arte (ninguno pisa). Sin buff / OFF ⇒ buffMul(h)=1 ⇒ byte-idéntico.
-  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h);
+  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h)*(gc?GUARD_COUNTER.dmgMul:1);
+  if(gc){ h.guardCounterT=0;                                        // consume la ventana (aunque el swing no impacte)
+    if(STAMINA.enabled && GUARD_COUNTER.staminaCost>0){ h.stam=Math.max(0,h.stam-GUARD_COUNTER.staminaCost); h._stamRegenPauseT=STAMINA.regenDelay; }
+    addFx("spellburst",h.x,h.y-2,{col:"#bfe3ff"}); floater(h.x,h.y-40,STR.guardCounter||"¡CONTRAGOLPE!","#bfe3ff"); }   // $0 arte: primitiva canvas existente
   heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
     const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range*wa.reachMul*wart.reachMul+e.tpl.size) continue;   // CAS-1907 alcance ×reachMul · CAS-1914 ×artReachMul (OFF/sword sin Arte ⇒ ×1)
     const ang=Math.atan2(e.y-h.y,e.x-h.x);
     if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc*wa.arcMul*wart.arcMul/2){                       // CAS-1907 arco ×arcMul · CAS-1914 ×artArcMul (OFF/sword sin Arte ⇒ ×1)
-      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th, arch:wa, art:wart}); shakeAdd(5.5);
+      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th, arch:wa, art:wart, guardCounter:gc}); shakeAdd(5.5);
       // CAS-204: a bold crimson→white crescent sweeps through the struck enemy on a melee connect,
       // so the swing reads as cleaving INTO the target rather than next to it (FOUNTAINS slash juice).
       addFx("slashArc",e.x,e.y,{ang:h.atkAng,life:0.2});
@@ -2816,6 +2836,10 @@ function hitEnemy(e,dmg,ang,opt){
       // CAS-1895: a dos manos (opt.twoHand, sólo golpes melee) el poise-damage base sube ×poiseMul ⇒ staggerea más rápido.
       // Aritmética pura (0 draw); OFF/sin twoHand ⇒ opt.twoHand ausente ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
       if(TWO_HAND.enabled && opt && opt.twoHand) add*=TWO_HAND.poiseMul;
+      // CAS-2107: un CONTRAGOLPE DE GUARDIA (opt.guardCounter, sólo swings LIGHT dentro de la ventana) sube el poise-damage
+      // ×poiseMul en el MISMO sink (compone con TWO_HAND/arquetipo/Arte) ⇒ ALTO ⇒ staggerea/rompe rápido. 0 draw; OFF / sin
+      // ventana ⇒ opt.guardCounter ausente ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
+      if(GUARD_COUNTER.enabled && opt && opt.guardCounter) add*=GUARD_COUNTER.poiseMul;
       // CAS-1907: el arquetipo del arma escala el poise-damage en el MISMO sink (compone ×poiseDmgMul con TWO_HAND). Aritmética
       // pura (0 draw); OFF ⇒ gate false; sword ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
       if(WEAPON_ARCHETYPES.enabled && opt && opt.arch) add*=opt.arch.poiseDmgMul;
@@ -4516,6 +4540,7 @@ export function update(dtMs){
   if(h.atkspdBuffT>0){ h.atkspdBuffT-=dt; if(h.atkspdBuffT<=0){ h.atkspdBuffT=0; h.atkspdBuffAmt=0; } }
   tickFrenzy(h,dt); // CAS-1773: window wind-down + gradual stack decay (arithmetic, no RNG, gated)
   tickParry(h,dt);  // CAS-1785: parry window + cooldown wind-down (arithmetic, no RNG, gated on PARRY.enabled)
+  tickGuardCounter(h,dt); // CAS-2107: guard-counter window wind-down (arithmetic, no RNG, gated on GUARD_COUNTER.enabled)
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
@@ -5353,6 +5378,11 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
         if(STAMINA.enabled){ h.stam=Math.max(0,h.stam-cost); h._stamRegenPauseT=STAMINA.regenDelay; }
         dmg=Math.max(1, dmg-absorbed);                             // mitiga; NO niega. Sin i-frames.
         addFx("dodgering",h.x,h.y,{life:0.22}); floater(h.x,h.y-34,STR.block,"#bfe3ff"); shakeAdd(4); audio.sfx.roll();
+        // CAS-2107: un bloqueo exitoso SIN romper la guardia ABRE la ventana de CONTRAGOLPE — el siguiente swing LIGHT
+        // pega ×dmgMul + poise ×poiseMul (applyHeroMelee). Sólo aquí (no en la rama de ruptura: te rompieron = sin premio);
+        // ranged (src=null) ya saltó la rama entera y dos manos no puede alzar guardia ⇒ ambos nunca llegan. Aritmética pura,
+        // 0 draw; GUARD_COUNTER.enabled=false ⇒ este set nunca corre ⇒ h.guardCounterT queda en 0 ⇒ rama de ataque intacta.
+        if(GUARD_COUNTER.enabled) h.guardCounterT=GUARD_COUNTER.windowS;
         // cae al flujo normal con dmg reducido (armadura/hp/estado/reflect siguen igual).
       }
     }
@@ -7904,6 +7934,106 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     SHIELD_BLOCK.enabled=savE; STAMINA.enabled=savS; if(h){ h.blocking=false; h.stun=0; }
     return { enabled:!!enabled, blockFired:(enabled?(blocked&&broke):false), fingerprint:fp }; },
+  // --- CAS-2107 CONTRAGOLPE DE GUARDIA (Guard Counter) harness hooks (tools/cas2107-guard-counter.mjs); additive, DRIVEN
+  // el loop REAL: la rama de BLOQUEO OK de damageHero (abre ventana), applyHeroMelee (swing LIGHT en ventana ⇒ dmg ×dmgMul +
+  // poise ×poiseMul + consume + stam), y los gates de NO-apertura (ruptura / ranged / dos manos). Todo timing/geometría/
+  // aritmética ⇒ 0 srand, NO guardCounterRng. h.guardCounterT transitorio (mirror h.parryT) ⇒ save.v1 byte-id y SIN clave. ---
+  guardCounterMeta(){ return { enabled:GUARD_COUNTER.enabled, windowS:GUARD_COUNTER.windowS, dmgMul:GUARD_COUNTER.dmgMul, poiseMul:GUARD_COUNTER.poiseMul, staminaCost:GUARD_COUNTER.staminaCost }; },
+  guardCounterEnable(on){ GUARD_COUNTER.enabled=!!on; return { enabled:GUARD_COUNTER.enabled }; },
+  guardCounterState(){ const h=G.hero; if(!h) return null; return { guardCounterT:+((h.guardCounterT||0).toFixed(4)), blocking:!!h.blocking, stam:+((h.stam||0).toFixed(4)) }; },
+  // Clean warrior in play, arrays vacías, guardia ABAJO, ventana CERRADA, estamina llena, sin combate/cooldown, maxHp enorme,
+  // facing=0 (+x = frontal), _mcfg=ATK.warrior + atkAng=0 (swing melee real). NO toca h.equip (loadout real ⇒ equippedDmg no-cero).
+  _gcArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0; h.flaskDrinkT=0;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null; h.frenzyStacks=0; h._parryRiposte=0;
+    h._comboFin=false; h._heavy=false; h._art=false; h._mcfg=ATK.warrior; h.atkAng=0;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; h.twoHand=false; h.guardCounterT=0; return h; },
+  // AC APERTURA + GATES: un BLOQUEO OK (no-break) frontal ABRE la ventana (guardCounterT==windowS). La RUPTURA (stam<coste)
+  // NO la abre (te rompieron). Un golpe RANGED (src=null) NO entra a la rama ⇒ NO abre. A DOS MANOS (escudo envainado) la
+  // rama sale temprano ⇒ NO abre. 0 srand.
+  guardCounterWindowProbe(){ const savG=GUARD_COUNTER.enabled, savSh=SHIELD_BLOCK.enabled, savS=STAMINA.enabled, savT=TWO_HAND.enabled;
+    GUARD_COUNTER.enabled=true; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true; TWO_HAND.enabled=true;
+    const h=this._gcArm(); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    // bloqueo OK (no-break): stam llena ⇒ coste cubierto
+    h.facing=0; h.twoHand=false; h.blocking=true; h.iframe=0; h.stam=STAMINA.max; h.guardCounterT=0; h.stun=0;
+    damageHero(100,0,null,e); const openT=+((h.guardCounterT||0).toFixed(4)); const opened=(Math.abs(openT-GUARD_COUNTER.windowS)<1e-9); const noBreak=(h.stun<=0);
+    // RUPTURA: stam insuficiente ⇒ break ⇒ ventana NO abre
+    h.iframe=0; h.blocking=true; h.stun=0; h.stam=5; h.guardCounterT=0; damageHero(100,0,null,e); const brokeNoOpen=(h.stun>0 && (h.guardCounterT||0)===0);
+    // RANGED: src=null ⇒ ni entra a la rama ⇒ NO abre
+    h.iframe=0; h.blocking=true; h.stun=0; h.stam=STAMINA.max; h.guardCounterT=0; damageHero(100,0,null,null); const rangedNoOpen=((h.guardCounterT||0)===0);
+    // DOS MANOS: escudo envainado ⇒ rama sale temprano ⇒ NO abre
+    h.iframe=0; h.twoHand=true; h.blocking=true; h.stun=0; h.stam=STAMINA.max; h.guardCounterT=0; damageHero(100,0,null,e); const twoHandNoOpen=((h.guardCounterT||0)===0);
+    GUARD_COUNTER.enabled=savG; SHIELD_BLOCK.enabled=savSh; STAMINA.enabled=savS; TWO_HAND.enabled=savT; this._gcArm();
+    return { openT, opened, noBreak, brokeNoOpen, rangedNoOpen, twoHandNoOpen, ok:(opened&&noBreak&&brokeNoOpen&&rangedNoOpen&&twoHandNoOpen) }; },
+  // AC DAÑO ×dmgMul + CONSUME + STAM: un swing LIGHT con la ventana abierta pega ×dmgMul vs sin ventana (mismo equip),
+  // consume la ventana (guardCounterT→0) y gasta staminaCost. Enemigo básico (poiseCeil=0) ⇒ sin stagger. 0 srand.
+  guardCounterDmgProbe(){ const savG=GUARD_COUNTER.enabled, savS=STAMINA.enabled; GUARD_COUNTER.enabled=true; STAMINA.enabled=true;
+    const h=this._gcArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.atkAng=0; h._mcfg=ATK.warrior;
+    // sin ventana (referencia)
+    e.x=h.x+30; e.y=h.y; h.guardCounterT=0; h.stam=STAMINA.max; h._atkHits=new Set(); const a0=e.hp; applyHeroMelee(); const dOff=a0-e.hp;
+    // con ventana ⇒ contragolpe
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.guardCounterT=GUARD_COUNTER.windowS; h.stam=STAMINA.max; const st0=h.stam; h._atkHits=new Set(); const b0=e.hp; applyHeroMelee(); const dOn=b0-e.hp;
+    const stSpent=st0-h.stam, consumed=((h.guardCounterT||0)===0);
+    const ratio=dOff>0?dOn/dOff:0; const ratioOk=Math.abs(ratio-GUARD_COUNTER.dmgMul)<1e-6; const stamOk=(stSpent===GUARD_COUNTER.staminaCost);
+    GUARD_COUNTER.enabled=savG; STAMINA.enabled=savS; this._gcArm();
+    return { dOff, dOn, ratio:+ratio.toFixed(6), expect:GUARD_COUNTER.dmgMul, ratioOk, stSpent, stamOk, consumed, ok:(dOff>0 && ratioOk && stamOk && consumed) }; },
+  // AC POISE ×poiseMul: un contragolpe sobre un enemigo con postura (champion ⇒ poiseCeil=100) acumula light×poiseMul vs light
+  // sin ventana. Sin telegrafía (e.st=0) ⇒ gain limpio. 12×2.5=30 < 100 ⇒ sin stagger-reset. 0 srand.
+  guardCounterPoiseProbe(){ const savG=GUARD_COUNTER.enabled, savS=STAMINA.enabled; GUARD_COUNTER.enabled=true; STAMINA.enabled=true;
+    const h=this._gcArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; }
+    h.atkAng=0; h._mcfg=ATK.warrior;
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; h.guardCounterT=0; h.stam=STAMINA.max; h._atkHits=new Set(); applyHeroMelee(); const pOff=e.poise;
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; h.guardCounterT=GUARD_COUNTER.windowS; h.stam=STAMINA.max; h._atkHits=new Set(); applyHeroMelee(); const pOn=e.poise;
+    const baseOk=Math.abs(pOff-POISE.gain.light)<1e-6, mulOk=Math.abs(pOn-POISE.gain.light*GUARD_COUNTER.poiseMul)<1e-6;
+    GUARD_COUNTER.enabled=savG; STAMINA.enabled=savS; this._gcArm();
+    return { pOff, pOn, expect:+(POISE.gain.light*GUARD_COUNTER.poiseMul).toFixed(4), baseOk, mulOk, ok:(baseOk&&mulOk) }; },
+  // AC OFF byte-id: GUARD_COUNTER.enabled=false ⇒ (a) un bloqueo OK NUNCA abre ventana (guardCounterT queda 0), y (b) forzar
+  // guardCounterT>0 es INERTE en applyHeroMelee ⇒ el swing pega daño IDÉNTICO a sin ventana ⇒ rama de ataque intacta = HEAD.
+  guardCounterOffProbe(){ const savG=GUARD_COUNTER.enabled, savSh=SHIELD_BLOCK.enabled, savS=STAMINA.enabled;
+    GUARD_COUNTER.enabled=false; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._gcArm(); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    // (a) bloqueo OK con la feature OFF ⇒ ventana NO abre
+    h.facing=0; h.blocking=true; h.iframe=0; h.stam=STAMINA.max; h.guardCounterT=0; h.stun=0; damageHero(100,0,null,e); const noOpen=((h.guardCounterT||0)===0);
+    // (b) forzar guardCounterT>0 ⇒ swing INERTE (mismo daño que ventana cerrada)
+    e.hp=1e9; h.atkAng=0; h._mcfg=ATK.warrior;
+    e.x=h.x+30; e.y=h.y; h.guardCounterT=GUARD_COUNTER.windowS; h._atkHits=new Set(); const a0=e.hp; applyHeroMelee(); const dForced=a0-e.hp;
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.guardCounterT=0; h._atkHits=new Set(); const b0=e.hp; applyHeroMelee(); const dRef=b0-e.hp;
+    const dmgInert=(dForced===dRef);
+    GUARD_COUNTER.enabled=savG; SHIELD_BLOCK.enabled=savSh; STAMINA.enabled=savS; this._gcArm();
+    return { noOpen, dForced, dRef, dmgInert, ok:(noOpen&&dmgInert) }; },
+  // AC SAVE byte-id: h.guardCounterT transitorio (fuera del allowlist) ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave
+  // guardCounter*. (Nombre del héroe SIN "guard"/"counter" ⇒ el grep de clave no falsea.)
+  guardCounterSaveByteId(){ const savG=GUARD_COUNTER.enabled;
+    GUARD_COUNTER.enabled=true; const h=this._gcArm(); h.guardCounterT=0.5;
+    const onStr=JSON.stringify(serializeSave());
+    GUARD_COUNTER.enabled=false; const offStr=JSON.stringify(serializeSave());
+    GUARD_COUNTER.enabled=savG; this._gcArm();
+    return { byteId:(offStr===onStr), hasKey:/"_?guard[cC]ounter[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !/"_?guard[cC]ounter[a-zA-Z]*":/i.test(onStr)) }; },
+  // AC 0-RNG STRONG: fingerprint del srand alrededor del CONTRAGOLPE DISPARANDO REAL — un bloqueo que ABRE ventana + un swing
+  // LIGHT que la CONSUME (dmg×+poise×) — ON vs OFF. Todo geometría/aritmética (NO guardCounterRng) ⇒ stream srand BYTE-IDÉNTICO.
+  guardCounterSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savG=GUARD_COUNTER.enabled, savSh=SHIELD_BLOCK.enabled, savS=STAMINA.enabled;
+    GUARD_COUNTER.enabled=!!enabled; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._gcArm();
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let opened=false, countered=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+      h.facing=0; h.twoHand=false; h.blocking=true; h.iframe=0; h.stam=STAMINA.max; h.guardCounterT=0; h.stun=0;
+      damageHero(100,0,null,e); opened=(enabled ? ((h.guardCounterT||0)>0) : ((h.guardCounterT||0)===0));       // bloqueo abre ventana (0 draws)
+      e.x=h.x+30; e.y=h.y; e.hp=1e9; h.atkAng=0; h._mcfg=ATK.warrior; h._atkHits=new Set();
+      applyHeroMelee(); countered=(enabled ? ((h.guardCounterT||0)===0) : ((h.guardCounterT||0)===0));           // swing consume ventana (0 draws)
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",h.x+60+i,h.y); if(k){ k.hp=0; killEnemy(k); } }         // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    GUARD_COUNTER.enabled=savG; SHIELD_BLOCK.enabled=savSh; STAMINA.enabled=savS; this._gcArm();
+    return { enabled:!!enabled, counterFired:(enabled?(opened&&countered):false), fingerprint:fp }; },
   // --- CAS-1895 EMPUÑADURA A DOS MANOS (Two-Handing) harness hooks (tools/cas1895-two-hand.mjs); additive, drive los
   // seams REALES: equipLoad (escudo fuera a dos manos), applyHeroMelee (dmg ×dmgMul + poise ×poiseMul), heavyAttack (stam
   // ×stamMul), y la rama de bloqueo de damageHero (DENY a dos manos). Todo input/aritmética ⇒ 0 srand, NO twoHandRng.
