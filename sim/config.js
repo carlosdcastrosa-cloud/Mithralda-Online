@@ -1406,6 +1406,32 @@ export const DEFLECT = {
   requiresParryWindow:true,  // tempo-gate: SÓLO durante la ventana de parry (h.parryT>0) — no es un escudo pasivo
 };
 
+// CAS-2156: LUNGE / ESTOCADA DE AVANCE (mecánica #40 · primer verbo de MOVILIDAD-OFENSIVA anti-kite UNIVERSAL). Recomendación
+// #2 del Audit v5 (CAS-2150, GO). Ataque COMPROMETIDO que TRASLADA al héroe hacia adelante (dash direccional a h.facing con un
+// golpe de estocada de cono ESTRECHO) para castigar a un enemigo que retrocede/kitea o cerrar sobre un caster. Nicho ausente:
+// hoy toda la movilidad es DEFENSIVA (roll con i-frames) o REACTIVA (deflect); no hay respuesta de movilidad OFENSIVA — perseguir
+// caminando nunca alcanza (misma velocidad) y rodar no daña. LUNGE lo aporta. Ortogonal (ver design/cas-mec40-lunge.md): DODGE es
+// su OPUESTO (defensa/i-frames/0 daño); CHARGED #37 es ESTACIONARIO con híper-armadura; GUARD_BREAK #38 es patada corta anti-turtle
+// sin desplazamiento; DEFLECT #39 es reactivo anti-ranged; el Arte de dash es por-arquetipo (daga) con auto-target. $0 arte / 0 motor
+// nuevo: reusa el vector de impulso del roll (moveEnt + patrón rollX/rollSpd), applyHeroMelee (hitbox, _mcfg sintetizado estrecho),
+// STAMINA, el sprite de swing + anillo/estela de dash. RNG-neutral STRONG: geometría/aritmética pura, 0 draws, NO existe lungeRng
+// (el golpe pasa por el MISMO hitEnemy que un swing normal). save-neutral: todo estado transitorio con prefijo _ (fuera del allowlist
+// de serializeSave) ⇒ 0 clave nueva. ANTI-DEGENERADO: coste de estamina + recuperación (recoverMs, no spammeable) + dmgMul SUB-counter
+// (reposición+castigo, NO burst) + SIN i-frames (NO reemplaza al roll defensivo; whiff = vulnerable) + cap de distancia. enabled:false
+// ⇒ input gated + lungeStrike retorna en el 1er gate + _lunge nunca se arma ⇒ byte-idéntico al baseline (0-regresión 39 mec vivas).
+export const LUNGE = {
+  enabled:false,             // DARK-by-default — CEO gate flip false→true tras QA PASS×2. Reversible en 1 línea.
+  key:"Backslash",           // tecla DEDICADA no-rebindable (code LIBRE grep-verificado; 26 letras + Semicolon/Quote/Slash/Brackets/Comma/Period/KeyN/KeyE ocupadas). Móvil = botón HUD tap tb.lunge.
+  distance:118,              // px de impulso hacia adelante (gap-closer; > roll 92 para castigar el kite, aún ACOTADO ~1.3× el roll)
+  dashMs:150,               // duración del dash (ms) — corto; velocidad = distance/(dashMs/1000) ≈ 787 px/s
+  range:60,                 // alcance del golpe de estocada (px) — ~swing warrior (54); la elongación REAL la da el dash que arrastra el hitbox
+  arcDeg:70,                // cono ESTRECHO (grados) — hitbox de ESTOCADA, no barrido amplio ("elongada estrecha")
+  dmgMul:1.3,               // ×daño del golpe — REPOSICIÓN + castigo, NO burst (< dodge-counter 1.5, < charged 1.7); nunca one-shot
+  staminaCost:16,           // coste de estamina propio (deny sin vigor; spendStam flashea) — el commit cuesta vigor
+  recoverMs:520,            // ventana de recuperación (no spammeable / no gap-closer infinito) — h._lungeCd transitorio (mirror h._gbCd)
+  requiresMelee:false,      // verbo UNIVERSAL anti-kite (toda clase cierra distancia); hitbox propia (_mcfg) ⇒ ranged también golpea al cerrar
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
@@ -2071,6 +2097,7 @@ export const COMBAT_CODEX_ENTRIES = [
   { group:"Ofensiva",   label:"Puñalada por la espalda", keyOf:()=>"Espalda",       desc:"Backstab: golpea desde el arco trasero para daño masivo.", gate:()=>BACKSTAB.enabled },
   { group:"Ofensiva",   label:"Arte de Arma",       keyOf:()=>WEAPON_ARTS.key,      desc:"Ejecuta el Arte del arquetipo de arma equipado.", gate:()=>WEAPON_ARTS.enabled },
   { group:"Ofensiva",   label:"Empujón / Rompe-guardia", keyOf:()=>GUARD_BREAK.key, desc:"Patada que drena la postura de un enemigo que bloquea/turtlea y le rompe la guardia (abre ejecución).", gate:()=>GUARD_BREAK.enabled },
+  { group:"Ofensiva",   label:"Estocada de Avance",  keyOf:()=>LUNGE.key,           desc:"Dash ofensivo que cierra distancia y golpea de estocada (SIN i-frames; castiga a quien retrocede/kitea o cierra sobre un caster).", gate:()=>LUNGE.enabled },
   { group:"Ofensiva",   label:"Arrojar",            keyOf:()=>THROWABLES.throwKey,  desc:"Lanza el consumible arrojadizo seleccionado; cicla el tipo.", gate:()=>THROWABLES.enabled },
   { group:"Ofensiva",   label:"Aplicar resina",     keyOf:()=>WEAPON_BUFFS.applyKey,desc:"Unta el arma con una resina: buff temporal de daño/estado.", gate:()=>WEAPON_BUFFS.enabled },
   // RECURSOS

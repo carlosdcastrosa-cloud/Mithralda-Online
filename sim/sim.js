@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2728,6 +2728,7 @@ function heroAttack(){
   h._heavy=false;
   h._art=false;   // CAS-1914: un swing normal NUNCA es un Arte de Arma ⇒ limpia el flag para que applyHeroMelee no arrastre sus muls
   h._charged=false;  // CAS-2135: un swing LIGHT nunca es cargado ⇒ limpia el flag (mirror _heavy) para que applyHeroMelee no arrastre el mult de un pesado cargado previo
+  h._lunge=false;    // CAS-2156: un swing LIGHT normal nunca es una estocada ⇒ limpia el flag (mirror _charged) para que applyHeroMelee no arrastre el mult de una estocada previa
   if(COMBO.enabled && cfg.type==="melee"){
     h.comboCount = (h.comboT>0) ? Math.min(COMBO.chainLen, h.comboCount+1) : 1;
     h.comboT = COMBO.windowMs/1000;
@@ -2763,7 +2764,7 @@ export function heavyAttack(){
   const atkspd=heroAtkspd(h);
   const swm=heroArch(h).swingMul;  // CAS-1907: arquetipo ×swingMul (OFF/sword ⇒ ×1 byte-id)
   h.atkAng=a; h.atkAnim=CFG.atkCD*swm; h.atkCD=cfg.cd*COMBO.heavyCdMul*swm/(1+atkspd/100); h._atkHits=new Set();
-  h._heavy=true; h._comboFin=false; h._art=false;   // this swing is HEAVY (×dmg + POISE heavy), not a chain finisher — CAS-1914: y NO un Arte (limpia h._art)
+  h._heavy=true; h._comboFin=false; h._art=false; h._lunge=false;   // this swing is HEAVY (×dmg + POISE heavy), not a chain finisher — CAS-1914: y NO un Arte (limpia h._art) · CAS-2156: ni una estocada (limpia h._lunge)
   h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(3.6);
   addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.4});
 }
@@ -2804,9 +2805,14 @@ function applyHeroMelee(){
   // también en hitEnemy (tras todo el apilamiento). `_charged` rige toda la ventana activa como `_heavy` (se limpia en el próximo
   // heroAttack/weaponArt). OFF / release sub-umbral ⇒ _charged=false ⇒ ×1 + opt.charged inerte ⇒ byte-idéntico a HEAD. 0 draw.
   const charged = CHARGED_ATTACK.enabled && h._charged;
+  // CAS-2156: ESTOCADA DE AVANCE — un swing armado por lungeStrike() (h._lunge, con h._mcfg de cono estrecho/alcance largo) pega
+  // ×dmgMul en ESTE sink ⇒ compone MULTIPLICATIVAMENTE con el resto (ninguno pisa). dmgMul es SUB-counter (reposición+castigo, NO
+  // burst). _lunge se limpia en el próximo heroAttack/heavyAttack/weaponArt (mirror _charged). OFF / !_lunge ⇒ lunge=false ⇒ ×1 ⇒
+  // byte-idéntico a HEAD. 0 draw (aritmética escalar; NO existe lungeRng). El alcance/arco los aporta el _mcfg sintetizado, no aquí.
+  const lunge = LUNGE.enabled && h._lunge;
   // CAS-1926: la RESINA / BUFF de arma activo (h._wbuff, ventana wbuffT>0) reescala ESTE swing como ÚLTIMO factor del sink ⇒
   // compone MULTIPLICATIVAMENTE tras arquetipo × TWO_HAND × Arte (ninguno pisa). Sin buff / OFF ⇒ buffMul(h)=1 ⇒ byte-idéntico.
-  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h)*(gc?GUARD_COUNTER.dmgMul:1)*(dc?DODGE_COUNTER.dmgMul:1)*(charged?CHARGED_ATTACK.dmgMul:1);
+  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h)*(gc?GUARD_COUNTER.dmgMul:1)*(dc?DODGE_COUNTER.dmgMul:1)*(charged?CHARGED_ATTACK.dmgMul:1)*(lunge?LUNGE.dmgMul:1);
   if(gc){ h.guardCounterT=0;                                        // consume la ventana (aunque el swing no impacte)
     if(STAMINA.enabled && GUARD_COUNTER.staminaCost>0){ h.stam=Math.max(0,h.stam-GUARD_COUNTER.staminaCost); h._stamRegenPauseT=STAMINA.regenDelay; }
     addFx("spellburst",h.x,h.y-2,{col:"#bfe3ff"}); floater(h.x,h.y-40,STR.guardCounter||"¡CONTRAGOLPE!","#bfe3ff"); }   // $0 arte: primitiva canvas existente
@@ -4453,7 +4459,7 @@ function buffMul(h){ return (WEAPON_BUFFS.enabled && h && h._wbuff && h.wbuffT>0
 
 export function doRoll(){ const h=G.hero;
   if(h && FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // CAS-1854: rodar cancela el trago (sin coste); si no, enraiza vía el gate
-  if(h.rolling||h.rollCD>0||(FLASK.enabled&&h.flaskDrinkT>0)) return;
+  if(h.rolling||h.rollCD>0||(LUNGE.enabled&&(h._lungeT||0)>0)||(FLASK.enabled&&h.flaskDrinkT>0)) return;   // CAS-2156: no se puede rodar DURANTE una estocada (el dash es un commit SIN i-frames; rodar lo cancelaría a i-frames ⇒ rompería el anti-degenerado). OFF/sin estocada ⇒ término false ⇒ byte-id
   // CAS-1889: la BANDA de carga del equipo multiplica esquiva (dist/iframe) + coste de estamina + move. OFF ⇒ m todo 1
   // (mid) ⇒ byte-idéntico. `over` + overCanRoll:false ⇒ deny + return ANTES de gastar estamina (sobrecargado, sin rodada).
   const el = EQUIP_LOAD.enabled ? equipLoad(h).band : "mid";
@@ -4513,7 +4519,7 @@ export function weaponArt(){
   const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const atkspd=heroAtkspd(h); const swm=heroArch(h).swingMul;
   h.atkAng=a; h.atkAnim=CFG.atkCD*swm*(art.windupMul||1); h.atkCD=cfg.cd*COMBO.heavyCdMul*swm/(1+atkspd/100); h._atkHits=new Set();
-  h._heavy=false; h._comboFin=false; h._charged=false;   // CAS-2135: un Arte de Arma nunca es un pesado cargado ⇒ limpia el flag (mirror _heavy)
+  h._heavy=false; h._comboFin=false; h._charged=false; h._lunge=false;   // CAS-2135: un Arte de Arma nunca es un pesado cargado ⇒ limpia el flag (mirror _heavy) · CAS-2156: ni una estocada (limpia _lunge)
   h._art=true; h._artHyper=!!art.hyperarmor;
   h._artCls={ dmgMul:art.dmgMul||1, poiseDmgMul:art.poiseDmgMul||1, reachMul:art.reachMul||1, arcMul:art.arcMul||1 };
   h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(4.2);
@@ -4561,6 +4567,39 @@ export function guardBreakKick(){
       floater(e.x,e.y-e.tpl.size-4,STR.shove,"#ffd27a");
     }
   }
+}
+
+// CAS-2156: ESTOCADA DE AVANCE / LUNGE (mecánica #40 · verbo de MOVILIDAD-OFENSIVA anti-kite UNIVERSAL). Un ataque COMPROMETIDO
+// que TRASLADA al héroe hacia adelante (dash direccional a h.facing) con un golpe de estocada de cono ESTRECHO, para castigar a
+// quien retrocede/kitea o cerrar sobre un caster. SIN i-frames (a diferencia del roll) ⇒ vulnerable; con coste de estamina y una
+// ventana de recuperación (whiff punible). $0 arte / 0 motor nuevo: reusa el vector de impulso del roll (h._lunge* + moveEnt en el
+// tick de movimiento) + applyHeroMelee (hitbox, con un _mcfg SINTETIZADO de alcance/arco de estocada) + STAMINA + swing/dodgering FX.
+// 100% geometría/aritmética ⇒ 0 srand (NO existe lungeRng; el golpe pasa por el MISMO hitEnemy que un swing normal). Todo el estado es
+// transitorio con prefijo _ (fuera del allowlist de serializeSave) ⇒ save.v1 byte-id, sin clave nueva. OFF ⇒ input gated ⇒ jamás
+// llamado ⇒ byte-idéntico a HEAD. Universal (requiresMelee:false); el _mcfg propio garantiza un hitbox válido para toda clase.
+// Mirror del gate/deny/spendStam de guardBreakKick (4534) y del arme de swing de heroAttack (2709).
+export function lungeStrike(){
+  const h=G.hero;
+  if(!LUNGE.enabled || G.scene!=="play" || !h || h.dead) return;
+  if(FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // cancela el trago (sin coste), mirror guardBreakKick/weaponArt
+  if((h._lungeCd||0)>0 || (h._lungeT||0)>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0) || (WEAPON_BUFFS.enabled&&h.applyBuffT>0)) return;   // mismo gate que un swing + su propia ventana de recuperación + no re-lunge mid-dash
+  const cls=ATK[h.cls||"warrior"];
+  if(LUNGE.requiresMelee && cls.type!=="melee") return;   // universal por defecto; requiresMelee:true lo restringiría a melee
+  if(!spendStam(h, LUNGE.staminaCost)) return;   // sin vigor ⇒ deny (spendStam flashea); NO recovery, NO disparo
+  const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
+  h._lungeCd = LUNGE.recoverMs/1000;                     // ventana de recuperación (no spammeable), transitoria (mirror h._gbCd)
+  // arma el DASH hacia adelante (SIN i-frames ⇒ vulnerable; distinto del roll defensivo). El tick de movimiento lo avanza vía moveEnt.
+  h._lungeT = LUNGE.dashMs/1000; h._lungeSpd = LUNGE.distance/(LUNGE.dashMs/1000); h._lungeVx = ca; h._lungeVy = sa;
+  // arma el SWING de estocada: _mcfg SINTETIZADO (cono estrecho / alcance de estocada) ⇒ applyHeroMelee usa este hitbox para TODA
+  // clase (universal). _lunge=true ⇒ dmg ×LUNGE.dmgMul en el sink. atkCD bloquea re-atacar durante el dash. Limpia los demás flags.
+  h.atkAng=a; h.atkAnim=CFG.atkCD; h.atkCD=cls.cd; h._atkHits=new Set();
+  h._mcfg={ type:"melee", range:LUNGE.range, arc:LUNGE.arcDeg*Math.PI/180, cd:cls.cd, dmgMul:cls.dmgMul, fx:cls.fx||"slash" };
+  h._heavy=false; h._art=false; h._charged=false; h._comboFin=false; h._lunge=true;
+  h.atkT=CFG.atkActive;
+  audio.sfx.sword(); shakeAdd(4.2);
+  addFx("dodgering",h.x+ca*14,h.y+sa*14,{life:0.18});                          // reusa el anillo/estela de dash ($0 arte)
+  addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:h._mcfg.fx,life:0.3});         // reusa el sprite de swing
+  floater(h.x,h.y-40,STR.lunge,"#9fe8ff");                                     // headline OBSERVABLE ($0 arte)
 }
 
 // CAS-1920: CONSUMIBLES ARROJADIZOS. Mapa tipo⇒campo de cargas del héroe (spec fija h.knifeCharges / h.bombCharges; fallback
@@ -4701,6 +4740,7 @@ export function update(dtMs){
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
   if(WEAPON_ARTS.enabled) h.artCD=Math.max(0,(h.artCD||0)-dt);   // CAS-1914: cooldown del Arte de Arma (transitorio, mirror atkCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   if(GUARD_BREAK.enabled) h._gbCd=Math.max(0,(h._gbCd||0)-dt);   // CAS-2146: ventana de recuperación del Empujón/Rompe-guardia (transitorio, mirror artCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
+  if(LUNGE.enabled) h._lungeCd=Math.max(0,(h._lungeCd||0)-dt);   // CAS-2156: ventana de recuperación de la Estocada (transitorio, mirror _gbCd). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   h.hurtAnim=Math.max(0,(h.hurtAnim||0)-dt); h.specialAnim=Math.max(0,(h.specialAnim||0)-dt); // CAS-256 hit-react / skill-cast anim timers
   h._pdCD=Math.max(0,(h._pdCD||0)-dt); // perfect-dodge reward cooldown
   h.riposte=Math.max(0,(h.riposte||0)-dt); // CAS-210: the riposte counter window decays if unused
@@ -4754,7 +4794,13 @@ export function update(dtMs){
   if(h.bld) tickBuildup(h,dt); // CAS-1931: buildup meters decay (0 alloc when h.bld null ⇒ OFF byte-id)
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
-  if(h.rolling){ h.rollT-=dt; h._rollAge=(h._rollAge||0)+dt; const sp=h.rollSpd||CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12); // CAS-1814: per-roll speed (DODGE distance); ||CFG.rollSpeed ⇒ OFF byte-identical · CAS-2110: edad del rodar sube por dt (gate perfectWindowMs)
+  // CAS-2156: ESTOCADA DE AVANCE — el dash OFENSIVO se traslada hacia adelante (h._lungeVx/_lungeVy a vel h._lungeSpd) mientras
+  // h._lungeT>0. SIN i-frames (a diferencia del roll de abajo: no toca h.iframe ⇒ VULNERABLE, whiff punible). El swing lo arma
+  // lungeStrike() (h.atkT ⇒ applyHeroMelee de arriba corre cada frame ⇒ el hitbox barre a lo largo del dash). moveEnt respeta la
+  // colisión. Gated LUNGE.enabled + _lungeT>0 ⇒ OFF (o sin estocada activa) esta rama nunca se entra ⇒ el flujo cae al roll/locomoción
+  // ORIGINAL ⇒ byte-idéntico a HEAD. Corre ANTES del roll para que la estocada tenga prioridad (no se puede rodar durante ella — doRoll gated).
+  if(LUNGE.enabled && (h._lungeT||0)>0){ h._lungeT-=dt; const sp=h._lungeSpd||0; moveEnt(h,(h._lungeVx||0)*sp*dt,(h._lungeVy||0)*sp*dt,12); if(h._lungeT<=0) h._lungeT=0; h.moved=false; }
+  else if(h.rolling){ h.rollT-=dt; h._rollAge=(h._rollAge||0)+dt; const sp=h.rollSpd||CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12); // CAS-1814: per-roll speed (DODGE distance); ||CFG.rollSpeed ⇒ OFF byte-identical · CAS-2110: edad del rodar sube por dt (gate perfectWindowMs)
     // CAS-388: Estela Ardiente legendary — the dash lays a fire wake. Enemies the roll passes
     // through take a burn DoT once per dash (h._trailSet dedupes), turning the dodge into an
     // offensive tool. Guarded on trail>0 so a boonless roll is byte-identical. Reuses the burn
@@ -6212,6 +6258,56 @@ export const dev = {
       if(i===inject && h){ G.projectiles.push({x:h.x+12,y:h.y,vx:-200,vy:0,life:1.0,dmg:40,kind:"bolt",enemy:true}); updateProjectiles(1/60); }
       fp.push(+srand().toFixed(6)); }
     DEFLECT.enabled=sav; return fp.join(","); },
+  // CAS-2156 [OBSERVABLE]: DRIVE a real LUNGE through the live update() loop and report the observables the QA harness asserts.
+  // Places a target in the dash path, fires lungeStrike(), then advances N fixed-step ticks of the REAL sim. Measures the hero
+  // DISPLACEMENT (dash), the enemy hp loss (strike ×dmgMul), stamina spent, whether i-frames were granted (must be 0 ⇒ vulnerable,
+  // distinguishes from the roll), the recovery window, and the ¡ESTOCADA! floater. Restores scene/enabled. No coord forcing (keeps
+  // the hero on its real open-tile spawn, mirror deflectProbe).
+  lungeProbe(opt){ opt=opt||{}; const savEn=LUNGE.enabled, savScene=G.scene; if(opt.enabled!==undefined) LUNGE.enabled=!!opt.enabled;
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.floaters.length=0;
+    G.scene="play"; const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.stun=0; h.atkCD=0; h.atkT=0; h._lunge=false; h._lungeT=0; h._lungeCd=0;
+    // restore the hero to its clean OPEN spawn each probe (the dash MOVES the hero — without this, cumulative dashes drift into a
+    // solid tile and the next dash gets collision-blocked ⇒ disp=0 / non-determinism). Captured lazily at the first open spawn.
+    if(!G._lungeProbeSpawn) G._lungeProbeSpawn={x:h.x,y:h.y};
+    h.x=G._lungeProbeSpawn.x; h.y=G._lungeProbeSpawn.y; h.vx=0; h.vy=0;
+    h.cls=opt.cls||"warrior"; h.tt=null; h.mperk=null; h.maxHp=1e6; h.hp=1e6; h.facing=0; if(STAMINA.enabled) h.stam=STAMINA.max;
+    const x0=h.x, y0=h.y, stam0=h.stam||0, hp0=h.hp;
+    const targetHp=opt.targetHp||5000; let e=null;
+    if(opt.noEnemy!==true){ e=spawnEnemy(opt.type||"revenant", h.x+(opt.dist!==undefined?opt.dist:70), h.y); if(e){ e.state="idle"; e.maxHp=e.hp=targetHp; } }
+    const eHp0=e?e.hp:0;
+    if(opt.noStam===true && STAMINA.enabled) h.stam=0;   // AC5 deny path: sin vigor ⇒ lungeStrike retorna sin disparar
+    lungeStrike();
+    const firedT0=+((h._lungeT||0).toFixed(4)), lungeCdT0=+((h._lungeCd||0).toFixed(4));
+    // ISOLATED drive (mirror deflectProbe — avoids full update()'s io/locomotion): advance ONLY the lunge seams each fixed frame —
+    // the swing (applyHeroMelee, sweeps the hitbox as the dash carries the hero) + the dash movement (moveEnt) + the recovery timer.
+    const dt=1/60; let iframeMax=h.iframe||0, dispMax=0, frames=0;
+    for(let i=0;i<(opt.frames||24);i++){ frames++;
+      if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
+      if(LUNGE.enabled && (h._lungeT||0)>0){ h._lungeT-=dt; const sp=h._lungeSpd||0; moveEnt(h,(h._lungeVx||0)*sp*dt,(h._lungeVy||0)*sp*dt,12); if(h._lungeT<=0) h._lungeT=0; }
+      if(LUNGE.enabled) h._lungeCd=Math.max(0,(h._lungeCd||0)-dt);
+      if((h.iframe||0)>iframeMax) iframeMax=h.iframe||0;
+      const dd=Math.hypot(h.x-x0,h.y-y0); if(dd>dispMax) dispMax=dd; }
+    const floated=G.floaters.some(f=>f.txt===STR.lunge);
+    const out={ enabled:LUNGE.enabled, cls:h.cls, fired:firedT0>0||lungeCdT0>0,
+      displacement:+dispMax.toFixed(2), iframeMax:+iframeMax.toFixed(4), iframeGranted:(iframeMax>0),
+      stamSpent:Math.round(stam0-(h.stam||0)), enemyHpLoss:e?Math.round(eHp0-e.hp):0,
+      lungeCdAfterFire:lungeCdT0, lungeCdNow:+((h._lungeCd||0).toFixed(4)), rolling:!!h.rolling, floated, frames,
+      recoverMsCfg:LUNGE.recoverMs, dmgMulCfg:LUNGE.dmgMul, distanceCfg:LUNGE.distance, staminaCostCfg:LUNGE.staminaCost };
+    // AC5 recovery: a SECOND lunge fired immediately (still within _lungeCd) must be DENIED (no fresh dash).
+    if(opt.probeRecovery===true){ const st1=h.stam||0; lungeStrike(); out.reLungeFired=((h._lungeT||0)>0); out.reLungeStamSpent=Math.round(st1-(h.stam||0)); }
+    LUNGE.enabled=savEn; G.scene=savScene; return out; },
+  // CAS-2156 [RNG-NEUTRAL STRONG]: fingerprint the MASTER srand around a fixed script that DRIVES a real lunge mid-stream WITH NO
+  // enemies present. lungeStrike() + applyHeroMelee() over an empty enemy list consume NO srand (pure geometry/arithmetic — there is
+  // no lungeRng; hitEnemy is the only srand consumer and it never fires without a target), so the fingerprint is BYTE-IDENTICAL ON vs
+  // OFF. Isolated from update()/spawners (mirror deflectSrandFp) so the ONLY variable is the lunge path itself.
+  lungeSrandFp(enabled, s, N){ const sav=LUNGE.enabled; LUNGE.enabled=!!enabled;
+    seed((s>>>0)||1); const h=G.hero; G.enemies.length=0; G.projectiles.length=0;
+    if(h){ h.dead=false; h.rolling=false; h.tt=null; h.maxHp=1e6; h.hp=1e6; h.facing=0; h.atkCD=0; h.atkT=0; h._lunge=false; h._lungeT=0; h._lungeCd=0; if(STAMINA.enabled) h.stam=STAMINA.max; }
+    const fp=[]; const inject=Math.floor((N||16)/2);
+    for(let i=0;i<(N||16);i++){
+      if(i===inject && h){ lungeStrike(); if(h._atkHits) applyHeroMelee(); }   // fire the lunge + its swing over 0 enemies ⇒ 0 draw
+      fp.push(+srand().toFixed(6)); }
+    LUNGE.enabled=sav; return fp.join(","); },
   // CAS-121: land a REAL hero basic-attack hit on the zone's live capstone (through
   // hitEnemy, so carapace immunity + weapon/talent status procs apply) and return its
   // hp + shield/status state — proves the shield is damage-IMMUNE and that a STATUS
