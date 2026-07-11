@@ -78,7 +78,7 @@ import * as cfg from "../sim/config.js";
 import * as sim from "../sim/sim.js";
 import { G, update, composeTutSteps } from "../sim/sim.js";
 
-const EXPECT_BUILD = "272d22870026"; // CAS-2135: bumped from cdf6e8bdcbea (post CAS-2132 Gate CEO flip RIPOSTE DARK→LIVE mec#36). CAS-2135 Build DARK CHARGED_ATTACK (mec#37) — 5 blobs: config.js+input.js+sim.js+strings.js+render.js (CHARGED_ATTACK.enabled=false ⇒ dead branches ⇒ byte-id to mec#36). Will bump to actual CAS-2135 build id after deploy.
+const EXPECT_BUILD = "ec1bf030edd5"; // CAS-2137: bumped from 272d22870026 after CAS-2136 Deploy DARK Charged Attack (mec#37) — 5-blob overlay, CHARGED_ATTACK.enabled:false DARK. commit 004460872f28.
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 
 let ok = true;
