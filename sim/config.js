@@ -1655,8 +1655,11 @@ export const SIGNATURE_BOSS = {
 // (ambos SEAMs — updateEnemies retarget + damageHero redirect — son no-op). Todo el estado (G._spirit, summonCharges, summonZone)
 // es transitorio (fuera del allowlist de serializeSave) ⇒ save.v1 byte-id. Default enabled:false CONSERVADOR (no trivializa jefes:
 // HP moderado, dmg medio, duración corta); el gate CEO decide flip live. Sub-tunes = config-only.
-//   key      — CODE dedicado NO rebindable. KeyN (única letra libre: KeyF ya es "pickup" settings.js:39 y KeyZ es "ability1":36,
-//              ambas acciones REBINDABLES ⇒ colisión al enabled; KeyN es el ÚNICO code de letra sin bind). Ver Build/GE nota.
+//   key      — CODE dedicado NO rebindable. Comma (","). CAS-2086 FIX: KeyN colisionaba con COMBO.heavyKey (config.js:1132,
+//              también "KeyN") — el handler del pesado (input.js:282) hace `return` ANTES del de invocación (input.js:324),
+//              tragándose la tecla ⇒ spawnSpirit inalcanzable en desktop. Las 26 letras están ocupadas (20 rebindables en
+//              REBINDS + 6 fijas K/Y/L/H/N/U), así que el único code REALMENTE libre es NO-letra: Comma no aparece en ningún
+//              bind ni handler y KEY_LABELS lo muestra como "," en el Códice. Ver Build/GE nota.
 //   charges  — cargas transitorias (mirror flaskCharges); refill SÓLO por transición de zona + hoguera (Estus-parity, recurso escaso).
 //   summonMs — vida máxima del espíritu (timer); expira también al llegar hp<=0.
 //   threat   — regla de aggro DETERMINISTA (0 draws): "nearest" ⇒ un enemigo cuya amenaza más cercana es el espíritu lo persigue/ataca.
@@ -1664,7 +1667,7 @@ export const SIGNATURE_BOSS = {
 //              0 srand; poise-dmg normal ⇒ divide postura = payoff), moveMul, atkCdMs, range (px), tint/alpha espectral, mold (sprite base).
 export const SUMMON = {
   enabled: true,                // CAS-1980 GO-LIVE FLIP (CEO Gate CAS-1979 GO): SUMMON PLAYABLE. SEAMs active.
-  key: "KeyN",                  // dedicado NO rebindable (KeyF/KeyZ están ligadas ⇒ KeyN, única letra libre)
+  key: "Comma",                 // CAS-2086 FIX: dedicado NO rebindable. KeyN chocaba con COMBO.heavyKey ⇒ pesado se tragaba la tecla. Comma (",") es el único code libre (26 letras ocupadas).
   charges: 2, refillOnZone: true, // + bonfire (mirror Estus)
   summonMs: 14000,              // duración máx conservadora
   threat: "nearest",            // regla determinista de aggro (0 draws)
@@ -1811,8 +1814,8 @@ export const ONBOARDING = {
 // actualiza solo, NUNCA miente con un literal (barra dura del ticket). Los getters se evalúan en render-time. Entradas
 // con keyOf textual ("Rodar"/"Espalda"/"—") son mecánicas SIN tecla dedicada (roll=dirección+stamina; backstab=posicional;
 // poise/stamina/bloodstain=pasivas; jefe de firma=pasiva) — etiquetadas honestamente, sin inventar un binding. `gate`
-// filtra: sólo se listan las mecánicas VIVAS (enabled). R2 conocido: COMBO.heavyKey y SUMMON.key ambos "KeyN" ⇒ el
-// códice muestra AMBOS honestamente (señal real de retune futuro del CTO, NO se oculta ni se "arregla" aquí).
+// filtra: sólo se listan las mecánicas VIVAS (enabled). CAS-2086 RESUELTO: la antigua colisión COMBO.heavyKey/SUMMON.key
+// (ambos "KeyN") ya no existe — SUMMON.key movido a Comma; ahora el códice muestra "N"=pesado y ","=invocar, ambos reales.
 export const COMBAT_CODEX_ENTRIES = [
   // MOVIMIENTO
   { group:"Movimiento", label:"Rodar (i-frames)",   keyOf:()=>"Rodar",              desc:"Esquiva con fotogramas de invulnerabilidad; cuesta STAMINA.", gate:()=>DODGE.enabled },

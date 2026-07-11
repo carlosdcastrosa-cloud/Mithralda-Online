@@ -317,7 +317,7 @@ function edge(code){
   // como KeyH parry / WEAPON_ARTS.key: never touches REBINDS/settings.binds ⇒ snapshot byte-id). El sim decide (gated en escena play).
   if(code===WEAPON_BUFFS.applyKey && WEAPON_BUFFS.enabled){ sim.applyWeaponBuff(); return; }
   if(code===WEAPON_BUFFS.cycleKey && WEAPON_BUFFS.enabled){ sim.cycleBuff(); return; }
-  // CAS-1954: dedicated SUMMON.key (default KeyN — KeyF ya es "pickup" y KeyZ es "ability1", ambas REBINDABLES; KeyN es la única letra libre)
+  // CAS-1954/CAS-2086: dedicated SUMMON.key (default Comma "," — CAS-2086 lo movió de KeyN, que colisionaba con COMBO.heavyKey arriba ⇒ el pesado se lo tragaba; las 26 letras están ocupadas, Comma es el único code libre)
   // INVOCA las CENIZAS DE ESPÍRITU. Gated on SUMMON.enabled, so con la feature off la tecla es inerte (falls through, no state change) ⇒
   // snapshot byte-id. NO es rebindable (deliberate, como KeyH parry / WEAPON_BUFFS.key: never touches REBINDS/settings.binds). El sim
   // decide (spawnSpirit gated en escena play + héroe vivo + cargas + maxActive). Cross-platform (móvil = botón HUD tb.summon).
