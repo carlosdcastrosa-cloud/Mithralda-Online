@@ -1,0 +1,30 @@
+
+========================= RUN 1 =========================
+AC0 META: {"enabled":false,"key":"Period","range":52,"arcDeg":130,"dmg":5,"poiseMul":3.2,"staminaCost":20,"recoverMs":600,"knock":1.7,"cracksShield":true,"requiresMelee":false} ⇒ enabled:false DARK + key Period + poiseMul 3.2 + cracksShield ⇒ PASS
+AC1 POISE ×poiseMul: normal swing poise 12, kick poise 38.400000000000006 ⇒ ratio ×3.2 (expect 3.2) ⇒ PASS
+AC2 HEADLINE: 3 kicks break the guard ⇒ staggerT 1.6 + _ripArm ARMED by kick=true (not self-consumed); follow-up NORMAL melee EXECUTES it=true ⇒ PASS
+AC3 ANTI-TURTLE: normal melee on shielded does NOT crack=true; kick CRACKS shieldBroken=true + shoved=true ⇒ PASS
+AC4 COST+RECUPERO: stam spent 20 (expect 20)=true, _gbCd armed=true, direct dmg 9 << normal swing 36=true, 2nd kick in-window DENIED=true ⇒ PASS
+AC5 OFF byte-id: enabled=false ⇒ kick no-op: noCost=true noPoise=true noCrack=true noCd=true ⇒ PASS
+AC6 SAVE byte-id: serializeSave ON==OFF=true (len 1070), no _gb*/guardBreak* key=true ⇒ PASS
+AC7 0-RNG STRONG: srand around REAL kick firing (break + shield-crack) — 16 draws, ON==OFF true (fired ON=true) ⇒ PASS
+AC8 NO-REGRESSION (orthogonal pillars): GuardCounter#33=PASS, DodgeCounter#34=PASS, Riposte#36=PASS, Charged#37=PASS ⇒ PASS
+----- RUN 1 VERDICT: PASS -----
+
+========================= RUN 2 (determinism) =========================
+AC0 META: {"enabled":false,"key":"Period","range":52,"arcDeg":130,"dmg":5,"poiseMul":3.2,"staminaCost":20,"recoverMs":600,"knock":1.7,"cracksShield":true,"requiresMelee":false} ⇒ enabled:false DARK + key Period + poiseMul 3.2 + cracksShield ⇒ PASS
+AC1 POISE ×poiseMul: normal swing poise 12, kick poise 38.400000000000006 ⇒ ratio ×3.2 (expect 3.2) ⇒ PASS
+AC2 HEADLINE: 3 kicks break the guard ⇒ staggerT 1.6 + _ripArm ARMED by kick=true (not self-consumed); follow-up NORMAL melee EXECUTES it=true ⇒ PASS
+AC3 ANTI-TURTLE: normal melee on shielded does NOT crack=true; kick CRACKS shieldBroken=true + shoved=true ⇒ PASS
+AC4 COST+RECUPERO: stam spent 20 (expect 20)=true, _gbCd armed=true, direct dmg 9 << normal swing 43.2=true, 2nd kick in-window DENIED=true ⇒ PASS
+AC5 OFF byte-id: enabled=false ⇒ kick no-op: noCost=true noPoise=true noCrack=true noCd=true ⇒ PASS
+AC6 SAVE byte-id: serializeSave ON==OFF=true (len 1084), no _gb*/guardBreak* key=true ⇒ PASS
+AC7 0-RNG STRONG: srand around REAL kick firing (break + shield-crack) — 16 draws, ON==OFF true (fired ON=true) ⇒ PASS
+AC8 NO-REGRESSION (orthogonal pillars): GuardCounter#33=PASS, DodgeCounter#34=PASS, Riposte#36=PASS, Charged#37=PASS ⇒ PASS
+----- RUN 2 (determinism) VERDICT: PASS -----
+
+AC9 DETERMINISM: RUN1 fingerprint == RUN2 fingerprint ⇒ PASS
+
+===== CAS-2146 GUARD-BREAK DARK QA VERDICT (PASS×2 + determinism) =====
+GO: PASS — mecánica #38 DARK (enabled:false), verbo ofensivo anti-turtle, drena poise ⇒ abre la ventana de Riposte #36, anti-turtle casca escudo, coste+recuperación, 0-RNG STRONG, save byte-id, 0 regresión a #33/#34/#36/#37
+KEY NUMBERS: poise×3.2 · break in 3 kicks (staggerT 1.6) · kick dmg 9 vs swing 36 · stam 20 · srand ON==OFF true

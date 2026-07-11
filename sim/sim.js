@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2927,6 +2927,11 @@ function hitEnemy(e,dmg,ang,opt){
       // arquetipo/Arte/counters) ⇒ EJE DE ROTURA OFENSIVO observable contra targets NO rotos (a diferencia del poise inerte-por-
       // diseño de Riposte). 0 draw; OFF / release sub-umbral ⇒ opt.charged ausente/false ⇒ ×1 ⇒ acumulación de postura byte-id.
       if(CHARGED_ATTACK.enabled && opt && opt.charged) add*=CHARGED_ATTACK.poiseMul;
+      // CAS-2146: una PATADA ROMPE-GUARDIA (opt.guardBreak) sube el poise-damage ×poiseMul en el MISMO sink (compone ×TWO_HAND/
+      // arquetipo/Arte/counters/charged) ⇒ DRENA la postura de un enemigo que TURTLEA hasta ROMPERLE la guardia, abriendo la
+      // MISMA ventana de ejecución de Riposte #36 (seam A abajo). Verbo OFENSIVO anti-turtle (ortogonal a los counters DEFENSIVOS
+      // #33/#34 y al reactivo #36/#37). 0 draw; OFF / sin patada ⇒ opt.guardBreak ausente ⇒ ×1 ⇒ acumulación de postura byte-id.
+      if(GUARD_BREAK.enabled && opt && opt.guardBreak) add*=GUARD_BREAK.poiseMul;
       // CAS-1907: el arquetipo del arma escala el poise-damage en el MISMO sink (compone ×poiseDmgMul con TWO_HAND). Aritmética
       // pura (0 draw); OFF ⇒ gate false; sword ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
       if(WEAPON_ARCHETYPES.enabled && opt && opt.arch) add*=opt.arch.poiseDmgMul;
@@ -3010,8 +3015,12 @@ function hitEnemy(e,dmg,ang,opt){
   // 0 srand (no existe riposteRng) ⇒ detección+aplicación deterministas. Gated / arm ausente / ranged / espíritu ⇒ rama muerta
   // ⇒ byte-idéntico a HEAD. NOTA: el poise extra (RIPOSTE.poiseMul) queda inerte-por-diseño — la acumulación de postura está
   // pausada mientras staggerT>0 (gate 2877), el target YA está roto; el knob se mantiene por paridad #33/#34 y tuning futuro.
+  // CAS-2146: una PATADA ROMPE-GUARDIA (opt.guardBreak) que ROMPE la guardia en su propio golpe ARMA la ejecución (seam A) pero
+  // NO se auto-ejecuta — deja la ventana ARMADA para el SIGUIENTE golpe del jugador (el verbo ABRE la ventana, no la consume).
+  // Sin este gate, la patada (que ES un golpe melee) dispararía seam B en el mismo hitEnemy y consumiría _ripArm ⇒ el follow-up
+  // sería normal. Aritmética pura, 0 draw; OFF / sin patada ⇒ opt.guardBreak ausente ⇒ condición idéntica a HEAD ⇒ byte-id.
   let ripEx=false;
-  if(RIPOSTE.enabled && e._ripArm && e.staggerT>0 && (!RIPOSTE.requiresMelee || (opt&&opt.melee)) && !spirit){
+  if(RIPOSTE.enabled && e._ripArm && e.staggerT>0 && (!RIPOSTE.requiresMelee || (opt&&opt.melee)) && !spirit && !(opt&&opt.guardBreak)){
     dmg*=RIPOSTE.dmgMul;
     if(e.isBoss||e.elite||e.champion||e.champElite){ const cap=RIPOSTE.ripCapFracMaxHp*(e.maxHp||e.hp); if(dmg>cap) dmg=cap; }
     e._ripArm=false;                                  // CONSUME ⇒ un solo crítico por rotura
@@ -4511,6 +4520,49 @@ export function weaponArt(){
   addFx("swing",h.x+ca*22,h.y-2+sa*22,{ang:a,fx:cfg.fx,life:0.4*(art.windupMul||1)});
 }
 
+// CAS-2146: EMPUJÓN / PATADA ROMPE-GUARDIA (mec #38). VERBO OFENSIVO que el héroe PULSA (tecla dedicada Period / botón HUD)
+// para responder a un enemigo que TURTLEA/bloquea: una patada de alcance CORTO que DRENA su postura (opt.guardBreak ⇒ poise
+// ×poiseMul en el sink de POISE.gain) hasta ROMPERLE la guardia — cruzar poiseMax dispara el ÚNICO chokepoint de rotura ya
+// existente (staggerT + e._ripArm de Riposte #36, sim.js:2947) ⇒ abre la MISMA ventana de ejecución, SIN motor nuevo. Daño
+// directo BAJO (utilidad, no burst). Contra un enemigo ESCUDADO (carapace daño-inmune, hitEnemy retorna en su gate) casca la
+// guardia directamente (e.shieldBroken ⇒ shatterCarapace al inicio del próximo frame) — el anti-turtle real (hoy sólo los procs
+// de estado rompen el carapace). Coste de estamina propio (spendStam ⇒ deny sin vigor, flashea) + ventana de recuperación
+// h._gbCd (no spammeable). 100% geometría/aritmética ⇒ 0 srand (NO existe guardBreakRng). h._gbCd transitorio (mirror h.artCD
+// ⇒ save.v1 byte-id, sin clave nueva). $0 arte (reusa knockback + anillo de dash + floater STR.shove + el ¡ATURDIDO! del
+// poise-break). OFF ⇒ input gated ⇒ jamás llamado ⇒ byte-idéntico a HEAD. Universal (requiresMelee:false); el alcance corto
+// gatea de facto a ranged/casters. Mirror del gate/deny/spendStam de weaponArt (2483/4483).
+export function guardBreakKick(){
+  const h=G.hero;
+  if(!GUARD_BREAK.enabled || G.scene!=="play" || !h || h.dead) return;
+  if(FLASK.enabled && FLASK.cancelOnAction && h.flaskDrinkT>0) h.flaskDrinkT=0;   // cancela el trago (sin coste), mirror weaponArt
+  if((h._gbCd||0)>0 || h.atkCD>0 || h.rolling || h.stun>0 || (FLASK.enabled&&h.flaskDrinkT>0) || (THROWABLES.enabled&&h.throwWind>0) || (WEAPON_BUFFS.enabled&&h.applyBuffT>0)) return;   // mismo gate que un swing + su propia ventana de recuperación
+  if(GUARD_BREAK.requiresMelee){ const cfg=ATK[h.cls||"warrior"]; if(cfg.type!=="melee") return; }   // universal por defecto; requiresMelee:true lo restringiría a melee
+  if(!spendStam(h, GUARD_BREAK.staminaCost)) return;   // sin vigor ⇒ deny (spendStam flashea); NO recovery, NO disparo
+  h._gbCd = GUARD_BREAK.recoverMs/1000;                // ventana de recuperación (no spammeable), transitoria (mirror h.artCD)
+  const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
+  const halfArc=GUARD_BREAK.arcDeg*Math.PI/360;
+  addFx("dodgering",h.x+ca*14,h.y+sa*14,{life:0.18}); audio.sfx.sword(); shakeAdd(4.6);   // reusa el anillo/estela de dash ($0 arte)
+  for(const e of G.enemies){
+    if(e.dead) continue;
+    const dx=e.x-h.x, dy=e.y-h.y; const d=Math.hypot(dx,dy);
+    if(d>GUARD_BREAK.range+e.tpl.size) continue;                                   // alcance CORTO (gate natural para ranged/casters)
+    const ang=Math.atan2(dy,dx);
+    if(Math.abs(angDiff(ang, a))>halfArc) continue;                                // cono frontal
+    if(e.shielded && GUARD_BREAK.cracksShield){
+      // ANTI-TURTLE: un enemigo ESCUDADO (daño-inmune) NO acumula poise (hitEnemy retorna en su gate de shielded); la patada
+      // CASCA la guardia directamente ⇒ e.shieldBroken ⇒ shatterCarapace dispara al inicio del próximo frame. Empuje reusado.
+      e.shieldBroken=true;
+      e.knockX+=Math.cos(ang)*e.tpl.knock*GUARD_BREAK.knock; e.knockY+=Math.sin(ang)*e.tpl.knock*GUARD_BREAK.knock;
+      floater(e.x,e.y-e.tpl.size,STR.shove,"#ffd27a"); addFx("spark",e.x,e.y);
+    } else {
+      // enemigo normal/turtleando: golpe MELEE de daño BAJO con opt.guardBreak ⇒ poise ×poiseMul en el sink (rompe la guardia
+      // rápido ⇒ arma _ripArm de Riposte); knockMul empuja. hitEnemy hace el ¡ATURDIDO! + arma la ejecución al romper.
+      hitEnemy(e, GUARD_BREAK.dmg, ang, {melee:true, guardBreak:true, knockMul:GUARD_BREAK.knock});
+      floater(e.x,e.y-e.tpl.size-4,STR.shove,"#ffd27a");
+    }
+  }
+}
+
 // CAS-1920: CONSUMIBLES ARROJADIZOS. Mapa tipo⇒campo de cargas del héroe (spec fija h.knifeCharges / h.bombCharges; fallback
 // data-driven para tipos futuros). Recarga TODAS las cargas por tipo a su tope de config (refill por zona / hoguera).
 const THROW_CHARGE_KEY = { knife:"knifeCharges", firebomb:"bombCharges" };
@@ -4648,6 +4700,7 @@ export function update(dtMs){
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
   if(WEAPON_ARTS.enabled) h.artCD=Math.max(0,(h.artCD||0)-dt);   // CAS-1914: cooldown del Arte de Arma (transitorio, mirror atkCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
+  if(GUARD_BREAK.enabled) h._gbCd=Math.max(0,(h._gbCd||0)-dt);   // CAS-2146: ventana de recuperación del Empujón/Rompe-guardia (transitorio, mirror artCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   h.hurtAnim=Math.max(0,(h.hurtAnim||0)-dt); h.specialAnim=Math.max(0,(h.specialAnim||0)-dt); // CAS-256 hit-react / skill-cast anim timers
   h._pdCD=Math.max(0,(h._pdCD||0)-dt); // perfect-dodge reward cooldown
   h.riposte=Math.max(0,(h.riposte||0)-dt); // CAS-210: the riposte counter window decays if unused
@@ -8608,6 +8661,114 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     CHARGED_ATTACK.enabled=savC; STAMINA.enabled=savS; COMBO.enabled=savCo; this._chargeArm();
     return { enabled:!!enabled, released:(enabled?released:false), fingerprint:fp }; },
+  // --- CAS-2146 EMPUJÓN / PATADA ROMPE-GUARDIA (mec #38) harness hooks (tools/cas2146-guard-break-live-qa.mjs); additive,
+  // DRIVE el loop REAL: guardBreakKick() (verbo ofensivo), su poise ×poiseMul en hitEnemy (drena/rompe la guardia ⇒ arma
+  // _ripArm de Riposte), el crack de un ESCUDADO (shieldBroken), coste de estamina + recuperación (no spammeable) y el
+  // OFF byte-id. Todo geometría/aritmética ⇒ 0 srand, NO guardBreakRng. h._gbCd transitorio ⇒ save.v1 byte-id, sin clave. ---
+  guardBreakMeta(){ return { enabled:GUARD_BREAK.enabled, key:GUARD_BREAK.key, range:GUARD_BREAK.range, arcDeg:GUARD_BREAK.arcDeg, dmg:GUARD_BREAK.dmg, poiseMul:GUARD_BREAK.poiseMul, staminaCost:GUARD_BREAK.staminaCost, recoverMs:GUARD_BREAK.recoverMs, knock:GUARD_BREAK.knock, cracksShield:GUARD_BREAK.cracksShield, requiresMelee:GUARD_BREAK.requiresMelee }; },
+  guardBreakEnable(on){ GUARD_BREAK.enabled=!!on; return { enabled:GUARD_BREAK.enabled }; },
+  guardBreakState(){ const h=G.hero; if(!h) return null; return { gbCd:+((h._gbCd||0).toFixed(4)), stam:+((h.stam||0).toFixed(4)) }; },
+  // Clean warrior in play, arrays vacías, sin recovery, estamina llena, sin combate/cooldown, maxHp enorme, facing=0 (+x=frontal),
+  // _mcfg=ATK.warrior + atkAng=0. NO toca h.equip (loadout real). Devuelve h. Mirror _gcArm + reset de h._gbCd.
+  _gbArm(){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.hitstop=0;
+    const h=G.hero; if(!h) return null; G.scene="play";
+    h.dead=false; h.rolling=false; h.rollT=0; h.rollCD=0; h.iframe=0; h.stun=0; h.slowT=0; h.dots=null;
+    h.atkCD=0; h.atkT=0; h._atkHits=null; h.parryT=0; h.parryCD=0; h.hurtFlash=0; h.flaskDrinkT=0;
+    h.cls="warrior"; h.tt=zeroTT(); h.mperk=null; h.bb=null; h.conquest=null; h.frenzyStacks=0; h._parryRiposte=0;
+    h._comboFin=false; h._heavy=false; h._art=false; h._mcfg=ATK.warrior; h.atkAng=0; h.comboCount=0; h.comboT=0;
+    h.maxHp=1e6; h.hp=1e6; h.maxMp=1e6; h.mp=1e6; h.stam=STAMINA.max; h.facing=0; h.blocking=false; h.twoHand=false; h._gbCd=0; return h; },
+  // AC POISE ×poiseMul: la patada sobre un enemigo con postura (champion ⇒ poiseCeil=100, sin staggerear) acumula
+  // g.light×poiseMul vs un swing LIGHT normal (g.light) ⇒ ratio == poiseMul. Sin telegrafía (e.st=0). 0 srand.
+  guardBreakPoiseProbe(){ const savGB=GUARD_BREAK.enabled, savS=STAMINA.enabled; GUARD_BREAK.enabled=true; STAMINA.enabled=true;
+    const h=this._gbArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; }
+    // referencia: un swing LIGHT normal (applyHeroMelee sin ventana) ⇒ poise = g.light
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; h.atkAng=0; h.guardCounterT=0; h.stam=STAMINA.max; h._atkHits=new Set(); applyHeroMelee(); const pRef=e.poise;
+    // patada: guardBreakKick ⇒ poise = g.light × poiseMul (opt.guardBreak)
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; h.facing=0; h._gbCd=0; h.atkCD=0; h.stam=STAMINA.max; guardBreakKick(); const pKick=e.poise;
+    const ratio=pRef>0?pKick/pRef:0; const ratioOk=Math.abs(ratio-GUARD_BREAK.poiseMul)<1e-6;
+    GUARD_BREAK.enabled=savGB; STAMINA.enabled=savS; this._gbArm();
+    return { pRef, pKick, ratio:+ratio.toFixed(6), expect:GUARD_BREAK.poiseMul, ratioOk, ok:(pRef>0 && ratioOk) }; },
+  // AC HEADLINE ABRE EJECUCIÓN: patadas repetidas DRENAN la postura de un enemigo con guardia (champion) hasta ROMPERLA;
+  // al cruzar poiseMax se dispara el chokepoint ⇒ e.staggerT>0 y (con RIPOSTE ON) e._ripArm==true ⇒ la MISMA ventana de
+  // ejecución que Riposte #36. Cuenta las patadas hasta la rotura (feel/tuning). 0 srand.
+  guardBreakBreakProbe(){ const savGB=GUARD_BREAK.enabled, savS=STAMINA.enabled, savR=RIPOSTE.enabled; GUARD_BREAK.enabled=true; STAMINA.enabled=true; RIPOSTE.enabled=true;
+    const h=this._gbArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; }
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e._ripArm=false;
+    let kicks=0, broke=false, armedByKick=false;
+    for(let i=0;i<12;i++){ e.x=h.x+30; e.y=h.y; h.facing=0; h._gbCd=0; h.atkCD=0; h.stam=STAMINA.max; guardBreakKick(); kicks++;
+      if(e.staggerT>0){ broke=true; armedByKick=(e._ripArm===true); break; } }   // la PATADA arma la ventana pero NO la auto-ejecuta (seam B gateado en !guardBreak)
+    // follow-up: un golpe MELEE NORMAL (sin guardBreak) EJECUTA la ventana ARMADA por la patada ⇒ consume _ripArm (la reusa de Riposte #36)
+    e.x=h.x+30; e.y=h.y; h.atkAng=0; h._mcfg=ATK.warrior; h.guardCounterT=0; h.stam=STAMINA.max; h._atkHits=new Set(); applyHeroMelee();
+    const followupExecuted=(broke && e._ripArm===false);
+    GUARD_BREAK.enabled=savGB; STAMINA.enabled=savS; RIPOSTE.enabled=savR; this._gbArm();
+    return { kicks, broke, armedByKick, followupExecuted, staggerT:+((e&&e.staggerT||0).toFixed(4)), ok:(broke && armedByKick && followupExecuted) }; },
+  // AC ANTI-TURTLE (escudado): una patada sobre un enemigo ESCUDADO (carapace daño-inmune) CASCA la guardia
+  // (e.shieldBroken=true ⇒ shatterCarapace next-frame) — vs un golpe MELEE normal (sin guardBreak) que rebota y NO casca. 0 srand.
+  guardBreakShieldProbe(){ const savGB=GUARD_BREAK.enabled, savS=STAMINA.enabled; GUARD_BREAK.enabled=true; STAMINA.enabled=true;
+    const h=this._gbArm();
+    // referencia: golpe melee normal sobre escudado ⇒ rebota, NO casca (shieldBroken sigue false)
+    const e1=spawnEnemy("wolf",h.x+30,h.y); if(e1){ e1.maxHp=e1.hp=1e9; e1.dead=false; e1.shielded=true; e1.shieldBroken=false; }
+    hitEnemy(e1, 50, 0, {melee:true}); const normalNoCrack=(e1.shieldBroken===false);
+    // patada: guardBreakKick sobre escudado ⇒ CASCA (shieldBroken=true) + empuje (knock aplicado)
+    this._gbArm(); const e2=spawnEnemy("wolf",h.x+30,h.y); if(e2){ e2.maxHp=e2.hp=1e9; e2.dead=false; e2.shielded=true; e2.shieldBroken=false; e2.knockX=0; e2.knockY=0; }
+    h.facing=0; h._gbCd=0; h.stam=STAMINA.max; guardBreakKick();
+    const cracked=(e2.shieldBroken===true), shoved=(Math.abs(e2.knockX)>0.01);
+    GUARD_BREAK.enabled=savGB; STAMINA.enabled=savS; this._gbArm();
+    return { normalNoCrack, cracked, shoved, ok:(normalNoCrack && cracked && shoved) }; },
+  // AC COSTE + RECUPERACIÓN (no spammeable) + DAÑO BAJO: la patada gasta staminaCost EXACTO, arma h._gbCd=recoverMs/1000,
+  // y una 2ª patada DENTRO de la recuperación NO dispara (gastó 0 stam extra). El daño directo es BAJO (== dmg). 0 srand.
+  guardBreakCostProbe(){ const savGB=GUARD_BREAK.enabled, savS=STAMINA.enabled; GUARD_BREAK.enabled=true; STAMINA.enabled=true;
+    const h=this._gbArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    // referencia: un swing LIGHT normal (daño de combate REAL con el arma equipada) para probar que la patada pega POCO (utilidad, no burst)
+    e.x=h.x+30; e.y=h.y; h.atkAng=0; h._mcfg=ATK.warrior; h.guardCounterT=0; h.stam=STAMINA.max; h._atkHits=new Set(); const r0=e.hp; applyHeroMelee(); const dRef=r0-e.hp;
+    // patada: coste de estamina EXACTO + recuperación armada + daño BAJO (<< swing normal)
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.facing=0; h._gbCd=0; h.atkCD=0; h.stam=STAMINA.max; const st0=h.stam; const hp0=e.hp; guardBreakKick();
+    const stSpent=st0-h.stam, cdArmed=(Math.abs((h._gbCd||0)-GUARD_BREAK.recoverMs/1000)<1e-9), dmgDealt=hp0-e.hp;
+    const costOk=(stSpent===GUARD_BREAK.staminaCost), dmgLow=(dmgDealt>0 && dmgDealt<dRef);
+    // 2ª patada dentro de la recuperación ⇒ deny (0 stam extra, no spammeable)
+    const stB=h.stam; guardBreakKick(); const denyInCd=(h.stam===stB);
+    GUARD_BREAK.enabled=savGB; STAMINA.enabled=savS; this._gbArm();
+    return { stSpent, expectCost:GUARD_BREAK.staminaCost, costOk, cdArmed, dmgDealt:+dmgDealt.toFixed(4), dRef:+dRef.toFixed(4), dmgLow, denyInCd, ok:(costOk && cdArmed && dmgLow && denyInCd) }; },
+  // AC OFF byte-id: GUARD_BREAK.enabled=false ⇒ guardBreakKick() es no-op (rama muerta): NO gasta estamina, NO acumula
+  // poise, NO casca escudo ⇒ comportamiento byte-idéntico a HEAD. La tecla es inerte (el input gatea en enabled).
+  guardBreakOffProbe(){ const savGB=GUARD_BREAK.enabled, savS=STAMINA.enabled; GUARD_BREAK.enabled=false; STAMINA.enabled=true;
+    const h=this._gbArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; e.poise=0; e.staggerT=0; e.staggerCD=0; e.shielded=true; e.shieldBroken=false; }
+    e.x=h.x+30; e.y=h.y; h.facing=0; h._gbCd=0; h.stam=STAMINA.max; const st0=h.stam; guardBreakKick();
+    const noCost=(h.stam===st0), noPoise=((e.poise||0)===0), noCrack=(e.shieldBroken===false), noCd=((h._gbCd||0)===0);
+    GUARD_BREAK.enabled=savGB; STAMINA.enabled=savS; this._gbArm();
+    return { noCost, noPoise, noCrack, noCd, ok:(noCost && noPoise && noCrack && noCd) }; },
+  // AC SAVE byte-id: h._gbCd transitorio (fuera del allowlist) ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave gb*/_gb*.
+  // (Nombre del héroe SIN "gb"/"guard" ⇒ el grep de clave no falsea — mirror gotcha VigorBot/FocusBot.)
+  guardBreakSaveByteId(){ const savGB=GUARD_BREAK.enabled;
+    GUARD_BREAK.enabled=true; const h=this._gbArm(); h._gbCd=0.4;
+    const onStr=JSON.stringify(serializeSave());
+    GUARD_BREAK.enabled=false; const offStr=JSON.stringify(serializeSave());
+    GUARD_BREAK.enabled=savGB; this._gbArm();
+    return { byteId:(offStr===onStr), hasKey:/"_?gb[a-zA-Z]*":|"guardBreak[a-zA-Z]*":/i.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !/"_?gb[a-zA-Z]*":|"guardBreak[a-zA-Z]*":/i.test(onStr)) }; },
+  // AC 0-RNG STRONG: fingerprint del srand alrededor de la PATADA DISPARANDO REAL — un break (drena poise) y un crack de
+  // escudo — ON vs OFF. Todo geometría/aritmética (NO guardBreakRng) ⇒ el stream srand es BYTE-IDÉNTICO ON==OFF incluso con
+  // la feature disparando de verdad. Mirror de chargeSrandProbe/shieldSrandProbe (loot stream compartido re-alineado).
+  guardBreakSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savGB=GUARD_BREAK.enabled, savS=STAMINA.enabled, savR=RIPOSTE.enabled; GUARD_BREAK.enabled=!!enabled; STAMINA.enabled=true; RIPOSTE.enabled=true;
+    const h=this._gbArm(); h.stam=STAMINA.max; h.facing=0;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let broke=false, cracked=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      // champion: varias patadas drenan poise hasta romper (0 draws)
+      const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; e.poise=0; e.staggerT=0; e.staggerCD=0; }
+      for(let i=0;i<12 && e && e.staggerT<=0;i++){ e.x=h.x+30; e.y=h.y; h.facing=0; h._gbCd=0; h.atkCD=0; h.stam=STAMINA.max; guardBreakKick(); }
+      broke=(enabled ? (e&&e.staggerT>0) : (e&&e.staggerT<=0));
+      // escudado: la patada casca (0 draws)
+      const es=spawnEnemy("wolf",h.x+30,h.y); if(es){ es.maxHp=es.hp=1e9; es.dead=false; es.shielded=true; es.shieldBroken=false; }
+      h.facing=0; h._gbCd=0; h.stam=STAMINA.max; guardBreakKick(); cracked=(enabled ? (es&&es.shieldBroken===true) : (es&&es.shieldBroken===false));
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",h.x+60+i,h.y); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    GUARD_BREAK.enabled=savGB; STAMINA.enabled=savS; RIPOSTE.enabled=savR; this._gbArm();
+    return { enabled:!!enabled, fired:(enabled?(broke&&cracked):false), fingerprint:fp }; },
   // --- CAS-1895 EMPUÑADURA A DOS MANOS (Two-Handing) harness hooks (tools/cas1895-two-hand.mjs); additive, drive los
   // seams REALES: equipLoad (escudo fuera a dos manos), applyHeroMelee (dmg ×dmgMul + poise ×poiseMul), heavyAttack (stam
   // ×stamMul), y la rama de bloqueo de damageHero (DENY a dos manos). Todo input/aritmética ⇒ 0 srand, NO twoHandRng.
