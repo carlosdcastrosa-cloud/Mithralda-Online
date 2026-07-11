@@ -1305,7 +1305,7 @@ export const DODGE_COUNTER = {
 // a HEAD (OFF==baseline). $0 arte: overlay 'ghost HP' translúcido en la barra existente (primitiva canvas ya viva) + floater.
 // Números = defaults sanos para QA; el CEO retunea + flipea enabled:false→true en el Gate (config-only 1 línea).
 export const RALLY = {
-  enabled:false,        // SHIP DARK — CEO flipea false→true en el Gate CAS-XXXX (mirror CAS-2111/2105). Reversible→false.
+  enabled:true,         // CAS-2115 Gate CEO GO-LIVE (mec #35 Rally/Regain). Flip false→true, config-only 1 línea. Reversible→false.
   recoverFrac:0.35,     // fracción del daño REAL recibido que entra al pool recuperable
   windowS:3.0,          // ventana (s) — techo duro; al expirar el pool se fuerza a 0
   healPerHitFrac:0.5,   // fracción del pool que devuelve un golpe melee que conecta (<1 ⇒ nunca full-heal de un golpe)
