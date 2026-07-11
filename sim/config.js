@@ -1614,7 +1614,7 @@ export const WORLD_TIER = { cap:5, hpPct:0.25, dmgPct:0.25, affixPct:0.25, depth
 // serialized state ⇒ 0 save regression BY CONSTRUCTION. Ships DARK (enabled:false); 1-line flip after
 // the CEO gate. enabled:false ⇒ every seam returns its pre-existing value ⇒ srand + save.v1 byte-id HEAD.
 export const NG_PLUS = {
-  enabled: false,          // DARK ship. Flip 1-line → true after CEO gate GO. Reversible.
+  enabled: true,           // LIVE. Flipped after CEO gate GO (CAS-2027). Reversible → false.
   lootFloorPerTier: 1,     // +N min-rarity steps per World Tier above 1 (clamped ≤ legendary). draw-neutral (shifts the existing rollGearInst minR arg).
   essMulPerTier:   0.25,   // +25% Esencia rewards per tier above 1. 0 draws (arithmetic at grant).
   poisePctPerTier: 0.0,    // sub-flag: enemy poise× per tier above 1 (0 = OFF; post-spawn ceiling scale, 0 draws).
