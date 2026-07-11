@@ -1700,6 +1700,21 @@ export const COMBAT_CODEX = {
   showHudHint: true,        // afordancia HUD "[`] Códice" (discoverability del propio códice). $0 arte.
 };
 
+// CAS-2010 — Game-Feel / Impact Pass v1. Presentation-only, RNG-neutral, $0 art.
+// Gates the EXISTING hit-stop (freeze) + screen-shake (shakeAdd) + impact-flash layer
+// (CAS-127/272/273) plus the v1 coverage extensions. enabled:true ships LIVE (realce
+// de sistemas ya vivos — no dark flip). Each sub-flag is an independent accessibility
+// off-switch; ALL sub-flags off ⇒ combat reads exactly as a no-juice baseline (no freeze,
+// no shake) — motion-safe. freeze/shakeAdd consume 0 srand ⇒ toggling changes the RNG
+// draw count/sequence by exactly zero (see design/cas2010-game-feel-impact.md §4).
+export const JUICE = {
+  enabled: true,
+  hitStop:     true,   // micro freeze-frames on impact verbs; also honors settings.reduceMotion (closes the pre-CAS-2010 gap where freeze() ignored it)
+  screenShake: true,   // escalated camera shake (already reduceMotion+settings.shake gated; this is an extra master toggle on top)
+  flash:       true,   // crit / backstab / riposte / execute floater-banner polish (base damage numbers stay for legibility)
+  hitStopCapFrames: 9, // hard cap (frames @60fps ≈ 150ms) — matches current longest freeze; 60fps guard so no single event stalls perceptibly
+};
+
 // CAS-1996 — tabla DATA-DRIVEN del Códice de Combate. Definida al FINAL (tras TODOS los knobs) porque cada entrada
 // resuelve su tecla por getter sobre el knob REAL (keyOf) — de modo que si el CTO retunea un binding, el códice se
 // actualiza solo, NUNCA miente con un literal (barra dura del ticket). Los getters se evalúan en render-time. Entradas

@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1857,11 +1857,17 @@ function floater(x,y,txt,col,opt){
 function addFx(kind,x,y,opt){ if(G.fx.length>=MAX_FX) G.fx.shift(); G.fx.push(Object.assign({kind,x,y,t:0,life:0.4},opt)); }
 // CAS-127: reduceMotion gates screen shake entirely (the off-switch) — magnitude
 // still scales to the blow when on, so big hits read bigger; capped at 14.
-function shakeAdd(a){ if(G.settings.reduceMotion) return; G.shake=Math.min(14, G.shake + a*(G.settings.shake)); }
+// CAS-2010: JUICE.screenShake master toggle sits ON TOP of the existing reduceMotion + settings.shake
+// gates (never replaces them). All three off-switches must pass for shake to accrue. 0 srand.
+function shakeAdd(a){ if(!JUICE.enabled || !JUICE.screenShake) return; if(G.settings.reduceMotion) return; G.shake=Math.min(14, G.shake + a*(G.settings.shake)); }
 // CAS-127: trim a flourish particle-burst count when reduceMotion is on (keep ≥1 so
 // the event still reads); full count otherwise. Cosmetic-only, deterministic.
 function rmCount(n){ return G.settings.reduceMotion ? Math.max(1, Math.round(n*0.34)) : n; }
-function freeze(n){ if(n>G.hitstop) G.hitstop=n; } // request a hitstop of n frames (longest wins)
+// CAS-2010: hit-stop now honors the JUICE off-switch AND reduceMotion (the pre-CAS-2010 accessibility gap:
+// freeze() ignored reduceMotion, so motion-sensitive players could not disable freeze-frames), and caps at
+// JUICE.hitStopCapFrames (60fps guard). Presentation-only: touches G.hitstop only, 0 srand. The early-return
+// keeps G.hitstop at 0 when off ⇒ update() never freeze-early-returns ⇒ byte-identical to a no-hit-stop baseline.
+function freeze(n){ if(!JUICE.enabled || !JUICE.hitStop || G.settings.reduceMotion) return; n=Math.min(n, JUICE.hitStopCapFrames); if(n>G.hitstop) G.hitstop=n; } // request a hitstop of n frames (longest wins)
 function solidBlocked(x,y,r){
   if(x<r||y<r||x>MAP_W*TS-r||y>MAP_H*TS-r) return true;
   const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
@@ -2524,7 +2530,8 @@ function hitEnemy(e,dmg,ang,opt){
         // sbPhase undefined / OFF ⇒ p.dur ⇒ byte-identical.
         const _dur=(SIGNATURE_BOSS.enabled && e._sbPhase!==undefined) ? SIGNATURE_BOSS.poiseBreakStunMs/1000 : p.dur;
         e.stun=Math.max(e.stun||0,_dur); e.staggerT=_dur; e.staggerCD=POISE.reStaggerCD; e.poise=0;
-        addFx("spellburst",e.x,e.y-2,{col:"#ffe27a"}); floater(e.x,e.y-30,STR.stagger||"¡ATURDIDO!","#ffe27a"); }
+        addFx("spellburst",e.x,e.y-2,{col:"#ffe27a"}); floater(e.x,e.y-30,STR.stagger||"¡ATURDIDO!","#ffe27a");
+        shakeAdd(5); freeze(6); } // CAS-2010: poise-break/stagger now KICKS — was fx+floater only (read flat). Self-gated by JUICE; 0 srand.
     }
   }
   // Crit chance = talents + the "Instinto Asesino" milestone (mk.crit). RNG is consumed only
@@ -2620,7 +2627,7 @@ function hitEnemy(e,dmg,ang,opt){
     addFx("shockring",e.x,e.y,{r:48,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5});
     // CAS-210: a RIPOSTE reads even LOUDER than a normal crit — a gold counter banner above
     // the hero, an extra wide shockwave + debris fan, and a harder shake. The punish landed.
-    if(riposted){ floater(G.hero.x,G.hero.y-40,STR.riposte,"#ffd24d",{crit:true,pop:1.6,life:0.95});
+    if(riposted){ if(JUICE.enabled && JUICE.flash) floater(G.hero.x,G.hero.y-40,STR.riposte,"#ffd24d",{crit:true,pop:1.6,life:0.95}); // CAS-2010: riposte banner polish flash-gated
       addFx("shockring",e.x,e.y,{r:66,life:0.5}); addFx("debris",e.x,e.y,{ang,life:0.6}); shakeAdd(6); } }
   else floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d",{pop:1.3});
   // CAS-204 (FOUNTAINS crunch): every connect snaps a white-hot hitburst at the contact point and
@@ -2630,12 +2637,12 @@ function hitEnemy(e,dmg,ang,opt){
   addFx("bloodstain",e.x,e.y+e.tpl.size*0.4,{ang,life:1.8}); // FOUNTAINS: violence leaves a lingering mark
   // CAS-1831: the REMATADOR reads LOUDER than a normal connect — a golden burst + shockring + debris fan, a hard
   // shake, and a "¡REMATE!" banner over the staggered enemy. Pure feel ($0 art, reuses existing fx), damage already applied.
-  if(punish){ addFx("spellburst",e.x,e.y-2,{col:"#ffd24a"}); addFx("shockring",e.x,e.y,{r:56,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(7);
-    floater(e.x,e.y-34,STR.execute||"¡REMATE!","#ffd24a",{crit:true,pop:2.0,life:1.1}); }
+  if(punish){ addFx("spellburst",e.x,e.y-2,{col:"#ffd24a"}); addFx("shockring",e.x,e.y,{r:56,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(7); freeze(5); // CAS-2010: execute-punish now BITES (freeze) — was shake only
+    if(JUICE.enabled && JUICE.flash) floater(e.x,e.y-34,STR.execute||"¡REMATE!","#ffd24a",{crit:true,pop:2.0,life:1.1}); } // CAS-2010: banner polish flash-gated (base dmg number above stays for legibility)
   // CAS-1836: a BACKSTAB reads with a COLD-cyan burst (distinct from the golden REMATE) — a positional crit banner
   // over the enemy's back. Pure feel ($0 art, reuses existing fx), damage already applied.
-  if(backstab){ addFx("spellburst",e.x,e.y-2,{col:"#8fe3ff"}); addFx("shockring",e.x,e.y,{r:52,life:0.4}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(6);
-    floater(e.x,e.y-34,STR.backstab||"¡POR LA ESPALDA!","#8fe3ff",{crit:true,pop:1.9,life:1.05}); }
+  if(backstab){ addFx("spellburst",e.x,e.y-2,{col:"#8fe3ff"}); addFx("shockring",e.x,e.y,{r:52,life:0.4}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(6); freeze(6); // CAS-2010: backstab now BITES (freeze) — was shake only
+    if(JUICE.enabled && JUICE.flash) floater(e.x,e.y-34,STR.backstab||"¡POR LA ESPALDA!","#8fe3ff",{crit:true,pop:1.9,life:1.05}); } // CAS-2010: banner polish flash-gated
   freeze(Math.min(7, (crit?4:2)+Math.floor(dmg/14))); // hit pops harder the bigger the blow; crits bite deepest
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
@@ -4326,7 +4333,7 @@ function updateEnemies(dt){ const h=G.hero;
       e.hurtFlash=0.5;
       addFx("spellburst",e.x,e.y,{col:"#ff4820"}); addFx("novacast",e.x,e.y,{r:96,col:"#ff8820",life:0.6});
       for(let i=0;i<14;i++) addFx("flame",e.x+frr(-40,40),e.y+frr(-40,40));
-      shakeAdd(14); audio.sfx.boss();
+      shakeAdd(14); freeze(9); audio.sfx.boss(); // CAS-2010: phase-2 transition now PUNCHES a capped hit-stop (freeze(9)=capFrames) — was shake only
       floater(e.x,e.y-50,"¡FASE 2!","#ff4820",{crit:true,pop:1.8,life:1.2});
     }
     // Tick ventana de vulnerabilidad (_sbTransT decae cada frame).
