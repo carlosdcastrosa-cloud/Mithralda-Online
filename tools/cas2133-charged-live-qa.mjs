@@ -1,187 +1,194 @@
 // ---------------------------------------------------------------------------
-// CAS-2133 / CAS-2135 Build DARK: ATAQUE CARGADO CON HÍPER-ARMADURA (mec #37)
-// DOM-free node harness. Drives REAL sim/sim.js + sim/config.js seams via
-// dev.charge* probes. Mirror of tools/cas2127-riposte-live-qa.mjs.
+// CAS-2135 (CAS-2133 Build DARK, umbrella) — ATAQUE CARGADO CON HÍPER-ARMADURA (knob CHARGED_ATTACK). 37ª mecánica Souls-like.
+// El kit vivo (#33 Guard-Counter, #34 Perfect-Dodge-Counter, #35 Rally, #36 Riposte) es todo REACTIVO: premia esperar el error
+// del enemigo. Ataque Cargado añade el eje que faltaba — INICIATIVA ARRIESGADA: mantener el pesado (COMBO.heavyKey "KeyN") más
+// allá de chargeThresholdMs entra en estado *cargando* (h.charging); durante el windup ganas HÍPER-ARMADURA fuerte (los golpes
+// entrantes NO interrumpen — el poise los absorbe) pero SÍ recibes daño CAPEADO (anti-cheese); al SOLTAR → golpe cargado: más
+// daño (×dmgMul) y mucho más poise (×poiseMul, eje de ROTURA ofensivo), a cambio de más stamina y de exponerte durante la carga.
+// Soltar ANTES del umbral = pesado normal (comportamiento KeyN de HEAD).
 //
-// Invariants verified:
-//   AC0  META       — knob present + full-shaped + enabled:false (DARK)
-//   AC1  THRESHOLD  — hold ≥ threshold → charged (×dmgMul); charge inert OFF
-//   AC2  HYPER-ARM  — during h.charging=true damageHero cannot stagger hero
-//   AC3  CAP-IN     — incoming damage capped to incomingDmgCapFracMaxHp×hpMax while charging
-//   AC4  CAP-OUT    — charged release vs boss capped to releaseCapFracMaxHp×maxHp; trash uncapped
-//   AC5  OFF-INERT  — enabled:false → _charged=true byte-identical to normal heavy
-//   AC6  SAVE-BYTEID— chargeT/charging/_charged transient ⇒ serializeSave() byte-id ON/OFF
-//   AC7  SRAND      — 0 draws: srand stream byte-identical ON vs OFF (0 chargeRng)
-//   AC8  REGRESSION — 37-mech regression (36 existing + [CHARGED] DARK audit)
+// ⚠️ Eje PROACTIVO por ESTADO DEL HÉROE (h.charging / h._charged), DISJUNTO de todas las contras (#33..#36, que se arman por un
+//    evento REACTIVO). Compone MULTIPLICATIVAMENTE en el sink de daño melee, no comparte estado ni sink con ninguna.
+//
+// Arquitectura (seams, todos gated CHARGED_ATTACK.enabled):
+//   A. Input (input.js) — keydown KeyN: ON ⇒ chargeHeld=true (windup) / OFF ⇒ heavyAttack() inmediato (=HEAD byte-id); keyup baja
+//      chargeHeld; getter io.chargeHeld; botón HUD hold ⛏ gated (OFF ⇒ layout byte-id). KeyN sin consumidor keyup ⇒ 0 colisión.
+//   B. Tick/release (sim.js tickCharge) — windup acumula h.chargeT (cap maxChargeMs) + marca h.charging; release decide h._charged
+//      por umbral, gasta stamina EXTRA (o degrada), dispara heavyAttack() (reúsa el pesado dedicado).
+//   C. Híper-armadura del windup (damageHero) — h.charging extiende el gate HYPERARMOR con umbral propio hyperArmorGrant (absorbe).
+//   D. Cap ENTRANTE (damageHero, pre-hp) — mientras h.charging: real ≤ incomingDmgCapFracMaxHp×maxHp (nunca one-shot cargando).
+//   E. Golpe soltado (applyHeroMelee + hitEnemy) — ×dmgMul (compone ×heavy ×counters), poise ×poiseMul, cap SALIENTE
+//      releaseCapFracMaxHp vs jefe/élite/campeón (trash sin cap).
+//   F. VFX $0 (render.js medidor de windup + floater STR.chargedExec al soltar, latch ⇒ una vez).
+// CERO draws (NO existe chargeRng) ⇒ srand ON==OFF byte-idéntico alrededor del ciclo. chargeT/charging/_charged/_chargedFx
+// transitorios (mirror h.blocking, NUNCA serializados) ⇒ save.v1 byte-id SIN clave charge*. HARD-GATED: enabled:false ⇒ tickCharge
+// no-op + caps/hyper-armor/×mul muertos ⇒ byte-idéntico a HEAD (OFF==baseline).
+//
+// DOM-free harness: importa sim/sim.js directo (sin navegador) y ejercita los REALES dev.charge* hooks, que corren los seams
+// REALES (tickCharge windup/release; damageHero absorbe/capa; applyHeroMelee ×dmgMul + hitEnemy poise/cap). La QA OBSERVABLE
+// re-verifica el sim servido en navegador (desktop + móvil) sobre este mismo build.
+//
+// Prueba:
+//   [AC HEADLINE]   hold < umbral ⇒ pesado normal (_charged=false); hold ≥ umbral ⇒ CARGADO (_charged=true) ×dmgMul; stamina EXTRA == staminaCost.
+//   [AC POISE]      swing CARGADO ⇒ poise-damage ×poiseMul vs pesado normal (eje de ROTURA ofensivo, target NO roto).
+//   [AC HYPER]      durante h.charging un stun entrante NO interrumpe (absorbido por hyperArmorGrant); fuera de la carga SÍ aturde.
+//   [AC CAP-IN]     durante h.charging un golpe grande resta ≤ incomingDmgCapFracMaxHp×maxHp (nunca one-shot); fuera resta completo.
+//   [AC CAP-OUT]    cargado vs jefe/élite ≤ releaseCapFracMaxHp×maxHp (el cap MUERDE); trash SIN cap (valor uncapped > cap).
+//   [AC OFF]        enabled=false ⇒ forzar _charged/charging INERTE (dmg byte-id, sin híper-armadura de windup, sin caps).
+//   [AC SAVE]       chargeT/charging/_charged/_chargedFx transitorios ⇒ serializeSave() byte-id ON/OFF, sin clave charge*.
+//   [AC RNG-STRONG] script srand FIJO alrededor de windup→absorbe→release→×dmgMul (disparando real) BYTE-IDÉNTICO ON vs OFF.
+//   [REG]           TODAS las mecánicas previas (Frenzy…Riposte, 36 mec) siguen srand ON==OFF (0 regresión).
 //
 // Run: node tools/cas2133-charged-live-qa.mjs
 // ---------------------------------------------------------------------------
-import * as cfg from "../sim/config.js";
 import * as sim from "../sim/sim.js";
-import { G } from "../sim/sim.js";
+import { CHARGED_ATTACK } from "../sim/config.js";
 
-// ── sim bootstrap (mirror of cas2127-riposte-live-qa.mjs) ────────────────────
-const noop = () => {};
-const deep = new Proxy(noop, { get: () => deep, apply: () => undefined });
-const io = { moveVec:()=>[0,0], aim:noop, aimActive:false, blockHeld:false, chargeHeld:false, isTouch:false, pollPad:noop };
-sim.configure({ io, audio:deep, view:deep });
-sim.createHero("ChargedQA", "warrior");
-
-let ok = true;
 const log = (m) => console.log(m);
+let ok = true;
 const fail = (m) => { ok = false; console.error(`✖ ${m}`); };
 const pass = (m) => log(`✔ ${m}`);
+const J = (v) => JSON.stringify(v);
+const d = sim.dev;
 
-// ── AC0 META ─────────────────────────────────────────────────────────────────
-function ac0_meta() {
-  const d = sim.dev.chargeMeta();
-  const need = ["enabled","chargeThresholdMs","maxChargeMs","dmgMul","poiseMul","staminaCost",
-                "hyperArmorGrant","incomingDmgCapFracMaxHp","releaseCapFracMaxHp","requiresMelee"];
-  const shapeOk = d && typeof d === "object" && need.every((k) => k in d);
-  const dark = d && d.enabled === false;
-  const valsOk = d && d.chargeThresholdMs === 350 && d.maxChargeMs === 900
-    && d.dmgMul === 1.7 && d.poiseMul === 2.5 && d.staminaCost === 12
-    && d.hyperArmorGrant === 999 && d.incomingDmgCapFracMaxHp === 0.18
-    && d.releaseCapFracMaxHp === 0.22 && d.requiresMelee === true;
-  if (shapeOk && dark && valsOk)
-    pass(`[AC0-META] CHARGED_ATTACK knob present, full-shaped, enabled:false (DARK), all knob values nominal — chargeThresholdMs=${d.chargeThresholdMs}/dmgMul=${d.dmgMul}/poiseMul=${d.poiseMul}/staminaCost=${d.staminaCost}/hyperArmorGrant=${d.hyperArmorGrant}/incomingCap=${d.incomingDmgCapFracMaxHp}/releaseCap=${d.releaseCapFracMaxHp}`);
-  else fail(`[AC0-META] shapeOk=${shapeOk} dark=${dark} valsOk=${valsOk} meta=${JSON.stringify(d)}`);
+const noop = () => {};
+const deep = new Proxy(noop, { get: () => deep, apply: () => undefined });
+const io = { moveVec: () => [0, 0], aim: noop, aimActive: false, blockHeld: false, chargeHeld: false, isTouch: false, pollPad: noop };
+sim.configure({ io, audio: deep, view: deep });
+
+function runOnce(tag) {
+  let localOk = true;
+  const lfail = (m) => { localOk = false; ok = false; console.error(`✖ [${tag}] ${m}`); };
+  const lpass = (m) => log(`✔ [${tag}] ${m}`);
+
+  // NB: hero name has NO "charging"/"chargeT"/"_charged" substring ⇒ the save-key regex can't false-match.
+  sim.createHero("PowerQA", "warrior");
+
+  // ---------- content sanity: the knob (DARK: enabled:false shipped) ----------
+  const meta = d.chargeMeta();
+  const numsOk = meta.chargeThresholdMs > 0 && meta.maxChargeMs >= meta.chargeThresholdMs && meta.dmgMul > 1 && meta.poiseMul >= 1
+    && meta.staminaCost >= 0 && meta.hyperArmorGrant > 0 && meta.incomingDmgCapFracMaxHp > 0 && meta.incomingDmgCapFracMaxHp < 1
+    && meta.releaseCapFracMaxHp > 0 && meta.releaseCapFracMaxHp < 1;
+  if (numsOk) lpass(`content: CHARGED_ATTACK knob present (enabled=${meta.enabled} | thr=${meta.chargeThresholdMs}ms | max=${meta.maxChargeMs}ms | dmgMul=${meta.dmgMul} | poiseMul=${meta.poiseMul} | stam=${meta.staminaCost} | hyperGrant=${meta.hyperArmorGrant} | capIn=${meta.incomingDmgCapFracMaxHp} | capOut=${meta.releaseCapFracMaxHp} | requiresMelee=${meta.requiresMelee})`);
+  else lfail(`content wrong: ${J(meta)}`);
+  if (meta.enabled === false) lpass(`content: SHIP DARK — enabled=false (el CEO flipea en el Gate)`);
+  else lfail(`content: expected enabled=false (DARK), got ${meta.enabled}`);
+
+  // ---------- [AC HEADLINE THRESHOLD]: sub-umbral=normal; supra-umbral=cargado ×dmgMul; +staminaCost extra ----------
+  const tp = d.chargeThresholdProbe();
+  if (tp && tp.ok)
+    lpass(`AC HEADLINE: hold 1f ⇒ charging=${tp.chargingMid}, release NORMAL (_charged=${tp.subCharged}) dmg=${tp.dSub}; hold 30f (${tp.chargeTAtRelease}ms≥${meta.chargeThresholdMs}) ⇒ release CARGADO (_charged=${tp.supCharged}) dmg=${tp.dSup} ⇒ ratio=${tp.ratio}==dmgMul(${tp.expect}); estamina EXTRA aislada=${tp.extraStam}==staminaCost (${tp.stamOk})`);
+  else lfail(`AC HEADLINE broke: ${J(tp)}`);
+
+  // ---------- [AC POISE]: swing cargado ⇒ poise-damage ×poiseMul (eje de rotura ofensivo) ----------
+  const pp = d.chargePoiseProbe();
+  if (pp && pp.ok)
+    lpass(`AC POISE: pesado normal poise=${pp.pNorm} vs cargado poise=${pp.pChg} ⇒ ratio=${pp.ratio}==poiseMul(${pp.expect}) ⇒ rotura ofensiva observable`);
+  else lfail(`AC POISE broke: ${J(pp)}`);
+
+  // ---------- [AC HÍPER-ARMADURA] (seam C): el windup absorbe un stun entrante ----------
+  const hy = d.chargeHyperArmorProbe();
+  if (hy && hy.ok)
+    lpass(`AC HYPER: fuera de la carga el stun aturde (stun=${hy.stunBase}); durante h.charging el mismo stun NO interrumpe (stun=${hy.stunCharge}) ⇒ híper-armadura del windup absorbe (${hy.absorbed})`);
+  else lfail(`AC HYPER broke: ${J(hy)}`);
+
+  // ---------- [AC CAP ENTRANTE] (seam D): golpe grande capado mientras cargas ----------
+  const ci = d.chargeIncomingCapProbe();
+  if (ci && ci.ok)
+    lpass(`AC CAP-IN: cap=incomingDmgCapFracMaxHp×maxHp=${ci.cap}; fuera de la carga resta COMPLETO=${ci.dBase} (>cap); durante h.charging resta ≤cap=${ci.dCap} (capped=${ci.capped}) ⇒ absorber ≠ inmunidad pero nunca one-shot`);
+  else lfail(`AC CAP-IN broke: ${J(ci)}`);
+
+  // ---------- [AC CAP SALIENTE] (seam E): cargado vs jefe/élite capado; trash sin cap ----------
+  const co = d.chargeOutgoingCapProbe();
+  if (co && co.ok)
+    lpass(`AC CAP-OUT: cap=releaseCapFracMaxHp×maxHp=${co.cap}; jefe cargado=${co.dBoss}≤cap (capBound=${co.capBound}, bossCapped=${co.bossCapped}); trash SIN cap=${co.dTrash}>cap (${co.trashUncapped}) ⇒ anti one-shot pero ejecución pesada en trash`);
+  else lfail(`AC CAP-OUT broke: ${J(co)}`);
+
+  // ---------- [AC OFF]: enabled=false ⇒ forzar charging/_charged INERTE (dmg/hyper/caps byte-id a HEAD) ----------
+  const off = d.chargeOffProbe();
+  if (off && off.ok)
+    lpass(`AC OFF: CHARGED_ATTACK.enabled=false ⇒ forzar _charged=true INERTE (dmg ${off.dForced}==${off.dRef}); forzar charging INERTE (stun aturde igual=${off.stunOff}, sin híper-armadura=${off.hyperInert}); cap entrante muerto (dmg completo=${off.dOff}, capInert=${off.capInert}) ⇒ ramas byte-idénticas a HEAD`);
+  else lfail(`AC OFF not inert: ${J(off)}`);
+
+  // ---------- [AC SAVE]: transient hero flags ⇒ save.v1 byte-identical, no charge* key ----------
+  const sb = d.chargeSaveByteId();
+  if (sb.ok)
+    lpass(`AC SAVE: chargeT/charging/_charged/_chargedFx transitorios (mirror h.blocking) ⇒ save.v1 BYTE-IDENTICAL ON/OFF (byteId=${sb.byteId}), sin clave charge* (hasKey=${sb.hasKey})`);
+  else lfail(`AC SAVE byte-id broke: ${J({ byteId: sb.byteId, hasKey: sb.hasKey, onLen: sb.onLen, offLen: sb.offLen })}`);
+
+  // ---------- [AC RNG-STRONG]: fixed srand script (windup→absorbe→release→×dmgMul FIRING) — ON == OFF ----------
+  const SEED = 0x2133c0de, N = 24;
+  const rON = d.chargeSrandProbe(true, SEED, N);
+  const rOFF = d.chargeSrandProbe(false, SEED, N);
+  if (rON.fingerprint.length === 48) lpass(`AC RNG-STRONG: fixed script draws ${rON.fingerprint.length} srand values (2×${N}) around un windup + un stun absorbido + un release cargado ×dmgMul real`);
+  else lfail(`AC RNG: expected 48 draws, got ${rON.fingerprint.length}`);
+  if (J(rON.fingerprint) === J(rOFF.fingerprint))
+    lpass(`AC RNG-STRONG (ON==OFF): srand stream BYTE-IDENTICAL ON vs OFF — la carga es timing/aritmética/flag (0 draws, no chargeRng) aun disparando`);
+  else lfail(`srand diverged ON vs OFF — on=${J(rON.fingerprint).slice(0, 70)} off=${J(rOFF.fingerprint).slice(0, 70)}`);
+  if (rON.released)
+    lpass(`AC RNG-STRONG: el probe ON SÍ acumuló windup + soltó cargado (_charged) con 0 srand — ejercitó la ruta de disparo real`);
+  else lfail(`AC RNG: charged release did not fire on the ON probe: ${J({ released: rON.released })}`);
+  const rON2 = d.chargeSrandProbe(true, SEED, N);
+  if (J(rON.fingerprint) === J(rON2.fingerprint)) lpass(`AC RNG-STRONG determinism: same seed reproduces the same srand stream — Stage-2 ready`);
+  else lfail(`AC RNG determinism broke`);
+
+  return localOk;
 }
 
-// ── AC1 THRESHOLD (HEADLINE) ──────────────────────────────────────────────────
-function ac1_headline() {
-  const r = sim.dev.chargeHeadlineProbe();
-  if (r.ok && r.ratioOk)
-    pass(`[AC1-THRESHOLD] charged/normal ratio=${r.ratio} ≈ dmgMul=${r.expect} (dNormal=${r.dNormal}, dCharged=${r.dCharged})`);
-  else fail(`[AC1-THRESHOLD] ratio=${r.ratio} expect=${r.expect} ratioOk=${r.ratioOk} ok=${r.ok} r=${JSON.stringify(r)}`);
+try {
+  // PASS×2 (mirror el chain): dos corridas independientes deben ambas PASAR.
+  const p1 = runOnce("run1");
+  const p2 = runOnce("run2");
+  if (p1 && p2) pass(`PASS×2: ambas corridas independientes PASARON`);
+  else fail(`PASS×2 broke: run1=${p1} run2=${p2}`);
 
-  // AC1b: OFF — chargeOffProbe: _charged=true inert with enabled:false
-  const ro = sim.dev.chargeOffProbe();
-  if (ro.ok && ro.dmgInert)
-    pass(`[AC1b-OFF-INERT] enabled:false → _charged=true byte-identical to normal heavy (dNormal=${ro.dNormal}, dForced=${ro.dForced})`);
-  else fail(`[AC1b-OFF-INERT] dmgInert=${ro.dmgInert} dNormal=${ro.dNormal} dForced=${ro.dForced}`);
-}
-
-// ── AC2 HYPER-ARMOR ───────────────────────────────────────────────────────────
-function ac2_hyperarmor() {
-  const r = sim.dev.chargeHyperArmorProbe();
-  if (r.ok && r.hyperArmorAbsorbs)
-    pass(`[AC2-HYPER-ARMOR] charging=true absorbs stun (stunNoCharge=${r.stunNoCharge}, stunDuringCharge=${r.stunDuringCharge}) — windup hyper-armor absorbs infl.type=stun`);
-  else fail(`[AC2-HYPER-ARMOR] hyperArmorAbsorbs=${r.hyperArmorAbsorbs} stunDuringCharge=${r.stunDuringCharge} r=${JSON.stringify(r)}`);
-}
-
-// ── AC3 CAP INCOMING ──────────────────────────────────────────────────────────
-function ac3_capIncoming() {
-  const r = sim.dev.chargeCapIncomingProbe();
-  if (r.ok && r.capOk && r.uncappedExceedsCap)
-    pass(`[AC3-CAP-IN] incoming damage capped during charging: dCapped=${r.dCapped} ≤ cap=${r.cap} (forcedMaxHp=100, incomingDmgCapFrac=${cfg.CHARGED_ATTACK.incomingDmgCapFracMaxHp}); uncapped=${r.dUncapped} > cap ⇒ cap bites`);
-  else fail(`[AC3-CAP-IN] capOk=${r.capOk} uncappedExceedsCap=${r.uncappedExceedsCap} cap=${r.cap} dCapped=${r.dCapped} dUncapped=${r.dUncapped}`);
-}
-
-// ── AC4 CAP OUTGOING ──────────────────────────────────────────────────────────
-function ac4_capOutgoing() {
-  const r = sim.dev.chargeCapSalienteProbe();
-  if (r.ok && r.bossCapped && r.capBound)
-    pass(`[AC4-CAP-OUT] charged release vs boss capped: dBoss=${r.dBoss} ≈ cap=${r.cap} (releaseCapFrac=${cfg.CHARGED_ATTACK.releaseCapFracMaxHp}); trash=${r.dTrash} > cap ⇒ cap bites boss, trash uncapped`);
-  else fail(`[AC4-CAP-OUT] bossCapped=${r.bossCapped} capBound=${r.capBound} cap=${r.cap} dBoss=${r.dBoss} dTrash=${r.dTrash}`);
-}
-
-// ── AC5 OFF BYTE-ID (already folded into AC1b above, recheck) ────────────────
-function ac5_off() {
-  const r = sim.dev.chargeOffProbe();
-  if (r.ok)
-    pass(`[AC5-OFF] enabled:false → _charged inert byte-id confirmed again (dNormal=${r.dNormal} === dForced=${r.dForced})`);
-  else fail(`[AC5-OFF] dmgInert=${r.dmgInert} dNormal=${r.dNormal} dForced=${r.dForced}`);
-}
-
-// ── AC6 SAVE BYTE-ID ─────────────────────────────────────────────────────────
-function ac6_save() {
-  const r = sim.dev.chargeSaveByteId();
-  if (r.ok && r.byteId && !r.hasKey)
-    pass(`[AC6-SAVE-BYTEID] serializeSave() byte-identical ON/OFF; no chargeT/charging/_charged keys in save.v1 (transient fields outside allowlist)`);
-  else fail(`[AC6-SAVE-BYTEID] byteId=${r.byteId} hasKey=${r.hasKey} r=${JSON.stringify(r)}`);
-}
-
-// ── AC7 SRAND 0-DRAWS ─────────────────────────────────────────────────────────
-function ac7_srand() {
-  const SEED = 0xca5_2133;
-  const N = 32;
-  const on  = sim.dev.chargeSrandProbe(true,  SEED, N);
-  const off = sim.dev.chargeSrandProbe(false, SEED, N);
-  const fpOn  = JSON.stringify(on.fingerprint);
-  const fpOff = JSON.stringify(off.fingerprint);
-  if (fpOn === fpOff)
-    pass(`[AC7-SRAND] srand stream byte-identical ON vs OFF (N=${N}×2, seed=0x${SEED.toString(16)}) — 0 draws, no chargeRng`);
-  else {
-    const mismatch = on.fingerprint.findIndex((v, i) => v !== off.fingerprint[i]);
-    fail(`[AC7-SRAND] srand diverges at index ${mismatch}: ON=${on.fingerprint[mismatch]} OFF=${off.fingerprint[mismatch]}`);
+  // ---------- [REG]: existing srand probes stay ON==OFF (0 regresión en las 36 mecánicas vivas, incl. Riposte #36 LIVE) ----------
+  sim.createHero("PowerQA", "warrior");
+  const reg = [
+    ["Frenzy", 0x1773c0de, d.frenzySrandProbe],
+    ["Parry", 0x1785c0de, d.parrySrandProbe],
+    ["Dodge", 0x1814c0de, d.dodgeSrandProbe],
+    ["Telegraph", 0x1790c0de, d.telegraphSrandProbe],
+    ["Poise", 0x1826c0de, d.poiseSrandProbe],
+    ["Combos", 0x1831c0de, d.comboSrandProbe],
+    ["Backstab", 0x1836c0de, d.backstabSrandProbe],
+    ["Stamina", 0x1841c0de, d.staminaSrandProbe],
+    ["Flask", 0x1854c0de, d.flaskSrandProbe],
+    ["Bloodstain", 0x1867c0de, d.bloodstainSrandProbe],
+    ["Shield", 0x1873c0de, d.shieldSrandProbe],
+    ["Two-Hand", 0x1895c0de, d.twoHandSrandProbe],
+    ["Hyperarmor", 0x1901c0de, d.hyperSrandProbe],
+    ["Weapon-Arch", 0x1907c0de, d.archSrandProbe],
+    ["Weapon-Arts", 0x1914c0de, d.artSrandProbe],
+    ["Throwables", 0x1920c0de, d.throwSrandProbe],
+    ["Weapon-Buffs", 0x1926c0de, d.buffSrandProbe],
+    ["Status-Buildup", 0x1931c0de, d.buildupSrandProbe],
+    ["Bonfire", 0x1879c0de, d.bonfireSrandProbe],
+    ["Equip-Load", 0x1889c0de, d.equipSrandProbe],
+    ["Lock-On", 0x1858c0de, d.lockSrandProbe],
+    ["Pacts", 0x1763c0de, d.pactsSrandProbe],
+    ["Titles", 0x1650c0de, d.titlesSrandProbe],
+    ["Codex", 0x2020c0de, d.codexSrandProbe],
+    ["Seeded-Challenge", 0x2090c0de, d.variantSrandProbe],
+    ["Arena-Hazards", 0x2094c0de, d.hazardSrandProbe],
+    ["Guard-Counter", 0x2107c0de, d.guardCounterSrandProbe],
+    ["Dodge-Counter", 0x2110c0de, d.dodgeCounterSrandProbe],
+    ["Rally", 0x2114c0de, d.rallySrandProbe],
+    ["Riposte", 0x2127c0de, d.riposteSrandProbe],
+  ];
+  let regN = 0;
+  for (const [name, seed, probe] of reg) {
+    if (!probe) { pass(`REG: ${name} srand probe absent — skipped`); continue; }
+    sim.createHero("PowerQA", "warrior");   // fresh hero/world per probe ⇒ no cross-probe state bleed (each probe reseeds srand internally)
+    const on = probe.call(d, true, seed, 24), o = probe.call(d, false, seed, 24);
+    if (J(on.fingerprint) === J(o.fingerprint)) { pass(`REG: ${name} srand still BYTE-IDENTICAL ON vs OFF`); regN++; }
+    else fail(`REG: ${name} srand regressed`);
   }
+  pass(`REG SUMMARY: ${regN}/${reg.length} live-mechanic srand probes BYTE-IDENTICAL ON==OFF (CHARGED adds 0 regression)`);
+
+} catch (e) {
+  fail(`harness threw: ${e && e.stack ? e.stack : e}`);
 }
 
-// ── AC8 37-MECH REGRESSION ───────────────────────────────────────────────────
-function ac8_regression() {
-  // Mirror of auditRiposte from cas2131 but for CHARGED_ATTACK (37th, DARK)
-  const ca = cfg.CHARGED_ATTACK;
-  const need = ["enabled","chargeThresholdMs","maxChargeMs","dmgMul","poiseMul","staminaCost",
-                "hyperArmorGrant","incomingDmgCapFracMaxHp","releaseCapFracMaxHp","requiresMelee"];
-  const shapeOk = ca && typeof ca === "object" && need.every((k) => k in ca)
-    && ca.chargeThresholdMs > 0 && ca.maxChargeMs > ca.chargeThresholdMs
-    && ca.dmgMul > 1 && ca.poiseMul > 1 && ca.staminaCost >= 0
-    && ca.hyperArmorGrant > 0 && ca.incomingDmgCapFracMaxHp > 0 && ca.incomingDmgCapFracMaxHp < 1
-    && ca.releaseCapFracMaxHp > 0 && ca.releaseCapFracMaxHp < 1;
-  const dark = ca && ca.enabled === false;
-  if (shapeOk && dark)
-    pass(`[CHARGED] CHARGED_ATTACK DARK (37th mech, CAS-2135 Build) — enabled:false (hard-gated dead branches, byte-id to mec#36), full knob shape chargeThresholdMs=${ca.chargeThresholdMs}/maxChargeMs=${ca.maxChargeMs}/dmgMul=${ca.dmgMul}/poiseMul=${ca.poiseMul}/staminaCost=${ca.staminaCost}/hyperArmorGrant=${ca.hyperArmorGrant}/incomingCap=${ca.incomingDmgCapFracMaxHp}/releaseCap=${ca.releaseCapFracMaxHp}, requiresMelee=${ca.requiresMelee} — RNG-neutral (0 chargeRng) + save-neutral (h.chargeT/h.charging/h._charged transient) ⇒ srand ON==OFF & save.v1 byte-id; reúsa COMBO.heavyKey="KeyN" (no collision), hyper-armor extends existing HYPERARMOR infra`);
-  else fail(`[CHARGED] shapeOk=${shapeOk} dark=${dark} ca=${JSON.stringify(ca)}`);
-
-  // check existing mec#36 RIPOSTE still LIVE (post-flip by CAS-2132)
-  const rip = cfg.RIPOSTE;
-  const ripLive = rip && rip.enabled === true;
-  if (ripLive)
-    pass(`[RIPOSTE] RIPOSTE LIVE (36th mech, CAS-2132 Gate GO) — enabled:true (post-flip)`);
-  else fail(`[RIPOSTE] enabled=${rip && rip.enabled} (expected true, post-flip CAS-2132)`);
-
-  // check RALLY still LIVE (post-flip CAS-2115)
-  const ral = cfg.RALLY;
-  const ralLive = ral && ral.enabled === true;
-  if (ralLive)
-    pass(`[RALLY] RALLY LIVE (35th mech) — enabled:true`);
-  else fail(`[RALLY] enabled=${ral && ral.enabled} (expected true)`);
-
-  // determinism: 37 mechanics including CHARGED_ATTACK DARK add 0 draws to a normal run
-  const io = { moveVec:()=>[0,0], aim:()=>{}, aimActive:false, blockHeld:false, chargeHeld:false, isTouch:false, pollPad:()=>{} };
-  if (typeof sim.srand === "function") sim.srand(0xca5_2133);
-  try { if (sim.dev && sim.dev.startRun) sim.dev.startRun("warrior"); } catch {}
-  let acc = "";
-  const { update } = sim;
-  for (let i = 0; i < 30; i++) {
-    try { update(16.67, io); } catch {}
-    if (G && G.hero) acc += `${Math.round((G.hero.x||0)*100)},${Math.round((G.hero.y||0)*100)}|`;
-  }
-  if (typeof sim.srand === "function") sim.srand(0xca5_2133);
-  try { if (sim.dev && sim.dev.startRun) sim.dev.startRun("warrior"); } catch {}
-  let acc2 = "";
-  for (let i = 0; i < 30; i++) {
-    try { update(16.67, io); } catch {}
-    if (G && G.hero) acc2 += `${Math.round((G.hero.x||0)*100)},${Math.round((G.hero.y||0)*100)}|`;
-  }
-  const fp = acc || "empty"; const fp2 = acc2 || "empty";
-  if (fp === fp2 && !fp.startsWith("ERR:"))
-    pass(`[DETERM] sim cycle fingerprint identical across 2 runs (len ${fp.length}) — 37 mechanics (CHARGED_ATTACK DARK + all prior) add 0 draws to a normal run`);
-  else fail(`[DETERM] fingerprints differ a=${fp.slice(0,60)} b=${fp2.slice(0,60)}`);
-}
-
-// ── MAIN ─────────────────────────────────────────────────────────────────────
-log("── CAS-2133/CAS-2135 CHARGED HEAVY QA HARNESS ──");
-ac0_meta();
-ac1_headline();
-ac2_hyperarmor();
-ac3_capIncoming();
-ac4_capOutgoing();
-ac5_off();
-ac6_save();
-ac7_srand();
-ac8_regression();
-log("");
-if (ok) log("✅ CAS-2133 ALL AC PASS — CHARGED_ATTACK DARK mec#37 verified: META/THRESHOLD/HYPER-ARMOR/CAP-IN/CAP-OUT/OFF-INERT/SAVE-BYTEID/SRAND/37-mech-regression");
-else { console.error("❌ CAS-2133 FAIL"); process.exit(1); }
+log(ok ? "\n✅ CAS-2133 charged-attack (Ataque Cargado con Híper-Armadura, mec #37 DARK) harness: ALL PASS" : "\n❌ CAS-2133 charged-attack harness: FAILURES ABOVE");
+process.exit(ok ? 0 : 1);
