@@ -28,7 +28,7 @@ import { G, update, spawnSpirit } from "../sim/sim.js";
 import { equippedDmg } from "../sim/gear.js";
 import { SUMMON, SIGNATURE_BOSS, STATUS_BUILDUP, WEAPON_BUFFS, POISE, BACKSTAB, LOCK_ON } from "../sim/config.js";
 
-const EXPECT_BUILD = "4ef6efbe196c";
+const EXPECT_BUILD = "c960c813843d"; // CAS-1980 GO-LIVE FLIP build (SUMMON enabled:true)
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 
 const log = (m) => console.log(m);
