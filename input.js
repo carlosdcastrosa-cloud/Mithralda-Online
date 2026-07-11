@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, ARENA, COMBAT_CODEX } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -72,6 +72,7 @@ const ACTIONS = {
   codex:()=>{ if(CODEX.enabled) G.scene="codex"; }, // CAS-1751: open the Códice de Botín (gated — no-op when disabled)
   titles:()=>{ if(TITLES.enabled) G.scene="titles"; }, // CAS-1758: open the Títulos de Gesta (gated — no-op when disabled)
   pacts:()=>{ if(PACTS.enabled) G.scene="pacts"; }, // CAS-1763: open the Pactos de Poder (gated — no-op when disabled)
+  combatCodex:()=>{ sim.openCombatCodex(); }, // CAS-1996: open the Códice de Combate (gate lives in sim.openCombatCodex — no-op when COMBAT_CODEX.enabled=false)
   pause:()=>{ G.scene="pause"; },
 };
 // Reverse-resolve a keydown code → its bound play-scene action verb (or null).
@@ -90,7 +91,7 @@ function onKeyDown(e){
     G.rebind=null; e.preventDefault(); return; }
   if(G.scene==="menu"){ if(document.activeElement===nameInput && e.code!=="Enter") return;
     if(e.code==="Enter"){ G.pendingArena=false; G.pendingBossRush=false; startGame(); }       // CAS-1664: Enter = normal adventure
-    else if(e.code==="KeyA"){ G.pendingArena=true; G.pendingBossRush=false; startGame(); }     // CAS-1664: A = Arena de Oleadas
+    else if(e.code===ARENA.key){ G.pendingArena=true; G.pendingBossRush=false; startGame(); }   // CAS-1664: A = Arena de Oleadas (CAS-1996: lee ARENA.key, antes literal "KeyA" — behavior-identical, data-driven)
     else if(e.code===BOSS_RUSH.key && BOSS_RUSH.enabled){ G.pendingBossRush=true; G.pendingArena=false; startGame(); } // CAS-1988: B = Modo Boss Rush (gated ⇒ enabled:false ⇒ tecla inerte, menú no muestra la entrada)
     return; }
   if(G.scene==="classsel"){ const c=e.code;
@@ -126,7 +127,7 @@ function onKeyDown(e){
   // navegador si no se hace preventDefault). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
   // CAS-1873: suprime el default del navegador para la tecla de bloqueo cuando está enabled (ShiftLeft es un
   // modificador; sin esto podría interferir con atajos). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
-  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key) || (THROWABLES.enabled && (e.code===THROWABLES.throwKey || e.code===THROWABLES.cycleKey)) || (WEAPON_BUFFS.enabled && (e.code===WEAPON_BUFFS.applyKey || e.code===WEAPON_BUFFS.cycleKey)) || (SUMMON.enabled && e.code===SUMMON.key)) e.preventDefault();
+  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key) || (THROWABLES.enabled && (e.code===THROWABLES.throwKey || e.code===THROWABLES.cycleKey)) || (WEAPON_BUFFS.enabled && (e.code===WEAPON_BUFFS.applyKey || e.code===WEAPON_BUFFS.cycleKey)) || (SUMMON.enabled && e.code===SUMMON.key) || (COMBAT_CODEX.enabled && e.code===COMBAT_CODEX.codexKey)) e.preventDefault();
 }
 function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md);
   // CAS-1873: soltar la tecla de bloqueo BAJA la guardia (HELD). Siempre se limpia (aunque OFF) ⇒ el estado no queda
@@ -230,6 +231,11 @@ function edge(code){
   if(G.scene==="codex"){ if(code==="KeyK"||code==="Escape"){ G.scene="play"; } return; } // CAS-1751: Códice toggle/close
   if(G.scene==="titles"){ if(code==="KeyY"||code==="Escape"){ G.scene="play"; } return; } // CAS-1758: Títulos toggle/close
   if(G.scene==="pacts"){ if(code==="KeyL"||code==="Escape"){ G.scene="play"; } return; } // CAS-1763: Pactos toggle/close
+  if(G.scene==="combatcodex"){ // CAS-1996: Códice de Combate — codexKey/ESC cierran (toggle); ↑/↓ hacen scroll (clampado en render)
+    if(code===COMBAT_CODEX.codexKey||code==="Escape"){ G.scene="play"; }
+    else if(code==="ArrowUp") G.ccScroll=Math.max(0,(G.ccScroll||0)-1);
+    else if(code==="ArrowDown") G.ccScroll=(G.ccScroll||0)+1;   // clamp al alto en render
+    return; }
   // CAS-169: wardrobe / customization — C/Escape/Enter close (changes are live + autosaved).
   // ↑/↓ move the focused row; ←/→ change it (cycle swatch on a color row, swap a variation);
   // R restores the class default. Pointer/touch use ui.customRects.
@@ -251,6 +257,10 @@ function edge(code){
   // CAS-1751: fixed KeyK alias opens the Códice de Botín (gated — no-op when CODEX.enabled=false). The
   // codex scene's own handler closes it on KeyK/ESC, so K toggles. Not a rebindable action (a read-only panel).
   if(code==="KeyK"){ ACTIONS.codex(); return; }
+  // CAS-1996: fixed COMBAT_CODEX.codexKey (default Backquote `) opens the Códice de Combate — gated on COMBAT_CODEX.enabled,
+  // so with the feature off the key is inert (falls through, no state change). The combatcodex scene's own handler closes it
+  // on codexKey/ESC (toggle). Not a rebindable action (a read-only reference panel; mirrors the fixed KeyK/KeyY/KeyL).
+  if(COMBAT_CODEX.enabled && code===COMBAT_CODEX.codexKey){ ACTIONS.combatCodex(); return; }
   // CAS-1758: fixed KeyY alias opens the Títulos de Gesta (gated — no-op when TITLES.enabled=false). Y (not
   // the spec's T, which is already bound to Habilidades/talents) mirrors the read-only Códice's fixed KeyK.
   if(code==="KeyY"){ ACTIONS.titles(); return; }
@@ -260,7 +270,7 @@ function edge(code){
   // CAS-1785: dedicated KeyH arms the PARADA CON TEMPO (timing parry) — gated on PARRY.enabled, so with
   // the feature off KeyH is inert (falls through, no new state, settings snapshot byte-identical). Not a
   // rebindable action (deliberate: never touches REBINDS/settings.binds). Mirrors the fixed KeyK/KeyY/KeyL.
-  if(code==="KeyH" && PARRY.enabled){ sim.tryParry(); return; }
+  if(code===PARRY.key && PARRY.enabled){ sim.tryParry(); return; }   // CAS-1996: lee PARRY.key (antes literal "KeyH" — behavior-identical, data-driven ⇒ el Códice no miente)
   // CAS-1831: dedicated COMBO.heavyKey (default KeyN) fires the HEAVY attack — gated on COMBO.enabled, so with
   // the feature off the key is inert (falls through, no state change). Not a rebindable action (deliberate, like
   // KeyH parry: never touches REBINDS/settings.binds ⇒ the attack button + settings snapshot stay byte-identical).

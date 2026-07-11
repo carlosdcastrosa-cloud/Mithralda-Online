@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -303,6 +303,7 @@ export function createRenderer(ctx){
     if(G.scene==="codex") renderCodex(); // CAS-1751 Códice de Botín (Collection Log)
     if(G.scene==="titles") renderTitles(); // CAS-1758 Títulos de Gesta (Feat Titles)
     if(G.scene==="pacts") renderPacts(); // CAS-1763 Pactos de Poder (Power Pacts)
+    if(G.scene==="combatcodex") renderCombatCodex(); // CAS-1996 Códice de Combate (Combat Codex reference panel)
     if(G.scene==="dialogue") renderDialogue();
     if(G.scene==="shop") renderShop();
     if(G.scene==="forge") renderForge(); // CAS-237 equipment forge
@@ -2012,6 +2013,13 @@ export function createRenderer(ctx){
     renderBoonChips(h);            // CAS-1612: active run-boons as a top-left chip row
     renderXpBar(h);               // CAS-1612: XP as a full-width strip on the bottom edge
     renderConsole();              // CAS-1613: collapsible chat/console with auto-fade (~6s)
+    // CAS-1996: afordancia HUD del Códice de Combate — texto minúsculo "[`] Códice" en la esquina inferior derecha
+    // (sobre la tira de XP, zona normalmente vacía). GATED: COMBAT_CODEX.enabled && showHudHint && !isTouch (la tecla es
+    // sólo teclado). $0 arte, presentacional (0 sim). enabled:false ⇒ nunca se dibuja ⇒ byte-idéntico a HEAD.
+    if(COMBAT_CODEX.enabled && COMBAT_CODEX.showHudHint && !isTouch){
+      ctx.save(); ctx.globalAlpha=0.7; ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
+      ctx.fillText("["+sim.keyLabel(COMBAT_CODEX.codexKey)+"] Códice", VW-10, VH-24); ctx.restore(); ctx.textAlign="left";
+    }
     if(auditRects){ try{ window.__uiRects=auditRects; }catch(e){} }
   }
   // CAS-1613 (PR4): the chat/console is no longer a fixed 94px bar (that lived only in the
@@ -2959,6 +2967,51 @@ export function createRenderer(ctx){
     ctx.fillStyle= snap.heat>0 ? "#e0813f" : COL.textDim;
     ctx.fillText("Ardor total "+snap.heat+"   ·   Esencia ×"+snap.essMul.toFixed(2)+"   ·   Botín ×"+snap.dropMul.toFixed(2), VW/2, y+bh-26);
     ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("L / ESC para cerrar", VW/2, y+bh-8);
+    ctx.textAlign="left";
+  }
+
+  // CAS-1996 — CÓDICE DE COMBATE (Combat Codex). A PURE VIEW over COMBAT_CODEX_ENTRIES: the LIVE combat mechanics
+  // (gate()===true) grouped Movimiento·Defensa·Ofensiva·Recursos·Jefes, each row "[tecla]  Etiqueta — descripción".
+  // The key is resolved DATA-DRIVEN via entry.keyOf() → sim.keyLabel (never a hardcoded literal that could lie). $0 art —
+  // text + MithraldaPixel + existing panel primitives only. Scrollable via G.ccScroll (clamped here). Read-only: 0 sim.
+  const CC_GROUP_ORDER=["Movimiento","Defensa","Ofensiva","Recursos","Jefes"];
+  function renderCombatCodex(){
+    const bw=Math.min(VW*0.92,600), bh=Math.min(VH*0.9,500), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    const kdisp=sim.keyLabel(COMBAT_CODEX.codexKey);
+    ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText("Códice de Combate", VW/2, y+28);
+    ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText("Tus herramientas de combate · ↑/↓ desplazar · ["+kdisp+"] / ESC cerrar", VW/2, y+48);
+    // build the flat, ordered line list (group header + one row per live entry)
+    const live=COMBAT_CODEX_ENTRIES.filter(e=>{ try{ return !!e.gate(); }catch(_){ return false; } });
+    const lines=[];
+    for(const g of CC_GROUP_ORDER){ const rows=live.filter(e=>e.group===g); if(!rows.length) continue;
+      lines.push({ h:true, text:g });
+      for(const e of rows){ let raw; try{ raw=e.keyOf(); }catch(_){ raw="—"; } lines.push({ h:false, key:sim.keyLabel(raw), label:e.label, desc:e.desc }); } }
+    // viewport geometry
+    const pad=22, top=y+68, rowH=22, headH=20, botPad=16;
+    const viewH=bh-(top-y)-botPad; const maxRows=Math.max(1,Math.floor(viewH/rowH));
+    // total height in rows (headers count 1 row too) → clamp scroll
+    const totalRows=lines.length; const maxScroll=Math.max(0,totalRows-maxRows);
+    let sc=Math.min(Math.max(0,G.ccScroll||0),maxScroll); G.ccScroll=sc;   // write-back the clamp
+    const keyX=x+pad, labX=x+pad+58, rightX=x+bw-pad;
+    let ly=top;
+    for(let i=sc;i<Math.min(lines.length,sc+maxRows);i++){ const ln=lines[i];
+      if(ln.h){ ctx.textAlign="left"; ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF; ctx.fillText(ln.text, keyX, ly+headH-6); ly+=rowH; continue; }
+      // key chip
+      ctx.textAlign="left"; ctx.fillStyle=ln.key==="—"?COL.textDim:COL.cream; ctx.font="bold 12px "+FF; ctx.fillText("["+ln.key+"]", keyX, ly+15);
+      // label + desc (desc dim, clipped to width)
+      ctx.fillStyle=COL.cream; ctx.font="bold 12px "+FF; ctx.fillText(ln.label, labX, ly+15);
+      const lw=ctx.measureText(ln.label).width;
+      ctx.fillStyle=COL.textDim; ctx.font="11px "+FF;
+      let desc=ln.desc; const availW=rightX-(labX+lw+10);
+      if(ctx.measureText(desc).width>availW){ while(desc.length>4 && ctx.measureText(desc+"…").width>availW) desc=desc.slice(0,-1); desc+="…"; }
+      ctx.fillText(desc, labX+lw+10, ly+15);
+      ly+=rowH;
+    }
+    // scroll affordance
+    if(maxScroll>0){ ctx.textAlign="right"; ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
+      ctx.fillText((sc>0?"▲ ":"")+(sc<maxScroll?"▼":""), rightX, y+bh-8); }
+    ctx.textAlign="center"; ctx.fillStyle=COL.textDim; ctx.font="10px "+FF; ctx.fillText("["+kdisp+"] / ESC para cerrar", VW/2, y+bh-8);
     ctx.textAlign="left";
   }
 

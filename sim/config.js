@@ -830,6 +830,7 @@ export const HUNTS = {
 //   healFrac                — fraction of maxHp healed at the start of each rest
 //   essStep                 — Esencia banked per cleared wave = ceil(n*essStep) → feeds the meta tree
 export const ARENA = {
+  key:"KeyA",                       // CAS-1996: CODE de menú de la Arena de Oleadas (antes hardcodeado en input.js:93). Data-driven ⇒ el Códice de Combate lee ARENA.key. Behavior-identical.
   baseMobs:4, mobStep:0.5, mobCap:24,
   hpStep:0.12, dmgStep:0.08,
   affixBase:0.10, affixStep:0.03, affixCap:0.60,
@@ -1026,6 +1027,7 @@ export const FRENZY = {
 // transitorio (mirror `atkspdBuff`/`frenzyT`): NO se serializa.
 export const PARRY = {
   enabled:true,
+  key:"KeyH",       // CAS-1996: alias fijo de la Parada con Tempo (antes hardcodeado en input.js). Data-driven ⇒ el Códice de Combate lee PARRY.key en vez de mentir con un literal. Behavior-identical (input.js:263 lee este campo).
   windowMs:150,     // ventana activa tras pulsar (spec 120–180ms; 150 = punto medio)
   cooldownS:0.55,   // cooldown tras cualquier pulsación (anti-spam; fuera de ventana = whiff)
   counterDmg:26,    // daño del contraataque al atacante melee parado (ruteado por hitEnemy ⇒ crit/procs)
@@ -1677,3 +1679,57 @@ export const BOSS_RUSH = {
   clearBonusEss: 250,             // bonus por COMPLETAR toda la gauntlet (0 RNG)
   recordEssBase: 15,              // milestone ronda-récord: ceil(recordEssBase * ronda) 1-vez/run (0 RNG)
 };
+
+// CAS-1996 (EVO CAS-1995) — CÓDICE DE COMBATE + HINTS CONTEXTUALES. Descubribilidad pura: un panel de referencia
+// read-only (A) que lista las mecánicas de combate VIVAS con su binding REAL + descripción, y toasts one-time de
+// primer-encuentro (B) que enseñan cada sistema cuando el jugador lo toca por primera vez. 100% BORROW: A clona el
+// patrón Códice de Botín/Títulos/Pactos (scene fija gateada por tecla), B clona el primitivo toast(str,secs) tras un
+// store AISLADO nuevo (mithralda.hints.v1). $0 arte (sólo texto + MithraldaPixel + primitivas de panel existentes).
+// HARD-GATED: enabled:false ⇒ codexKey inerte, fireHint retorna temprano, mithralda.hints.v1 NUNCA se crea ⇒ save.v1
+// + srand byte-idénticos a HEAD. RNG-neutral STRONG: el códice sólo LEE config/estado, los hints sólo llaman toast
+// (no-RNG) ⇒ 0 draws incluso enabled:true. El Gate CEO decide el flip live (mirror los 24 pilares). enabled:false DARK.
+//   codexKey       — CODE fijo NO rebindable de la escena play (KeyH=Parry, 26 letras ocupadas; Backquote ` libre).
+//   showContextHints — sub-toggle: apaga SÓLO los hints (B); el códice (A) sigue funcionando.
+//   toastSecs      — duración del toast de hint (reusa toast(str,secs); 0 RNG).
+//   showHudHint    — afordancia HUD "[`] Códice" (descubribilidad del propio códice). $0 arte, presentacional.
+export const COMBAT_CODEX = {
+  enabled: false,           // ships DARK; Gate CEO flip (mirror SUMMON/BOSS_RUSH). enabled:false ⇒ TODO inerte, byte-id HEAD.
+  codexKey: "Backquote",    // ` / ~ — CODE fijo NO rebindable (grep-verificado libre). CTO-tunable.
+  showContextHints: true,   // sub-toggle: apaga SÓLO los hints (B); el códice (A) sigue vivo.
+  toastSecs: 4.5,           // duración del toast de hint (reusa toast(str,secs); 0 RNG).
+  showHudHint: true,        // afordancia HUD "[`] Códice" (discoverability del propio códice). $0 arte.
+};
+
+// CAS-1996 — tabla DATA-DRIVEN del Códice de Combate. Definida al FINAL (tras TODOS los knobs) porque cada entrada
+// resuelve su tecla por getter sobre el knob REAL (keyOf) — de modo que si el CTO retunea un binding, el códice se
+// actualiza solo, NUNCA miente con un literal (barra dura del ticket). Los getters se evalúan en render-time. Entradas
+// con keyOf textual ("Rodar"/"Espalda"/"—") son mecánicas SIN tecla dedicada (roll=dirección+stamina; backstab=posicional;
+// poise/stamina/bloodstain=pasivas; jefe de firma=pasiva) — etiquetadas honestamente, sin inventar un binding. `gate`
+// filtra: sólo se listan las mecánicas VIVAS (enabled). R2 conocido: COMBO.heavyKey y SUMMON.key ambos "KeyN" ⇒ el
+// códice muestra AMBOS honestamente (señal real de retune futuro del CTO, NO se oculta ni se "arregla" aquí).
+export const COMBAT_CODEX_ENTRIES = [
+  // MOVIMIENTO
+  { group:"Movimiento", label:"Rodar (i-frames)",   keyOf:()=>"Rodar",              desc:"Esquiva con fotogramas de invulnerabilidad; cuesta STAMINA.", gate:()=>DODGE.enabled },
+  { group:"Movimiento", label:"Fijar objetivo",     keyOf:()=>LOCK_ON.key,          desc:"Lock-on: fija la orientación al enemigo; cicla objetivos.", gate:()=>LOCK_ON.enabled },
+  { group:"Movimiento", label:"Postura a 2 manos",  keyOf:()=>TWO_HAND.key,         desc:"Alterna a dos manos: +daño y poise, −velocidad.", gate:()=>TWO_HAND.enabled },
+  // DEFENSA
+  { group:"Defensa",    label:"Parada con Tempo",   keyOf:()=>PARRY.key,            desc:"Parry: pulsa con timing para anular el golpe y abrir riposte.", gate:()=>PARRY.enabled },
+  { group:"Defensa",    label:"Bloqueo con escudo", keyOf:()=>SHIELD_BLOCK.key,     desc:"Mantén para levantar la guardia y reducir daño (consume stamina).", gate:()=>SHIELD_BLOCK.enabled },
+  { group:"Defensa",    label:"Poise / Hiperarmor", keyOf:()=>"—",                  desc:"Aguante: no te interrumpen mientras dure el poise/hiperarmor.", gate:()=>(POISE.enabled||HYPERARMOR.enabled) },
+  // OFENSIVA
+  { group:"Ofensiva",   label:"Ataque pesado",      keyOf:()=>COMBO.heavyKey,       desc:"Golpe cargado; rompe poise y encadena combos.", gate:()=>COMBO.enabled },
+  { group:"Ofensiva",   label:"Puñalada por la espalda", keyOf:()=>"Espalda",       desc:"Backstab: golpea desde el arco trasero para daño masivo.", gate:()=>BACKSTAB.enabled },
+  { group:"Ofensiva",   label:"Arte de Arma",       keyOf:()=>WEAPON_ARTS.key,      desc:"Ejecuta el Arte del arquetipo de arma equipado.", gate:()=>WEAPON_ARTS.enabled },
+  { group:"Ofensiva",   label:"Arrojar",            keyOf:()=>THROWABLES.throwKey,  desc:"Lanza el consumible arrojadizo seleccionado; cicla el tipo.", gate:()=>THROWABLES.enabled },
+  { group:"Ofensiva",   label:"Aplicar resina",     keyOf:()=>WEAPON_BUFFS.applyKey,desc:"Unta el arma con una resina: buff temporal de daño/estado.", gate:()=>WEAPON_BUFFS.enabled },
+  // RECURSOS
+  { group:"Recursos",   label:"Beber Estus",        keyOf:()=>FLASK.key,            desc:"Cura por carga; se recarga en zona/hoguera.", gate:()=>FLASK.enabled },
+  { group:"Recursos",   label:"STAMINA",            keyOf:()=>"—",                  desc:"Sin stamina no puedes rodar ni lanzar pesados; se regenera.", gate:()=>STAMINA.enabled },
+  { group:"Recursos",   label:"Invocar espíritu",   keyOf:()=>SUMMON.key,           desc:"Cenizas de Espíritu: invoca un aliado que divide la aggro del jefe.", gate:()=>SUMMON.enabled },
+  { group:"Recursos",   label:"Hoguera",            keyOf:()=>BONFIRE.key,          desc:"Descansa: cura, recarga Estus y fija checkpoint.", gate:()=>BONFIRE.enabled },
+  { group:"Recursos",   label:"Mancha de sangre",   keyOf:()=>"—",                  desc:"Al morir sueltas la Esencia; recupérala en el punto de muerte.", gate:()=>BLOODSTAIN.enabled },
+  // JEFES
+  { group:"Jefes",      label:"Jefe de Firma",      keyOf:()=>"—",                  desc:"Jefes de 2 fases con ventana de vulnerabilidad tras romper poise.", gate:()=>SIGNATURE_BOSS.enabled },
+  { group:"Jefes",      label:"Modo Boss Rush",     keyOf:()=>BOSS_RUSH.key,        desc:"Gauntlet finito de jefes encadenados (desde el menú); récord = mejor ronda.", gate:()=>BOSS_RUSH.enabled },
+  { group:"Jefes",      label:"Arena de Oleadas",   keyOf:()=>ARENA.key,            desc:"Oleadas infinitas con jefes periódicos (desde el menú); récord = mejor oleada.", gate:()=>true }, // Arena SIEMPRE disponible (modo de menú, gateado por G.arenaMode en runtime, no por un knob enabled)
+];
