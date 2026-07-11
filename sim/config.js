@@ -1790,7 +1790,7 @@ export const ENCOUNTER_VARIANTS = {
 //   radius/minGapPx — radio del hazard (px) y separación mínima (entre hazards y respecto al héroe: NUNCA spawnea encima).
 //   byZone      — tipos temáticos por zona (uno del pool se elige por arenaHazardRng). types — cada tipo reusa un STATUS/meter existente + un tint/glyph.
 export const ARENA_HAZARDS = {
-  enabled: false,                 // DARK ship; Gate CEO flippea live (config-only, reversible, mirror CAS-2043/2055/2075/2093)
+  enabled: true,                  // GO-LIVE flip CAS-2103 (config-only 1-línea, reversible→false, mirror CAS-2043/2055/2075/2093)
   rngSeed: 0x0a2ea094,            // stream dedicado arenaHazardRng; NUNCA consume del master srand
   spawnGate: { bossOrElite:true },// SÓLO spawnea si hay jefe/élite/campeón/signature vivo en G.enemies
   cadenceMs: 3200,                // cada cuánto se intenta plantar un hazard mientras el gate se cumple
