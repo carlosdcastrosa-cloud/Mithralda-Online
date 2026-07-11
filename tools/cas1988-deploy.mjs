@@ -61,7 +61,7 @@ function buildAndPush() {
   execFileSync("git", ["update-index", "--add", "--cacheinfo", `100644,${vsha},version.json`], { env });
   const tree = execFileSync("git", ["write-tree"], { env }).toString().trim();
   const parent = gitStr("rev-parse", "origin/gh-pages");
-  const commit = gitStr("commit-tree", tree, "-p", parent, "-m", `CAS-1990 (CAS-1988): deploy Modo Boss Rush / Gauntlet (BOSS_RUSH, Build CAS-1989) — dark enabled:false — build ${build}`);
+  const commit = gitStr("commit-tree", tree, "-p", parent, "-m", `CAS-1993 (CAS-1988): GO-LIVE flip Modo Boss Rush / Gauntlet (BOSS_RUSH enabled:true) — config-only over QA-proven 36910735b945 — build ${build}`);
   try {
     execFileSync("git", ["push", "origin", `${commit}:refs/heads/gh-pages`], { stdio: "pipe" });
     return { build, files, commit, pushed: true };

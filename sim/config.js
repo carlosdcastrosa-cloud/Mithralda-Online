@@ -1666,7 +1666,7 @@ export const SUMMON = {
 //   clearBonusEss — bonus por COMPLETAR toda la gauntlet (aritmética, 0 RNG).
 //   recordEssBase — milestone ronda-récord: ceil(recordEssBase * ronda) 1-vez/run (aritmética, 0 RNG).
 export const BOSS_RUSH = {
-  enabled: false,                 // GATE CEO decide el flip live (mirror SUMMON CAS-1979→1980)
+  enabled: true,                  // CAS-1993 GO-LIVE flip (Gate CEO CAS-1992 = GO; mirror SUMMON CAS-1980)
   key: "KeyB",                    // entrada por teclado en el menú (KeyB libre en escena menu)
   sequence: ["caves", "swamp", "abyss", "caldera"],   // 4 rondas TUNABLE (CTO): dragón → tirano pantano → tirano abismo → Corazón de Magma
   hpStep: 0.10, dmgStep: 0.06,    // escala por índice de ronda r (0-based): mul = 1 + r*step
