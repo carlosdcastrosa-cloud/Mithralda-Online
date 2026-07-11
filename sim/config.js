@@ -1397,7 +1397,7 @@ export const GUARD_BREAK = {
 // proyectil (G.projectiles NUNCA se serializa) + consume h.parryT (ya transitorio) ⇒ 0 clave nueva. enabled:false ⇒
 // rama muerta ⇒ byte-idéntico al baseline (0-regresión de las 38 mec vivas). Reversible en 1 línea (CEO gate).
 export const DEFLECT = {
-  enabled:false,             // DARK-by-default — el CEO hace el flip a true en el gate final (config-only, 1 línea).
+  enabled:true,              // CAS-2154 Gate CEO GO-LIVE (mec #39) — flip config-only tras QA CAS-2153 PASS×2; reversible a false.
   captureRadiusPx:34,        // radio de captura del proyectil entrante DURANTE la ventana (px) — mayor que el hit-radius (18) para que la lectura sea legible, aún estrecho
   dmgFracCap:0.15,           // ANTI-DEGENERADO: daño reflejado capeado ≤15% maxHp del objetivo al impactar (mirror del cap de Riposte #36); nunca one-shot
   speedMul:1.15,             // × velocidad al revertir — ligero boost para que el proyectil alcance al tirador que ya se movió
