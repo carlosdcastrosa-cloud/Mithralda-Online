@@ -78,7 +78,7 @@ import * as cfg from "../sim/config.js";
 import * as sim from "../sim/sim.js";
 import { G, update, composeTutSteps } from "../sim/sim.js";
 
-const EXPECT_BUILD = "cdf6e8bdcbea"; // CAS-2131: bumped from ac5304bfe54b after CAS-2115 flip RALLY→LIVE (mec#35) + CAS-2129 Build/CAS-2130 Deploy DARK RIPOSTE (mec#36). 3 behavior blobs byte-id to HEAD: config 0ff805114ad951e92039732c0771be5f / sim d93c7e61569fb55b72a2d24ee07ac512 / strings f325cb287a995dfdb8b2c8073dd743d9. RIPOSTE.enabled=false ⇒ dead branches ⇒ byte-id to mec#35 in behavior.
+const EXPECT_BUILD = "272d22870026"; // CAS-2135: bumped from cdf6e8bdcbea (post CAS-2132 Gate CEO flip RIPOSTE DARK→LIVE mec#36). CAS-2135 Build DARK CHARGED_ATTACK (mec#37) — 5 blobs: config.js+input.js+sim.js+strings.js+render.js (CHARGED_ATTACK.enabled=false ⇒ dead branches ⇒ byte-id to mec#36). Will bump to actual CAS-2135 build id after deploy.
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 
 let ok = true;
@@ -318,12 +318,38 @@ function auditRiposte() {
   const shapeOk = r && typeof r === "object" && need.every((k) => k in r)
     && r.dmgMul > 1 && r.poiseMul > 0 && r.essenceBonus >= 0
     && r.ripCapFracMaxHp > 0 && r.ripCapFracMaxHp < 1;   // cap < maxHp (anti one-shot)
-  const dark = r && r.enabled === false;                  // SHIP DARK — CEO flips false→true at the Gate (CAS-2132).
+  const live = r && r.enabled === true;                   // LIVE — CEO flipped false→true at Gate CAS-2132 (config-only, reversible).
   const valsOk = r && r.dmgMul === 2.2 && r.poiseMul === 1.5 && r.essenceBonus === 2
     && r.ripCapFracMaxHp === 0.25 && r.requiresMelee === true;
+  if (shapeOk && live && valsOk)
+    pass(`[RIPOSTE] RIPOSTE LIVE (36th mech, CAS-2132 Gate GO) — enabled:true (Ejecución Crítica por Aturdimiento, post-flip), full knob shape dmgMul=${r.dmgMul}/poiseMul=${r.poiseMul}/essenceBonus=${r.essenceBonus}/ripCapFracMaxHp=${r.ripCapFracMaxHp} (Riposte≤${r.ripCapFracMaxHp}×maxHp on boss/elite), requiresMelee=${r.requiresMelee} — RNG-neutral (0 riposteRng) + save-neutral (e._ripArm transient) ⇒ srand ON==OFF & save.v1 byte-id; DISJOINT from CAS-210 h.riposte/CFG.riposteMult`);
+  else fail(`[RIPOSTE] shapeOk=${shapeOk} live=${live} valsOk=${valsOk} r=${JSON.stringify(r)}`);
+}
+
+// CAS-2133/2135: ATAQUE CARGADO CON HÍPER-ARMADURA / Charged Heavy + Hyper-Armor (37th mechanic) — ships DARK.
+// The knob must be present + full-shaped but enabled:false. All seams are hard-gated CHARGED_ATTACK.enabled
+// (Seam A input hold/getter/mobile; Seam B tick+release h.chargeT/charging/_charged in tickChargedAttack; Seam C
+// HYPERARMOR windup extension; Seam D incoming dmg cap in damageHero; Seam E dmgMul+poiseMul+cap-out in applyHeroMelee;
+// Seam F render.js windup ring visual) ⇒ off ⇒ dead branches ⇒ 0 draws (no chargeRng) / 0 new save state
+// (h.chargeT/h.charging/h._charged transient) / byte-identical to the mec#36 build. Reuses COMBO.heavyKey="KeyN"
+// (no input collision). This audit is CONFIG-only; the behavioral OBSERVABLE (threshold×dmgMul, hyper-armor absorbs stun,
+// cap-in during windup, cap-out vs boss, OFF-inert, save byte-id, srand ON==OFF) lives in tools/cas2133-charged-live-qa.mjs.
+function auditCharged() {
+  const ca = cfg.CHARGED_ATTACK;
+  const need = ["enabled","chargeThresholdMs","maxChargeMs","dmgMul","poiseMul","staminaCost",
+                "hyperArmorGrant","incomingDmgCapFracMaxHp","releaseCapFracMaxHp","requiresMelee"];
+  const shapeOk = ca && typeof ca === "object" && need.every((k) => k in ca)
+    && ca.chargeThresholdMs > 0 && ca.maxChargeMs > ca.chargeThresholdMs
+    && ca.dmgMul > 1 && ca.poiseMul > 1 && ca.staminaCost >= 0
+    && ca.hyperArmorGrant > 0 && ca.incomingDmgCapFracMaxHp > 0 && ca.incomingDmgCapFracMaxHp < 1
+    && ca.releaseCapFracMaxHp > 0 && ca.releaseCapFracMaxHp < 1 && ca.requiresMelee === true;
+  const dark = ca && ca.enabled === false;
+  const valsOk = ca && ca.chargeThresholdMs === 350 && ca.maxChargeMs === 900
+    && ca.dmgMul === 1.7 && ca.poiseMul === 2.5 && ca.staminaCost === 12
+    && ca.hyperArmorGrant === 999 && ca.incomingDmgCapFracMaxHp === 0.18 && ca.releaseCapFracMaxHp === 0.22;
   if (shapeOk && dark && valsOk)
-    pass(`[RIPOSTE] RIPOSTE DARK (36th mech, CAS-2129 Build) — enabled:false (Ejecución Crítica por Aturdimiento, hard-gated dead branches, byte-id to mec#35), full knob shape dmgMul=${r.dmgMul}/poiseMul=${r.poiseMul}/essenceBonus=${r.essenceBonus}/ripCapFracMaxHp=${r.ripCapFracMaxHp} (Riposte≤${r.ripCapFracMaxHp}×maxHp on boss/elite), requiresMelee=${r.requiresMelee} — RNG-neutral (0 riposteRng) + save-neutral (e._ripArm transient) ⇒ srand ON==OFF & save.v1 byte-id; DISJOINT from CAS-210 h.riposte/CFG.riposteMult (hero perfect-dodge crit)`);
-  else fail(`[RIPOSTE] shapeOk=${shapeOk} dark=${dark} valsOk=${valsOk} r=${JSON.stringify(r)}`);
+    pass(`[CHARGED] CHARGED_ATTACK DARK (37th mech, CAS-2135 Build) — enabled:false (hard-gated dead branches, byte-id to mec#36), full knob chargeThresholdMs=${ca.chargeThresholdMs}/maxChargeMs=${ca.maxChargeMs}/dmgMul=${ca.dmgMul}/poiseMul=${ca.poiseMul}/staminaCost=${ca.staminaCost}/hyperArmorGrant=${ca.hyperArmorGrant}/incomingCap=${ca.incomingDmgCapFracMaxHp}/releaseCap=${ca.releaseCapFracMaxHp} — RNG-neutral (0 chargeRng) + save-neutral (h.chargeT/charging/_charged transient) ⇒ srand ON==OFF & save.v1 byte-id; reúsa COMBO.heavyKey="KeyN" (no collision)`);
+  else fail(`[CHARGED] shapeOk=${shapeOk} dark=${dark} valsOk=${valsOk} ca=${JSON.stringify(ca)}`);
 }
 
 function auditNgPlus() {
@@ -421,6 +447,7 @@ auditGuardCounter();
 auditDodgeCounter();
 auditRally();
 auditRiposte();
+auditCharged();
 auditNgPlus();
 auditOnboarding();
 auditA11y();
@@ -429,5 +456,5 @@ auditJuice();
 determinism();
 
 log("");
-if (ok) log(`✅ CAS-2131 HOLISTIC FULL-BUILD REGRESSION — ALL PASS (24 systems + 5 go-live + TIME-ATTACK(29) + VARIANTS(30,LIVE) + SEEDED CHALLENGE(31,LIVE) + ARENA HAZARDS(32,LIVE) + GUARD COUNTER(33,LIVE) + DODGE COUNTER(34,LIVE) + RALLY(35,LIVE) + RIPOSTE(36,DARK) + NG_PLUS + onboarding + 7 balance + JUICE + determinism on ${EXPECT_BUILD})`);
-else { console.error("❌ CAS-2131 HOLISTIC FULL-BUILD REGRESSION — FAIL"); process.exit(1); }
+if (ok) log(`✅ CAS-2131/CAS-2135 HOLISTIC FULL-BUILD REGRESSION — ALL PASS (24 systems + 5 go-live + TIME-ATTACK(29) + VARIANTS(30,LIVE) + SEEDED CHALLENGE(31,LIVE) + ARENA HAZARDS(32,LIVE) + GUARD COUNTER(33,LIVE) + DODGE COUNTER(34,LIVE) + RALLY(35,LIVE) + RIPOSTE(36,DARK→LIVE) + CHARGED(37,DARK) + NG_PLUS + onboarding + 7 balance + JUICE + determinism on ${EXPECT_BUILD})`);
+else { console.error("❌ CAS-2131/CAS-2135 HOLISTIC FULL-BUILD REGRESSION — FAIL"); process.exit(1); }

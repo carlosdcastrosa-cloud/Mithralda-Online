@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2474,6 +2474,30 @@ function tickGuardCounter(h,dt){ if(!GUARD_COUNTER.enabled||!h) return;
 function tickDodgeCounter(h,dt){ if(!DODGE_COUNTER.enabled||!h) return;
   if(h.dodgeCounterT>0) h.dodgeCounterT=Math.max(0,h.dodgeCounterT-dt);
 }
+// CAS-2135 (CAS-2133): ATAQUE CARGADO CON HÍPER-ARMADURA — seam B (tick de windup + release). Mirror del HELD del escudo:
+// `heldRaw` = intención cruda de mantener el pesado (io.chargeHeld en update; el harness la controla directamente). Mientras
+// se mantiene Y el héroe puede atacar (canCharge), acumula h.chargeT (capeado a maxChargeMs) y marca h.charging (⇒ híper-armadura
+// del windup en damageHero + medidor en render). Al SOLTAR (o perder la condición), decide h._charged (hold ≥ chargeThresholdMs),
+// gasta la estamina EXTRA del commit (si no alcanza ⇒ degrada a pesado normal), arma el latch de VFX y dispara heavyAttack()
+// (reúsa el pesado dedicado; mismo gate atkCD/rolling/stun). _charged rige toda la ventana activa como _heavy (se limpia en el
+// próximo heroAttack/weaponArt). Gated ⇒ enabled:false ⇒ no-op ⇒ byte-idéntico a HEAD. 0 RNG (aritmética escalar + flags).
+function tickCharge(h,dt,heldRaw){ if(!CHARGED_ATTACK.enabled||!h) return;
+  const mcfg=ATK[h.cls||"warrior"]||ATK.warrior;
+  const canCharge = !h.dead && !h.rolling && h.stun<=0 && h.atkAnim<=0 && (!STAMINA.enabled || h.stam>0)
+                    && (!CHARGED_ATTACK.requiresMelee || mcfg.type==="melee");
+  const held = heldRaw && canCharge;
+  if(held){ h.charging=true; h.chargeT=Math.min((h.chargeT||0)+dt, CHARGED_ATTACK.maxChargeMs/1000); }
+  else if(h.charging){                                                // RELEASE (soltó o perdió la condición)
+    let charged = ((h.chargeT||0)*1000 >= CHARGED_ATTACK.chargeThresholdMs);
+    if(charged && STAMINA.enabled && CHARGED_ATTACK.staminaCost>0){    // coste EXTRA del commit; sin vigor ⇒ degrada a pesado normal
+      if(h.stam>=CHARGED_ATTACK.staminaCost){ h.stam-=CHARGED_ATTACK.staminaCost; h._stamRegenPauseT=STAMINA.regenDelay; }
+      else charged=false;
+    }
+    h._charged=charged; h.charging=false; h.chargeT=0;
+    if(charged) h._chargedFx=true;                                    // latch: applyHeroMelee emite el VFX de commit UNA vez este swing
+    heavyAttack();                                                    // reúsa el pesado; _charged escala el swing en applyHeroMelee
+  } else { h.charging=false; h.chargeT=0; }
+}
 // CAS-2114: RECUPERACIÓN/RALLY tick — el pool recuperable (h.rallyPool, armado en damageHero) decae lineal
 // decayPerSec×HPmax/s mientras la ventana está viva; al expirar (rallyT→0) el pool se fuerza a 0 (windowS = techo duro).
 // Aritmética pura ⇒ 0 RNG, NO existe rallyRng. Gated on RALLY.enabled ⇒ off (o nunca armado) ⇒ rallyPool/rallyT quedan en 0
@@ -2703,6 +2727,7 @@ function heroAttack(){
   // (a plain swing is never heavy); heroHeavyAttack() sets its own flags.
   h._heavy=false;
   h._art=false;   // CAS-1914: un swing normal NUNCA es un Arte de Arma ⇒ limpia el flag para que applyHeroMelee no arrastre sus muls
+  h._charged=false;  // CAS-2135: un swing LIGHT nunca es cargado ⇒ limpia el flag (mirror _heavy) para que applyHeroMelee no arrastre el mult de un pesado cargado previo
   if(COMBO.enabled && cfg.type==="melee"){
     h.comboCount = (h.comboT>0) ? Math.min(COMBO.chainLen, h.comboCount+1) : 1;
     h.comboT = COMBO.windowMs/1000;
@@ -2773,15 +2798,26 @@ function applyHeroMelee(){
   // (y de todos modos una esquiva NIEGA el hit ⇒ no abre bloqueo ⇒ jamás coinciden por el mismo evento). Números por
   // debajo del guard-counter (1.5<1.8). Aritmética/timing puro ⇒ 0 draw (no existe dodgeCounterRng). Sólo swings LIGHT.
   const dc = DODGE_COUNTER.enabled && h.dodgeCounterT>0 && !heavy && !gc;
+  // CAS-2135 (CAS-2133): ATAQUE CARGADO — un swing PESADO soltado tras cargar ≥ chargeThresholdMs (h._charged, armado en el
+  // seam B del tick) pega ×dmgMul en ESTE sink ⇒ compone MULTIPLICATIVAMENTE con ×heavy (COMBO) y con los counters (ninguno pisa).
+  // El poise ×poiseMul se aplica en el sink de postura de hitEnemy (opt.charged); el cap SALIENTE anti one-shot vs jefe/élite
+  // también en hitEnemy (tras todo el apilamiento). `_charged` rige toda la ventana activa como `_heavy` (se limpia en el próximo
+  // heroAttack/weaponArt). OFF / release sub-umbral ⇒ _charged=false ⇒ ×1 + opt.charged inerte ⇒ byte-idéntico a HEAD. 0 draw.
+  const charged = CHARGED_ATTACK.enabled && h._charged;
   // CAS-1926: la RESINA / BUFF de arma activo (h._wbuff, ventana wbuffT>0) reescala ESTE swing como ÚLTIMO factor del sink ⇒
   // compone MULTIPLICATIVAMENTE tras arquetipo × TWO_HAND × Arte (ninguno pisa). Sin buff / OFF ⇒ buffMul(h)=1 ⇒ byte-idéntico.
-  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h)*(gc?GUARD_COUNTER.dmgMul:1)*(dc?DODGE_COUNTER.dmgMul:1);
+  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h)*(gc?GUARD_COUNTER.dmgMul:1)*(dc?DODGE_COUNTER.dmgMul:1)*(charged?CHARGED_ATTACK.dmgMul:1);
   if(gc){ h.guardCounterT=0;                                        // consume la ventana (aunque el swing no impacte)
     if(STAMINA.enabled && GUARD_COUNTER.staminaCost>0){ h.stam=Math.max(0,h.stam-GUARD_COUNTER.staminaCost); h._stamRegenPauseT=STAMINA.regenDelay; }
     addFx("spellburst",h.x,h.y-2,{col:"#bfe3ff"}); floater(h.x,h.y-40,STR.guardCounter||"¡CONTRAGOLPE!","#bfe3ff"); }   // $0 arte: primitiva canvas existente
   if(dc){ h.dodgeCounterT=0;                                        // consume la ventana (aunque el swing no impacte)
     if(STAMINA.enabled && DODGE_COUNTER.staminaCost>0){ h.stam=Math.max(0,h.stam-DODGE_COUNTER.staminaCost); h._stamRegenPauseT=STAMINA.regenDelay; }
     addFx("spellburst",h.x,h.y-2,{col:"#bfeaff"}); floater(h.x,h.y-40,STR.dodgeCounter||"¡CONTRA-ESQUIVA!","#bfeaff"); }   // $0 arte: primitiva canvas existente
+  // CAS-2135 (CAS-2133): VFX del swing CARGADO — destello dorado + shockring + floater $0 (primitivas canvas, gated JUICE/charged).
+  // applyHeroMelee corre CADA fixed-frame de la ventana activa (atkT>0) ⇒ el latch h._chargedFx (armado en el seam B AL SOLTAR)
+  // asegura que se emite UNA sola vez (no por-frame ni por-enemigo); visible aunque el swing no impacte (VFX de commit). Gated ⇒
+  // OFF/!charged/latch ya consumido ⇒ byte-id. Los primitivos VFX no consumen srand ⇒ 0 draw.
+  if(charged && h._chargedFx){ h._chargedFx=false; if(JUICE.enabled){ addFx("spellburst",h.x,h.y-2,{col:"#ffe066"}); addFx("shockring",h.x,h.y,{r:54,life:0.38}); shakeAdd(7); } floater(h.x,h.y-44,STR.chargedExec||"¡CARGADO!","#ffe066"); }
   heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
   let rallyLanded=false; // CAS-2114: ¿este swing conectó ≥1 enemigo? (arma la recuperación del pool tras el loop)
   for(const e of G.enemies){
@@ -2789,7 +2825,7 @@ function applyHeroMelee(){
     const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range*wa.reachMul*wart.reachMul+e.tpl.size) continue;   // CAS-1907 alcance ×reachMul · CAS-1914 ×artReachMul (OFF/sword sin Arte ⇒ ×1)
     const ang=Math.atan2(e.y-h.y,e.x-h.x);
     if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc*wa.arcMul*wart.arcMul/2){                       // CAS-1907 arco ×arcMul · CAS-1914 ×artArcMul (OFF/sword sin Arte ⇒ ×1)
-      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th, arch:wa, art:wart, guardCounter:gc, dodgeCounter:dc}); shakeAdd(5.5);
+      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th, arch:wa, art:wart, guardCounter:gc, dodgeCounter:dc, charged:charged}); shakeAdd(5.5);
       rallyLanded=true;
       // CAS-204: a bold crimson→white crescent sweeps through the struck enemy on a melee connect,
       // so the swing reads as cleaving INTO the target rather than next to it (FOUNTAINS slash juice).
@@ -2887,6 +2923,10 @@ function hitEnemy(e,dmg,ang,opt){
       // ×poiseMul en el MISMO sink (compone con TWO_HAND/arquetipo/Arte, mutuamente exclusivo con guardCounter vía `!gc`).
       // 0 draw; OFF / sin ventana ⇒ opt.dodgeCounter ausente ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
       if(DODGE_COUNTER.enabled && opt && opt.dodgeCounter) add*=DODGE_COUNTER.poiseMul;
+      // CAS-2135: un golpe PESADO CARGADO (opt.charged) sube el poise-damage ×poiseMul en el MISMO sink (compone ×TWO_HAND/
+      // arquetipo/Arte/counters) ⇒ EJE DE ROTURA OFENSIVO observable contra targets NO rotos (a diferencia del poise inerte-por-
+      // diseño de Riposte). 0 draw; OFF / release sub-umbral ⇒ opt.charged ausente/false ⇒ ×1 ⇒ acumulación de postura byte-id.
+      if(CHARGED_ATTACK.enabled && opt && opt.charged) add*=CHARGED_ATTACK.poiseMul;
       // CAS-1907: el arquetipo del arma escala el poise-damage en el MISMO sink (compone ×poiseDmgMul con TWO_HAND). Aritmética
       // pura (0 draw); OFF ⇒ gate false; sword ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
       if(WEAPON_ARCHETYPES.enabled && opt && opt.arch) add*=opt.arch.poiseDmgMul;
@@ -2978,6 +3018,12 @@ function hitEnemy(e,dmg,ang,opt){
     ensureMeta().essence=(ensureMeta().essence|0)+RIPOSTE.essenceBonus; G.metaDirty=true;   // Esencia de skill (0 draws; banca a meta, no toca save.v1). Gated ⇒ OFF no suma ⇒ meta byte-id.
     ripEx=true;
   }
+  // CAS-2135 (CAS-2133): ATAQUE CARGADO — cap SALIENTE anti one-shot. Aplicado al dmg FINAL (tras ×dmgMul cargado en
+  // applyHeroMelee + todo el apilamiento de stagger/backstab/crit/riposte de arriba): un golpe cargado sobre jefe/élite/campeón
+  // NUNCA excede releaseCapFracMaxHp×maxHp aun apilando counter/afijos. Trash SIN cap (se siente como una ejecución pesada).
+  // Gated ⇒ OFF / swing no-cargado ⇒ opt.charged ausente ⇒ rama muerta ⇒ byte-idéntico a HEAD. 0 draw.
+  if(CHARGED_ATTACK.enabled && opt && opt.charged && (e.isBoss||e.elite||e.champion||e.champElite)){
+    const cap=CHARGED_ATTACK.releaseCapFracMaxHp*(e.maxHp||e.hp); if(dmg>cap) dmg=cap; }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -4458,7 +4504,7 @@ export function weaponArt(){
   const a=h.facing, ca=Math.cos(a), sa=Math.sin(a);
   const atkspd=heroAtkspd(h); const swm=heroArch(h).swingMul;
   h.atkAng=a; h.atkAnim=CFG.atkCD*swm*(art.windupMul||1); h.atkCD=cfg.cd*COMBO.heavyCdMul*swm/(1+atkspd/100); h._atkHits=new Set();
-  h._heavy=false; h._comboFin=false;
+  h._heavy=false; h._comboFin=false; h._charged=false;   // CAS-2135: un Arte de Arma nunca es un pesado cargado ⇒ limpia el flag (mirror _heavy)
   h._art=true; h._artHyper=!!art.hyperarmor;
   h._artCls={ dmgMul:art.dmgMul||1, poiseDmgMul:art.poiseDmgMul||1, reachMul:art.reachMul||1, arcMul:art.arcMul||1 };
   h.atkT=CFG.atkActive; h._mcfg=cfg; audio.sfx.sword(); shakeAdd(4.2);
@@ -4640,6 +4686,17 @@ export function update(dtMs){
   // CAS-1895: a dos manos el escudo está ENVAINADO ⇒ la guardia no puede subir (h.blocking=false) ⇒ la rama de bloqueo de
   // damageHero (que lee h.blocking) sale temprano SIN nueva rama. OFF/sin twoHand ⇒ término extra=true ⇒ byte-idéntico.
   h.blocking = SHIELD_BLOCK.enabled && io.blockHeld && !h.dead && !h.rolling && h.stun<=0 && (!STAMINA.enabled || h.stam>0) && !(TWO_HAND.enabled && h.twoHand);
+  // CAS-2135 (CAS-2133): ATAQUE CARGADO CON HÍPER-ARMADURA — seam B (tick de windup + release). Mirror del seam HELD del
+  // escudo de arriba: lee io.chargeHeld (KeyN mantenida / botón HUD hold) cada fixed-frame. Mientras se MANTIENE y el héroe
+  // puede atacar, acumula h.chargeT (capeado a maxChargeMs). Al SOLTAR (o perder la condición), decide h._charged (hold ≥
+  // chargeThresholdMs) y dispara heavyAttack() (reúsa el pesado dedicado; mismo gate atkCD/rolling/stun). El swing soltado lo
+  // escala applyHeroMelee vía h._charged, que RIGE toda la ventana activa como h._heavy — por eso NO se limpia aquí sino en el
+  // próximo heroAttack/weaponArt (2704/4461); un clear same-frame perdería el mult para enemigos que entran a mitad del swing.
+  // Estamina EXTRA del commit se gasta al soltar CARGADO (si no alcanza ⇒ degrada a pesado normal). enabled:false ⇒ io.chargeHeld
+  // nunca sube (input.js dispara heavyAttack() inmediato = path HEAD) ⇒ esta rama entera es no-op ⇒ byte-idéntico a HEAD. 0 RNG
+  // (aritmética escalar + flags; NO existe chargeRng). Corre TRAS h.blocking y ANTES del tick del swing (4645) para resolver el
+  // golpe soltado este mismo frame. chargeT/charging/_charged transitorios (fuera de save.v1 ⇒ serialize byte-id).
+  tickCharge(h, dt, io.chargeHeld);
   if(h.dots) tickDots(h,dt,true);
   if(h.bld) tickBuildup(h,dt); // CAS-1931: buildup meters decay (0 alloc when h.bld null ⇒ OFF byte-id)
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
@@ -5469,7 +5526,11 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
       }
     }
   }
-  const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
+  const def=equippedDef(h); let real=Math.max(1,dmg-def*0.6);
+  // CAS-2133: CAP DE DAÑO ENTRANTE durante el windup de carga — absorber ≠ inmunidad. Mientras h.charging el daño por golpe
+  // queda acotado a incomingDmgCapFracMaxHp×HPmax (anti-cheese: el héroe recibe daño pero no puede ser one-shot mientras carga).
+  // Corre POST-armadura (sobre `real`) ⇒ la armadura sigue mitigando. Gated ⇒ OFF / no cargando ⇒ real intacto ⇒ byte-id.
+  if(CHARGED_ATTACK.enabled && h.charging){ const cap=CHARGED_ATTACK.incomingDmgCapFracMaxHp*(heroMaxHp(h)||h.hp); if(real>cap) real=cap; }
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   // CAS-2114: RECUPERACIÓN/RALLY — arma el pool recuperable con una fracción del DAÑO REAL que acaba de entrar (`real`,
   // ya post-armadura/bloqueo). Corre DESPUÉS de todos los early-outs de negación (espíritu/parry/i-frame/dodge/block, que
@@ -5498,9 +5559,14 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   if(HYPERARMOR.enabled){
     // CAS-1914: el Golpe de Carga (greatsword Art) EXTIENDE la ventana comprometida — un swing de Arte con hyperarmor (h._artHyper)
     // cuenta como golpe con superarmadura (windup largo ⇒ ventana mayor). WEAPON_ARTS OFF / Arte sin hyperarmor ⇒ 3ª rama falsa ⇒ byte-id.
-    h.hyperarmor = h.atkAnim>0 && ((HYPERARMOR.appliesTo.heavy && h._heavy) || (HYPERARMOR.appliesTo.finisher && h._comboFin) || (WEAPON_ARTS.enabled && h._art && h._artHyper));
+    // CAS-2133: el WINDUP DEL CARGADO (h.charging) también goza de híper-armadura FUERTE (absorbe interrupciones; umbral propio
+    // hyperArmorGrant >> HYPERARMOR.poiseThreshold para absorber casi todo sin HYPERARMOR.appliesTo). Gated ⇒ OFF byte-id.
+    h.hyperarmor = (h.atkAnim>0 && ((HYPERARMOR.appliesTo.heavy && h._heavy) || (HYPERARMOR.appliesTo.finisher && h._comboFin) || (WEAPON_ARTS.enabled && h._art && h._artHyper)))
+                || (CHARGED_ATTACK.enabled && !!h.charging);  // windup cargado: hyper-armor fuerte (umbral propio)
     if(h.hyperarmor && infl && infl.type==="stun"){
-      const thr = HYPERARMOR.poiseThreshold * (TWO_HAND.enabled && h.twoHand ? HYPERARMOR.twoHandBonus : 1);
+      // CAS-2133: durante el windup de carga el umbral es hyperArmorGrant (alto) en vez del threshold normal de HYPERARMOR.
+      const thr = (CHARGED_ATTACK.enabled && h.charging) ? CHARGED_ATTACK.hyperArmorGrant
+                : HYPERARMOR.poiseThreshold * (TWO_HAND.enabled && h.twoHand ? HYPERARMOR.twoHandBonus : 1);
       if(dmg < thr){ if(HYPERARMOR.vfx) addFx("dodgering",h.x,h.y,{life:0.2}); infl=null; } // absorbió el stun (chispa $0 gateada); daño ya aplicado
     }
   }
@@ -8426,6 +8492,122 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     RIPOSTE.enabled=savR; POISE.enabled=savP; this._dcArm();
     return { enabled:!!enabled, riposteFired:(enabled?(armed&&executed):false), fingerprint:fp }; },
+  // --- CAS-2135 (CAS-2133) ATAQUE CARGADO CON HÍPER-ARMADURA (mecánica #37) harness hooks (tools/cas2133-charged-live-qa.mjs);
+  // additive, DRIVEN el loop REAL: seam B (tickCharge — windup acumula chargeT + marca charging; release decide _charged por umbral,
+  // gasta stamina extra, dispara heavyAttack), seam C (híper-armadura del windup en damageHero), seam D (cap ENTRANTE), seam E
+  // (applyHeroMelee ×dmgMul + hitEnemy poise ×poiseMul + cap SALIENTE jefe/élite), seam F (VFX latch). Eje PROACTIVO (estado del
+  // HÉROE h.charging), DISJUNTO de #33..#36. Todo aritmética/flag/timing ⇒ 0 srand, NO existe chargeRng. chargeT/charging/_charged/
+  // _chargedFx transitorios (mirror h.blocking) ⇒ save.v1 byte-id SIN clave charge*. HARD-GATED: enabled:false ⇒ tickCharge no-op +
+  // caps/hyper-armor/×mul muertos ⇒ HEAD byte-id. ---
+  chargeMeta(){ return { enabled:CHARGED_ATTACK.enabled, chargeThresholdMs:CHARGED_ATTACK.chargeThresholdMs, maxChargeMs:CHARGED_ATTACK.maxChargeMs, dmgMul:CHARGED_ATTACK.dmgMul, poiseMul:CHARGED_ATTACK.poiseMul, staminaCost:CHARGED_ATTACK.staminaCost, hyperArmorGrant:CHARGED_ATTACK.hyperArmorGrant, incomingDmgCapFracMaxHp:CHARGED_ATTACK.incomingDmgCapFracMaxHp, releaseCapFracMaxHp:CHARGED_ATTACK.releaseCapFracMaxHp, requiresMelee:CHARGED_ATTACK.requiresMelee }; },
+  chargeEnable(on){ CHARGED_ATTACK.enabled=!!on; return { enabled:CHARGED_ATTACK.enabled }; },
+  chargeState(){ const h=G.hero; if(!h) return null; return { charging:!!h.charging, chargeT:+((h.chargeT||0).toFixed(5)), _charged:!!h._charged, atkT:+((h.atkT||0).toFixed(4)), stam:+((h.stam||0).toFixed(4)) }; },
+  // Hero limpio (reusa _dcArm) + estado de carga CERRADO, sin combate/cooldown, todos los flags de swing a cero.
+  _chargeArm(cls){ const h=this._dcArm(cls); if(!h) return null; h.charging=false; h.chargeT=0; h._charged=false; h._chargedFx=false;
+    h.atkCD=0; h.atkT=0; h.atkAnim=0; h._heavy=false; h._comboFin=false; h._art=false; return h; },
+  // Driver REAL de un fixed-frame del seam B (tickCharge) con held/dt controlados — para que el harness (node o browser) acumule
+  // el windup y suelte SIN tocar io/DOM. Devuelve el estado tras el tick.
+  chargeTick(heldRaw, dtMs){ const h=G.hero; if(!h) return null; tickCharge(h, (dtMs!=null?dtMs:1000/60)/1000, !!heldRaw); return this.chargeState(); },
+  // AC HEADLINE THRESHOLD: hold < chargeThresholdMs → release = pesado NORMAL (_charged=false); hold ≥ umbral → CARGADO (_charged=true)
+  // con dmg ×dmgMul sobre el pesado normal. Drive el ciclo REAL: tickCharge(held) acumula, tickCharge(false) suelta+arma heavyAttack,
+  // applyHeroMelee aterriza. Trash (sin cap) ⇒ ratio limpio == dmgMul. Estamina EXTRA aislada = spent(sup) − spent(sub) == staminaCost.
+  chargeThresholdProbe(){ const savC=CHARGED_ATTACK.enabled, savS=STAMINA.enabled, savCo=COMBO.enabled;
+    CHARGED_ATTACK.enabled=true; STAMINA.enabled=true; COMBO.enabled=true; const dtS=1/60;
+    const mk=()=>{ const h=this._chargeArm("warrior"); h.stam=STAMINA.max; h.facing=0; const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+30; e.y=h.y; } return {h,e}; };
+    // SUB-umbral: 1 frame (~16.7ms < 350) ⇒ release normal
+    const a=mk(); const h1=a.h; tickCharge(h1,dtS,true); const chargingMid=!!h1.charging;
+    const stamPreSub=h1.stam; tickCharge(h1,dtS,false); const subCharged=!!h1._charged; const stamSub=+(stamPreSub-h1.stam).toFixed(4);
+    h1._atkHits=new Set(); applyHeroMelee(); const dSub=1e9-a.e.hp; G.enemies.length=0;
+    // SUPRA-umbral: hold 30 frames (~500ms > 350) ⇒ release cargado
+    const b=mk(); const h2=b.h; for(let i=0;i<30;i++) tickCharge(h2,dtS,true);
+    const chargeTAtRelease=+(h2.chargeT*1000).toFixed(1);
+    const stamPreSup=h2.stam; tickCharge(h2,dtS,false); const supCharged=!!h2._charged; const stamSup=+(stamPreSup-h2.stam).toFixed(4);
+    h2._atkHits=new Set(); applyHeroMelee(); const dSup=1e9-b.e.hp; G.enemies.length=0;
+    const ratio=dSub>0?dSup/dSub:0; const ratioOk=Math.abs(ratio-CHARGED_ATTACK.dmgMul)<1e-6;
+    const extraStam=+(stamSup-stamSub).toFixed(4); const stamOk=Math.abs(extraStam-CHARGED_ATTACK.staminaCost)<1e-6;
+    CHARGED_ATTACK.enabled=savC; STAMINA.enabled=savS; COMBO.enabled=savCo; this._chargeArm();
+    return { chargingMid, subCharged, supCharged, chargeTAtRelease, dSub:+dSub.toFixed(4), dSup:+dSup.toFixed(4), ratio:+ratio.toFixed(6), expect:CHARGED_ATTACK.dmgMul, ratioOk, extraStam, stamOk,
+      ok:(chargingMid && !subCharged && supCharged && ratioOk && stamOk) }; },
+  // AC POISE: un swing CARGADO (opt.charged) sube el poise-damage ×poiseMul vs un pesado NORMAL sobre un champion NO roto (staggerT<=0).
+  chargePoiseProbe(){ const savC=CHARGED_ATTACK.enabled, savP=POISE.enabled; CHARGED_ATTACK.enabled=true; POISE.enabled=true;
+    const poiseGain=(chargedOn)=>{ const h=this._chargeArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior; h._heavy=true; h._charged=!!chargedOn;
+      const e=spawnEnemy("wolf",h.x+30,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; e.poise=0; e.poiseMax=poiseCeil(e); e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; e.facing=Math.PI;
+      h._atkHits=new Set(); applyHeroMelee(); const p=e.poise; G.enemies.length=0; return p; };
+    const pNorm=poiseGain(false), pChg=poiseGain(true);
+    const ratio=pNorm>0?pChg/pNorm:0; const ratioOk=Math.abs(ratio-CHARGED_ATTACK.poiseMul)<1e-6;
+    CHARGED_ATTACK.enabled=savC; POISE.enabled=savP; this._chargeArm();
+    return { pNorm:+pNorm.toFixed(4), pChg:+pChg.toFixed(4), ratio:+ratio.toFixed(6), expect:CHARGED_ATTACK.poiseMul, ratioOk, ok:(pNorm>0&&ratioOk) }; },
+  // AC HÍPER-ARMADURA (seam C): durante h.charging un golpe entrante type==="stun" NO interrumpe (umbral hyperArmorGrant) ⇒ h.stun 0;
+  // fuera de la carga (sin swing comprometido) el mismo stun SÍ aplica ⇒ h.stun>0. Prueba que el windup absorbe la interrupción.
+  chargeHyperArmorProbe(){ const savC=CHARGED_ATTACK.enabled, savH=HYPERARMOR.enabled; CHARGED_ATTACK.enabled=true; HYPERARMOR.enabled=true;
+    const h=this._chargeArm("warrior"); h.maxHp=1e6;
+    h.charging=false; h.atkAnim=0; h._heavy=false; h.stun=0; h.iframe=0; h.hp=1e6; damageHero(100,0,{type:"stun"},null); const stunBase=+(h.stun||0).toFixed(4);
+    h.charging=true; h.stun=0; h.iframe=0; h.hp=1e6; damageHero(100,0,{type:"stun"},null); const stunCharge=+(h.stun||0).toFixed(4);
+    const absorbed=(stunBase>0 && stunCharge<=0);
+    CHARGED_ATTACK.enabled=savC; HYPERARMOR.enabled=savH; this._chargeArm();
+    return { stunBase, stunCharge, absorbed, ok:absorbed }; },
+  // AC CAP ENTRANTE (seam D): durante h.charging un golpe grande resta ≤ incomingDmgCapFracMaxHp×maxHp; fuera de la carga resta completo.
+  chargeIncomingCapProbe(){ const savC=CHARGED_ATTACK.enabled; CHARGED_ATTACK.enabled=true;
+    const h=this._chargeArm("warrior"); h.maxHp=1000; const cap=CHARGED_ATTACK.incomingDmgCapFracMaxHp*heroMaxHp(h);
+    h.charging=false; h.stun=0; h.iframe=0; h.hp=1e6; const b0=h.hp; damageHero(100000,0,null,null); const dBase=+(b0-h.hp).toFixed(4);
+    h.charging=true; h.stun=0; h.iframe=0; h.hp=1e6; const c0=h.hp; damageHero(100000,0,null,null); const dCap=+(c0-h.hp).toFixed(4);
+    const capBound=(dBase>cap+1e-9); const capped=(Math.abs(dCap-cap)<1e-6); const baseUncapped=(dBase>dCap+1e-9);
+    CHARGED_ATTACK.enabled=savC; this._chargeArm();
+    return { cap:+cap.toFixed(4), dBase, dCap, capBound, capped, baseUncapped, ok:(capBound&&capped&&baseUncapped) }; },
+  // AC CAP SALIENTE (seam E): un swing CARGADO vs jefe/élite/campeón (maxHp controla el cap) ≤ releaseCapFracMaxHp×maxHp; trash SIN cap.
+  chargeOutgoingCapProbe(){ const savC=CHARGED_ATTACK.enabled; CHARGED_ATTACK.enabled=true;
+    const h=this._chargeArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior; h._heavy=true; h._charged=true;
+    const CAP_HP=8; const cap=CHARGED_ATTACK.releaseCapFracMaxHp*CAP_HP;
+    const eB=spawnEnemy("wolf",h.x+30,h.y); eB.hp=1e9; eB.maxHp=CAP_HP; eB.dead=false; eB.isBoss=true; eB.x=h.x+30; eB.y=h.y; h._atkHits=new Set(); const b0=eB.hp; applyHeroMelee(); const dBoss=+(b0-eB.hp).toFixed(4); G.enemies.length=0;
+    const eT=spawnEnemy("wolf",h.x+30,h.y); eT.hp=1e9; eT.maxHp=CAP_HP; eT.dead=false; eT.x=h.x+30; eT.y=h.y; h._atkHits=new Set(); const t0=eT.hp; applyHeroMelee(); const dTrash=+(t0-eT.hp).toFixed(4); G.enemies.length=0;
+    const capBound=(dTrash>cap+1e-9); const bossCapped=capBound?(Math.abs(dBoss-cap)<1e-6):(dBoss<=cap+1e-6); const trashUncapped=(dTrash>dBoss+1e-9)||!capBound;
+    CHARGED_ATTACK.enabled=savC; this._chargeArm();
+    return { cap:+cap.toFixed(4), dBoss, dTrash, capBound, bossCapped, trashUncapped, ok:(capBound&&bossCapped&&trashUncapped) }; },
+  // AC OFF byte-id: CHARGED_ATTACK.enabled=false ⇒ forzar h._charged=true / h.charging=true es INERTE: (a) dmg del swing idéntico
+  // (×1, opt.charged muerto), (b) sin cap saliente, (c) sin híper-armadura de windup (el stun aplica igual), (d) sin cap entrante.
+  chargeOffProbe(){ const savC=CHARGED_ATTACK.enabled, savH=HYPERARMOR.enabled; CHARGED_ATTACK.enabled=false; HYPERARMOR.enabled=true;
+    const h=this._chargeArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior; h._heavy=true;
+    // (a) dmg: forzar _charged con OFF ⇒ igual que sin flag
+    const eF=spawnEnemy("wolf",h.x+30,h.y); eF.hp=1e9; eF.maxHp=1e9; eF.dead=false; eF.x=h.x+30; eF.y=h.y; h._charged=true; h._atkHits=new Set(); const f0=eF.hp; applyHeroMelee(); const dForced=+(f0-eF.hp).toFixed(4); G.enemies.length=0;
+    const eR=spawnEnemy("wolf",h.x+30,h.y); eR.hp=1e9; eR.maxHp=1e9; eR.dead=false; eR.x=h.x+30; eR.y=h.y; h._charged=false; h._atkHits=new Set(); const r0=eR.hp; applyHeroMelee(); const dRef=+(r0-eR.hp).toFixed(4); G.enemies.length=0;
+    const dmgInert=(dForced===dRef);
+    // (c) híper-armadura de windup INERTE con OFF: forzar charging ⇒ el stun aplica igual
+    h.charging=true; h.atkAnim=0; h._heavy=false; h.stun=0; h.iframe=0; h.hp=1e6; h.maxHp=1e6; damageHero(100,0,{type:"stun"},null); const stunOff=+(h.stun||0).toFixed(4);
+    const hyperInert=(stunOff>0);
+    // (d) cap entrante INERTE con OFF: forzar charging ⇒ resta completo
+    h.charging=true; h.stun=0; h.iframe=0; h.hp=1e6; const c0=h.hp; damageHero(5000,0,null,null); const dOff=+(c0-h.hp).toFixed(4); const capInert=(dOff>500);
+    CHARGED_ATTACK.enabled=savC; HYPERARMOR.enabled=savH; this._chargeArm();
+    return { dForced, dRef, dmgInert, stunOff, hyperInert, dOff, capInert, ok:(dmgInert&&hyperInert&&capInert) }; },
+  // AC SAVE byte-id: chargeT/charging/_charged/_chargedFx transitorios (mirror h.blocking, fuera del allowlist) ⇒ serializeSave()
+  // byte-id ON/OFF y SIN clave charge*.
+  chargeSaveByteId(){ const savC=CHARGED_ATTACK.enabled;
+    CHARGED_ATTACK.enabled=true; const h=this._chargeArm(); h.charging=true; h.chargeT=0.5; h._charged=true; h._chargedFx=true;
+    const onStr=JSON.stringify(serializeSave());
+    CHARGED_ATTACK.enabled=false; const offStr=JSON.stringify(serializeSave());
+    CHARGED_ATTACK.enabled=savC; this._chargeArm();
+    const keyRe=/"_?charg(ing|eT|ed)"|"_chargedFx"/i;
+    return { byteId:(offStr===onStr), hasKey:keyRe.test(onStr), onLen:onStr.length, offLen:offStr.length, ok:(offStr===onStr && !keyRe.test(onStr)) }; },
+  // AC 0-RNG STRONG: fingerprint del srand alrededor del CICLO REAL (tickCharge windup → damageHero absorbe/capa → release
+  // heavyAttack → applyHeroMelee ×dmgMul) ON vs OFF. Todo aritmética/flag/timing (NO chargeRng) ⇒ stream srand BYTE-IDÉNTICO.
+  chargeSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savC=CHARGED_ATTACK.enabled, savS=STAMINA.enabled, savCo=COMBO.enabled; CHARGED_ATTACK.enabled=!!enabled; STAMINA.enabled=true; COMBO.enabled=true;
+    const h=this._chargeArm("warrior"); h.stam=STAMINA.max; h.facing=0; const dtS=1/60;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let released=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+30; e.y=h.y; }
+      for(let i=0;i<30;i++) tickCharge(h,dtS,true);                   // windup (0 draws)
+      h.stun=0; h.iframe=0; h.hp=1e6; h.maxHp=1e6; damageHero(100,0,{type:"stun"},null);  // absorbe/capa (0 draws en rama charge)
+      tickCharge(h,dtS,false);                                        // release + heavyAttack (0 draws)
+      released=(enabled ? (h._charged===true) : (h._charged!==true));
+      h._atkHits=new Set(); applyHeroMelee();                         // ×dmgMul cargado (0 draws)
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",h.x+60+i,h.y); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    CHARGED_ATTACK.enabled=savC; STAMINA.enabled=savS; COMBO.enabled=savCo; this._chargeArm();
+    return { enabled:!!enabled, released:(enabled?released:false), fingerprint:fp }; },
   // --- CAS-1895 EMPUÑADURA A DOS MANOS (Two-Handing) harness hooks (tools/cas1895-two-hand.mjs); additive, drive los
   // seams REALES: equipLoad (escudo fuera a dos manos), applyHeroMelee (dmg ×dmgMul + poise ×poiseMul), heavyAttack (stam
   // ×stamMul), y la rama de bloqueo de damageHero (DENY a dos manos). Todo input/aritmética ⇒ 0 srand, NO twoHandRng.
@@ -10744,5 +10926,108 @@ export const dev = {
     for(const id of ["hint_codex","hint_stamina","hint_boss","hint_bonfire","hint_flask"]) fireHint(id,"probe "+id);
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
     COMBAT_CODEX.enabled=sav; loadHints(null);
+    return { enabled:!!enabled, fingerprint:fp }; },
+
+  // ── CAS-2133 CHARGED HEAVY / HYPER-ARMOR (mec #37) probes ──────────────────
+  chargeMeta(){ return { enabled:CHARGED_ATTACK.enabled, chargeThresholdMs:CHARGED_ATTACK.chargeThresholdMs, maxChargeMs:CHARGED_ATTACK.maxChargeMs, dmgMul:CHARGED_ATTACK.dmgMul, poiseMul:CHARGED_ATTACK.poiseMul, staminaCost:CHARGED_ATTACK.staminaCost, hyperArmorGrant:CHARGED_ATTACK.hyperArmorGrant, incomingDmgCapFracMaxHp:CHARGED_ATTACK.incomingDmgCapFracMaxHp, releaseCapFracMaxHp:CHARGED_ATTACK.releaseCapFracMaxHp, requiresMelee:CHARGED_ATTACK.requiresMelee }; },
+  chargeEnable(on){ CHARGED_ATTACK.enabled=!!on; return { enabled:CHARGED_ATTACK.enabled }; },
+
+  // AC THRESHOLD: normal heavy gives dNormal; charged (_charged=true,_heavy=true) gives dNormal×dmgMul.
+  chargeHeadlineProbe(){
+    const savC=CHARGED_ATTACK.enabled; CHARGED_ATTACK.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior;
+    const mk=()=>{ const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+30; e.y=h.y; e.champion=false; e.isBoss=false; } return e; };
+    // baseline: normal heavy
+    const eN=mk(); h._charged=false; h._heavy=true; h.riposte=0; h._atkHits=new Set(); h.chargeT=0; h.charging=false;
+    const n0=eN.hp; applyHeroMelee(); const dNormal=n0-eN.hp; G.enemies.length=0;
+    // charged: force _charged=true
+    const eC=mk(); h._charged=true; h._heavy=true; h.riposte=0; h._atkHits=new Set(); h.chargeT=0; h.charging=false;
+    const c0=eC.hp; applyHeroMelee(); const dCharged=c0-eC.hp; G.enemies.length=0;
+    const ratio=dNormal>0?dCharged/dNormal:0; const ratioOk=Math.abs(ratio-CHARGED_ATTACK.dmgMul)<0.01;
+    CHARGED_ATTACK.enabled=savC; this._dcArm();
+    return { dNormal:+dNormal.toFixed(4), dCharged:+dCharged.toFixed(4), ratio:+ratio.toFixed(6), expect:CHARGED_ATTACK.dmgMul, ratioOk, ok:(dNormal>0&&ratioOk) }; },
+
+  // AC HYPER-ARMOR: during charging=true damageHero with stun-infl cannot stagger hero (hyper-armor absorbs infl=null).
+  // The HYPERARMOR seam at 5566 only absorbs infl.type==="stun"; pass explicit infl + check h.stun (not h.staggerT).
+  chargeHyperArmorProbe(){
+    const savC=CHARGED_ATTACK.enabled, savH=HYPERARMOR.enabled; CHARGED_ATTACK.enabled=true; HYPERARMOR.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior;
+    // Ensure no swing-based hyper-armor: atkAnim=0, _heavy=false, _comboFin=false, _art=false
+    h.atkAnim=0; h._heavy=false; h._comboFin=false; h._art=false; h._artHyper=false;
+    const stunInfl={ type:"stun", dur:2.0 };
+    // not charging: stun infl reaches applyStatus → h.stun > 0
+    h.charging=false; h.chargeT=0; h._charged=false; h.stun=0;
+    damageHero(10, 0, stunInfl); const stunNoCharge=((h.stun||0)>0); h.stun=0;
+    // charging: hyper-armor absorbs the stun (infl cleared before applyStatus) → h.stun stays 0
+    h.charging=true; h.chargeT=0.1; h._charged=false; h.stun=0;
+    damageHero(10, 0, stunInfl); const stunDuringCharge=((h.stun||0)>0);
+    h.charging=false; h.chargeT=0;
+    CHARGED_ATTACK.enabled=savC; HYPERARMOR.enabled=savH; this._dcArm();
+    return { stunNoCharge, stunDuringCharge, hyperArmorAbsorbs:(!stunDuringCharge), ok:(stunNoCharge&&!stunDuringCharge) }; },
+
+  // AC CAP INCOMING: while charging, incoming damage capped to incomingDmgCapFracMaxHp×heroMaxHp.
+  // Use explicit small hpMax (100) so cap=18, and large raw dmg (1e6) so uncapped >> cap always.
+  chargeCapIncomingProbe(){
+    const savC=CHARGED_ATTACK.enabled; CHARGED_ATTACK.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior;
+    // force small maxHp so cap is small and testable; keep h.hp huge so hero doesn't die
+    h.maxHp=100;
+    const cap=CHARGED_ATTACK.incomingDmgCapFracMaxHp*100; // 0.18*100 = 18
+    h.hp=1e9; h.charging=false; h.chargeT=0;
+    const hp0=h.hp; damageHero(1e6, 0, {}); const dUncapped=hp0-h.hp; h.hp=1e9;
+    h.charging=true; h.chargeT=0.1; h.maxHp=100;
+    const hp1=h.hp; damageHero(1e6, 0, {}); const dCapped=hp1-h.hp; h.hp=1e9;
+    h.charging=false;
+    CHARGED_ATTACK.enabled=savC; this._dcArm();
+    const capOk=(dCapped<=cap+0.01); const uncappedExceedsCap=(dUncapped>cap+0.01);
+    return { cap:+cap.toFixed(4), dUncapped:+dUncapped.toFixed(4), dCapped:+dCapped.toFixed(4), capOk, uncappedExceedsCap, ok:(capOk&&uncappedExceedsCap) }; },
+
+  // AC CAP OUTGOING: charged vs boss capped to releaseCapFracMaxHp×maxHp; trash uncapped.
+  chargeCapSalienteProbe(){
+    const savC=CHARGED_ATTACK.enabled; CHARGED_ATTACK.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior;
+    const CAP_HP=8; const cap=CHARGED_ATTACK.releaseCapFracMaxHp*CAP_HP;
+    const mk=(isBoss)=>{ const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=CAP_HP; e.hp=1e9; e.dead=false; e.isBoss=!!isBoss; e.x=h.x+30; e.y=h.y; } return e; };
+    const eB=mk(true); h._charged=true; h._heavy=true; h.riposte=0; h._atkHits=new Set(); const b0=eB.hp; applyHeroMelee(); const dBoss=b0-eB.hp; G.enemies.length=0;
+    const eT=mk(false); h._charged=true; h._heavy=true; h.riposte=0; h._atkHits=new Set(); const t0=eT.hp; applyHeroMelee(); const dTrash=t0-eT.hp; G.enemies.length=0;
+    CHARGED_ATTACK.enabled=savC; this._dcArm();
+    const capBound=(dTrash>cap+1e-9); const bossCapped=capBound?(Math.abs(dBoss-cap)<1e-6):(dBoss<=cap+1e-6);
+    return { cap:+cap.toFixed(4), dBoss:+dBoss.toFixed(4), dTrash:+dTrash.toFixed(4), capBound, bossCapped, ok:(capBound&&bossCapped) }; },
+
+  // AC OFF byte-id: enabled=false → _charged=true inert (dmg == normal heavy).
+  chargeOffProbe(){
+    const savC=CHARGED_ATTACK.enabled; CHARGED_ATTACK.enabled=false;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior;
+    const mk=()=>{ const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+30; e.y=h.y; e.isBoss=false; } return e; };
+    const eN=mk(); h._charged=false; h._heavy=true; h.riposte=0; h._atkHits=new Set(); const n0=eN.hp; applyHeroMelee(); const dNormal=n0-eN.hp; G.enemies.length=0;
+    const eF=mk(); h._charged=true; h._heavy=true; h.riposte=0; h._atkHits=new Set(); const f0=eF.hp; applyHeroMelee(); const dForced=f0-eF.hp; G.enemies.length=0;
+    const dmgInert=(Math.abs(dForced-dNormal)<1e-9);
+    CHARGED_ATTACK.enabled=savC; this._dcArm();
+    return { dNormal:+dNormal.toFixed(4), dForced:+dForced.toFixed(4), dmgInert, ok:(dNormal>0&&dmgInert) }; },
+
+  // AC SAVE byte-id: chargeT/charging/_charged transient → serializeSave() byte-identical ON vs OFF.
+  chargeSaveByteId(){
+    const savC=CHARGED_ATTACK.enabled;
+    CHARGED_ATTACK.enabled=true; const h=this._dcArm(); h.chargeT=0.3; h.charging=true; h._charged=true;
+    const onStr=JSON.stringify(serializeSave());
+    CHARGED_ATTACK.enabled=false; const offStr=JSON.stringify(serializeSave());
+    G.enemies.length=0; CHARGED_ATTACK.enabled=savC; this._dcArm();
+    // match only exact save-field keys (with colon), not value strings like "ChargedQA"
+    const keyRe=/"chargeT":|"charging":|"_charged":/;
+    return { byteId:(offStr===onStr), hasKey:keyRe.test(onStr), ok:(offStr===onStr&&!keyRe.test(onStr)) }; },
+
+  // AC 0-RNG STRONG: srand stream byte-identical ON vs OFF across a charge cycle (0 draws).
+  chargeSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savC=CHARGED_ATTACK.enabled; CHARGED_ATTACK.enabled=!!enabled;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    // simulate charge cycle
+    h.chargeT=0; h.charging=true; h._charged=false;
+    if(enabled){ h.chargeT=(CHARGED_ATTACK.chargeThresholdMs/1000)+0.01; h.charging=false; h._charged=true; }
+    { const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.isBoss=false; e.x=h.x+30; e.y=h.y; } h.riposte=0; h._atkHits=new Set(); h._heavy=true; applyHeroMelee(); G.enemies.length=0; }
+    h.charging=false; h.chargeT=0; h._charged=false;
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    CHARGED_ATTACK.enabled=savC; this._dcArm();
     return { enabled:!!enabled, fingerprint:fp }; },
 };

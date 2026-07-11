@@ -1340,6 +1340,26 @@ export const RIPOSTE = {
   requiresMelee:true,     // sólo golpes melee ejecutan (identidad de payoff ofensivo)
 };
 
+// CAS-2133: ATAQUE CARGADO CON HÍPER-ARMADURA (mec #37). Eje de INICIATIVA PROACTIVA vs el sesgo reactivo de #33–#36.
+// Mantener COMBO.heavyKey (KeyN, dedicada, non-rebindable, SIN consumidor de keyup ⇒ 0 colisión) > chargeThresholdMs
+// entra en estado *cargando*: la híper-armadura del WINDUP absorbe interrupciones (el daño se recibe, capeado anti-cheese);
+// soltar → golpe cargado (×dmg/××poise/+stamina). Soltar antes del umbral = pesado normal (= HEAD byte-id).
+// RNG-neutral ESTRICTO: 0 draws, NO existe chargeRng. Save-neutral: chargeT/charging/_charged transitorios (fuera save.v1).
+// mec #37 SÍ toca input.js (plumbing HOLD KeyN → io.chargeHeld) + render.js (medidor de windup). Auditar settings.binds byte-id.
+// enabled:false ⇒ io.chargeHeld=false → rama muerta → KeyN dispara heavyAttack() inmediato = HEAD byte-id. $0 arte.
+export const CHARGED_ATTACK = {
+  enabled:false,                // SHIP DARK — toggle byte-idéntico OFF == HEAD; el CEO flipea en el Gate post-QA-PASS×2
+  chargeThresholdMs:350,        // hold ≥ umbral ⇒ cargado; soltar antes ⇒ pesado normal (= HEAD byte-id)
+  maxChargeMs:900,              // tope del acumulador (evita hold infinito; feel/tuning CEO)
+  dmgMul:1.7,                   // ×daño del golpe CARGADO (compone MULTIPLICATIVAMENTE con COMBO.heavyDmgMul y counters)
+  poiseMul:2.5,                 // ×daño de POISE del cargado (eje de rotura OFENSIVO — observable contra targets NO rotos)
+  staminaCost:12,               // estamina EXTRA sobre el pesado normal (coste del commit de carga)
+  hyperArmorGrant:999,          // umbral de poise DURANTE el windup (alto=absorbe casi todo; CEO lo baja para tuning)
+  incomingDmgCapFracMaxHp:0.18, // cap de daño ENTRANTE por golpe mientras cargas (anti-cheese: absorber ≠ inmunidad)
+  releaseCapFracMaxHp:0.22,     // cap del cargado vs jefe/élite/campeón (anti one-shot); trash SIN cap (ejecución pesada)
+  requiresMelee:true,           // sólo clases melee cargan (identidad del pesado; ranged/casters sin cargo)
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

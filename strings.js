@@ -277,6 +277,7 @@ export const STR = {
   stagger: "¡ATURDIDO!",                             // CAS-1826: postura BREAK banner — the tier enemy is staggered (bonus-dmg window)
   execute: "¡REMATE!",                               // CAS-1831: the anti-Stagger REMATADOR banner — a melee hit punishes a staggered enemy (×extra dmg)
   riposteExec: "¡CRÍTICO!",                          // CAS-2127: the RIPOSTE EXECUTION banner — the FIRST melee hit on a broken target lands as a ×dmgMul critical execution, consuming the break (one crit per stagger)
+  chargedExec:  "¡CARGADO!",                         // CAS-2133: the CHARGED HEAVY banner — hold heavy-key ≥ chargeThresholdMs → release fires a ×dmgMul/××poiseMul charged swing with hyper-armor windup ($0 arte; gated)
   backstab: "¡POR LA ESPALDA!",                      // CAS-1836: the POSITIONAL crit banner — a MELEE hit through the enemy's rear arc. Sinergia: rodar (Esquiva) tras un enemigo COMPROMETIDO (telegraph/lunge/carga/STAGGER) habilita el crítico posicional.
   block: "¡BLOQUEO!",                                // CAS-1873: banner de mitigación del ESCUDO/BLOQUEO CON GUARDIA — un golpe MELEE frontal se absorbe a cambio de estamina.
   guardBreak: "¡GUARDIA ROTA!",                      // CAS-1873: banner de RUPTURA DE GUARDIA — la estamina se agotó en un bloqueo ⇒ aturdimiento (mismo STAGGERED de CAS-1826) y el golpe entra completo.
