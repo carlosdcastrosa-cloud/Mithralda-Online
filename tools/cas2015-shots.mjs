@@ -1,0 +1,20 @@
+import puppeteer from "puppeteer-core";
+import { findChromium, LAUNCH_ARGS } from "./harness.mjs";
+import { mkdirSync } from "fs";
+const BASE="https://carlosdcastrosa-cloud.github.io/Mithralda-Online/";
+mkdirSync("shots/cas2015",{recursive:true});
+const exe=findChromium(); if(!exe){console.error("no chromium");process.exit(1);}
+const b=await puppeteer.launch({executablePath:exe,headless:true,args:LAUNCH_ARGS});
+const p=await b.newPage(); await p.setViewport({width:1100,height:700,deviceScaleFactor:1.5});
+const errs=[]; p.on("pageerror",e=>errs.push(e.message));
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+await p.goto(BASE+"index.html?dev",{waitUntil:"load"}); await wait(1600);
+await p.screenshot({path:"shots/cas2015/01-boot.png"});
+await p.keyboard.press("Enter"); await wait(800);
+await p.screenshot({path:"shots/cas2015/02-classsel.png"});
+await p.keyboard.press("Enter"); await wait(1300);
+await p.screenshot({path:"shots/cas2015/03-world.png"});
+await p.keyboard.press("Backquote"); await wait(600);
+await p.screenshot({path:"shots/cas2015/04-codex.png"});
+console.log("pageerrors:",errs.length, errs.slice(0,3));
+await b.close();
