@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2900,6 +2900,11 @@ function hitEnemy(e,dmg,ang,opt){
         // sbPhase undefined / OFF ⇒ p.dur ⇒ byte-identical.
         const _dur=(SIGNATURE_BOSS.enabled && e._sbPhase!==undefined) ? SIGNATURE_BOSS.poiseBreakStunMs/1000 : p.dur;
         e.stun=Math.max(e.stun||0,_dur); e.staggerT=_dur; e.staggerCD=POISE.reStaggerCD; e.poise=0;
+        // CAS-2127: RIPOSTE seam A — arma la EJECUCIÓN al abrir esta ventana FRESCA de rotura. Éste es el ÚNICO chokepoint de
+        // producción que setea e.staggerT (todo poise-break — combo-pesado, frost-shatter vía buildup→poise, two-hand,
+        // guard/dodge-counter, jefe firma — funnelea aquí). Rising-edge, NUNCA por-frame ⇒ no rearma mid-window. Gated ⇒
+        // enabled:false ⇒ _ripArm nunca se arma ⇒ rama de ejecución muerta ⇒ byte-idéntico a HEAD. 0 srand.
+        if(RIPOSTE.enabled) e._ripArm=true;
         addFx("spellburst",e.x,e.y-2,{col:"#ffe27a"}); floater(e.x,e.y-30,STR.stagger||"¡ATURDIDO!","#ffe27a");
         shakeAdd(5); freeze(6); } // CAS-2010: poise-break/stagger now KICKS — was fx+floater only (read flat). Self-gated by JUICE; 0 srand.
     }
@@ -2957,6 +2962,22 @@ function hitEnemy(e,dmg,ang,opt){
   // CAS-1947: ventana de vulnerabilidad de transición de fase (_sbVuln) — héroe pega ×transitionVulnMul.
   // Aritmética pura, 0 srand; sólo el jefe firma; OFF ⇒ e._sbVuln undefined ⇒ ×1 ⇒ byte-id.
   if(SIGNATURE_BOSS.enabled && e._sbVuln) dmg*=SIGNATURE_BOSS.transitionVulnMul;
+  // CAS-2127: RIPOSTE seam B — EJECUCIÓN CRÍTICA. El PRIMER golpe melee sobre un objetivo ROTO (armado en seam A) se ejecuta
+  // por ×dmgMul. Colocado DESPUÉS de todos los multiplicadores de stagger (POISE.bonusDmg, COMBO.staggerPunishMul, backstab,
+  // vuln) y de guard/dodge-counter (que ya escalaron dmg en applyHeroMelee antes de entrar aquí) ⇒ apila multiplicativamente.
+  // CAP DURO anti one-shot SÓLO jefe/élite/campeón (aplicado al dmg FINAL, tras todo el apilamiento); trash SIN cap (ejecución
+  // total). Consume e._ripArm ⇒ UN solo crítico por rotura (el 2º melee en la misma ventana es daño normal). Aritmética pura,
+  // 0 srand (no existe riposteRng) ⇒ detección+aplicación deterministas. Gated / arm ausente / ranged / espíritu ⇒ rama muerta
+  // ⇒ byte-idéntico a HEAD. NOTA: el poise extra (RIPOSTE.poiseMul) queda inerte-por-diseño — la acumulación de postura está
+  // pausada mientras staggerT>0 (gate 2877), el target YA está roto; el knob se mantiene por paridad #33/#34 y tuning futuro.
+  let ripEx=false;
+  if(RIPOSTE.enabled && e._ripArm && e.staggerT>0 && (!RIPOSTE.requiresMelee || (opt&&opt.melee)) && !spirit){
+    dmg*=RIPOSTE.dmgMul;
+    if(e.isBoss||e.elite||e.champion||e.champElite){ const cap=RIPOSTE.ripCapFracMaxHp*(e.maxHp||e.hp); if(dmg>cap) dmg=cap; }
+    e._ripArm=false;                                  // CONSUME ⇒ un solo crítico por rotura
+    ensureMeta().essence=(ensureMeta().essence|0)+RIPOSTE.essenceBonus; G.metaDirty=true;   // Esencia de skill (0 draws; banca a meta, no toca save.v1). Gated ⇒ OFF no suma ⇒ meta byte-id.
+    ripEx=true;
+  }
   e.hp-=dmg; e.hurtFlash=0.16; audio.sfx.ehurt();
   // CAS-383 boon on-hit hooks (all funnel through this one chokepoint, so every hero hit is
   // covered). Sangre de Brasa / Toque Ponzoñoso CONVERT a fraction of the blow into a burn /
@@ -3013,6 +3034,12 @@ function hitEnemy(e,dmg,ang,opt){
   // over the enemy's back. Pure feel ($0 art, reuses existing fx), damage already applied.
   if(backstab){ addFx("spellburst",e.x,e.y-2,{col:"#8fe3ff"}); addFx("shockring",e.x,e.y,{r:52,life:0.4}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(6); freeze(6); // CAS-2010: backstab now BITES (freeze) — was shake only
     if(JUICE.enabled && JUICE.flash && G.settings.flash) floater(e.x,e.y-34,STR.backstab||"¡POR LA ESPALDA!","#8fe3ff",{crit:true,pop:1.9,life:1.05}); } // CAS-2010: banner polish flash-gated
+  // CAS-2127: RIPOSTE seam C — la EJECUCIÓN lee como el crítico MÁS fuerte: un estallido naranja-ejecución (#ff9a3a, distinto
+  // del crit rojo y del banner riposte-parry dorado) + doble shockring ancho + abanico de debris + shake/freeze duros, con
+  // el banner "¡CRÍTICO!" sobre el objetivo roto. Pure feel ($0 arte, reusa primitivas ya vivas), daño ya aplicado. Gated ⇒
+  // enabled:false ⇒ ripEx=false ⇒ rama muerta ⇒ byte-idéntico a HEAD.
+  if(ripEx){ addFx("spellburst",e.x,e.y-2,{col:"#ff9a3a"}); addFx("shockring",e.x,e.y,{r:60,life:0.46}); addFx("shockring",e.x,e.y,{r:38,life:0.36}); addFx("debris",e.x,e.y,{ang,life:0.6}); shakeAdd(8); freeze(7);
+    if(JUICE.enabled && JUICE.flash && G.settings.flash) floater(e.x,e.y-38,STR.riposteExec||"¡CRÍTICO!","#ff9a3a",{crit:true,pop:2.1,life:1.15}); }
   freeze(Math.min(7, (crit?4:2)+Math.floor(dmg/14))); // hit pops harder the bigger the blow; crits bite deepest
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
@@ -8296,6 +8323,109 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     RALLY.enabled=savR; this._dcArm();
     return { enabled:!!enabled, fingerprint:fp }; },
+  // --- CAS-2127 RIPOSTE / EJECUCIÓN CRÍTICA POR ATURDIMIENTO (mecánica #36) harness hooks (tools/cas2127-riposte-live-qa.mjs);
+  // additive, DRIVEN el loop REAL: seam A (poise-break en hitEnemy:2902 arma e._ripArm en la ventana fresca de rotura), seam B
+  // (hitEnemy tras el sink de multiplicadores: 1er melee sobre objetivo ROTO+armado ejecuta ×dmgMul, cap duro jefe/élite/campeón,
+  // consume e._ripArm, bonus Esencia), seam C (VFX gated). Eje DISJUNTO de h.riposte/CFG.riposteMult (CAS-210, armado por el
+  // héroe). Todo aritmética/flag ⇒ 0 srand, NO existe riposteRng. e._ripArm transitorio de enemigo (mirror e.staggerT/e.poise,
+  // NUNCA serializado) ⇒ save.v1 byte-id SIN clave rip*. HARD-GATED: enabled:false ⇒ break no arma + ejecución muerta ⇒ HEAD. ---
+  riposteMeta(){ return { enabled:RIPOSTE.enabled, dmgMul:RIPOSTE.dmgMul, poiseMul:RIPOSTE.poiseMul, essenceBonus:RIPOSTE.essenceBonus, ripCapFracMaxHp:RIPOSTE.ripCapFracMaxHp, requiresMelee:RIPOSTE.requiresMelee }; },
+  riposteEnable(on){ RIPOSTE.enabled=!!on; return { enabled:RIPOSTE.enabled }; },
+  // AC HEADLINE: sobre un objetivo ROTO (staggerT>0) ARMADO, el 1er golpe melee ejecuta ×dmgMul y CONSUME (_ripArm→false); el
+  // 2º golpe melee en la MISMA ventana pega daño NORMAL (mismo objetivo, misma stagger-bonus, sólo cambia el factor ejecución).
+  // Trash (sin cap) ⇒ ratio limpio == dmgMul. Además: un poise-break REAL por MELEE arma+ejecuta en el mismo golpe (arm→consume).
+  riposteHeadlineProbe(){ const savR=RIPOSTE.enabled; RIPOSTE.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior; h.riposte=0;
+    const mk=()=>{ const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.x=h.x+30; e.y=h.y; } return e; };
+    // baseline: ROTO (staggerT>0) pero NO armado ⇒ golpe staggered NORMAL (misma bonificación de stagger, sin ejecución)
+    const eN=mk(); eN.staggerT=5.0; eN.staggerCD=5.0; eN._ripArm=false; h.riposte=0; h._atkHits=new Set(); const n0=eN.hp; applyHeroMelee(); const dNormal=n0-eN.hp; G.enemies.length=0;
+    // riposte: ROTO + ARMADO ⇒ 1er melee ejecuta ×dmgMul + consume
+    const eR=mk(); eR.staggerT=5.0; eR.staggerCD=5.0; eR._ripArm=true; h.riposte=0; h._atkHits=new Set(); const r0=eR.hp; applyHeroMelee(); const dRip=r0-eR.hp; const consumed=(eR._ripArm===false);
+    // 2º melee en la MISMA ventana ⇒ _ripArm ya consumido ⇒ NORMAL
+    eR.hp=1e9; eR.x=h.x+30; eR.y=h.y; h.riposte=0; h._atkHits=new Set(); const s0=eR.hp; applyHeroMelee(); const dSecond=s0-eR.hp; G.enemies.length=0;
+    const ratio=dNormal>0?dRip/dNormal:0; const ratioOk=Math.abs(ratio-RIPOSTE.dmgMul)<1e-6; const secondNormal=Math.abs(dSecond-dNormal)<1e-6;
+    RIPOSTE.enabled=savR; this._dcArm();
+    return { dNormal:+dNormal.toFixed(4), dRip:+dRip.toFixed(4), dSecond:+dSecond.toFixed(4), ratio:+ratio.toFixed(6), expect:RIPOSTE.dmgMul, ratioOk, consumed, secondNormal, ok:(dNormal>0&&ratioOk&&consumed&&secondNormal) }; },
+  // AC SEAM-A + requiresMelee: un poise-break por golpe NO-melee (ranged/hechizo) ARMA e._ripArm y lo DEJA armado (seam B exige
+  // melee ⇒ no ejecuta en ese golpe) ⇒ el objetivo queda ROTO con ejecución PENDIENTE; el siguiente MELEE la ejecuta+consume.
+  riposteArmProbe(){ const savR=RIPOSTE.enabled, savC=COMBO.enabled, savP=POISE.enabled; RIPOSTE.enabled=true; POISE.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior; h.riposte=0;
+    // champion ⇒ poiseCeil>0 (puede acumular/romper). Poise a 1 bajo el techo ⇒ el próximo golpe lo rompe.
+    const e=spawnEnemy("wolf",h.x+30,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; e.x=h.x+30; e.y=h.y;
+    e.poiseMax=poiseCeil(e); e.poise=Math.max(0,e.poiseMax-1); e.staggerT=0; e.staggerCD=0; e._ripArm=false;
+    // ROMPE por golpe NO-melee (opt.melee ausente) ⇒ seam A arma _ripArm; seam B (requiresMelee) NO ejecuta ⇒ queda armado
+    hitEnemy(e, 100, 0, {}); const armedByBreak=(e._ripArm===true), staggeredNow=((e.staggerT||0)>0), notExecutedYet=(e._ripArm===true);
+    // siguiente MELEE ⇒ ejecuta + consume
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.riposte=0; h._atkHits=new Set(); applyHeroMelee(); const consumedByMelee=(e._ripArm===false);
+    RIPOSTE.enabled=savR; COMBO.enabled=savC; POISE.enabled=savP; this._dcArm();
+    return { armedByBreak, staggeredNow, notExecutedYet, consumedByMelee, ok:(armedByBreak&&staggeredNow&&notExecutedYet&&consumedByMelee) }; },
+  // AC CAP anti one-shot: vs jefe/élite/campeón (maxHp controla el cap) la ejecución NUNCA excede ripCapFracMaxHp×maxHp, aun
+  // apilando toda la bonificación de stagger; el trash (sin cap) pega el valor uncapped COMPLETO (>cap) ⇒ se siente ejecución total.
+  riposteCapProbe(){ const savR=RIPOSTE.enabled; RIPOSTE.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior; h.riposte=0;
+    const CAP_HP=8; const cap=RIPOSTE.ripCapFracMaxHp*CAP_HP;
+    // BOSS: maxHp bajo ⇒ cap pequeño que DEBE morder; hp alto ⇒ sobrevive, delta medible
+    const eB=spawnEnemy("wolf",h.x+30,h.y); eB.hp=1e9; eB.maxHp=CAP_HP; eB.dead=false; eB.isBoss=true; eB.staggerT=5.0; eB.staggerCD=5.0; eB._ripArm=true; eB.x=h.x+30; eB.y=h.y; h.riposte=0; h._atkHits=new Set(); const b0=eB.hp; applyHeroMelee(); const dBoss=b0-eB.hp; G.enemies.length=0;
+    // TRASH: mismo setup SIN tier ⇒ valor uncapped (== la ejecución completa) para comparar
+    const eT=spawnEnemy("wolf",h.x+30,h.y); eT.hp=1e9; eT.maxHp=CAP_HP; eT.dead=false; eT.staggerT=5.0; eT.staggerCD=5.0; eT._ripArm=true; eT.x=h.x+30; eT.y=h.y; h.riposte=0; h._atkHits=new Set(); const t0=eT.hp; applyHeroMelee(); const dTrash=t0-eT.hp; G.enemies.length=0;
+    const capBound=(dTrash>cap+1e-9);                       // el uncapped SÍ excede el cap ⇒ el cap tiene que morder
+    const bossCapped=capBound ? (Math.abs(dBoss-cap)<1e-6) : (dBoss<=cap+1e-6);
+    const trashUncapped=(Math.abs(dTrash-dBoss)>1e-9) || !capBound;   // trash > boss cuando el cap muerde
+    RIPOSTE.enabled=savR; this._dcArm();
+    return { cap:+cap.toFixed(4), dBoss:+dBoss.toFixed(4), dTrash:+dTrash.toFixed(4), capBound, bossCapped, trashUncapped, ok:(capBound&&bossCapped&&trashUncapped) }; },
+  // AC ESENCIA: una ejecución suma essenceBonus a meta (0 draws, banca a meta, no toca save.v1); un golpe NORMAL (no-ejecución)
+  // NO suma; OFF NO suma (gated). Prueba la recompensa de skill sin romper la economía.
+  riposteEssenceProbe(){ const savR=RIPOSTE.enabled; const bonus=RIPOSTE.essenceBonus;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior;
+    const mk=(arm)=>{ const e=spawnEnemy("wolf",h.x+30,h.y); e.maxHp=e.hp=1e9; e.dead=false; e.staggerT=5.0; e.staggerCD=5.0; e._ripArm=!!arm; e.x=h.x+30; e.y=h.y; return e; };
+    RIPOSTE.enabled=true;
+    const e1=mk(true);  const es0=ensureMeta().essence|0; h.riposte=0; h._atkHits=new Set(); applyHeroMelee(); const dExec=(ensureMeta().essence|0)-es0; G.enemies.length=0;    // ejecuta ⇒ +bonus
+    const e2=mk(false); const es1=ensureMeta().essence|0; h.riposte=0; h._atkHits=new Set(); applyHeroMelee(); const dNorm=(ensureMeta().essence|0)-es1; G.enemies.length=0;   // normal ⇒ +0
+    RIPOSTE.enabled=false;
+    const e3=mk(true);  const es2=ensureMeta().essence|0; h.riposte=0; h._atkHits=new Set(); applyHeroMelee(); const dOff=(ensureMeta().essence|0)-es2; G.enemies.length=0;     // OFF (aun con flag) ⇒ +0
+    RIPOSTE.enabled=savR; this._dcArm();
+    return { bonus, dExec, dNorm, dOff, ok:(dExec===bonus && dNorm===0 && dOff===0) }; },
+  // AC OFF byte-id: RIPOSTE.enabled=false ⇒ (a) un poise-break NO arma _ripArm; (b) forzar e._ripArm=true es INERTE en el golpe
+  // (dmg IDÉNTICO con/sin flag) ⇒ ramas de daño byte-idénticas a HEAD.
+  riposteOffProbe(){ const savR=RIPOSTE.enabled, savP=POISE.enabled; RIPOSTE.enabled=false; POISE.enabled=true;
+    const h=this._dcArm("warrior"); h.atkAng=0; h._mcfg=ATK.warrior; h.riposte=0;
+    // (a) break con OFF ⇒ no arma
+    const ec=spawnEnemy("wolf",h.x+30,h.y); ec.maxHp=ec.hp=1e9; ec.dead=false; ec.champion=true; ec.st=0; ec.poiseMax=poiseCeil(ec); ec.poise=Math.max(0,ec.poiseMax-1); ec.staggerT=0; ec.staggerCD=0; ec._ripArm=false; ec.x=h.x+30; ec.y=h.y;
+    hitEnemy(ec, 100, 0, {melee:true}); const noArm=(!ec._ripArm); G.enemies.length=0;
+    // (b) forzar _ripArm=true con OFF ⇒ INERTE: dmg igual a sin flag
+    const eF=spawnEnemy("wolf",h.x+30,h.y); eF.maxHp=eF.hp=1e9; eF.dead=false; eF.staggerT=5.0; eF.staggerCD=5.0; eF._ripArm=true; eF.x=h.x+30; eF.y=h.y; h.riposte=0; h._atkHits=new Set(); const f0=eF.hp; applyHeroMelee(); const dForced=f0-eF.hp; G.enemies.length=0;
+    const eR=spawnEnemy("wolf",h.x+30,h.y); eR.maxHp=eR.hp=1e9; eR.dead=false; eR.staggerT=5.0; eR.staggerCD=5.0; eR._ripArm=false; eR.x=h.x+30; eR.y=h.y; h.riposte=0; h._atkHits=new Set(); const g0=eR.hp; applyHeroMelee(); const dRef=g0-eR.hp; G.enemies.length=0;
+    const dmgInert=(dForced===dRef);
+    RIPOSTE.enabled=savR; POISE.enabled=savP; this._dcArm();
+    return { noArm, dForced:+dForced.toFixed(4), dRef:+dRef.toFixed(4), dmgInert, ok:(noArm&&dmgInert) }; },
+  // AC SAVE byte-id: e._ripArm transitorio de enemigo (NUNCA serializado, mirror e.staggerT/e.poise) ⇒ serializeSave() byte-id
+  // ON/OFF y SIN clave ripArm* (el save sólo serializa héroe/meta, no enemigos).
+  riposteSaveByteId(){ const savR=RIPOSTE.enabled;
+    RIPOSTE.enabled=true; const h=this._dcArm(); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e._ripArm=true; e.staggerT=1.0; }
+    const onStr=JSON.stringify(serializeSave());
+    RIPOSTE.enabled=false; const offStr=JSON.stringify(serializeSave());
+    G.enemies.length=0; RIPOSTE.enabled=savR; this._dcArm();
+    const keyRe=/"_?ripArm":/i;
+    return { byteId:(offStr===onStr), hasKey:keyRe.test(onStr), onLen:onStr.length, offLen:offStr.length, ok:(offStr===onStr && !keyRe.test(onStr)) }; },
+  // AC 0-RNG STRONG: fingerprint del srand alrededor del CICLO REAL — un poise-break (arma) + un melee que EJECUTA+consume (×dmgMul
+  // + bonus Esencia) — ON vs OFF. Todo aritmética/flag (NO riposteRng) ⇒ stream srand BYTE-IDÉNTICO aun con la ejecución disparando.
+  riposteSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savR=RIPOSTE.enabled, savP=POISE.enabled; RIPOSTE.enabled=!!enabled; POISE.enabled=true; const h=this._dcArm(); h.atkAng=0; h._mcfg=ATK.warrior;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let armed=false, executed=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; e.x=h.x+30; e.y=h.y; e.poiseMax=poiseCeil(e); e.poise=Math.max(0,e.poiseMax-1); e.staggerT=0; e.staggerCD=0; e._ripArm=false; }
+      hitEnemy(e, 100, 0, {});                                        // ROMPE (arma _ripArm, no-melee ⇒ no ejecuta) — 0 draws en la rama riposte
+      armed=(enabled ? (e._ripArm===true) : (e._ripArm!==true));
+      e.hp=1e9; e.x=h.x+30; e.y=h.y; h.riposte=0; h._atkHits=new Set(); applyHeroMelee();   // MELEE ejecuta + consume (0 draws)
+      executed=(enabled ? (e._ripArm===false) : true);
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",h.x+60+i,h.y); if(k){ k.hp=0; killEnemy(k); } }   // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    RIPOSTE.enabled=savR; POISE.enabled=savP; this._dcArm();
+    return { enabled:!!enabled, riposteFired:(enabled?(armed&&executed):false), fingerprint:fp }; },
   // --- CAS-1895 EMPUÑADURA A DOS MANOS (Two-Handing) harness hooks (tools/cas1895-two-hand.mjs); additive, drive los
   // seams REALES: equipLoad (escudo fuera a dos manos), applyHeroMelee (dmg ×dmgMul + poise ×poiseMul), heavyAttack (stam
   // ×stamMul), y la rama de bloqueo de damageHero (DENY a dos manos). Todo input/aritmética ⇒ 0 srand, NO twoHandRng.

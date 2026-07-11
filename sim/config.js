@@ -1314,6 +1314,32 @@ export const RALLY = {
   requiresMelee:true,   // sólo golpes melee recuperan (identidad de riesgo; la cura vive en la ruta melee)
 };
 
+// CAS-2127: RIPOSTE / EJECUCIÓN CRÍTICA POR ATURDIMIENTO (mecánica #36). El crítico clásico de Souls: el PRIMER golpe melee
+// que conecta sobre un objetivo ROTO (e.staggerT>0, ventana abierta por poise-break sim.js:2902 — venga de combo-pesado,
+// frost-shatter vía buildup→poise, two-hand, guard/dodge-counter, o el jefe firma) se convierte en una EJECUCIÓN (×dmgMul
+// alto + tinte/flash propio + poise extra + pequeña Esencia) y CONSUME el estado armado ⇒ UN SOLO crítico por rotura (no
+// crit infinito encadenado). Convierte toda la inversión en poise/parry/status en un momento de payoff LEGIBLE.
+//   ⚠️ Eje DISJUNTO de h.riposte/CFG.riposteMult (CAS-210, mecánica distinta armada por PERFECT-DODGE del HÉROE). Éste se
+//   llavea por el ESTADO DEL ENEMIGO (e._ripArm + e.staggerT>0). Ortogonal a Guard Counter #33 (h.guardCounterT) y Dodge
+//   Counter #34 (h.dodgeCounterT): si un counter aterriza sobre un objetivo ya roto, el ×dmgMul apila multiplicativamente
+//   sobre ese golpe pero CAPEADO (ripCapFracMaxHp) para NO one-shot.
+//   · Armar: e._ripArm=true en el rising-edge del poise-break (sim.js:2902, chokepoint único de ventana fresca de stagger).
+//   · Ejecutar: en hitEnemy, tras el sink de multiplicadores de stagger, ×dmgMul; cap duro ripCapFracMaxHp×maxHp SÓLO
+//     jefe/élite/campeón (trash sin cap — ejecución total); consume e._ripArm=false; bonus Esencia pequeño.
+//   · VFX: floater STR.riposteExec (¡CRÍTICO!) tinte ejecución + shockring/debris/shake reusando primitivas (JUICE-gated).
+// Estado TRANSITORIO e._ripArm (mirror e.staggerT/e.poise): FUERA de serializeSave ⇒ save.v1 byte-id on/off, sin clave rip*.
+// RNG-neutral ESTRICTO: 0 draws, NO existe riposteRng (detección+aplicación deterministas on-hit) ⇒ srand byte-id ON==OFF.
+// HARD-GATED: enabled:false ⇒ e._ripArm nunca se arma, ramas de daño INTACTAS ⇒ build byte-idéntico a HEAD (OFF==baseline).
+// $0 arte: reusa primitivas addFx/floater ya vivas. Números = defaults sanos para QA; el CEO retunea + flipea en el Gate.
+export const RIPOSTE = {
+  enabled:false,          // SHIP DARK — toggle byte-idéntico OFF == HEAD. CEO flip false→true en el Gate (config-only 1 línea).
+  dmgMul:2.2,             // multiplicador de ejecución sobre el 1er golpe melee al objetivo roto
+  poiseMul:1.5,           // poise-damage × (paridad #33/#34; casi no-op contra target ya roto — pausa de acumulación mientras staggerT>0)
+  essenceBonus:2,         // Esencia pequeña por ejecución (recompensa de skill; banca a meta, no toca save.v1)
+  ripCapFracMaxHp:0.25,   // cap duro: 1 Riposte ≤ 25% maxHp de jefe/élite/campeón (anti one-shot aun apilando counter+afijos). Trash SIN cap.
+  requiresMelee:true,     // sólo golpes melee ejecutan (identidad de payoff ofensivo)
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
