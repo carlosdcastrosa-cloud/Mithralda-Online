@@ -59,7 +59,7 @@ export const CFG = {
   // CAS-210: souls-like RIPOSTE — a frame-perfect dodge opens a brief window during which
   // the next hero hit is a guaranteed crit scaled by riposteMult (a crushing counter). The
   // window is short enough that you must commit the counter immediately, not bank it.
-  riposteWindow: 1.4, riposteMult: 2.4,
+  riposteWindow: 1.4, riposteMult: 2.0,
 };
 
 // per-class basic attack (key J / 1 / click)
@@ -1104,7 +1104,7 @@ export const POISE = {
   decayRate:18,            // postura/s de decaimiento una vez pasado decayDelay
   reStaggerCD:6.0,         // s de cooldown tras un stagger antes de re-acumular (evita lock infinito)
   elite:{ max:100, dur:1.6, bonusDmg:1.5 },   // élites / campeones / élite-campeones
-  boss:{  max:280, dur:1.0, bonusDmg:1.9 },   // jefe: más postura, aturdimiento más corto, apertura MAYOR (clímax)
+  boss:{  max:280, dur:1.0, bonusDmg:1.6 },   // jefe: más postura, aturdimiento más corto, apertura MAYOR (clímax)
 };
 
 // CAS-1831: SISTEMA DE COMBOS / MOVESET con rematador anti-Stagger. Cierra el loop Souls-like por el lado
@@ -1129,7 +1129,7 @@ export const COMBO = {
   heavyDmgMul:1.7,     // más daño
   heavyPoise:"heavy",  // alimenta POISE.gain.heavy(26) ⇒ vía natural de romper postura
   // --- rematador anti-Stagger (corazón) ---
-  staggerPunishMul:2.2 // × extra al golpear MELEE a un enemigo con e.staggerT>0 (apila sobre POISE.bonusDmg)
+  staggerPunishMul:1.6 // × extra al golpear MELEE a un enemigo con e.staggerT>0 (apila sobre POISE.bonusDmg)
 };
 
 // CAS-1836: GOLPE POR LA ESPALDA — crítico POSICIONAL. Cierra el loop Souls-like por el eje de POSICIONAMIENTO
@@ -1154,7 +1154,7 @@ export const BACKSTAB = { enabled:true, rearArcDeg:120, mult:1.8, knockMul:1.6 }
 // de FEEL/BALANCE del CEO (retune = edición de knob barata y reversible, sin rebuild de lógica).
 export const STAMINA = {
   enabled:true,
-  max:100, regen:22,          // por segundo; pool lleno ~4.5 s ocioso
+  max:100, regen:17,          // por segundo; pool lleno ~4.5 s ocioso
   regenDelay:0.35,            // pausa de regen tras gastar (feel)
   flashS:0.4,                 // duración del flash de la barra en un deny
   cost:{ dodge:25, parry:20, heavy:30, finisher:30, ability:25, ultimate:40 }
@@ -1313,7 +1313,7 @@ export const TWO_HAND = {
 export const HYPERARMOR = {
   enabled: true,
   appliesTo: { heavy: true, finisher: true },  // qué swings comprometidos califican (heavy = h._heavy, finisher = h._comboFin)
-  poiseThreshold: 34,   // dmg crudo entrante < umbral ⇒ NO interrumpe (superarmadura aguanta); >= ⇒ rompe. Número del Gate CEO
+  poiseThreshold: 24,   // dmg crudo entrante < umbral ⇒ NO interrumpe (superarmadura aguanta); >= ⇒ rompe. Número del Gate CEO
   twoHandBonus: 1.0,    // umbral efectivo = poiseThreshold * (twoHand activo ? twoHandBonus : 1); v1 flat=1.0 (wired-neutral, el CEO lo sube sin rebuild)
   vfx: true,            // chispa/tinte desde primitivas $0 al ABSORBER un stun (gateado: OFF/no-heavy ⇒ sin efecto)
 };
@@ -1404,7 +1404,7 @@ export const WEAPON_BUFFS = {
     // Resina Ardiente: +daño moderado + añade DoT burn en cada golpe melee (reusa STATUS.burn). Contra hordas / presión de DoT.
     ember: { name:"Resina Ardiente",  charges:2, buffS:20, dmgMul:1.15, element:"burn",  burn:{dmg:5},          tint:"#ff7a3c" },
     // Piedra de Afilar: +daño físico PURO alto, sin elemento. La opción de daño crudo para un jefe.
-    whet:  { name:"Piedra de Afilar", charges:3, buffS:25, dmgMul:1.35, element:null,                            tint:"#dfe7f2" },
+    whet:  { name:"Piedra de Afilar", charges:3, buffS:25, dmgMul:1.22, element:null,                            tint:"#dfe7f2" },
     // Escarcha: +daño leve + aplica slow (reusa STATUS.slow, mismo status que infligen los mobs) ⇒ control. Contra élites móviles.
     frost: { name:"Escarcha",         charges:2, buffS:18, dmgMul:1.10, element:"frost", slow:{mul:0.6,dur:1.5}, tint:"#7fd3ff" },
   },
@@ -1427,7 +1427,7 @@ export const STATUS_BUILDUP = {
   elementMap: { burn:"poison", slow:"frost", frost:"frost", poison:"poison" },   // físico melee ⇒ bleed (explícito en el sink)
   types: {
     // Sangrado: fed por físico melee; proc = ráfaga % HP máx del objetivo. HEADLINE observable en el loop.
-    bleed:  { threshold:100, build:16, procPctHp:0.14, bossProcPctHp:0.06, tint:"#d11e2e" },
+    bleed:  { threshold:100, build:16, procPctHp:0.11, bossProcPctHp:0.06, tint:"#d11e2e" },
     // Veneno: fed por fuego/veneno reconvertido; proc = DoT poison fuerte N s (reusa STATUS.poison).
     poison: { threshold:100, build:22, procDot:{dmg:7,dur:5.0},           tint:"#7bd14a" },
     // Escarcha: fed por frost buff + hielo enemigo; proc = slow fuerte + drena estamina (héroe).
