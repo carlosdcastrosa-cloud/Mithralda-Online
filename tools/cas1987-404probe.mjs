@@ -1,0 +1,12 @@
+import puppeteer from "puppeteer-core";
+import { findChromium, LAUNCH_ARGS } from "./harness.mjs";
+const exe = findChromium();
+const browser = await puppeteer.launch({ executablePath: exe, headless: true, args: LAUNCH_ARGS });
+const page = await browser.newPage();
+const failed = [];
+page.on("requestfailed", (r)=>failed.push(`FAIL ${r.url()} ${r.failure()?.errorText||""}`));
+page.on("response", (r)=>{ if(r.status()>=400) failed.push(`${r.status()} ${r.url()}`); });
+await page.goto("https://carlosdcastrosa-cloud.github.io/Mithralda-Online/", {waitUntil:"networkidle0", timeout:60000});
+await new Promise(r=>setTimeout(r,3000));
+console.log(failed.length? failed.join("\n") : "no 4xx/failed requests");
+await browser.close();
