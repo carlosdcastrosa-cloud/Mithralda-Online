@@ -1420,7 +1420,7 @@ export const DEFLECT = {
 // (reposición+castigo, NO burst) + SIN i-frames (NO reemplaza al roll defensivo; whiff = vulnerable) + cap de distancia. enabled:false
 // ⇒ input gated + lungeStrike retorna en el 1er gate + _lunge nunca se arma ⇒ byte-idéntico al baseline (0-regresión 39 mec vivas).
 export const LUNGE = {
-  enabled:false,             // DARK-by-default — CEO gate flip false→true tras QA PASS×2. Reversible en 1 línea.
+  enabled:true,              // GO-LIVE — CEO gate flip false→true tras QA CAS-2158 PASS×2. Reversible en 1 línea.
   key:"Backslash",           // tecla DEDICADA no-rebindable (code LIBRE grep-verificado; 26 letras + Semicolon/Quote/Slash/Brackets/Comma/Period/KeyN/KeyE ocupadas). Móvil = botón HUD tap tb.lunge.
   distance:118,              // px de impulso hacia adelante (gap-closer; > roll 92 para castigar el kite, aún ACOTADO ~1.3× el roll)
   dashMs:150,               // duración del dash (ms) — corto; velocidad = distance/(dashMs/1000) ≈ 787 px/s
