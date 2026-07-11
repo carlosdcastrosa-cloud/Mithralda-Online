@@ -3602,6 +3602,9 @@ export function createRenderer(ctx){
       toggle(STR.settingReduceMotion, G.settings.reduceMotion, ()=>{ G.settings.reduceMotion=!G.settings.reduceMotion; if(G.settings.reduceMotion) G.shake=0; save(); }, oy); oy+=32;
       toggle(STR.settingColorblind, G.settings.colorblind, ()=>{ G.settings.colorblind=!G.settings.colorblind; save(); }, oy); oy+=32;
       toggle(STR.settingShake, G.settings.shake>0, ()=>{ G.settings.shake=G.settings.shake>0?0:1; save(); }, oy); oy+=32;
+      // CAS-2059: granular photosensitivity toggles — hit-freeze + crit/backstab flash banners (default ON, byte-preserved).
+      toggle(STR.settingHitStop, G.settings.hitStop, ()=>{ G.settings.hitStop=!G.settings.hitStop; save(); }, oy); oy+=32;
+      toggle(STR.settingFlash, G.settings.flash, ()=>{ G.settings.flash=!G.settings.flash; save(); }, oy); oy+=32;
       toggle(STR.settingCRT, G.settings.crt, ()=>{ G.settings.crt=!G.settings.crt; save(); }, oy); oy+=32;
       // CAS-1613 (PR4): opt back into the classic Tibia sidebar (OFF by default → full game width).
       toggle(STR.settingSidebar, uiLayout.sidebarOn(), ()=>{ uiLayout.setSidebar(!uiLayout.sidebarOn()); }, oy); oy+=32;

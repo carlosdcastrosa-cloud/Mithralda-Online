@@ -186,7 +186,7 @@ export const G = {
   // CAS-265: colorblind adds shape/text cues (rarity marks, crit glyph, telegraph ring)
   // so signal never relies on hue alone; binds is the persisted key-rebinding table
   // (filled by settings.boot()). All settings are presentation-only — Stage-2 safe.
-  cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:true, rollAim:false, reduceMotion:false, colorblind:false, binds:null},
+  cam:{x:0,y:0}, shake:0, settings:{shake:1, crt:true, rollAim:false, reduceMotion:false, colorblind:false, hitStop:true, flash:true, binds:null},
   quest:{wolves:0, done:false, rewarded:false}, hunts:{}, dialog:null, shopSel:0, bountySel:0,
   // CAS-383: live boon-draft state. null except while the "draft" scene is up: {choices:[ids],
   // sel, source}. draftSel mirrors the highlighted card for kbd/pad nav. Transient (never saved).
@@ -2002,7 +2002,7 @@ function rmCount(n){ return G.settings.reduceMotion ? Math.max(1, Math.round(n*0
 // freeze() ignored reduceMotion, so motion-sensitive players could not disable freeze-frames), and caps at
 // JUICE.hitStopCapFrames (60fps guard). Presentation-only: touches G.hitstop only, 0 srand. The early-return
 // keeps G.hitstop at 0 when off ⇒ update() never freeze-early-returns ⇒ byte-identical to a no-hit-stop baseline.
-function freeze(n){ if(!JUICE.enabled || !JUICE.hitStop || G.settings.reduceMotion) return; n=Math.min(n, JUICE.hitStopCapFrames); if(n>G.hitstop) G.hitstop=n; } // request a hitstop of n frames (longest wins)
+function freeze(n){ if(!JUICE.enabled || !JUICE.hitStop || !G.settings.hitStop || G.settings.reduceMotion) return; n=Math.min(n, JUICE.hitStopCapFrames); if(n>G.hitstop) G.hitstop=n; } // request a hitstop of n frames (longest wins)
 function solidBlocked(x,y,r){
   if(x<r||y<r||x>MAP_W*TS-r||y>MAP_H*TS-r) return true;
   const tx=Math.floor(x/TS), ty=Math.floor(y/TS);
@@ -2768,7 +2768,7 @@ function hitEnemy(e,dmg,ang,opt){
     addFx("shockring",e.x,e.y,{r:48,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5});
     // CAS-210: a RIPOSTE reads even LOUDER than a normal crit — a gold counter banner above
     // the hero, an extra wide shockwave + debris fan, and a harder shake. The punish landed.
-    if(riposted){ if(JUICE.enabled && JUICE.flash) floater(G.hero.x,G.hero.y-40,STR.riposte,"#ffd24d",{crit:true,pop:1.6,life:0.95}); // CAS-2010: riposte banner polish flash-gated
+    if(riposted){ if(JUICE.enabled && JUICE.flash && G.settings.flash) floater(G.hero.x,G.hero.y-40,STR.riposte,"#ffd24d",{crit:true,pop:1.6,life:0.95}); // CAS-2010: riposte banner polish flash-gated
       addFx("shockring",e.x,e.y,{r:66,life:0.5}); addFx("debris",e.x,e.y,{ang,life:0.6}); shakeAdd(6); } }
   else floater(e.x,e.y-e.tpl.size,"-"+Math.round(dmg),"#ffd24d",{pop:1.3});
   // CAS-204 (FOUNTAINS crunch): every connect snaps a white-hot hitburst at the contact point and
@@ -2779,11 +2779,11 @@ function hitEnemy(e,dmg,ang,opt){
   // CAS-1831: the REMATADOR reads LOUDER than a normal connect — a golden burst + shockring + debris fan, a hard
   // shake, and a "¡REMATE!" banner over the staggered enemy. Pure feel ($0 art, reuses existing fx), damage already applied.
   if(punish){ addFx("spellburst",e.x,e.y-2,{col:"#ffd24a"}); addFx("shockring",e.x,e.y,{r:56,life:0.42}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(7); freeze(5); // CAS-2010: execute-punish now BITES (freeze) — was shake only
-    if(JUICE.enabled && JUICE.flash) floater(e.x,e.y-34,STR.execute||"¡REMATE!","#ffd24a",{crit:true,pop:2.0,life:1.1}); } // CAS-2010: banner polish flash-gated (base dmg number above stays for legibility)
+    if(JUICE.enabled && JUICE.flash && G.settings.flash) floater(e.x,e.y-34,STR.execute||"¡REMATE!","#ffd24a",{crit:true,pop:2.0,life:1.1}); } // CAS-2010: banner polish flash-gated (base dmg number above stays for legibility)
   // CAS-1836: a BACKSTAB reads with a COLD-cyan burst (distinct from the golden REMATE) — a positional crit banner
   // over the enemy's back. Pure feel ($0 art, reuses existing fx), damage already applied.
   if(backstab){ addFx("spellburst",e.x,e.y-2,{col:"#8fe3ff"}); addFx("shockring",e.x,e.y,{r:52,life:0.4}); addFx("debris",e.x,e.y,{ang,life:0.5}); shakeAdd(6); freeze(6); // CAS-2010: backstab now BITES (freeze) — was shake only
-    if(JUICE.enabled && JUICE.flash) floater(e.x,e.y-34,STR.backstab||"¡POR LA ESPALDA!","#8fe3ff",{crit:true,pop:1.9,life:1.05}); } // CAS-2010: banner polish flash-gated
+    if(JUICE.enabled && JUICE.flash && G.settings.flash) floater(e.x,e.y-34,STR.backstab||"¡POR LA ESPALDA!","#8fe3ff",{crit:true,pop:1.9,life:1.05}); } // CAS-2010: banner polish flash-gated
   freeze(Math.min(7, (crit?4:2)+Math.floor(dmg/14))); // hit pops harder the bigger the blow; crits bite deepest
   // CAS-118: the equipped weapon's on-hit STATUS procs (CAS-117 affixes) — an 'ardiente'
   // weapon sets the struck enemy on fire. Every hero-sourced hit funnels here, so the
