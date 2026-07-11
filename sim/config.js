@@ -1693,7 +1693,7 @@ export const BOSS_RUSH = {
 //   toastSecs      — duración del toast de hint (reusa toast(str,secs); 0 RNG).
 //   showHudHint    — afordancia HUD "[`] Códice" (descubribilidad del propio códice). $0 arte, presentacional.
 export const COMBAT_CODEX = {
-  enabled: false,           // ships DARK; Gate CEO flip (mirror SUMMON/BOSS_RUSH). enabled:false ⇒ TODO inerte, byte-id HEAD.
+  enabled: true,            // CAS-2002 GO-LIVE flip (Gate CEO CAS-1999 GO; mirror SUMMON CAS-1980/BOSS_RUSH CAS-1994). Códice + hints LIVE.
   codexKey: "Backquote",    // ` / ~ — CODE fijo NO rebindable (grep-verificado libre). CTO-tunable.
   showContextHints: true,   // sub-toggle: apaga SÓLO los hints (B); el códice (A) sigue vivo.
   toastSecs: 4.5,           // duración del toast de hint (reusa toast(str,secs); 0 RNG).
