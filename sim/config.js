@@ -1710,6 +1710,40 @@ export const BOSS_RUSH = {
   scoreCleanBonus: 10000,         // bonus por run impecable (hitsReceived===0)
 };
 
+// CAS-2071 (EVO CAS-2071) — VARIEDAD DE ENCUENTROS. Variantes de COMPORTAMIENTO de mob a $0 arte: reusan el
+// sprite + la telegrafía/AI existentes y sólo MODULAN stats (windup/lunge/hp/spd/dmg/poiseMax) sobre un CLONE del
+// tpl (mirror applyZoneScale) ⇒ cada una fuerza una herramienta distinta del kit (parry/dodge, combo+rotura, AoE).
+// El marcador es PROCEDURAL (tint/label, reusa el path del affix élite) ⇒ cero sprites nuevos. HARD-GATED:
+// enabled:false ⇒ maybeVariant retorna en la 1ª línea ⇒ 0 draws en cualquier stream ⇒ build byte-idéntico a HEAD.
+// RNG-neutral STRONG: la selección draw SÓLO de enemyVariantRng (stream dedicado sim.js), NUNCA del master srand ⇒
+// srand ON==OFF byte-idéntico a cualquier chancePerZone. El Gate CEO flippea enabled:false→true (config-only,
+// reversible, mirror CAS-2043/2055). Sin AI nueva, sin save nuevo, sin path de daño nuevo. 60fps, móvil jugable.
+//   rngSeed        — seed del stream dedicado enemyVariantRng (distinto de todos los usados en sim.js:42–128).
+//   chancePerZone  — fracción de spawns naturales elegibles que se vuelven variante, POR zona (ausente ⇒ 0 ⇒ sin variantes).
+//   markerLabel    — pinta el label procedural sobre la barra HP (mirror affix render.js:1429). false ⇒ sólo tint/halo.
+//   variants       — modulaciones puras de stats sobre el clone del tpl (windup↓/lunge↑, poiseMax↑, hp↓/spd↑…) + name/tint.
+//   byZone         — qué variantes son elegibles por zona (variedad temática; se elige una del pool por enemyVariantRng).
+export const ENCOUNTER_VARIANTS = {
+  enabled: false,                 // DARK ship; Gate CEO flippea live (config-only, reversible, mirror CAS-2043/2055)
+  rngSeed: 0x0ec02071,            // stream dedicado enemyVariantRng; NUNCA consume del master srand
+  chancePerZone: { forest:0.30, caves:0.30, swamp:0.30, abyss:0.25 }, // TUNABLE; ausente ⇒ 0 (la variante es sal, no reemplazo)
+  markerLabel: true,              // label procedural sobre barra HP (mirror affix render.js:1429)
+  variants: {
+    // Acechador — telegrafía más corta (con piso parryable) + lunge más largo ⇒ premia parry/dodge preciso.
+    stalker: { name:"Acechador", windupMul:0.70, windupFloor:0.28, lungeMul:1.35, dmgMul:0.90, tint:"#ff8a3d" },
+    // Bastión — poise alto ⇒ no se rompe con golpes sueltos; premia combos + rotura + finisher. hp↑, spd↓.
+    bastion: { name:"Bastión", poiseMaxMul:1.80, hpMul:1.25, spdMul:0.85, dmgMul:1.00, tint:"#9aa7c7" },
+    // Frágil — hp baja + veloz ⇒ muere de un arco ancho/arrojadizo pero castiga si lo ignoras; premia AoE. dmg↓ compensa.
+    glass:   { name:"Frágil", hpMul:0.55, spdMul:1.30, dmgMul:0.85, tint:"#7bd14a" },
+  },
+  byZone: {                       // variedad temática por zona (una del pool se elige por enemyVariantRng)
+    forest: ["stalker","glass"],
+    caves:  ["bastion","stalker"],
+    swamp:  ["glass","bastion"],
+    abyss:  ["bastion","stalker","glass"],
+  },
+};
+
 // CAS-1996 (EVO CAS-1995) — CÓDICE DE COMBATE + HINTS CONTEXTUALES. Descubribilidad pura: un panel de referencia
 // read-only (A) que lista las mecánicas de combate VIVAS con su binding REAL + descripción, y toasts one-time de
 // primer-encuentro (B) que enseñan cada sistema cuando el jugador lo toca por primera vez. 100% BORROW: A clona el
