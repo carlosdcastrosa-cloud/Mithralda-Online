@@ -228,6 +228,7 @@ for (const prof of PROFILES) {
   // Rebind + re-enter play after reload, then measure.
   await page.evaluate(() => { try { window.__dev && window.__dev.reset && window.__dev.reset(); } catch (e) {} });
   await toPlay(page).catch(() => {});
+  await wait(700); // warmup: let JIT settle (headless DPR2 cold-start artifact, mirror CAS-2079)
   const fps = await page.evaluate(() => new Promise((res) => {
     let n = 0; const t0 = performance.now();
     function tick(t) { n++; if (t - t0 >= 1500) res(+(n / ((t - t0) / 1000)).toFixed(1)); else requestAnimationFrame(tick); }
