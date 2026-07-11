@@ -1,0 +1,99 @@
+
+########## CAS-2161 COHESION & BALANCE AUDIT v6 — 40 mecánicas · LIVE fa5ccf7c051f/799 ##########
+DEFLECT.enabled=true (mec #39) · LUNGE.enabled=true (mec #40) — both LIVE · driving REAL sim loop (served==HEAD byte-id ×5)
+
+===== [A] COUNTER STACKING — do reactive windows create a no-risk guaranteed combo? =====
+Guard Counter (#33): light swing in-window ×1.8 (expect 1.8), stam 10, consumes window=true ⇒ PASS
+Dodge Counter (#34): light swing in-window ×1.5 (expect 1.5), stam 6, consumes window=true ⇒ PASS
+Charged   (#37): supra-threshold heavy ×1.7 (expect 1.7), +12 stam, chargeT@release 500ms ⇒ PASS
+COMPOSE gc+dc BOTH windows forced open on one swing: dmg ratio ×1.8 — onlyGuardMul(no product)=true, dodgeWindowNOTconsumed=true
+VERDICT [A]: reactive counters NEVER multiply together on one swing (max one of {1.8, 1.5, 1.7}) ⇒ PASS
+
+===== [B] BURST CEILING — biggest single hit as a fraction of BOSS maxHp =====
+Riposte (#36) execute ×2.2 (expect 2.2); consumes _ripArm=true; 2nd melee same window NORMAL=true ⇒ 1 crit / break
+Riposte CAP vs boss: dBoss=2 == cap 2 (=25% maxHp), trash uncapped 190.08 ⇒ bossCapped=true
+Charged CAP vs boss: dBoss=1.76 == cap 1.76 (=22% maxHp), trash uncapped 104.04 ⇒ bossCapped=true
+COMPOUND charged+riposte on a broken boss: riposte cap (≤25%) then charged cap (≤22%) ⇒ FINAL hit ≤ 22% boss maxHp
+VERDICT [B]: minimum 5 biggest-possible hits to kill a boss ⇒ NO one-shot ⇒ PASS
+
+===== [C] RALLY SUSTAIN — can the hero out-heal a boss while charging (hyper-armor tank+regain)? =====
+Rally ARM: took 96.4 dmg ⇒ pool 33.74 (=0.35× ≈ recoverFrac 0.35); window 3s ⇒ PASS
+Rally HEAL: one melee heals 50 of pool 100 (=healPerHitFrac 0.5); AoE 2 mobs heals ONCE=true ⇒ PASS
+Rally CAP: pool clamped to 400000 = 40% HPmax ⇒ PASS; DECAY 75000/0.5s + expiry→0 ⇒ PASS
+Charged windup: incoming per-hit capped to 180 = 18% HPmax (base 99996.4) ⇒ absorb≠immunity PASS; hyper-armor stun absorbed=true
+NET SUSTAIN: recoverFrac 0.35 × healPerHitFrac 0.5 = 0.175 HP returned per 1 HP taken, per melee hit
+VERDICT [C]: 0.175 < 1 ⇒ every exchange is STRICTLY net-loss (plus decay if you don't hit) ⇒ NO infinite tank+regain ⇒ PASS
+
+===== [D] STATUS BUILDUP (bleed procPctHp) — does DoT-as-%HP degenerate vs high-HP bosses? =====
+Bleed: melee feeds meter=true; trash proc burst 110 = 11% maxHp every 7 hits; resets=true
+Bleed vs BOSS: burst 60 = 6% maxHp every 12 hits (bossBuildMul 0.55 ⇒ slower); decay 14/s punishes poking
+Bleed-ALONE to kill a boss: 17 procs × 12 sustained hits = ~204 uninterrupted melee hits (decay resets if you disengage)
+VERDICT [D]: %HP proc scales with boss HP (anti-sponge by design) but capped at 6%/cycle + slow boss buildup + decay ⇒ chip, not degenerate ⇒ PASS
+
+===== [G] GUARD-BREAK #38 (Empujón/Rompe-Guardia) — anti-turtle verb; burst-free & orthogonal? =====
+POISE  : kick poise ×3.2 vs a light swing (expect 3.2); pRef=12 pKick=38.400000000000006 ⇒ PASS
+BREAK  : 3 kicks drain a champion's guard ⇒ staggerT=1.6 ARMS _ripArm=true (NO auto-exec); NORMAL follow-up melee executes=true ⇒ PASS
+SHIELD : kick CRACKS a carapace-shielded enemy=true + shoves=true; normal melee does NOT crack=true ⇒ anti-turtle PASS
+COST   : stam spent 20 (expect 20); recovery armed=true; direct dmg 9 << normal swing 36 (LOW=true); 2nd kick in-CD denied=true ⇒ PASS
+OFF    : GUARD_BREAK.enabled=false ⇒ kick no-op: noCost=true noPoise=true noCrack=true noCd=true ⇒ byte-id HEAD PASS
+SAVE   : serialize byte-id ON==OFF=true; no gb* key leak=true ⇒ PASS
+VERDICT [G]: kick drains poise (×3.2) & cracks shields to BREAK the turtle, ARMS (not auto-crits) Riposte's window, costs 20 stam + 600ms recovery, deals only 5 direct dmg ⇒ anti-turtle WITHOUT new burst/one-shot; OFF byte-id ⇒ PASS
+
+===== [H] DEFLECT #39 (Reflejo de Proyectil) — anti-ranged verb; burst-free, no self-damage, capped? =====
+FLIP   : enemy bolt captured in parry window ⇒ ownerFlipped=true, velReversed→shooter=true; heroHpLoss=0 (0 self-dmg); shooterHpLoss=40; stam −12 (cfg 12)
+CAP    : dmg 100000 on a 500 maxHp shooter ⇒ reflectedRaw=75 == cap 75 (=15% maxHp), capHit=true; shooterHpLoss=75 ⇒ never one-shot
+WINDOW : requiresParryWindow=true, oncePerWindow=true ⇒ parryT consumed after=0s (tempo-gate, not passive shield)
+OFF    : enabled=false ⇒ NOT flipped=true, hero EATS bolt heroHpLoss=36>0, stam 0=0 ⇒ byte-id dead branch
+VERDICT [H]: enemy projectile flips owner + reverses toward the shooter, reflected dmg CAPPED ≤15% target maxHp, hero takes 0 self-dmg, once-per-window tempo-gated, OFF byte-id ⇒ anti-ranged WITHOUT new burst ⇒ PASS
+
+===== [I] LUNGE #40 (Estocada de Avance) — anti-kite gap-closer; no-iframe commit, capped, universal? =====
+DASH   : hero displaced 131.11px toward facing (cfg distance=118, ~1.11×); fired=true
+STRIKE : dmgMul1.0 36 → dmgMul1.3 47 (ratio 1.306 ≈ 1.3), cfg restored=1.3
+NO-IFRAMES 🔑: dash grants NO i-frames iframeMax=0 granted=false rolling=false ⇒ vulnerable/commit (distinguishes from roll; whiff-punishable)
+COST   : stam −16 (cfg 16); _lungeCd=0.52s blocks re-lunge (reFired=false reStam=0); recoverMs cfg 520
+OFF    : enabled=false ⇒ inert: fired=false disp=0 dmg=0 floater=false stam=0 ⇒ byte-id dead branch
+UNIVERSAL: mage (ranged class) dashes 131.11px + strike dmg 54 (requiresMelee=false) ⇒ every class closes distance
+ONE-SHOT?: lunge strike vs 25000hp boss = 47 (0.188% maxHp) — ×1.3 UNCAPPED melee ≪ capped burst 22%/hit ⇒ NOT a new one-shot vector
+VERDICT [I]: dash ~118px closes the kite, strikes ×1.3, NO i-frames (vulnerable commit), costs 16 stam + recovery lockout, UNIVERSAL, OFF byte-id, NOT a one-shot ⇒ PASS
+
+===== [E] RNG-NEUTRALITY — srand ON==OFF (0 new draws) for the newest mecánicas =====
+  GuardCounter#33: 16 draws, ON==OFF true ⇒ PASS
+  DodgeCounter#34: 16 draws, ON==OFF true ⇒ PASS
+  Rally#35: 16 draws, ON==OFF true ⇒ PASS
+  Riposte#36: 16 draws, ON==OFF true ⇒ PASS
+  Charged#37: 16 draws, ON==OFF true ⇒ PASS
+  GuardBreak#38: 16 draws, ON==OFF true ⇒ PASS
+  Variants: 16 draws, ON==OFF true ⇒ PASS
+  Hazards: 16 draws, ON==OFF true ⇒ PASS
+  Deflect#39: 16 draws, ON==OFF true, determ true ⇒ PASS
+  Lunge#40: 16 draws, ON==OFF true, determ true ⇒ PASS
+VERDICT [E]: srand ON==OFF across newest mecánicas incl #39/#40 ⇒ PASS
+
+===== [F] COVERAGE — melee-only pillars vs universal verbs =====
+Melee-gated pillars: GuardCounter#33(needs shield-block), Riposte#36(requiresMelee), Rally#35(requiresMelee), Charged#37(requiresMelee)
+Universal anti-turtle : GuardBreak#38 (requiresMelee=false).
+Universal anti-ranged : Deflect#39 (reuses PARRY window h.parryT; any class that can parry can reflect).
+Universal anti-kite   : Lunge#40 (requiresMelee=false) ⇒ every class (incl mage/archer) closes distance.
+
+===== [Q] KEY-COLLISION — does any dedicated verb key clash? =====
+LUNGE.key='Backslash' — collision set: none
+GUARD_BREAK.key='Period' — collision set: none
+VERDICT [Q]: 'Backslash' (lunge) & 'Period' (guard-break) are distinct dedicated non-letter codes, free of the 26-letter rebind pool & the fixed verbs ⇒ no collision ⇒ PASS
+
+===== COHESION VERDICT v6 (40 mecánicas) =====
+  [A] PASS
+  [B] PASS
+  [C] PASS
+  [D] PASS
+  [E] PASS
+  [G] PASS
+  [H] PASS
+  [I] PASS
+  [Q] PASS
+
+STACK COHESIVE: YES — no degenerate loop, no dominant/dead mechanic, no one-shot, no infinite sustain, #39 anti-ranged & #40 anti-kite both burst-free/orthogonal, 0-regression of 38 prior (OFF paths byte-id)
+FINDINGS (severity-ranked): none above sev-4
+
+KEY OBSERVABLE NUMBERS: burstCeil=22%bossMaxHp/hit(min 5 hits) · rallyNet=0.175HP/dmg(<1) · bleedBoss=6%/12hits · deflectCap=15%maxHp · lungeStrike=×1.3/0.188%boss/dash118px/noIframe · keys lunge'Backslash'/gb'Period'
+
+AUDIT_RESULT_JSON {"build":"fa5ccf7c051f","cohesive":true,"gates":{"A":true,"B":true,"C":true,"D":true,"E":true,"G":true,"H":true,"I":true,"Q":true},"findings":0,"sev1":0}
