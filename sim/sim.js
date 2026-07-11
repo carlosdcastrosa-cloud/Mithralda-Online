@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, ENCOUNTER_VARIANTS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -278,6 +278,13 @@ export const G = {
     // CAS-2047 Time-Attack: per-run telemetry (NON-serialized; reset in startBossRush; only accumulates when timeAttack):
     combatMs:0, roundMs:[], hitsReceived:0, lastScore:0, lastTimeMs:0,
     newTimeRecord:false, newScoreRecord:false, prevBestTimeMs:0, prevBestScore:0 },
+  // CAS-2090: DESAFÍO CON SEMILLA — reusa el modo Boss Rush como ruleset fijo pero resiembra el `srand` MAESTRO
+  // desde un código compartible ⇒ misma semilla = mismo run. `seededChallengeMode` = flag OVERLAY (false en TODO
+  // run normal y en Boss Rush normal ⇒ todas las ramas nuevas muertas ⇒ byte-idéntico a HEAD). `pendingSeededChallenge`
+  // lo arma la entrada de menú (mirror pendingBossRush); `seededCode` = el código activo; records AISLADOS por código
+  // en `seededRecords` (su propio store mithralda.seededchallenge.v1 vía persist, flush en seededChallengeDirty).
+  // NUNCA serializa al run save. El master srand SÓLO se resiembra dentro de startSeededChallenge (único sitio).
+  seededChallengeMode:false, pendingSeededChallenge:false, seededChallengeDirty:false, seededCode:null, seededRecords:{},
   // CAS-1681: Eventos de Zona (optional POIs) — PURELY runtime bookkeeping (never serialized into the
   // run save; only a durable per-run completion counter rides the hero additively). `seeded` = zones
   // already rolled this run (seed-once-per-zone, mirroring curseSeen). `pois` = the live POI list read
@@ -829,6 +836,11 @@ export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunt
   // only the menu "Modo Boss Rush" entry (which set pendingBossRush) flips it on. Independent of arena.
   G.bossRushMode=false;
   if(G.pendingBossRush){ G.pendingBossRush=false; G.bossRushMode=true; startBossRush(); }
+  // CAS-2090: mismo seam para el Desafío con Semilla — SÓLO la entrada de menú (pendingSeededChallenge) lo enciende.
+  // startSeededChallenge resiembra el master srand desde el código ⇒ el run entero es determinista y compartible.
+  // pendingSeededChallenge/pendingBossRush son mutuamente exclusivos (la entrada de menú limpia los otros).
+  G.seededChallengeMode=false;
+  if(G.pendingSeededChallenge){ G.pendingSeededChallenge=false; G.seededChallengeMode=true; startSeededChallenge(); }
   // CAS-1996 hint one-time: la 1ª entrada a play anuncia el Códice de Combate (cierra el loop de descubribilidad; gated; 0 RNG).
   fireHint("hint_codex", "Pulsa ["+keyLabel(COMBAT_CODEX.codexKey)+"] en cualquier momento para abrir el Códice de Combate."); }
 
@@ -1139,10 +1151,14 @@ function gauntletComplete(){ const BR=G.bossRush;
   if((BOSS_RUSH.clearBonusEss|0)>0){ ensureMeta().essence=(ensureMeta().essence|0)+(BOSS_RUSH.clearBonusEss|0); G.metaDirty=true; }
   BR.lastClearBonus=BOSS_RUSH.clearBonusEss|0; BR.complete=true;
   const full=BOSS_RUSH.sequence.length;
-  if(full>(BR.best|0)){ BR.best=full; G.bossRushDirty=true; }
+  if(!G.seededChallengeMode && full>(BR.best|0)){ BR.best=full; G.bossRushDirty=true; } // CAS-2090: un desafío con semilla NUNCA banca al récord de Boss Rush (record aislado por código)
   toast("¡GAUNTLET COMPLETA! +"+(BOSS_RUSH.clearBonusEss|0)+" Esencia", 4.0); shakeAdd(10);
   audio&&audio.sfx&&audio.sfx.boss&&audio.sfx.boss();
   bossRushClearEnemies();
+  // CAS-2090: en Desafío con Semilla, puntúa con la MISMA fórmula pero banca a los records AISLADOS por código y
+  // enruta al recap mostrando el código. Gateado por seededChallengeMode ⇒ false en Boss Rush normal ⇒ path HEAD intacto.
+  if(G.seededChallengeMode){ seededScoreComplete();
+    G.seededChallengeMode=false; G.bossRushMode=false; G.pendingBossRush=false; G.scene="bossRushRecap"; return; }
   // CAS-2047 Time-Attack: score the completed clear, bank beaten records, fill the recap payload, and route to the
   // results overlay INSTEAD of the menu. Gated ⇒ off = the existing menu path below runs verbatim (HEAD byte-id).
   if(BOSS_RUSH.timeAttack){ bossRushScoreComplete();
@@ -1171,9 +1187,13 @@ function bossRushScoreComplete(){ const BR=G.bossRush;
 // Rush with the current hero through the REAL startBossRush; `menu` returns to the main menu. Both clear the recap
 // payload and are scene-guarded so a stray key/tap outside the overlay is inert.
 export function retryBossRush(){ if(G.scene!=="bossRushRecap") return false;
-  G.bossRushRecap=null; G.bossRushMode=true; G.pendingBossRush=false; startBossRush(); return true; }
+  // CAS-2090: si el recap era un Desafío con Semilla, re-arma la MISMA semilla (mismo run determinista); si no, Boss Rush normal.
+  const seededCode=G.bossRushRecap&&G.bossRushRecap.seededCode;
+  G.bossRushRecap=null;
+  if(seededCode){ G.seededCode=seededCode; G.seededChallengeMode=true; G.bossRushMode=true; G.pendingBossRush=false; startSeededChallenge(); return true; }
+  G.bossRushMode=true; G.pendingBossRush=false; startBossRush(); return true; }
 export function exitBossRushRecap(){ if(G.scene!=="bossRushRecap") return false;
-  G.bossRushRecap=null; G.bossRushMode=false; G.pendingBossRush=false; G.scene="menu"; return true; }
+  G.bossRushRecap=null; G.bossRushMode=false; G.pendingBossRush=false; G.seededChallengeMode=false; G.seededCode=null; G.scene="menu"; return true; } // CAS-2090: salir limpia también el estado de semilla
 // Hero death ends the gauntlet: the highest round REACHED is the score; persist it as the new best (own store,
 // additive) if it beats the record. Called from heroDie (Boss Rush branch only). Mirror arenaOnDeath.
 function bossRushOnDeath(){ const BR=G.bossRush;
@@ -1196,6 +1216,59 @@ export function loadBossRush(d){
   G.bossRush.bestScore  = (d && Number.isFinite(+d.bestScore))  ? Math.max(0, Math.floor(+d.bestScore))  : 0;
   return G.bossRush.best; }
 // ================== end CAS-1988 Modo Boss Rush ==================
+
+// ==================== CAS-2090: DESAFÍO CON SEMILLA (Seeded Challenge Run) ====================
+// Reusa el gauntlet de Boss Rush como RULESET FIJO, pero resiembra el `srand` MAESTRO desde un código compartible
+// ⇒ dos jugadores con la misma semilla juegan el MISMO run determinista y comparan score. Records AISLADOS por
+// código. TODO gateado por G.seededChallengeMode (false en cualquier run normal/Boss Rush) o SEEDED_CHALLENGE.enabled
+// ⇒ OFF byte-idéntico a HEAD: el master srand SÓLO se resiembra dentro de startSeededChallenge, el ÚNICO sitio.
+
+// Hash estable de string → semilla uint32 (FNV-1a). PURO, sin estado: mismo string ⇒ mismo número SIEMPRE, en
+// cualquier motor JS ⇒ dos jugadores con el mismo código derivan la MISMA semilla (base de la reproducibilidad).
+export function seededHash(str){ let h=0x811c9dc5>>>0; const s=String(str==null?"":str);
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; } return (h>>>0)||1; }
+// Código de la "semilla del día": prefijo + fecha estable (YYYYMMDD, pasada DESDE FUERA — 0 Date.now en el sim,
+// que rompería el determinismo). Sin fecha cae a un sufijo fijo (los tests pasan un código explícito).
+export function seededDailyCode(dateStr){ return (SEEDED_CHALLENGE.codePrefix||"MITH-")+(dateStr||"DAILY"); }
+// El mejor récord guardado para un código (records aislados por semilla; ausente ⇒ null = "sin récord aún").
+function seededBestFor(code){ const r=G.seededRecords&&G.seededRecords[code]; return r?{ score:r.score|0, timeMs:r.timeMs|0 }:null; }
+// Arranca el desafío: resiembra el master srand desde el código, reusa el controlador Boss Rush entero, y fija el
+// baseline del récord POR CÓDIGO (para el delta del recap). Llamado SÓLO desde el seam de menú o retry ⇒ el juego
+// normal jamás resiembra srand ⇒ OFF/ON-inactivo byte-idéntico a HEAD.
+function startSeededChallenge(){ const BR=G.bossRush;
+  const code=G.seededCode||seededDailyCode(); G.seededCode=code;
+  seed(seededHash(code));                     // RESIEMBRA el master srand desde el código ⇒ run determinista/compartible
+  const prev=seededBestFor(code);             // baseline del récord AISLADO del código
+  G.bossRushMode=true;                        // reusa el controlador Boss Rush (spawn/tick/timer/score/recap)
+  startBossRush();                            // arranca el gauntlet en 'play' (resetea telemetría de tiempo/hits)
+  BR.prevBestTimeMs=prev?prev.timeMs:0; BR.prevBestScore=prev?prev.score:0; // sobrescribe el baseline con el POR-CÓDIGO
+}
+// Puntúa un desafío COMPLETADO con la MISMA fórmula de Boss Rush time-attack (0 RNG), compara vs el récord AISLADO
+// del código, banca al store propio si lo bate, y llena el recap con el código para compartir. Sólo se alcanza bajo
+// seededChallengeMode ⇒ jamás corre en un run normal ⇒ HEAD byte-id.
+function seededScoreComplete(){ const BR=G.bossRush;
+  const timeMs=Math.round(BR.combatMs||0); const combatSec=timeMs/1000; const hits=BR.hitsReceived|0;
+  const clean=(hits===0)?(BOSS_RUSH.scoreCleanBonus|0):0;
+  const score=Math.max(0, (BOSS_RUSH.scoreBase|0) - Math.round(combatSec*(BOSS_RUSH.scoreTimeW|0)) - hits*(BOSS_RUSH.scoreHitW|0) + clean);
+  const code=G.seededCode||seededDailyCode(); const prev=seededBestFor(code);
+  const prevT=prev?prev.timeMs:0, prevS=prev?prev.score:0;
+  BR.lastTimeMs=timeMs; BR.lastScore=score;
+  const newTimeRecord=(prevT<=0)||(timeMs<prevT); const newScoreRecord=score>prevS;
+  if(newTimeRecord||newScoreRecord){ const rec=G.seededRecords[code]||(G.seededRecords[code]={score:0,timeMs:0});
+    if(newScoreRecord) rec.score=score; if(newTimeRecord) rec.timeMs=timeMs; G.seededChallengeDirty=true; }
+  G.bossRushRecap={ timeMs, score, hits, roundMs:(BR.roundMs||[]).map(m=>Math.round(m||0)),
+    prevBestTimeMs:prevT, prevBestScore:prevS, newTimeRecord, newScoreRecord, seededCode:code };
+}
+// Persistencia AISLADA (mirror serializeBossRush): el sim posee la forma, persist.js el medio localStorage + el flush
+// en seededChallengeDirty. Records = { [code]: {score,timeMs} } por semilla. NUNCA toca save.v1. Gateado: con
+// SEEDED_CHALLENGE.enabled false la entrada de menú no existe ⇒ seededScoreComplete nunca corre ⇒ dirty jamás se
+// arma ⇒ el store JAMÁS se escribe ⇒ byte-idéntico a HEAD (mirror BLOODSTAIN/HINTS never-written invariant).
+export function serializeSeededChallenge(){ return { v:1, records:(G.seededRecords||{}) }; }
+export function loadSeededChallenge(d){ const out={};
+  if(d && d.records && typeof d.records==="object"){ for(const k in d.records){ const r=d.records[k];
+    if(r && typeof r==="object") out[k]={ score:Math.max(0,Math.floor(+r.score||0)), timeMs:Math.max(0,Math.floor(+r.timeMs||0)) }; } }
+  G.seededRecords=out; return out; }
+// ================== end CAS-2090 Desafío con Semilla ==================
 
 // --------------------- CAS-1751: CÓDICE DE BOTÍN (Collection Log) ---------------------
 // A PURE READ-SIDE ledger over the shipped loot systems. It NEVER draws from any RNG stream and
@@ -1933,7 +2006,7 @@ export function loadSave(d){
     else G.tut=null;
     G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents();
     G.arenaMode=false; G.pendingArena=false; // CAS-1664: a resumed run is the normal adventure, never arena (the arena best lives in its own store)
-    G.bossRushMode=false; G.pendingBossRush=false; // CAS-1988: a resumed run is the normal adventure, never Boss Rush (best round lives in its own store)
+    G.bossRushMode=false; G.pendingBossRush=false; G.seededChallengeMode=false; G.seededCode=null; // CAS-1988/2090: a resumed run is the normal adventure, never Boss Rush / Seeded Challenge (records live in their own stores)
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
     G.scene="play"; G.started=true;
     beginRun();                                               // CAS-277: baseline this resumed session's run
@@ -3764,7 +3837,7 @@ export function respawn(){
   h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.x=h.respawn.x; h.y=h.respawn.y; h.bld=null;   // CAS-1841: vigor a tope al reaparecer · CAS-1931: medidor buildup limpio (OFF ⇒ ya null ⇒ byte-id)
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.arenaMode=false; // CAS-1664: leaving the death screen exits Arena de Oleadas → back to the normal world (no-op in a normal run)
-  G.bossRushMode=false; G.pendingBossRush=false; // CAS-1988: leaving the death screen exits Boss Rush too (no-op in a normal run)
+  G.bossRushMode=false; G.pendingBossRush=false; G.seededChallengeMode=false; G.seededCode=null; // CAS-1988/2090: leaving the death screen exits Boss Rush / Seeded Challenge too (no-op in a normal run)
   G.recap=null; beginRun(); // CAS-277: fresh run baseline for the next recap
 }
 // CAS-277: the death recap's secondary action — respawn at the safe fountain but land in
@@ -5445,6 +5518,30 @@ export const dev = {
   // Stage the durable records (records-only tests without a prior run).
   brSetRecords(timeMs,score){ const BR=G.bossRush; BR.bestTimeMs=Math.max(0,timeMs|0); BR.bestScore=Math.max(0,score|0);
     return { bestTimeMs:BR.bestTimeMs, bestScore:BR.bestScore }; },
+  // --- CAS-2090 Desafío con Semilla harness hooks (tools/cas2090-*.mjs); additive, drive/read the REAL paths ---
+  // Prueba DIRECTA "misma semilla = mismo stream RNG": siembra el master srand desde el código y devuelve N draws.
+  // Dos llamadas con el mismo código ⇒ arrays byte-idénticos; códigos distintos ⇒ distintos (base de la reproducibilidad).
+  scSeedDraws(code,n){ seed(seededHash(String(code))); const a=[]; const k=Math.max(1,n|0); for(let i=0;i<k;i++) a.push(srand()); return a; },
+  scHash(code){ return seededHash(String(code)); },
+  scDailyCode(dateStr){ return seededDailyCode(dateStr); },
+  // Entra al Desafío con el hero actual vía el REAL startSeededChallenge (resiembra srand + arranca el gauntlet).
+  scStart(code){ G.seededCode=String(code); G.seededChallengeMode=true; G.pendingBossRush=false; startSeededChallenge(); return this.scState(); },
+  // Estado vivo: knob + flags + telemetría del run + records aislados + recap (incluye seededCode). Lectura pura.
+  scState(){ const BR=G.bossRush; return { enabled:!!SEEDED_CHALLENGE.enabled, key:SEEDED_CHALLENGE.key, codePrefix:SEEDED_CHALLENGE.codePrefix,
+    seededChallengeMode:!!G.seededChallengeMode, seededCode:G.seededCode||null, scene:G.scene, bossRushMode:!!G.bossRushMode,
+    round:BR.round|0, combatMs:Math.round(BR.combatMs||0), hitsReceived:BR.hitsReceived|0, lastScore:BR.lastScore|0, lastTimeMs:BR.lastTimeMs|0,
+    prevBestTimeMs:BR.prevBestTimeMs|0, prevBestScore:BR.prevBestScore|0,
+    recap:G.bossRushRecap?{...G.bossRushRecap}:null, records:JSON.parse(JSON.stringify(G.seededRecords||{})) }; },
+  // Stage combat telemetry then force a completed challenge through the REAL gauntletComplete (seeded score+record+recap seam).
+  scStage(combatMs,hits){ const BR=G.bossRush; BR.combatMs=Math.max(0,+combatMs||0); BR.hitsReceived=Math.max(0,hits|0); return this.scState(); },
+  scComplete(){ gauntletComplete(); return this.scState(); },
+  scRetry(){ return { ok:retryBossRush(), scene:G.scene, seededChallengeMode:!!G.seededChallengeMode, seededCode:G.seededCode||null }; },
+  scExitRecap(){ return { ok:exitBossRushRecap(), scene:G.scene, seededChallengeMode:!!G.seededChallengeMode }; },
+  // Round-trip the isolated records through the REAL serialize/load to prove per-seed persistence.
+  scSerialize(){ return serializeSeededChallenge(); },
+  scLoad(d){ return loadSeededChallenge(d); },
+  // Hermetic wipe (records+mode) so run#1==run#2 in the determinism harness.
+  scReset(){ G.seededRecords={}; G.seededChallengeMode=false; G.seededCode=null; G.seededChallengeDirty=false; return true; },
   // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
   customizeState(){ return customizeState(); },
   setPartColor(slot,color){ return setPartColor(slot,color); },

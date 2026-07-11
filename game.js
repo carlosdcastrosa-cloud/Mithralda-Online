@@ -22,7 +22,7 @@ import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
 import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
 import { rarityRank } from "./sim/gear.js";
-import { STAMINA, FLASK, EQUIP_LOAD, TWO_HAND } from "./sim/config.js";   // CAS-1841/CAS-1854/CAS-1889/CAS-1895: gated HUD feeds (vigor bar + Estus pips + banda de carga + marcador a dos manos — absent OFF ⇒ HUD byte-identical)
+import { STAMINA, FLASK, EQUIP_LOAD, TWO_HAND, SEEDED_CHALLENGE } from "./sim/config.js";   // CAS-1841/CAS-1854/CAS-1889/CAS-1895: gated HUD feeds (vigor bar + Estus pips + banda de carga + marcador a dos manos — absent OFF ⇒ HUD byte-identical). CAS-2090: SEEDED_CHALLENGE for the UI-layer daily code (date derived HERE, never in the deterministic sim)
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
@@ -115,6 +115,12 @@ export function createGame(canvas, ctx, getView){
   persist.bootMeta();
   persist.bootArena();  // CAS-1664: rehydrate the Arena de Oleadas best wave from its OWN store (independent of any character)
   persist.bootBossRush(); // CAS-1988: rehydrate the Modo Boss Rush best round from its OWN store (mithralda.bossrush.v1 — independent of any character; never the run save)
+  persist.bootSeededChallenge(); // CAS-2090: rehydrate the per-seed Desafío con Semilla records from their OWN store (mithralda.seededchallenge.v1 — independent of any character; never the run save)
+  // CAS-2090: derive the shareable "daily seed" code HERE (UI layer) — the calendar date must NEVER enter the
+  // deterministic sim (Date.now/new Date would break byte-determinism). Everyone playing the same calendar day gets
+  // the SAME code ⇒ the SAME run. codePrefix + YYYYMMDD (local day, mirrors daily.js/analytics.js so it lines up).
+  { const dt=new Date(); const ds=""+dt.getFullYear()+String(dt.getMonth()+1).padStart(2,"0")+String(dt.getDate()).padStart(2,"0");
+    G.seededDailyCode = (SEEDED_CHALLENGE.codePrefix||"MITH-") + ds; }
   persist.bootCodex(); // CAS-1751: rehydrate the account-wide Códice de Botín ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile reads the live codex bonus (account-wide, independent of any character)
   persist.bootTitles(); // CAS-1758: rehydrate the account-wide Títulos de Gesta ledger from its OWN store BEFORE persist.boot() so a loaded hero's reconcile caches the equipped title (account-wide, independent of any character)
   persist.bootPacts(); // CAS-1763: rehydrate the Pactos de Poder (Power Pacts) preference from its OWN store (account-wide, independent of any character; effects derive live in the seam each run)
