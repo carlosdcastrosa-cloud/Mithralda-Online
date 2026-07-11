@@ -1701,7 +1701,7 @@ export const BOSS_RUSH = {
   // layer (timer + score + records + recap) muerto ⇒ build byte-idéntico a HEAD (serialize={v:1,bestRound}, gauntletComplete→menu,
   // HUD/recap inertes). Timer=dt de sim acumulado (0 Date.now), score=aritmética pura ⇒ 0 RNG ⇒ srand ON==OFF. $0 arte (canvas text).
   // El Gate CEO flippea timeAttack:false→true (config-only, mirror CAS-2043). Score/tiempo NO alteran la dificultad/orden del gauntlet.
-  timeAttack: false,              // master DARK: apaga TODO el layer (timer+score+records+recap)
+  timeAttack: true,               // LIVE (Gate CEO CAS-2055 flip): enciende el layer Time-Attack (timer+score+records+recap)
   showTimer: true,                // reloj corriendo en el HUD de play (sub-toggle, gateado bajo timeAttack)
   showScore: true,                // bloque score+records en el recap (sub-toggle, gateado bajo timeAttack)
   scoreBase: 100000,              // base de puntuación (formula knob, TUNABLE)
