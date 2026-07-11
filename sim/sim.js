@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -735,8 +735,9 @@ export function acceptAscend(){ const h=G.hero, a=G.ascend; if(!h||!a||G.scene!=
   cq.bossesDown.length=0;
   G.hunts=initHunts();
   h.curses={}; if(h.curseSeen) h.curseSeen.length=0; else h.curseSeen=[]; G.curse=null;
-  toast(STR.ascendAccepted(cq.tier),3.6);
-  floater(h.x,h.y-40,"★ "+STR.ascendName(cq.tier),"#ffd24d",{pop:1.9,life:1.5});
+  const ngRe=NG_PLUS.enabled && NG_PLUS.reframePrompt; // CAS-2024 NG+: explicit "Ciclo N+1" framing (copy only; 0 sim/RNG — off ⇒ CAS-450 strings verbatim)
+  toast((ngRe?STR.ngAscendAccepted:STR.ascendAccepted)(cq.tier),3.6);
+  floater(h.x,h.y-40,"★ "+(ngRe?STR.ngAscendName:STR.ascendName)(cq.tier),"#ffd24d",{pop:1.9,life:1.5});
   audio&&audio.sfx&&audio.sfx.boss&&audio.sfx.boss();
   for(let i=0,n=rmCount(12);i<n;i++) addFx("flame",h.x+frr(-30,30),h.y+frr(-34,12));
   G.ascend=null; G.scene="play"; return true;
@@ -753,6 +754,32 @@ function worldTierMods(){ const h=G.hero; const t=(h&&h.conquest&&h.conquest.tie
   if(t<=1) return null; const k=t-1;
   return { hpMul:1+WORLD_TIER.hpPct*k, dmgMul:1+WORLD_TIER.dmgPct*k, affixMul:1+WORLD_TIER.affixPct*k };
 }
+
+// ----------------------- CAS-2024: NG+ REWARD-ESCALATION LAYER (over CAS-450) -----------------------
+// Thin escalation on TOP of the live World-Tier loop. Every helper is `NG_PLUS.enabled`-gated and,
+// when off (or at tier 1, where k=0), returns its pre-existing value ⇒ byte-identical to HEAD. All are
+// pure arithmetic — NO new srand draw, NO new RNG stream. NG+ rides `conquest.tier` (CAS-450, already
+// durable) so there is NO new save state. RNG-neutral STRONG: the loot floor shifts an EXISTING
+// rollGearInst arg (same draw count), never adding a call site; Esencia/poise are draw-free math.
+function ngTier(){ const h=G.hero; return (h&&h.conquest&&h.conquest.tier)||1; }
+// Lift a loot rarity FLOOR by lootFloorPerTier per tier above 1, clamped ≤ legendary. Off/tier-1 ⇒
+// the base floor unchanged (byte-id). Shifts the minR passed to the EXISTING rollGearInst call — the
+// draw-count-neutral CAS-450 affix-threshold pattern (move the threshold, don't add a draw).
+function ngLootFloor(baseR, tier){ if(!NG_PLUS.enabled) return baseR;
+  const k=((tier||ngTier())|0)-1; if(k<=0) return baseR;
+  const steps=(NG_PLUS.lootFloorPerTier*k)|0; if(steps<=0) return baseR;
+  const cap=rarityRank("legendary");                                  // clamp ≤ legendary (index 4)
+  const lifted=Math.min(cap, rarityRank(baseR)+steps);
+  return RARITY_ORDER[lifted]; }
+// Esencia grant multiplier: 1 + essMulPerTier per tier above 1. Off/tier-1 ⇒ 1 (arithmetic, 0 draws).
+function ngEssMul(tier){ if(!NG_PLUS.enabled) return 1;
+  const k=((tier||ngTier())|0)-1; if(k<=0) return 1; return 1+NG_PLUS.essMulPerTier*k; }
+// Enemy-poise multiplier (sub-flag, default 0 ⇒ 1). Applied at the poiseCeil resolver (the single
+// post-spawn authoritative source of an enemy's poise ceiling), NOT in the applyZoneScale tpl clone —
+// poise is DERIVED per-hit from POISE config, never stored on the tpl, so poiseCeil is the real
+// application layer. Returns a scalar (no allocation ⇒ safe on the per-hit poiseCeil path). 0 draws.
+function ngPoiseMul(){ if(!NG_PLUS.enabled || !(NG_PLUS.poisePctPerTier>0)) return 1;
+  const k=ngTier()-1; if(k<=0) return 1; return 1+NG_PLUS.poisePctPerTier*k; }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
 export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents(); G.scene="play"; G.started=true;
@@ -1524,7 +1551,9 @@ function essenceForRun(h, r){ if(!h) return 0;
   // CAS-1590: each Élite Campeón slain this run banks a GUARANTEED, data-driven Esencia bounty on
   // top of the affix drip. No RNG → 0 champions (incl. CHAMPION_RATE=0) → term vanishes → byte-identity.
   const champs=(r&&r.champElites)|0;
-  const raw0 = lvl*2 + elites*5 + zonas*10 + (tier-1)*15 + afk*MOB_AFFIX_ESSENCE + champs*CHAMPION.essence;
+  // CAS-2024 NG+: the champion bounty + affix drip escalate per World Tier (× ngEssMul). Disabled/tier-1 ⇒
+  // ngEssMul=1 ⇒ the term is byte-identical (x*1===x); the lvl/elite/zone/tier floor terms are untouched. 0 RNG.
+  const raw0 = lvl*2 + elites*5 + zonas*10 + (tier-1)*15 + (afk*MOB_AFFIX_ESSENCE + champs*CHAMPION.essence)*ngEssMul(tier);
   if(raw0<=0) return 0;
   // CAS-1632: corona_ecos unique (+25% Esencia) scales the raw haul BEFORE the Ascensión mult.
   // Read live off the equipped instances (uniqTotals) — derived, 0 RNG; unequipped → ×1 (byte-identical).
@@ -1942,10 +1971,14 @@ function spawnEnemy(type,x,y){
 // covers ALL of them with zero-miss (no need to hook every promotion). 0 ⇒ this enemy never accrues postura
 // (basic trash, neutrals, 0-dmg supports). Pure data read — no RNG, no side effects. Boss uses its own profile.
 function poiseCeil(e){ if(!POISE.enabled || !e || !e.tpl) return 0;
-  if(e.isBoss) return POISE.boss.max;
-  if(e.elite||e.champion||e.champElite) return POISE.elite.max;
-  if(POISE.basicMelee && !e.tpl.neutral && (e.tpl.dmg||0)>0 && (e.tpl.range||0)<=60) return POISE.elite.max;
-  return 0; }
+  let base=0;
+  if(e.isBoss) base=POISE.boss.max;
+  else if(e.elite||e.champion||e.champElite) base=POISE.elite.max;
+  else if(POISE.basicMelee && !e.tpl.neutral && (e.tpl.dmg||0)>0 && (e.tpl.range||0)<=60) base=POISE.elite.max;
+  else return 0;
+  // CAS-2024 NG+: optional per-cycle poise× (sub-flag, default 0 ⇒ mul 1 ⇒ byte-id HEAD). Post-spawn,
+  // per-hit authoritative, 0 draws. Stacks under the SIGNATURE_BOSS phase-2 poise override (applied later in hitEnemy).
+  const m=ngPoiseMul(); return m===1?base:Math.round(base*m); }
 // CAS-342: the legacy positional caves boss (spawnBoss) is removed — the dragon is now the caves
 // ZONE CAPSTONE (HUNTS.caves.boss), summoned by spawnChampion when the kill quota is met, and
 // carries its 6-anim rich rendering + breath through the shared capstone path. The dev.spawn hook
@@ -2820,8 +2853,9 @@ function killEnemy(e){
   // DEDICADO bossRng, APPENDED tras todos los draws srand/legRng/setRng/runeRng ⇒ srand compartido BYTE-IDÉNTICO haya o no jefe
   // firma ([AC-RNG-STRONG]). Sin persistencia (drop cada kill). OFF ⇒ rama muerta ⇒ byte-id.
   if(SIGNATURE_BOSS.enabled && e._sbPhase!==undefined){ const R=SIGNATURE_BOSS.rewards;
-    if((R.essenceBonus||0)>0){ ensureMeta().essence=(ensureMeta().essence|0)+R.essenceBonus; G.metaDirty=true;
-      floater(e.x,e.y-44,"+"+R.essenceBonus+" Esencia","#ffe050",{crit:true,pop:1.4,life:1.1}); }
+    if((R.essenceBonus||0)>0){ const eb=Math.round(R.essenceBonus*ngEssMul(ngTier())); // CAS-2024 NG+: signature-boss Esencia bonus escalates per tier (×1 disabled/tier-1 ⇒ byte-id). 0 RNG.
+      ensureMeta().essence=(ensureMeta().essence|0)+eb; G.metaDirty=true;
+      floater(e.x,e.y-44,"+"+eb+" Esencia","#ffe050",{crit:true,pop:1.4,life:1.1}); }
     dropGear(e.x+28,e.y-10, rollGearInst(bossRng.srand,2,3,R.guaranteedRarity||"rare")); }
   // CAS-1744: bonus-loot fan-out for a Caldera kill. The ONLY new RNG of the zone — drawn from the
   // DEDICATED zone5Rng, APPENDED after every srand/legRng/setRng/runeRng draw above, so the shared
@@ -2947,11 +2981,11 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   noteEliteKill(); // CAS-149: a hunt champion is an elite-class kill → feeds Elite Mastery (its own fixed payoff is unchanged)
   grantMats(e.capstone?3:2); // CAS-237: champion/capstone clear yields a forge-material haul (capstone richer)
   const win=e.rwdTier||cfgH.tier||(ZONE_LOOT[zone]||ZONE_LOOT.field).tier;
-  dropGear(e.x,e.y, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
+  dropGear(e.x,e.y, rollGearInst(srand,win[0],win[1],ngLootFloor(e.rwdMinR||cfgH.minR)));
   // CAS-196: a WORLD-BOSS (boss block carries `bonusDrop`) drops extra guaranteed pieces at
   // the same tier/floor — a SIGNATURE haul distinct from a single-zone capstone. Same loot
   // system (rollGearInst on the sim RNG → deterministic), just N more rolls fanned out.
-  for(let b=0;b<(e.bonusDrop||0);b++) dropGear(e.x+(b%2?34:-34),e.y-18, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
+  for(let b=0;b<(e.bonusDrop||0);b++) dropGear(e.x+(b%2?34:-34),e.y-18, rollGearInst(srand,win[0],win[1],ngLootFloor(e.rwdMinR||cfgH.minR)));
   G.drops.push({x:e.x+18,y:e.y,kind:"gold",amt:e.rwdGold||cfgH.gold});
   if(srand()<0.5) G.drops.push({x:e.x-18,y:e.y,kind:"potionhp"});
   // CAS-394: clearing a CURSED zone pays out the risk — ONE bonus gear roll at the zone's tier/floor
@@ -2959,7 +2993,7 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   // with the draft's guaranteed rare+ (openDraft reads hero.curses), this is the "risk for reward".
   // Farm-cap: H.cleared (set above) blocks re-spawning the champion, so a zone pays this AT MOST once
   // per run → ≤7 bonus rolls/run, all at existing tiers. No legendary/gear farm (flagged in report).
-  if(G.hero && G.hero.curses && G.hero.curses[zone]) dropGear(e.x-40,e.y+12, rollGearInst(srand,win[0],win[1],e.rwdMinR||cfgH.minR));
+  if(G.hero && G.hero.curses && G.hero.curses[zone]) dropGear(e.x-40,e.y+12, rollGearInst(srand,win[0],win[1],ngLootFloor(e.rwdMinR||cfgH.minR)));
   gainXP(e.rwdXp||cfgH.xp);
   toast(STR.huntCleared(zone),3.6);
   for(let i=0,n=rmCount(e.capstone?16:10);i<n;i++) addFx("flame",e.x+frr(-30,30),e.y+frr(-30,30));
@@ -2980,7 +3014,7 @@ function onChampionKill(e){ const zone=e.zone; const H=G.hunts[zone]; const cfgH
   // so the established sequence above never shifts; the extra draw exists only when apex fires.
   if(apex){
     const wa=[Math.min(4,(win[0]||3)+1), Math.min(4,(win[1]||4)+1)];
-    dropGear(e.x+40,e.y+12, rollGearInst(srand,wa[0],wa[1],"rare"));
+    dropGear(e.x+40,e.y+12, rollGearInst(srand,wa[0],wa[1],ngLootFloor("rare")));
     toast(STR.apexToast,4.0); shakeAdd(12);
     for(let i=0,n=rmCount(18);i<n;i++) addFx("flame",e.x+frr(-36,36),e.y+frr(-36,36));
   }
@@ -5194,6 +5228,39 @@ export const dev = {
     return { ok, tier:(h&&h.conquest&&h.conquest.tier)||1, scene:G.scene }; },
   declineAscend(){ const ok=declineAscend(); const h=G.hero;
     return { ok, tier:(h&&h.conquest&&h.conquest.tier)||1, scene:G.scene }; },
+  // --- CAS-2024 NG+ harness hooks (tools/cas2023-ngplus.mjs); additive, curated bridge ---
+  // Live NG_PLUS config + the resolved per-tier multipliers (pure read, no sim step).
+  ngState(){ const t=ngTier(); return { enabled:!!NG_PLUS.enabled, tier:t, cap:NG_PLUS.cap,
+    lootFloorPerTier:NG_PLUS.lootFloorPerTier, essMulPerTier:NG_PLUS.essMulPerTier,
+    poisePctPerTier:NG_PLUS.poisePctPerTier, reframePrompt:!!NG_PLUS.reframePrompt,
+    essMul:ngEssMul(t), poiseMul:ngPoiseMul() }; },
+  // Compute the resolved loot floor a base rarity lifts to at `tier` (drives the clamp assertions).
+  ngLootFloor(baseR, tier){ return ngLootFloor(baseR, tier); },
+  // Drive the REAL hunt-champion clear drop path (killEnemy → onChampionKill, the loot-floor seam at
+  // ~2980) in `zone` and return the guaranteed drop's rarity, so AC3 observes the lift on the LIVE path
+  // (not just the helper). Restores scene/draft/ascend/conquest side-effects the clear would otherwise
+  // leave (apex/draft/conquest-tracking), so the probe is repeatable under a fixed seed.
+  ngChampClear(zone){ zone=zone||"caves"; const h=G.hero; if(!h) return null; const cfgH=HUNTS[zone]||HUNTS.caves;
+    const sScene=G.scene, sDraft=G.draft, sAscend=G.ascend;
+    const sDown=(h.conquest&&h.conquest.bossesDown||[]).slice();
+    const before=G.drops.length;
+    const e=spawnEnemy(cfgH.base||"skeleton", h.x, h.y);
+    e.champion=true; e.zone=zone; e.rwdTier=cfgH.tier; e.rwdMinR=cfgH.minR; e.rwdXp=cfgH.xp; e.rwdGold=cfgH.gold;
+    e.hp=0; killEnemy(e);
+    const gear=G.drops.slice(before).filter(d=>d.kind==="gear").map(d=>({rarity:d.rarity,tier:d.tier}));
+    G.scene=sScene; G.draft=sDraft; G.ascend=sAscend; if(h.conquest) h.conquest.bossesDown=sDown;
+    return { zone, baseR:cfgH.minR, floor:ngLootFloor(cfgH.minR, (h.conquest&&h.conquest.tier)||1),
+      guaranteed:gear.length?gear[0].rarity:null, drops:gear }; },
+  // Isolate the champion-bounty + affix-drip Esencia contribution at `tier` via the REAL essenceForRun:
+  // the DIFFERENCE (champs/afk present − absent) is exactly (afk×MOB_AFFIX_ESSENCE + champs×CHAMPION.essence)
+  // × ngEssMul(tier) for a fresh hero (all other multipliers ×1). Restores the live tier. 0 RNG.
+  ngEssProbe(tier, champs, afk){ const h=G.hero; if(!h) return null;
+    const cq=h.conquest||(h.conquest={tier:1,bossesDown:[]}); const st=cq.tier; cq.tier=Math.max(1,tier|0);
+    const base=essenceForRun(h,{champElites:0,affixKills:0,elites:0});
+    const with_=essenceForRun(h,{champElites:champs|0,affixKills:afk|0,elites:0});
+    cq.tier=st;
+    return { tier:tier|0, delta:with_-base, essMul:ngEssMul(tier|0),
+      rawTerm:(afk|0)*MOB_AFFIX_ESSENCE+(champs|0)*CHAMPION.essence }; },
   // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
   customizeState(){ return customizeState(); },
   setPartColor(slot,color){ return setPartColor(slot,color); },

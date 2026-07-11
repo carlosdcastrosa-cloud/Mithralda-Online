@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -3405,18 +3405,22 @@ export function createRenderer(ctx){
   // frame, one card, two stacked full-width buttons (tap via ui.ascendRects / keyboard A·Esc) —
   // but gold-keyed: this is a reward decision, not a risk one. Pure view over G.ascend.
   function renderAscend(){ const a=G.ascend; ui.ascendRects=[]; if(!a) return;
+    // CAS-2024 NG+: explicit "Nueva Partida Plus / Ciclo N+1" framing when NG+ is live. View-only —
+    // off ⇒ the CAS-450 copy renders byte-for-byte as before. No sim/RNG touched.
+    const ngRe=NG_PLUS.enabled && NG_PLUS.reframePrompt;
+    const sTitle=ngRe?STR.ngAscendTitle:STR.ascendTitle, sName=ngRe?STR.ngAscendName:STR.ascendName, sDesc=ngRe?STR.ngAscendDesc:STR.ascendDesc;
     const bw=Math.min(VW*0.9,460), bh=Math.min(VH*0.82,340), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center";
-    ctx.fillStyle=COL.textGold; ctx.font="bold 19px "+FF; ctx.fillText(STR.ascendTitle,VW/2,y+30);
+    ctx.fillStyle=COL.textGold; ctx.font="bold 19px "+FF; ctx.fillText(sTitle,VW/2,y+30);
     ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.conquestProgress(4,4),VW/2,y+48);
     // tier card — star glyph, target tier name, effect line
     const cardY=y+62, cardH=bh-62-118, cw=bw-40, cx=x+20;
     ctx.fillStyle="#2a2618"; ctx.fillRect(cx,cardY,cw,cardH);
     ctx.strokeStyle=COL.textGold; ctx.lineWidth=2; ctx.strokeRect(cx+0.5,cardY+0.5,cw,cardH);
     ctx.fillStyle="#ffd24d"; ctx.font="34px "+FF; ctx.fillText("★", VW/2, cardY+44);
-    ctx.fillStyle=COL.cream; ctx.font="bold 16px "+FF; ctx.fillText(STR.ascendName(a.tier), VW/2, cardY+70);
-    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; wrapText(STR.ascendDesc(a.tier), cx+16, cardY+92, cw-32, 16);
+    ctx.fillStyle=COL.cream; ctx.font="bold 16px "+FF; ctx.fillText(sName(a.tier), VW/2, cardY+70);
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; wrapText(sDesc(a.tier), cx+16, cardY+92, cw-32, 16);
     // stay-put line (below the card) — centered wrap on the panel midline
     ctx.textAlign="center"; ctx.fillStyle="#e0c070"; ctx.font="10px "+FF;
     wrapText(STR.ascendReward, VW/2, y+bh-108, bw-44, 13);

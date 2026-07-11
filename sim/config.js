@@ -1604,6 +1604,24 @@ export const CONQUEST_ZONES = ["forest","ruins","caves","swamp"];
 //              the richest draft in the game, and ensureLegendary floors it at 1 legendary)
 export const WORLD_TIER = { cap:5, hpPct:0.25, dmgPct:0.25, affixPct:0.25, depthPer:2, apexDepth:6 };
 
+// CAS-2024 (umbrella CAS-2023): NG+ / Nueva Partida Plus. A THIN reward-escalation + framing layer
+// that COMPOSES on top of CAS-450 WORLD_TIER — it does NOT re-implement the opt-in ascend prompt, the
+// gear/Esencia/unlock carry-over, the world re-arm, the deterministic per-tier scaling, the durable
+// `conquest.tier`, or the cap. Those all ship live via CAS-450 and NG+ reuses them verbatim. NG_PLUS
+// adds ONLY: a per-cycle loot-rarity floor lift, a per-cycle Esencia reward multiplier, an optional
+// per-cycle enemy-poise multiplier (sub-flag, default off), and explicit "NG+" framing on the ascend
+// scene. NO new save field — every knob reads `conquest.tier` (already durable & carried) ⇒ 0 new
+// serialized state ⇒ 0 save regression BY CONSTRUCTION. Ships DARK (enabled:false); 1-line flip after
+// the CEO gate. enabled:false ⇒ every seam returns its pre-existing value ⇒ srand + save.v1 byte-id HEAD.
+export const NG_PLUS = {
+  enabled: false,          // DARK ship. Flip 1-line → true after CEO gate GO. Reversible.
+  lootFloorPerTier: 1,     // +N min-rarity steps per World Tier above 1 (clamped ≤ legendary). draw-neutral (shifts the existing rollGearInst minR arg).
+  essMulPerTier:   0.25,   // +25% Esencia rewards per tier above 1. 0 draws (arithmetic at grant).
+  poisePctPerTier: 0.0,    // sub-flag: enemy poise× per tier above 1 (0 = OFF; post-spawn ceiling scale, 0 draws).
+  reframePrompt:   true,   // sub-flag: explicit "Ciclo N+1 / NG+" copy on the CAS-450 ascend scene.
+  cap: 5,                  // align with WORLD_TIER.cap; the ascend offer already stops here.
+};
+
 // CAS-1947 — EVO Pilar 22: JEFE FIRMA MULTI-FASE (SIGNATURE_BOSS).
 // $0 arte: tinte/glyph/flash/escala procedural únicamente. NO PixelLab. 1 knob, OFF byte-idéntico a HEAD.
 // RNG-neutral STRONG: comportamiento determinista/telegrafiado; stream bossRng si se necesita variación;

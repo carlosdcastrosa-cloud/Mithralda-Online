@@ -384,6 +384,13 @@ export const STR = {
   ascendAccept: "Ascender (A)",
   ascendSkip: "Quedarse (Esc)",
   ascendAccepted: (t) => "Mundo " + t + ": los dominios se rearman. La caza continúa.",
+  // CAS-2024 NG+: explicit "Nueva Partida Plus / Ciclo N+1" framing. Used ONLY when
+  // NG_PLUS.enabled && reframePrompt (gated at the render/sim call sites) — the CAS-450 copy above
+  // stays byte-identical and is what ships while NG+ is DARK.
+  ngAscendTitle: "NUEVA PARTIDA PLUS",
+  ngAscendName: (t) => "Ciclo " + t + " · NG+",
+  ngAscendDesc: (t) => "Comienza el Ciclo " + t + " (Nueva Partida Plus). Conservas tu equipo, Esencia y desbloqueos, pero los dominios renacen más letales (+25% vida y daño por ciclo) y las recompensas ascienden: el botín sube de rareza y ganas más Esencia. La paga por perseverar.",
+  ngAscendAccepted: (t) => "Ciclo " + t + " · NG+: los dominios renacen. Tu leyenda continúa.",
   worldTierChip: (t) => "Mundo " + t,
   dailySlay: (n) => "Da caza a " + n + " enemigos",
   // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).
