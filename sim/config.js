@@ -1372,7 +1372,7 @@ export const CHARGED_ATTACK = {
 // (tecla dedicada Period + botón HUD móvil) + render.js (botón). enabled:false ⇒ tecla inerte + guardBreakKick() rama muerta
 // ⇒ byte-idéntico a HEAD. $0 arte (reusa knockback/shove + floater + el ¡ATURDIDO! del poise-break del chokepoint).
 export const GUARD_BREAK = {
-  enabled:false,             // DARK — OFF ⇒ tecla inerte, guardBreakKick() no-op ⇒ byte-id HEAD. LIVE sólo por Gate CEO.
+  enabled:true,              // LIVE — Gate CEO CAS-2149 GO (QA CAS-2148 PASS×2 OBSERVABLE). Reversible → false restaura baseline byte-id.
   key:"Period",              // tecla DEDICADA no-rebindable (code LIBRE; Comma=Invocar adyacente). Móvil = botón HUD tap.
   range:52,                  // alcance del cono de la patada (px) — corto, melee-adyacente (gate natural para ranged/casters)
   arcDeg:130,                // cono frontal de la patada (grados)
