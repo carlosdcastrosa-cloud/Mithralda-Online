@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -409,6 +409,11 @@ function newHero(name,cls){
     // applyHeroMelee, decae por dt en tickGuardCounter. Fuera del allowlist de serializeSave ⇒ save.v1 byte-id on/off y
     // SIN clave nueva (arranca en 0 tras boot/load). 0 RNG (no existe guardCounterRng).
     guardCounterT:0,
+    // CAS-2110: CONTRAATAQUE DE ESQUIVA — ventana transitoria (mirror guardCounterT). dodgeCounterT = segundos restantes
+    // de la ventana de contragolpe, armada en perfectDodge (i-frames de un roll niegan un golpe real ≤ perfectWindowMs
+    // tras el rodar), consumida por el swing LIGHT en applyHeroMelee, decae por dt en tickDodgeCounter. Fuera del allowlist
+    // de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG (no existe dodgeCounterRng).
+    dodgeCounterT:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -2459,6 +2464,11 @@ function tickParry(h,dt){ if(!PARRY.enabled||!h) return;
 function tickGuardCounter(h,dt){ if(!GUARD_COUNTER.enabled||!h) return;
   if(h.guardCounterT>0) h.guardCounterT=Math.max(0,h.guardCounterT-dt);
 }
+// CAS-2110: CONTRAATAQUE DE ESQUIVA tick — winds down the counter window armed by a perfect dodge. Pure arithmetic,
+// 0 RNG, gated on DODGE_COUNTER.enabled ⇒ when off (or never armed) dodgeCounterT stays 0 (byte-identical). Mirror tickGuardCounter.
+function tickDodgeCounter(h,dt){ if(!DODGE_COUNTER.enabled||!h) return;
+  if(h.dodgeCounterT>0) h.dodgeCounterT=Math.max(0,h.dodgeCounterT-dt);
+}
 
 // CAS-1831: SISTEMA DE COMBOS window tick — single source of truth (called from update(dt) and the harness
 // step hook). Winds down the light-chain window; once it lapses the chain COOLS (comboCount→0) so the next
@@ -2744,19 +2754,28 @@ function applyHeroMelee(){
   // aunque no impacte — para cerrar la ventana determinista. OFF / sin ventana ⇒ gc=false ⇒ ×1 + opt.guardCounter ausente
   // ⇒ swing byte-idéntico. Aritmética/timing puro ⇒ 0 draw (no existe guardCounterRng). Sólo swings LIGHT (heavy usa otra tecla).
   const gc = GUARD_COUNTER.enabled && h.guardCounterT>0 && !heavy;
+  // CAS-2110: CONTRAATAQUE DE ESQUIVA. Análogo a `gc` pero abierto por una ESQUIVA PERFECTA (perfectDodge) en vez de un
+  // bloqueo. Un swing LIGHT dentro de la ventana pega ×dmgMul + poise ×poiseMul (opt.dodgeCounter). Gated en `!gc`
+  // (AC3): si el guard-counter ya aplica en este swing, el dodge-counter NO ⇒ nunca multiplican los dos ⇒ daño acotado
+  // (y de todos modos una esquiva NIEGA el hit ⇒ no abre bloqueo ⇒ jamás coinciden por el mismo evento). Números por
+  // debajo del guard-counter (1.5<1.8). Aritmética/timing puro ⇒ 0 draw (no existe dodgeCounterRng). Sólo swings LIGHT.
+  const dc = DODGE_COUNTER.enabled && h.dodgeCounterT>0 && !heavy && !gc;
   // CAS-1926: la RESINA / BUFF de arma activo (h._wbuff, ventana wbuffT>0) reescala ESTE swing como ÚLTIMO factor del sink ⇒
   // compone MULTIPLICATIVAMENTE tras arquetipo × TWO_HAND × Arte (ninguno pisa). Sin buff / OFF ⇒ buffMul(h)=1 ⇒ byte-idéntico.
-  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h)*(gc?GUARD_COUNTER.dmgMul:1);
+  const dmg=equippedDmg(h)*cfg.dmgMul*(fin?COMBO.finisherMul:1)*(heavy?COMBO.heavyDmgMul:1)*(th?TWO_HAND.dmgMul:1)*wa.dmgMul*wart.dmgMul*buffMul(h)*(gc?GUARD_COUNTER.dmgMul:1)*(dc?DODGE_COUNTER.dmgMul:1);
   if(gc){ h.guardCounterT=0;                                        // consume la ventana (aunque el swing no impacte)
     if(STAMINA.enabled && GUARD_COUNTER.staminaCost>0){ h.stam=Math.max(0,h.stam-GUARD_COUNTER.staminaCost); h._stamRegenPauseT=STAMINA.regenDelay; }
     addFx("spellburst",h.x,h.y-2,{col:"#bfe3ff"}); floater(h.x,h.y-40,STR.guardCounter||"¡CONTRAGOLPE!","#bfe3ff"); }   // $0 arte: primitiva canvas existente
+  if(dc){ h.dodgeCounterT=0;                                        // consume la ventana (aunque el swing no impacte)
+    if(STAMINA.enabled && DODGE_COUNTER.staminaCost>0){ h.stam=Math.max(0,h.stam-DODGE_COUNTER.staminaCost); h._stamRegenPauseT=STAMINA.regenDelay; }
+    addFx("spellburst",h.x,h.y-2,{col:"#bfeaff"}); floater(h.x,h.y-40,STR.dodgeCounter||"¡CONTRA-ESQUIVA!","#bfeaff"); }   // $0 arte: primitiva canvas existente
   heroMeleeHit=true; // CAS-383: this swing's hits are melee → arm Sed de Sangre lifesteal
   for(const e of G.enemies){
     if(e.dead||h._atkHits.has(e)) continue;
     const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>cfg.range*wa.reachMul*wart.reachMul+e.tpl.size) continue;   // CAS-1907 alcance ×reachMul · CAS-1914 ×artReachMul (OFF/sword sin Arte ⇒ ×1)
     const ang=Math.atan2(e.y-h.y,e.x-h.x);
     if(Math.abs(angDiff(ang,h.atkAng))<cfg.arc*wa.arcMul*wart.arcMul/2){                       // CAS-1907 arco ×arcMul · CAS-1914 ×artArcMul (OFF/sword sin Arte ⇒ ×1)
-      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th, arch:wa, art:wart, guardCounter:gc}); shakeAdd(5.5);
+      h._atkHits.add(e); hitEnemy(e,dmg,h.atkAng,{melee:true, heavy:(fin||heavy), knockMul:(fin?COMBO.finisherKnock:1), twoHand:th, arch:wa, art:wart, guardCounter:gc, dodgeCounter:dc}); shakeAdd(5.5);
       // CAS-204: a bold crimson→white crescent sweeps through the struck enemy on a melee connect,
       // so the swing reads as cleaving INTO the target rather than next to it (FOUNTAINS slash juice).
       addFx("slashArc",e.x,e.y,{ang:h.atkAng,life:0.2});
@@ -2840,6 +2859,10 @@ function hitEnemy(e,dmg,ang,opt){
       // ×poiseMul en el MISMO sink (compone con TWO_HAND/arquetipo/Arte) ⇒ ALTO ⇒ staggerea/rompe rápido. 0 draw; OFF / sin
       // ventana ⇒ opt.guardCounter ausente ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
       if(GUARD_COUNTER.enabled && opt && opt.guardCounter) add*=GUARD_COUNTER.poiseMul;
+      // CAS-2110: un CONTRAATAQUE DE ESQUIVA (opt.dodgeCounter, sólo swings LIGHT dentro de la ventana) sube el poise-damage
+      // ×poiseMul en el MISMO sink (compone con TWO_HAND/arquetipo/Arte, mutuamente exclusivo con guardCounter vía `!gc`).
+      // 0 draw; OFF / sin ventana ⇒ opt.dodgeCounter ausente ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
+      if(DODGE_COUNTER.enabled && opt && opt.dodgeCounter) add*=DODGE_COUNTER.poiseMul;
       // CAS-1907: el arquetipo del arma escala el poise-damage en el MISMO sink (compone ×poiseDmgMul con TWO_HAND). Aritmética
       // pura (0 draw); OFF ⇒ gate false; sword ⇒ ×1 ⇒ acumulación de postura byte-idéntica.
       if(WEAPON_ARCHETYPES.enabled && opt && opt.arch) add*=opt.arch.poiseDmgMul;
@@ -3582,7 +3605,7 @@ function resolveSpell(h,sp){
       addFx(sp.fx||"buffaura",h.x,h.y,{col:sp.col,life:0.5}); break;
     case "dash": {
       const sd=spellDmg(h,sp);
-      h.rolling=true; h.rollT=0.20; h.iframe=0.22; h.rollCD=Math.max(h.rollCD,0.3); h.rollX=ca; h.rollY=sa; h.moved=false;
+      h.rolling=true; h.rollT=0.20; h.iframe=0.22; h.rollCD=Math.max(h.rollCD,0.3); h.rollX=ca; h.rollY=sa; h.moved=false; h._rollAge=0; // CAS-2110: edad del rodar (ascendente) para el gate perfectWindowMs
       for(const e of G.enemies){ if(e.dead) continue; const d=Math.hypot(e.x-h.x,e.y-h.y); if(d>sp.range+e.tpl.size) continue;
         const ang=Math.atan2(e.y-h.y,e.x-h.x); if(Math.abs(angDiff(ang,a))<0.9){ hitEnemy(e,sd,a); applySpellStatus(e,sp); } }
       addFx(sp.fx||"charge",h.x,h.y,{ang:a,col:sp.col,life:0.3}); shakeAdd(5); break; }
@@ -4342,7 +4365,7 @@ export function doRoll(){ const h=G.hero;
   const dg=DODGE.enabled;
   // CAS-1889: la banda multiplica SÓLO el término base de DODGE (iframe/distancia); los bonus (bb.iframeAdd + meta + Estela)
   // siguen SUMANDO intactos. em.iframe/em.dist = 1 con OFF/mid ⇒ byte-idéntico. over+overCanRoll:true ⇒ 0 ⇒ rodada mínima.
-  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=(dg?DODGE.iframeMs/1000:CFG.rollIFrame)*em.iframe+((h.bb&&h.bb.iframeAdd)||0)+metaDashIframe(); h.rollCD=dg?DODGE.cooldownMs/1000:CFG.rollCD; h.rollSpd=(dg?DODGE.distance/CFG.rollTime:CFG.rollSpeed)*em.dist; h.rollX=ax; h.rollY=ay; // CAS-1565: +Evasión meta i-frames (read-live)
+  h.rolling=true; h.rollT=CFG.rollTime; h.iframe=(dg?DODGE.iframeMs/1000:CFG.rollIFrame)*em.iframe+((h.bb&&h.bb.iframeAdd)||0)+metaDashIframe(); h.rollCD=dg?DODGE.cooldownMs/1000:CFG.rollCD; h.rollSpd=(dg?DODGE.distance/CFG.rollTime:CFG.rollSpeed)*em.dist; h.rollX=ax; h.rollY=ay; h._rollAge=0; // CAS-1565: +Evasión meta i-frames (read-live) · CAS-2110: edad del rodar (ascendente) para el gate perfectWindowMs
   if(h.bb&&h.bb.trail>0) h._trailSet=new Set(); // CAS-388: fresh per-roll set so Estela Ardiente burns each enemy once per dash
   audio.sfx.roll();
   tutMarkC("dodge"); } // CAS-383: Viento Veloz widens the dodge window // CAS-2017: a real roll teaches the dodge step (past spendStam/cooldown ⇒ genuine)
@@ -4541,6 +4564,7 @@ export function update(dtMs){
   tickFrenzy(h,dt); // CAS-1773: window wind-down + gradual stack decay (arithmetic, no RNG, gated)
   tickParry(h,dt);  // CAS-1785: parry window + cooldown wind-down (arithmetic, no RNG, gated on PARRY.enabled)
   tickGuardCounter(h,dt); // CAS-2107: guard-counter window wind-down (arithmetic, no RNG, gated on GUARD_COUNTER.enabled)
+  tickDodgeCounter(h,dt); // CAS-2110: dodge-counter window wind-down (arithmetic, no RNG, gated on DODGE_COUNTER.enabled)
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
@@ -4568,7 +4592,7 @@ export function update(dtMs){
   if(h.bld) tickBuildup(h,dt); // CAS-1931: buildup meters decay (0 alloc when h.bld null ⇒ OFF byte-id)
   if(h.atkT>0){ h.atkT-=dt; if(h._atkHits) applyHeroMelee(); }
   // movement
-  if(h.rolling){ h.rollT-=dt; const sp=h.rollSpd||CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12); // CAS-1814: per-roll speed (DODGE distance); ||CFG.rollSpeed ⇒ OFF byte-identical
+  if(h.rolling){ h.rollT-=dt; h._rollAge=(h._rollAge||0)+dt; const sp=h.rollSpd||CFG.rollSpeed; moveEnt(h,h.rollX*sp*dt,h.rollY*sp*dt,12); // CAS-1814: per-roll speed (DODGE distance); ||CFG.rollSpeed ⇒ OFF byte-identical · CAS-2110: edad del rodar sube por dt (gate perfectWindowMs)
     // CAS-388: Estela Ardiente legendary — the dash lays a fire wake. Enemies the roll passes
     // through take a burn DoT once per dash (h._trailSet dedupes), turning the dodge into an
     // offensive tool. Guarded on trail>0 so a boonless roll is byte-identical. Reuses the burn
@@ -5322,6 +5346,12 @@ function nearestShrine(){ const Z=G.zoneEvents, h=G.hero; if(!ZONE_EVENTS.enable
 function perfectDodge(ang){ const h=G.hero; if((h._pdCD||0)>0) return; h._pdCD=0.5;
   freeze(8); h.iframe=Math.max(h.iframe,0.20); h.mp=Math.min(h.maxMp,h.mp+8);
   h.riposte=CFG.riposteWindow; // arm the counter — consumed by the next hitEnemy connect
+  // CAS-2110: CONTRAATAQUE DE ESQUIVA — una esquiva PERFECTA (llegamos aquí SÓLO cuando los i-frames de un ROLL activo
+  // negaron un golpe REAL entrante) que ADEMÁS arrancó hace ≤ perfectWindowMs abre la ventana de contragolpe: el siguiente
+  // swing LIGHT pega ×dmgMul + poise ×poiseMul (applyHeroMelee). Un rodar viejo (i-frame residual) NO cuenta. Timing puro,
+  // 0 draw; DODGE_COUNTER.enabled=false ⇒ este set nunca corre ⇒ h.dodgeCounterT queda en 0 ⇒ rama de ataque intacta = HEAD.
+  if(DODGE_COUNTER.enabled && (h._rollAge||0) <= DODGE_COUNTER.perfectWindowMs/1000){
+    h.dodgeCounterT=DODGE_COUNTER.windowS; addFx("spellburst",h.x,h.y-2,{col:"#bfeaff"}); }
   floater(h.x,h.y-34,STR.perfectDodge,"#bfeaff"); addFx("dodgering",h.x,h.y,{life:0.36});
   addFx("shockring",h.x,h.y,{r:30,life:0.34}); audio.sfx.roll(); }
 function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
@@ -8033,6 +8063,119 @@ export const dev = {
       G.enemies.length=e0; }
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
     GUARD_COUNTER.enabled=savG; SHIELD_BLOCK.enabled=savSh; STAMINA.enabled=savS; this._gcArm();
+    return { enabled:!!enabled, counterFired:(enabled?(opened&&countered):false), fingerprint:fp }; },
+  // --- CAS-2110 CONTRAATAQUE DE ESQUIVA (Perfect Dodge Counter) harness hooks (tools/cas2110-dodge-counter.mjs); additive,
+  // DRIVEN el loop REAL: perfectDodge (i-frames de un ROLL activo niegan un golpe REAL ⇒ abre ventana si rollAge≤perfectWindowMs),
+  // applyHeroMelee (swing LIGHT en ventana ⇒ dmg ×dmgMul + poise ×poiseMul + consume + stam), y los gates de NO-apertura
+  // (rodar viejo / i-frame de merced sin rolling). UNIVERSAL: no requiere escudo (funciona ranged). Todo timing/geometría/
+  // aritmética ⇒ 0 srand, NO dodgeCounterRng. h.dodgeCounterT transitorio (mirror h.guardCounterT) ⇒ save.v1 byte-id SIN clave. ---
+  dodgeCounterMeta(){ return { enabled:DODGE_COUNTER.enabled, windowS:DODGE_COUNTER.windowS, dmgMul:DODGE_COUNTER.dmgMul, poiseMul:DODGE_COUNTER.poiseMul, staminaCost:DODGE_COUNTER.staminaCost, perfectWindowMs:DODGE_COUNTER.perfectWindowMs, requiresShield:DODGE_COUNTER.requiresShield }; },
+  dodgeCounterEnable(on){ DODGE_COUNTER.enabled=!!on; return { enabled:DODGE_COUNTER.enabled }; },
+  dodgeCounterState(){ const h=G.hero; if(!h) return null; return { dodgeCounterT:+((h.dodgeCounterT||0).toFixed(4)), rolling:!!h.rolling, iframe:+((h.iframe||0).toFixed(4)), rollAge:+((h._rollAge||0).toFixed(4)), stam:+((h.stam||0).toFixed(4)) }; },
+  // Hero limpio (reusa _gcArm) + ventana CERRADA, sin roll, i-frame 0, _rollAge 0, _pdCD 0, riposte 0. cls parametrizable
+  // (warrior por defecto; "mage" = ranged/sin-escudo para el AC UNIVERSAL). NO toca h.equip (loadout real ⇒ equippedDmg no-cero).
+  _dcArm(cls){ this._gcArm(); const h=G.hero; if(!h) return null; h.cls=cls||"warrior"; h._mcfg=ATK[h.cls]||ATK.warrior;
+    h.dodgeCounterT=0; h._rollAge=0; h._pdCD=0; h.rolling=false; h.iframe=0; h.riposte=0; return h; },
+  // AC APERTURA + GATES: una ESQUIVA PERFECTA (rolling + i-frame + rollAge≤perfectWindowMs) que niega un golpe REAL ABRE la
+  // ventana (dodgeCounterT==windowS). Un rodar VIEJO (rollAge>perfectWindowMs) NO abre. Un i-frame de MERCED (sin rolling) NO
+  // abre (perfectDodge no se llama). UNIVERSAL: abre igual en clase sin-escudo/ranged (cls="mage"). 0 srand.
+  dodgeCounterWindowProbe(){ const savD=DODGE_COUNTER.enabled; DODGE_COUNTER.enabled=true;
+    const h=this._dcArm("warrior"); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    // esquiva PERFECTA: rolling + i-frame + rodar fresco ⇒ perfectDodge abre ventana
+    h.rolling=true; h.iframe=0.2; h._rollAge=0; h._pdCD=0; h.dodgeCounterT=0;
+    damageHero(100,0,null,e); const openT=+((h.dodgeCounterT||0).toFixed(4)); const opened=(Math.abs(openT-DODGE_COUNTER.windowS)<1e-9);
+    // rodar VIEJO: rollAge > perfectWindowMs ⇒ perfectDodge corre pero el gate falla ⇒ NO abre
+    h.rolling=true; h.iframe=0.2; h._rollAge=(DODGE_COUNTER.perfectWindowMs/1000)+0.05; h._pdCD=0; h.dodgeCounterT=0;
+    damageHero(100,0,null,e); const staleNoOpen=((h.dodgeCounterT||0)===0);
+    // i-frame de MERCED (sin rolling) ⇒ perfectDodge NO se llama ⇒ NO abre
+    h.rolling=false; h.iframe=0.2; h._rollAge=0; h._pdCD=0; h.dodgeCounterT=0;
+    damageHero(100,0,null,e); const mercyNoOpen=((h.dodgeCounterT||0)===0);
+    // UNIVERSAL: clase ranged/sin-escudo (mage) ⇒ abre igual (perfectDodge es class-independent)
+    const hm=this._dcArm("mage"); const e2=spawnEnemy("wolf",hm.x+40,hm.y); if(e2){ e2.maxHp=e2.hp=1e9; e2.dead=false; }
+    hm.rolling=true; hm.iframe=0.2; hm._rollAge=0; hm._pdCD=0; hm.dodgeCounterT=0;
+    damageHero(100,0,null,e2); const rangedOpen=(Math.abs((hm.dodgeCounterT||0)-DODGE_COUNTER.windowS)<1e-9);
+    DODGE_COUNTER.enabled=savD; this._dcArm();
+    return { openT, opened, staleNoOpen, mercyNoOpen, rangedOpen, ok:(opened&&staleNoOpen&&mercyNoOpen&&rangedOpen) }; },
+  // AC DAÑO ×dmgMul + CONSUME + STAM: un swing LIGHT con la ventana abierta pega ×dmgMul vs sin ventana (mismo equip),
+  // consume la ventana (dodgeCounterT→0) y gasta staminaCost. Enemigo básico (poiseCeil=0) ⇒ sin stagger. 0 srand.
+  dodgeCounterDmgProbe(){ const savD=DODGE_COUNTER.enabled, savS=STAMINA.enabled; DODGE_COUNTER.enabled=true; STAMINA.enabled=true;
+    const h=this._dcArm("warrior"); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.atkAng=0; h._mcfg=ATK.warrior;
+    e.x=h.x+30; e.y=h.y; h.dodgeCounterT=0; h.stam=STAMINA.max; h._atkHits=new Set(); const a0=e.hp; applyHeroMelee(); const dOff=a0-e.hp;
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.dodgeCounterT=DODGE_COUNTER.windowS; h.stam=STAMINA.max; const st0=h.stam; h._atkHits=new Set(); const b0=e.hp; applyHeroMelee(); const dOn=b0-e.hp;
+    const stSpent=st0-h.stam, consumed=((h.dodgeCounterT||0)===0);
+    const ratio=dOff>0?dOn/dOff:0; const ratioOk=Math.abs(ratio-DODGE_COUNTER.dmgMul)<1e-6; const stamOk=(stSpent===DODGE_COUNTER.staminaCost);
+    DODGE_COUNTER.enabled=savD; STAMINA.enabled=savS; this._dcArm();
+    return { dOff, dOn, ratio:+ratio.toFixed(6), expect:DODGE_COUNTER.dmgMul, ratioOk, stSpent, stamOk, consumed, ok:(dOff>0 && ratioOk && stamOk && consumed) }; },
+  // AC POISE ×poiseMul: un contragolpe de esquiva sobre un enemigo con postura (champion ⇒ poiseCeil=100) acumula
+  // light×poiseMul vs light sin ventana. Sin telegrafía (e.st=0) ⇒ gain limpio. 12×2.0=24 < 100 ⇒ sin stagger-reset. 0 srand.
+  dodgeCounterPoiseProbe(){ const savD=DODGE_COUNTER.enabled, savS=STAMINA.enabled; DODGE_COUNTER.enabled=true; STAMINA.enabled=true;
+    const h=this._dcArm("warrior"); const e=spawnEnemy("wolf",h.x+30,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; e.champion=true; e.st=0; }
+    h.atkAng=0; h._mcfg=ATK.warrior;
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; h.dodgeCounterT=0; h.stam=STAMINA.max; h._atkHits=new Set(); applyHeroMelee(); const pOff=e.poise;
+    e.poise=0; e.staggerT=0; e.staggerCD=0; e.x=h.x+30; e.y=h.y; h.dodgeCounterT=DODGE_COUNTER.windowS; h.stam=STAMINA.max; h._atkHits=new Set(); applyHeroMelee(); const pOn=e.poise;
+    const baseOk=Math.abs(pOff-POISE.gain.light)<1e-6, mulOk=Math.abs(pOn-POISE.gain.light*DODGE_COUNTER.poiseMul)<1e-6;
+    DODGE_COUNTER.enabled=savD; STAMINA.enabled=savS; this._dcArm();
+    return { pOff, pOn, expect:+(POISE.gain.light*DODGE_COUNTER.poiseMul).toFixed(4), baseOk, mulOk, ok:(baseOk&&mulOk) }; },
+  // AC3 COMPONE con GUARD_COUNTER sin colisión: (a) EN EL MISMO EVENTO — una esquiva que niega el hit (rolling+iframe) corre
+  // ANTES de la rama de bloqueo en damageHero ⇒ abre SÓLO dodge (guard NUNCA se abre por ese golpe aunque h.blocking=true).
+  // (b) EN EL MISMO SWING — con AMBAS ventanas forzadas abiertas, dc está gated en `!gc` ⇒ aplica SÓLO el guard-mul (dmg=guardMul,
+  // NO el producto) y la ventana de esquiva NO se consume. 0 srand.
+  dodgeCounterComposeProbe(){ const savD=DODGE_COUNTER.enabled, savG=GUARD_COUNTER.enabled, savSh=SHIELD_BLOCK.enabled, savS=STAMINA.enabled;
+    DODGE_COUNTER.enabled=true; GUARD_COUNTER.enabled=true; SHIELD_BLOCK.enabled=true; STAMINA.enabled=true;
+    const h=this._dcArm("warrior"); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    // (a) mismo evento: blocking=true + rolling+iframe ⇒ i-frame/dodge gana, bloqueo nunca corre
+    h.facing=0; h.twoHand=false; h.blocking=true; h.rolling=true; h.iframe=0.2; h._rollAge=0; h._pdCD=0; h.stam=STAMINA.max; h.guardCounterT=0; h.dodgeCounterT=0; h.stun=0;
+    damageHero(100,0,null,e); const dodgeOpened=((h.dodgeCounterT||0)>0), guardStayedClosed=((h.guardCounterT||0)===0);
+    // (b) mismo swing: ambas ventanas abiertas ⇒ dc gated !gc ⇒ sólo guard-mul, dodge NO se consume.
+    // h.riposte=0 en cada swing: la esquiva de (a) armó el riposte-crit base (CAS-210) — lo limpiamos para aislar el factor contragolpe.
+    h.rolling=false; h.iframe=0; h.atkAng=0; h._mcfg=ATK.warrior;
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.dodgeCounterT=0; h.guardCounterT=0; h.stam=STAMINA.max; h.riposte=0; h._atkHits=new Set(); const r0=e.hp; applyHeroMelee(); const dBase=r0-e.hp;
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.dodgeCounterT=DODGE_COUNTER.windowS; h.guardCounterT=GUARD_COUNTER.windowS; h.stam=STAMINA.max; h.riposte=0; h._atkHits=new Set(); const r1=e.hp; applyHeroMelee(); const dBoth=r1-e.hp;
+    const ratioBoth=dBase>0?dBoth/dBase:0; const onlyGuard=Math.abs(ratioBoth-GUARD_COUNTER.dmgMul)<1e-6; const dodgeNotConsumed=((h.dodgeCounterT||0)>0); const guardConsumed=((h.guardCounterT||0)===0);
+    DODGE_COUNTER.enabled=savD; GUARD_COUNTER.enabled=savG; SHIELD_BLOCK.enabled=savSh; STAMINA.enabled=savS; this._dcArm();
+    return { dodgeOpened, guardStayedClosed, ratioBoth:+ratioBoth.toFixed(6), onlyGuard, dodgeNotConsumed, guardConsumed, ok:(dodgeOpened&&guardStayedClosed&&onlyGuard&&dodgeNotConsumed&&guardConsumed) }; },
+  // AC OFF byte-id: DODGE_COUNTER.enabled=false ⇒ (a) una esquiva perfecta NUNCA abre ventana (dodgeCounterT queda 0), y (b)
+  // forzar dodgeCounterT>0 es INERTE en applyHeroMelee ⇒ el swing pega daño IDÉNTICO a sin ventana ⇒ rama de ataque intacta = HEAD.
+  dodgeCounterOffProbe(){ const savD=DODGE_COUNTER.enabled, savS=STAMINA.enabled; DODGE_COUNTER.enabled=false; STAMINA.enabled=true;
+    const h=this._dcArm("warrior"); const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+    h.rolling=true; h.iframe=0.2; h._rollAge=0; h._pdCD=0; h.dodgeCounterT=0; damageHero(100,0,null,e); const noOpen=((h.dodgeCounterT||0)===0);
+    e.hp=1e9; h.atkAng=0; h._mcfg=ATK.warrior; h.rolling=false; h.iframe=0;
+    // h.riposte=0 en cada swing: la esquiva de arriba armó el riposte-crit base (CAS-210) — lo limpiamos para aislar la INERCIA del contragolpe.
+    e.x=h.x+30; e.y=h.y; h.dodgeCounterT=DODGE_COUNTER.windowS; h.riposte=0; h._atkHits=new Set(); const a0=e.hp; applyHeroMelee(); const dForced=a0-e.hp;
+    e.hp=1e9; e.x=h.x+30; e.y=h.y; h.dodgeCounterT=0; h.riposte=0; h._atkHits=new Set(); const b0=e.hp; applyHeroMelee(); const dRef=b0-e.hp;
+    const dmgInert=(dForced===dRef);
+    DODGE_COUNTER.enabled=savD; STAMINA.enabled=savS; this._dcArm();
+    return { noOpen, dForced, dRef, dmgInert, ok:(noOpen&&dmgInert) }; },
+  // AC SAVE byte-id: h.dodgeCounterT transitorio (fuera del allowlist) ⇒ serializeSave() byte-idéntico ON/OFF y SIN clave
+  // dodgeCounter*/_rollAge*. (Nombre del héroe SIN "dodge"/"counter" ⇒ el grep de clave no falsea.)
+  dodgeCounterSaveByteId(){ const savD=DODGE_COUNTER.enabled;
+    DODGE_COUNTER.enabled=true; const h=this._dcArm(); h.dodgeCounterT=0.4; h._rollAge=0.1;
+    const onStr=JSON.stringify(serializeSave());
+    DODGE_COUNTER.enabled=false; const offStr=JSON.stringify(serializeSave());
+    DODGE_COUNTER.enabled=savD; this._dcArm();
+    const keyRe=/"_?(dodge[cC]ounter[a-zA-Z]*|rollAge)":/i;
+    return { byteId:(offStr===onStr), hasKey:keyRe.test(onStr), onLen:onStr.length, offLen:offStr.length,
+      ok:(offStr===onStr && !keyRe.test(onStr)) }; },
+  // AC 0-RNG STRONG: fingerprint del srand alrededor del CONTRAATAQUE DISPARANDO REAL — una esquiva perfecta que ABRE ventana +
+  // un swing LIGHT que la CONSUME (dmg×+poise×) — ON vs OFF. Todo geometría/aritmética (NO dodgeCounterRng) ⇒ stream srand BYTE-IDÉNTICO.
+  dodgeCounterSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savD=DODGE_COUNTER.enabled, savS=STAMINA.enabled; DODGE_COUNTER.enabled=!!enabled; STAMINA.enabled=true;
+    const h=this._dcArm();
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let opened=false, countered=false;
+    { const e0=G.enemies.length; G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+      const e=spawnEnemy("wolf",h.x+40,h.y); if(e){ e.maxHp=e.hp=1e9; e.dead=false; }
+      h.facing=0; h.twoHand=false; h.rolling=true; h.iframe=0.2; h._rollAge=0; h._pdCD=0; h.stam=STAMINA.max; h.dodgeCounterT=0; h.stun=0;
+      damageHero(100,0,null,e); opened=(enabled ? ((h.dodgeCounterT||0)>0) : ((h.dodgeCounterT||0)===0));       // esquiva perfecta abre ventana (0 draws)
+      h.rolling=false; h.iframe=0; e.x=h.x+30; e.y=h.y; e.hp=1e9; h.atkAng=0; h._mcfg=ATK.warrior; h._atkHits=new Set();
+      applyHeroMelee(); countered=(enabled ? ((h.dodgeCounterT||0)===0) : ((h.dodgeCounterT||0)===0));           // swing consume ventana (0 draws)
+      G.enemies.length=e0;
+      for(let i=0;i<3;i++){ const k=spawnEnemy("skeleton",h.x+60+i,h.y); if(k){ k.hp=0; killEnemy(k); } }         // shared loot stream stays aligned
+      G.enemies.length=e0; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // post-segment
+    DODGE_COUNTER.enabled=savD; STAMINA.enabled=savS; this._dcArm();
     return { enabled:!!enabled, counterFired:(enabled?(opened&&countered):false), fingerprint:fp }; },
   // --- CAS-1895 EMPUÑADURA A DOS MANOS (Two-Handing) harness hooks (tools/cas1895-two-hand.mjs); additive, drive los
   // seams REALES: equipLoad (escudo fuera a dos manos), applyHeroMelee (dmg ×dmgMul + poise ×poiseMul), heavyAttack (stam
