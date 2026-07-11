@@ -1250,7 +1250,7 @@ export const SHIELD_BLOCK = {
 // ⇒ h.guardCounterT nunca sube, rama de ataque intacta ⇒ build byte-idéntico a HEAD (OFF==baseline). Números = defaults
 // sanos para QA; el CEO retunea + flipea enabled:false→true en el Gate (config-only 1 línea). $0 arte (VFX = primitiva canvas existente).
 export const GUARD_COUNTER = {
-  enabled:false,        // SHIP DARK. El CEO flipea false→true en el Gate (config-only 1 línea).
+  enabled:true,         // CAS-2105 Gate CEO GO-LIVE flip (QA PASS×2 868a3cb231ac, config-only 1 línea).
   windowS:0.6,          // ventana de contragolpe (s) tras un bloqueo exitoso (no-break)
   dmgMul:1.8,           // daño del contragolpe vs ataque light normal
   poiseMul:2.5,         // daño de POISE del contragolpe (ALTO ⇒ eje de stagger/rotura)
