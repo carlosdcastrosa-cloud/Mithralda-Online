@@ -1771,6 +1771,53 @@ export const ENCOUNTER_VARIANTS = {
   },
 };
 
+// CAS-2094 (EVO CAS-2094) — PELIGROS DE ARENA / ENVIRONMENTAL HAZARDS (mecánica #32). Un eje de decisión ORTOGONAL:
+// durante encuentros de jefe/élite aparecen peligros de arena PROCEDURALES y TELEGRAFIADOS (vent de magma, suelo que
+// colapsa, charco de veneno…) que OBLIGAN a reposicionarse. No se leen en el enemigo; se leen en el SUELO. $0 arte
+// (anillo/tint/glyph 100% procedurales, mirror telegraphmark/affix). Reusa daño (damageHero(cap,ang,null,null): src=null
+// ⇒ ni parry/escudo/espíritu entran, SÓLO i-frame/dodge del roll evaden ⇒ esquivable exclusivamente reposicionándose) y
+// estado (statusOrBuildup/addBuildup EXISTENTES) — sin path de daño nuevo, sin AI, sin save. HARD-GATED: enabled:false ⇒
+// maybeSpawnHazard retorna en la 1ª línea ⇒ 0 draws en cualquier stream ⇒ G.hazards vacío ⇒ updateHazards/render no-op ⇒
+// BYTE-IDÉNTICO a HEAD. RNG-neutral STRONG: todo el azar draw SÓLO de arenaHazardRng (stream dedicado sim.js, sembrado
+// por-spawn, distinto de los de sim.js:42–128), NUNCA del master srand ⇒ srand ON==OFF. Cap anti-degenerado: daño/tick ≤
+// min(dmgFlat, maxHp*dmgFracCap) (imposible one-shot), telegraphMs amplio (siempre esquivable), maxActive+minGapPx
+// (imposible acorralar). El Gate CEO flippea enabled:false→true (config-only, reversible, mirror CAS-2043/2055/2075/2093).
+//   rngSeed     — seed del stream dedicado arenaHazardRng (distinto de todos los usados en sim.js:42–128).
+//   spawnGate   — SÓLO spawnea con jefe/élite/campeón/signature vivo en G.enemies (presión posicional ENCIMA de la pelea).
+//   cadenceMs   — cada cuánto se intenta plantar un hazard mientras el gate se cumple.
+//   maxActive   — tope simultáneo (anti-saturación / anti-trap). telegraphMs/activeMs/fadeMs — ventanas de la máquina de fases.
+//   tickMs      — clock de daño mientras el héroe está dentro y sin i-frames. dmgFlat/dmgFracCap — cap DURO de daño/tick.
+//   radius/minGapPx — radio del hazard (px) y separación mínima (entre hazards y respecto al héroe: NUNCA spawnea encima).
+//   byZone      — tipos temáticos por zona (uno del pool se elige por arenaHazardRng). types — cada tipo reusa un STATUS/meter existente + un tint/glyph.
+export const ARENA_HAZARDS = {
+  enabled: false,                 // DARK ship; Gate CEO flippea live (config-only, reversible, mirror CAS-2043/2055/2075/2093)
+  rngSeed: 0x0a2ea094,            // stream dedicado arenaHazardRng; NUNCA consume del master srand
+  spawnGate: { bossOrElite:true },// SÓLO spawnea si hay jefe/élite/campeón/signature vivo en G.enemies
+  cadenceMs: 3200,                // cada cuánto se intenta plantar un hazard mientras el gate se cumple
+  maxActive: 2,                   // tope simultáneo (anti-saturación / anti-trap)
+  telegraphMs: 950,              // ventana de aviso ANTES de que dañe (siempre esquivable con roll/reposición)
+  activeMs: 1600,                 // ventana activa que daña
+  fadeMs: 300,                    // desvanecido presentacional (0 daño)
+  tickMs: 350,                    // clock de daño mientras el héroe está dentro y sin i-frames
+  dmgFlat: 6,                     // daño base por tick (CAPEADO)
+  dmgFracCap: 0.06,              // tope duro: daño/tick ≤ hero.maxHp*0.06 (nunca one-shot)
+  radius: 42,                     // radio del hazard (px); bounded
+  minGapPx: 64,                   // separación mínima entre hazards y respecto al héroe al plantar
+  markerLabel: true,             // glyph procedural (mirror affix render.js:1442); false ⇒ sólo tint/anillo
+  byZone: {                       // tipos temáticos por zona (uno del pool se elige por arenaHazardRng)
+    caldera: ["magma"], abyss: ["magma","void"], caves: ["collapse"],
+    ruins:   ["collapse"], swamp: ["poison"], forest: ["bramble"], frost: ["ice"],
+  },
+  types: {                        // cada tipo reusa un STATUS/meter existente + un color de tint; SIN daño nuevo
+    magma:    { status:"burn",   statusDmg:3, tint:"#ff6a2a", glyph:"♨" },
+    poison:   { status:"poison", statusDmg:3, tint:"#8fd14a", glyph:"☣" },
+    bramble:  { status:"bleed",  statusDmg:2, tint:"#c58a4a", glyph:"✷" },
+    collapse: { status:null,     statusDmg:0, tint:"#8a8a96", glyph:"▩", brief:true }, // sólo daño físico capeado
+    ice:      { status:"slow",   statusDmg:0, tint:"#8fd0ff", glyph:"❄" },
+    void:     { status:null,     statusDmg:0, tint:"#b070e0", glyph:"◈" },
+  },
+};
+
 // CAS-1996 (EVO CAS-1995) — CÓDICE DE COMBATE + HINTS CONTEXTUALES. Descubribilidad pura: un panel de referencia
 // read-only (A) que lista las mecánicas de combate VIVAS con su binding REAL + descripción, y toasts one-time de
 // primer-encuentro (B) que enseñan cada sistema cuando el jugador lo toca por primera vez. 100% BORROW: A clona el

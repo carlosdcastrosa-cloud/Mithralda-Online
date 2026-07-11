@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -134,6 +134,13 @@ const bossRng = createRNG(0xb055f17a);
 // RNG-neutral STRONG). Per-spawn seeding (not append-only) makes the variant a pure function of position ⇒ the
 // same seed/pos yields the same variant every time (AC6), independent of spawn order. seed() reset is intrinsic.
 const enemyVariantRng = createRNG(0x0ec02071);
+// CAS-2094 — DEDICATED stream for Arena Hazards (mirror enemyVariantRng). maybeSpawnHazard SEEDS this deterministically
+// from (hazardSpawnCounter, hero x/y, zoneHash) then draws the type pick + position jitter ONLY from here — never the
+// authoritative srand — so the master stream is byte-identical ON==OFF at ANY cadence. HARD-GATED behind
+// ARENA_HAZARDS.enabled: with the knob off maybeSpawnHazard returns on its first line ⇒ 0 draws on ANY stream ⇒ G.hazards
+// stays [] ⇒ updateHazards/render iterate empty ⇒ byte-identical to HEAD ([AC0/AC5] RNG-neutral STRONG).
+const arenaHazardRng = createRNG(0x0a2ea094);
+let hazardSpawnCounter = 0;   // monotonic per-plant nonce mixed into the per-spawn seed (position-independent tiebreak)
 
 // the authoritative world. The hand-built Tiled continent (760×570 + the grafted old-lands
 // dungeons) is now the DEFAULT world; ?world=classic restores the pure procedural world. The
@@ -183,6 +190,10 @@ export const G = {
   run:null, recap:null,
   talFocus:0,   // CAS-119: keyboard-focused talent node index (talents panel)
   t:0, hero:null, enemies:[], projectiles:[], fields:[], fx:[], floaters:[], drops:[],
+  // CAS-2094: live ARENA HAZARDS — a small transient array of procedural, telegraphed ground hazards planted during
+  // boss/elite fights (mirror `fields`: TRANSIENT, NEVER serialized — see persist.js allowlist). hazardT is the cadence
+  // clock. Both stay empty/0 unless ARENA_HAZARDS.enabled (maybeSpawnHazard returns on its 1st line when off) ⇒ byte-id HEAD.
+  hazards:[], hazardT:0,
   // CAS-317: presentation-only corpses for rich-anim bosses (the dracónic boss). When such
   // a boss dies, killEnemy spawns a short-lived corpse here that plays its DEATH strip
   // one-shot and holds the collapsed final frame, then fades. The sim NEVER reads these
@@ -948,7 +959,7 @@ function arenaEssence(n){ return Math.ceil((n|0)*ARENA.essStep); }
 // touch G.enemies by itself), banks the loaded best, and launches wave 1. `best` is preserved
 // (loaded at boot by persist.bootArena) — never reset here.
 function startArena(){ const A=G.arena;
-  arenaClearEnemies(); G.projectiles.length=0; G.fields.length=0; G.drops.length=0; G.draft=null;
+  arenaClearEnemies(); G.projectiles.length=0; G.fields.length=0; clearHazards(); G.drops.length=0; G.draft=null;
   A.spawnedThisWave=0; A.aliveTarget=0; A.resting=false; A.restT=0;
   // CAS-1675 — snapshot the record baseline at run start so the milestone payoff fires at most once
   // per run, only when this run's boss waves BEAT the stored record. runBestBossWave accumulates the
@@ -1092,7 +1103,7 @@ function spawnRound(r){
 // record baseline (milestone fires at most once per run), and spawns round 0. `best` is preserved (loaded at
 // boot by persist.bootBossRush) — never reset here.
 function startBossRush(){ const BR=G.bossRush;
-  bossRushClearEnemies(); G.projectiles.length=0; G.fields.length=0; G.drops.length=0; G.draft=null;
+  bossRushClearEnemies(); G.projectiles.length=0; G.fields.length=0; clearHazards(); G.drops.length=0; G.draft=null;
   BR.spawnedThisRound=0; BR.aliveTarget=0; BR.resting=false; BR.restT=0; BR.complete=false;
   BR.recordBaseline=BR.best|0; BR.recordHit=false; BR.lastRecordEssBonus=0; BR.telegraphRound=-1;
   BR.lastRoundEss=0; BR.lastClearBonus=0;
@@ -3608,6 +3619,96 @@ function updateFields(dt){
   G.fields=G.fields.filter(f=>f.life>0);
 }
 
+// -------------------- CAS-2094: Arena Hazards (mecánica #32) ------------
+// Reset transient hazard state — called on EVERY run/scene boundary that clears G.fields so a hazard never leaks
+// across a run or into a probe (mirror `G.fields.length=0`). Cheap; a no-op when the feature never ran.
+function clearHazards(){ G.hazards.length=0; G.hazardT=0; }
+// The spawn GATE: a hazard only appears while a boss/elite/champion/capstone/signature-phase enemy is alive — the
+// hazard is positional pressure LAYERED ON a boss read, never a standalone damage engine (design §4). 0 RNG.
+function bossOrElitePresent(){
+  for(const e of G.enemies){ if(!e || e.dead) continue;
+    if(e.isBoss || e.elite || e.champion || e.champElite || e.capstone || e._sbPhase) return true; }
+  return false;
+}
+// Apply a hazard's status to the hero, reusing the EXISTING ailment paths (no new channel). Bleed is a BUILDUP-only
+// ailment (no STATUS row) so it feeds the meter directly (mirror the melee bleed feed sim.js:5300); every other type
+// routes through statusOrBuildup (elementMap → buildup when STATUS_BUILDUP.enabled, else the instant applyStatus). 0 RNG.
+function hazardStatus(h, status, dmg){
+  if(!status) return;
+  if(status==="bleed"){ if(STATUS_BUILDUP.enabled) addBuildup(h, "bleed", 1, true); return; }
+  statusOrBuildup(h, status, {dmg:dmg}, true);
+}
+// maybeSpawnHazard — attempt to plant one telegraphed hazard. OFF ⇒ first line ⇒ 0 draws ⇒ byte-id HEAD. Gate-miss ⇒
+// reset the cadence clock and return (0 RNG). Only on a satisfied gate + elapsed cadence does it draw from the
+// DEDICATED arenaHazardRng (seeded per-spawn from counter+hero pos+zone) — never the master srand (AC5). Chooses a
+// zone-thematic type + a position OFFSET from the hero (≥ minGapPx, never on top), inside bounds, clear of other hazards.
+function maybeSpawnHazard(dt){
+  if(!ARENA_HAZARDS.enabled) return;                        // 1ª línea ⇒ OFF = 0 draws, 0 hazards ⇒ byte-id HEAD
+  const A=ARENA_HAZARDS; const h=G.hero; if(!h || h.dead) return;
+  if(!bossOrElitePresent()){ G.hazardT=0; return; }         // gate: sólo con jefe/élite/campeón/signature vivo (0 RNG)
+  G.hazardT += dt*1000;
+  if(G.hazardT < A.cadenceMs) return;
+  G.hazardT = 0;
+  if(G.hazards.length >= A.maxActive) return;               // saturación tope (0 draws)
+  const zone = zoneOf(world, h.x, h.y);
+  const pool = A.byZone && A.byZone[zone];
+  if(!pool || !pool.length) return;                         // zona no opta-in ⇒ sin hazard (0 draws)
+  // Deterministic per-spawn seed (mirror maybeVariant) — counter+hero pos+zone. Re-seeds ONLY arenaHazardRng.
+  const counter = (++hazardSpawnCounter) >>> 0;
+  const zoneHash = (zone.charCodeAt(0)*131 ^ zone.charCodeAt(zone.length-1)*17) >>> 0;
+  const seedV = ((A.rngSeed>>>0) ^ ((counter*0x9e3779b9)>>>0) ^ ((Math.round(h.x)*374761393)>>>0) ^ ((Math.round(h.y)*668265263)>>>0) ^ zoneHash) >>> 0;
+  arenaHazardRng.seed(seedV);
+  const type = pool[arenaHazardRng.ri(0, pool.length-1)];   // pick a zone-eligible type
+  const def = A.types[type]; if(!def) return;
+  // Telegraphed position: near the hero but OFFSET ≥ minGapPx (never underfoot), inside world bounds, spaced from
+  // other hazards. A few tries; if none clears (crowded/cornered) skip this cadence — anti-trap by construction.
+  const gap2 = A.minGapPx*A.minGapPx;
+  for(let tries=0; tries<8; tries++){
+    const ang = arenaHazardRng.rr(0, Math.PI*2);
+    const rad = A.minGapPx + arenaHazardRng.rr(0, A.minGapPx*1.5);      // minGap .. 2.5×minGap from the hero
+    let hx = h.x + Math.cos(ang)*rad, hy = h.y + Math.sin(ang)*rad;
+    hx = Math.max(TS, Math.min((MAP_W-1)*TS, hx));                      // clamp inside the map
+    hy = Math.max(TS, Math.min((MAP_H-1)*TS, hy));
+    if(dist2(hx,hy,h.x,h.y) < gap2) continue;                          // clamp pulled it under the hero ⇒ retry
+    let clear = true;
+    for(const o of G.hazards){ if(dist2(hx,hy,o.x,o.y) < gap2){ clear=false; break; } }
+    if(!clear) continue;
+    G.hazards.push({ x:hx, y:hy, r:A.radius, type, def, phase:"telegraph", t:0, tickAcc:0 });
+    return;
+  }
+}
+// updateHazards — advance the telegraph→active→fade machine (mirror updateFields). NEVER damages during telegraph
+// (justice of the warning window, AC2). In `active`, every tickMs a hero inside the radius takes a CAPPED tick via the
+// EXISTING damageHero(cap,ang,null,null): src=null ⇒ parry/shield/spirit never engage (they require src), ONLY an
+// active roll's i-frame evades it (AC4) ⇒ the hazard is dodged exclusively by repositioning. 0 RNG (all spent at spawn),
+// 0 per-frame alloc (the filter only runs when something actually expired).
+function updateHazards(dt){
+  if(!G.hazards.length) return;
+  const A=ARENA_HAZARDS; const h=G.hero; const dtMs=dt*1000; const HR=12;   // hero collision radius (mirror solidBlocked)
+  let expired=false;
+  for(const hz of G.hazards){
+    hz.t += dtMs;
+    if(hz.phase==="telegraph"){
+      if(hz.t >= A.telegraphMs){ hz.phase="active"; hz.t=0; hz.tickAcc=0; }   // sólo avanza el aviso; 0 daño
+    } else if(hz.phase==="active"){
+      hz.tickAcc += dtMs;
+      while(hz.tickAcc >= A.tickMs){
+        hz.tickAcc -= A.tickMs;
+        if(h && !h.dead && dist2(h.x,h.y,hz.x,hz.y) <= (hz.r+HR)*(hz.r+HR)){
+          const cap = Math.max(1, Math.min(A.dmgFlat, Math.floor(heroMaxHp(h)*A.dmgFracCap)));   // nunca one-shot
+          const ang = Math.atan2(h.y-hz.y, h.x-hz.x);
+          const landed = damageHero(cap, ang, null, null);   // i-frame/dodge del roll ya lo evade dentro de damageHero
+          if(landed && hz.def && hz.def.status) hazardStatus(h, hz.def.status, hz.def.statusDmg);
+        }
+      }
+      if(hz.t >= A.activeMs){ hz.phase="fade"; hz.t=0; }
+    } else {   // fade — 0 daño, sólo presentación
+      if(hz.t >= A.fadeMs){ hz.dead=true; expired=true; }
+    }
+  }
+  if(expired) G.hazards = G.hazards.filter(hz=>!hz.dead);
+}
+
 // --------------------------- CAS-118: status effects -------------------
 // One generic apply/update path shared by the hero AND every enemy. Statuses are
 // data rows in STATUS (config.js): DoTs (poison/quemadura) tick flat damage on a
@@ -3777,6 +3878,7 @@ export function beginRun(){ const h=G.hero; if(!h) return;
           champElite0:h.champElites|0, // CAS-1590: baseline lifetime champion kills for this run's guaranteed-Esencia delta
           champ0:h.champKills|0, lvl0:h.lvl|0 };
   G._spirit=null;   // CAS-1954: ningún espíritu invocado sobrevive a un nuevo baseline de run (transitorio, no serializado ⇒ byte-neutral)
+  clearHazards();   // CAS-2094: ningún peligro de arena sobrevive a un nuevo baseline de run (transitorio; cubre createHero/load/reset via beginRun)
   G.recap=null; }
 // Build the FROZEN recap delta from current counters minus the run baseline. Time uses
 // playT (active-play seconds) so menu/pause time never inflates it. Deltas clamp at 0
@@ -4501,6 +4603,10 @@ export function update(dtMs){
   updateCorpses(dt); // CAS-317: age + reap rich-anim boss death corpses (presentation-only)
   updateProjectiles(dt);
   updateFields(dt);
+  // CAS-2094: intentar plantar + avanzar los PELIGROS DE ARENA. OFF ⇒ maybeSpawnHazard retorna en la 1ª línea y
+  // updateHazards itera vacío ⇒ 0 draws, byte-idéntico a HEAD. maybeSpawnHazard sólo dibuja de arenaHazardRng.
+  maybeSpawnHazard(dt);
+  updateHazards(dt);
   updateDrops(dt);
   updateFx(dt); updateFloaters(dt);
   // CAS-1664: advance the Arena de Oleadas wave loop (rest countdown / wave-clear → next wave).
@@ -4562,7 +4668,7 @@ function armTelegraph(e){
 // CAS-1790 harness helper: clean arena + one enemy parked INSIDE its own range so the REAL AI commits
 // chase→windup on the next tick(s). `heavy` = flags to graft (elite/isBoss/…). Drives updateEnemies (the
 // real wired path) so the M1 floor + M2 cue fire exactly as in-game. Returns the enemy at windup entry.
-function teleArmWindup(type, heavy){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0;
+function teleArmWindup(type, heavy){ G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; clearHazards();
   const h=G.hero; if(!h) return null; h.dead=false; h.rolling=false; h.iframe=0; h.maxHp=1e6; h.hp=1e6; h.cls="warrior";
   const e=spawnEnemy(type||"orc", h.x+20, h.y); if(!e) return null;
   e.maxHp=e.hp=1e9; if(heavy) Object.assign(e, heavy); e.state="chase";
@@ -5635,6 +5741,75 @@ export const dev = {
       bastionLightHits:bastionLight.hits, bastionLightStaggered:bastionLight.staggered,
       bastionHeavyHits:bastionHeavy.hits, bastionHeavyStaggered:bastionHeavy.staggered,
       eliteLightHits:eliteLight.hits, eliteLightStaggered:eliteLight.staggered }; },
+  // --- CAS-2094 Arena-Hazards harness hooks (tools/cas2094-arena-hazards.mjs); additive, drive the REAL paths ---
+  // Master toggle: flip ARENA_HAZARDS.enabled (mirror variantEnable). OFF ⇒ maybeSpawnHazard no-ops on its 1st line.
+  hazardEnable(on){ ARENA_HAZARDS.enabled=!!on; return { enabled:ARENA_HAZARDS.enabled }; },
+  hazardClear(){ clearHazards(); return { hazards:G.hazards.length, hazardT:G.hazardT }; },
+  // AC1 [GATE]: run the REAL maybeSpawnHazard over a fixed cadence with/without a boss present, reporting how many
+  // hazards spawned. A plain literal boss (0 srand) satisfies bossOrElitePresent; without it the gate resets the clock
+  // ⇒ 0 hazards even enabled. `park` positions the hero in a byZone zone so a pool exists. Returns spawned type/phase list.
+  hazardSpawnProbe(zone, withBoss, tries){
+    const savEn=ARENA_HAZARDS.enabled; ARENA_HAZARDS.enabled=true;
+    if(!G.hero) createHero("HazardQA","warrior");
+    const h=G.hero; h.dead=false;
+    // park the hero at the CENTER of the requested zone so zoneOf() resolves the byZone pool (else no pool ⇒ no spawn).
+    const rect=world[zone]||world.forest; if(rect){ h.x=(rect.x+rect.w/2)*TS; h.y=(rect.y+rect.h/2)*TS; }
+    clearHazards();
+    G.enemies.length=0;
+    if(withBoss) G.enemies.push({ isBoss:true, dead:false, hp:1000, x:h.x+400, y:h.y, tpl:{size:16} });
+    const spawned=[]; const T=Math.max(1,tries|0);
+    for(let i=0;i<T;i++){ clearHazards(); G.hazardT=ARENA_HAZARDS.cadenceMs; maybeSpawnHazard(1/60);
+      if(G.hazards.length) spawned.push({ type:G.hazards[0].type, phase:G.hazards[0].phase }); }
+    const resolvedZone=zoneOf(world,h.x,h.y);
+    G.enemies.length=0; clearHazards(); ARENA_HAZARDS.enabled=savEn;
+    return { zone:resolvedZone, withBoss:!!withBoss, spawnedCount:spawned.length, spawned }; },
+  // AC5 [RNG-NEUTRAL STRONG]: fingerprint the MASTER srand around a fixed hazard-spawn script ON vs OFF. maybeSpawnHazard
+  // draws ONLY from the dedicated arenaHazardRng, so the master fingerprint is BYTE-IDENTICAL ON==OFF (and the boss is a
+  // plain literal ⇒ 0 srand). probeN draws pre + post = 2*probeN. spawnCount proves the ON path actually planted (non-vacuous).
+  hazardSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savEn=ARENA_HAZARDS.enabled; ARENA_HAZARDS.enabled=!!enabled;
+    if(!G.hero) createHero("HazardQA","warrior");
+    const h=G.hero; h.dead=false; const rect=world.caldera||world.abyss||world.forest;
+    if(rect){ h.x=(rect.x+rect.w/2)*TS; h.y=(rect.y+rect.h/2)*TS; }
+    G.enemies.length=0; G.enemies.push({ isBoss:true, dead:false, hp:1000, x:h.x+400, y:h.y, tpl:{size:16} }); // literal ⇒ 0 srand
+    clearHazards();
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));   // pre-segment
+    let spawnCount=0;
+    for(let k=0;k<24;k++){ clearHazards(); G.hazardT=ARENA_HAZARDS.cadenceMs; maybeSpawnHazard(1/60); if(G.hazards.length) spawnCount++; }
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                // post-segment
+    G.enemies.length=0; clearHazards(); ARENA_HAZARDS.enabled=savEn;
+    return { enabled:!!enabled, fingerprint:fp, spawnCount }; },
+  // AC2/AC3/AC4: drive the REAL updateHazards machine over a parked hero with a hazard planted UNDER him. Reports the
+  // damage taken during the telegraph window (must be 0), during a full active window while STANDING (capped ticks,
+  // status applied, never one-shot), and while ROLLING (h.iframe>0 ⇒ 0 damage — the roll evade is the HEADLINE).
+  hazardDamageProbe(type){
+    const savEn=ARENA_HAZARDS.enabled; ARENA_HAZARDS.enabled=true;
+    if(!G.hero) createHero("HazardQA","warrior");
+    const h=G.hero; h.dead=false; h.blocking=false; h.parryT=0;
+    const A=ARENA_HAZARDS; const def=A.types[type]||A.types.magma;
+    const maxHp=heroMaxHp(h);
+    const cap=Math.max(1, Math.min(A.dmgFlat, Math.floor(maxHp*A.dmgFracCap)));
+    const reset=(iframe)=>{ h.hp=maxHp; h.iframe=iframe||0; h.dead=false; h.rolling=!!iframe; h.dots=null; h.bld=null; };
+    const plant=(phase)=>{ clearHazards(); const hz={ x:h.x, y:h.y, r:A.radius, type, def, phase:phase||"telegraph", t:0, tickAcc:0 }; G.hazards.push(hz); return hz; };
+    const step=(ms)=>updateHazards(ms/1000);
+    // --- TELEGRAPH: 0 damage for the whole warning window ---
+    reset(0); const hzT=plant("telegraph"); const telHp0=h.hp;
+    for(let i=0;i<Math.ceil(A.telegraphMs/16)+2 && hzT.phase==="telegraph"; i++) step(16);
+    const telegraphDmg=telHp0-h.hp; const reachedActive=(hzT.phase==="active");
+    // --- STANDING in ACTIVE: capped ticks + status + never one-shot ---
+    reset(0); const hzA=plant("active"); const hp0=h.hp; const ticks=[]; let g=0;
+    while(hzA.phase==="active" && g++<2000){ const b=h.hp; step(16); const dd=b-h.hp; if(dd>0) ticks.push(+dd.toFixed(4)); }
+    const standingTotal=+(hp0-h.hp).toFixed(4); const maxTick=ticks.length?Math.max(...ticks):0;
+    const bld=h.bld?Object.assign({},h.bld):null; const dots=h.dots?Object.keys(h.dots):null;
+    const statusApplied = def.status ? !!((bld&&Object.values(bld).some(v=>v>0)) || (dots&&dots.length)) : null;
+    const hpAfterStanding=+h.hp.toFixed(4);
+    // --- ROLLING (i-frame) in ACTIVE: 0 damage (damageHero returns early on h.iframe>0) ---
+    reset(999); const hzR=plant("active"); const rhp0=h.hp; let g2=0;
+    while(hzR.phase==="active" && g2++<2000){ step(16); h.iframe=999; }   // keep the roll i-frame topped
+    const rollingDmg=+(rhp0-h.hp).toFixed(4);
+    clearHazards(); reset(0); ARENA_HAZARDS.enabled=savEn;
+    return { type, cap, maxHp, telegraphDmg, reachedActive, ticks, maxTick, standingTotal, statusApplied, bld, dots, hpAfterStanding, oneShot:(hpAfterStanding<=0), rollingDmg }; },
   // --- hunt-contract harness hooks (tools/hunt.mjs, CAS-63); additive ---
   // Read a zone's contract progress; champ reports the live elite's hp if summoned.
   huntState(zone){ const H=G.hunts&&G.hunts[zone]; const cfgH=HUNTS[zone]; if(!H||!cfgH) return null;

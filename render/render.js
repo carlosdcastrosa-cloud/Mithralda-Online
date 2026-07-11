@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -702,8 +702,47 @@ export function createRenderer(ctx){
     ctx.restore(); ctx.globalAlpha=1;
   }
 
+  // CAS-2094: PELIGROS DE ARENA — $0 arte, 100% procedural. Máquina de fases telegraph→active→fade dibujada como un
+  // marcador de SUELO (bajo las entidades: los mobs/héroe pisan encima) para que se lea como terreno. telegraph = anillo
+  // pulsante + relleno translúcido CRECIENTE del tint (el aviso se intensifica hacia el instante activo, mirror
+  // telegraphmark); active = relleno tintado + borde con pulso rápido ("duele AHORA"); fade = alpha decae a 0. Glyph
+  // procedural centrado (mirror label afijo render.js:1442). Presentación pura, animada SÓLO de G.t (0 RNG, no perturba el
+  // sim). Gated: OFF / sin hazards ⇒ no dibuja nada ⇒ byte-idéntico a HEAD.
+  function drawHazards(){
+    if(!ARENA_HAZARDS.enabled || !G.hazards.length) return;
+    const A=ARENA_HAZARDS, t=G.t;
+    for(const hz of G.hazards){
+      const def=hz.def||A.types[hz.type]||{}; const tint=def.tint||"#ff6a2a"; const x=hz.x, y=hz.y, r=hz.r;
+      ctx.save();
+      if(hz.phase==="telegraph"){
+        const k=clamp(hz.t/A.telegraphMs,0,1);                        // 0→1 conforme se acerca el golpe
+        ctx.globalAlpha=0.10+0.16*k; ctx.fillStyle=tint;
+        ctx.beginPath(); ctx.arc(x,y,r*(0.55+0.45*k),0,6.283); ctx.fill();
+        ctx.globalAlpha=0.45+0.4*Math.abs(Math.sin(t*6)); ctx.strokeStyle=tint; ctx.lineWidth=2+2*k;
+        ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.stroke();
+      } else if(hz.phase==="active"){
+        const pulse=0.5+0.5*Math.abs(Math.sin(t*10));
+        ctx.globalAlpha=0.30+0.14*pulse; ctx.fillStyle=tint;
+        ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.fill();
+        ctx.globalAlpha=0.7+0.25*pulse; ctx.strokeStyle=tint; ctx.lineWidth=2.5;
+        ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.stroke();
+      } else {                                                         // fade
+        const k=clamp(1-hz.t/A.fadeMs,0,1);
+        ctx.globalAlpha=0.30*k; ctx.fillStyle=tint;
+        ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.fill();
+      }
+      if(A.markerLabel && def.glyph && hz.phase!=="fade"){
+        ctx.globalAlpha=0.92; ctx.fillStyle="#fff2d8"; ctx.font="bold 14px "+FF; ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillText(def.glyph, x, y);
+      }
+      ctx.restore();
+    }
+    ctx.globalAlpha=1; ctx.textBaseline="alphabetic";
+  }
+
   function renderEntities(){
     const h=G.hero;
+    drawHazards();   // CAS-2094: capa de suelo (bajo las entidades) — OFF/sin hazards ⇒ no-op byte-id
     const list=[];
     for(const o of G._decoOrder) list.push(o);
     // CAS-1867: la mancha de sangre entra en el y-sort SÓLO si su zona coincide con la del héroe (no se ve en otras zonas).
