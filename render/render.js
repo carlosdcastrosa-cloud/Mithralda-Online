@@ -13,7 +13,7 @@ import { zoneOf } from "../sim/world.js";
 import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
-import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
+import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
 import { TALENTS, talentNodes, talentNode, nodeRank, canAllocTalent, lockReason, talentSpent } from "../sim/talents.js";
 import { STR } from "../strings.js";
 import { audio } from "../audio.js";
@@ -312,6 +312,7 @@ export function createRenderer(ctx){
     if(G.scene==="draft") renderDraft(); // CAS-383 inter-zone boon draft
     if(G.scene==="curse") renderCurse(); // CAS-394 opt-in zone modifier offer
     if(G.scene==="ascend") renderAscend(); // CAS-450 opt-in World-Tier climb offer
+    if(G.scene==="ascendRecap") renderAscendRecap(); // CAS-2035 data-driven NG+ cycle-recap overlay
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
     if(G.scene==="altar") renderAltar(); // CAS-1557 meta-progression altar (opened from death)
@@ -3434,6 +3435,65 @@ export function createRenderer(ctx){
     ctx.fillStyle="#262a30"; ctx.fillRect(bxx,byy,bwid,bhei);
     ctx.strokeStyle="#7f8794"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
     ctx.fillStyle=COL.textDim; ctx.font="bold 14px "+FF; ctx.fillText(STR.ascendSkip, VW/2, byy+22);
+    ui.ascendRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"skip"});
+    ctx.textAlign="left";
+  }
+
+  // CAS-2035: the NG+ CYCLE RECAP overlay. Shown on the "ascendRecap" scene (only when
+  // NG_PLUS.enabled && NG_PLUS.recap; DARK by default ⇒ this fn is never reached and renderAscend is
+  // byte-id). Pure view over DURABLE/DERIVABLE state + sim.ngTierPreview — 0 RNG. Draws: cycle header,
+  // hero snapshot (class/level/banked Esencia/best gear), and the tier+1 escalation preview (the hook).
+  // Pushes the SAME accept/skip rects to ui.ascendRects so the CAS-450 input path is reused verbatim.
+  function renderAscendRecap(){ const a=G.ascend; ui.ascendRects=[]; if(!a) return;
+    const h=G.hero; if(!h) return;
+    const snap=sim.conquestSnap(), prev=sim.ngTierPreview(a.tier);
+    const fmtMul=(m)=> (Math.round(m*100)/100).toString();
+    const bw=Math.min(VW*0.92,480), bh=Math.min(VH*0.92,472), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    const cx=x+20, cw=bw-40;
+    // ---- title + cycle header ----
+    ctx.textAlign="center";
+    ctx.fillStyle=COL.textGold; ctx.font="bold 19px "+FF; ctx.fillText(STR.ngRecapTitle,VW/2,y+28);
+    ctx.fillStyle=COL.cream; ctx.font="bold 13px "+FF; ctx.fillText(STR.ngRecapCycleHdr(snap.tier),VW/2,y+48);
+    const dn=(snap.zones||[]).filter(z=>z.down).length, tot=(snap.zones||[]).length||4;
+    ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.conquestProgress(dn,tot),VW/2,y+64);
+    // ---- hero snapshot ----
+    ctx.textAlign="left";
+    let cy=y+90;
+    ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.fillText(STR.ngRecapHeroHdr,cx,cy); cy+=18;
+    const cls=(STR.classLabel&&STR.classLabel[h.cls])||h.cls;
+    ctx.fillStyle=COL.cream; ctx.font="12px "+FF; ctx.fillText(STR.ngRecapHeroLine(cls,h.lvl|0),cx,cy); cy+=16;
+    const ess=(G.meta&&G.meta.essence)|0;
+    ctx.fillStyle=COL.textDim; ctx.fillText(STR.ngRecapEssence(ess),cx,cy); cy+=16;
+    let best=null,bestRank=-1; for(const s of ["weapon","body","shield"]){ const it=h.equip&&h.equip[s]; if(!it) continue; const rk=rarityRank(it.rarity); if(rk>bestRank){ bestRank=rk; best=it; } }
+    if(best){ ctx.fillStyle=gearCol(best); ctx.fillText(STR.ngRecapGear(gearName(best)),cx,cy); } cy+=22;
+    // ---- NG+ N+1 escalation preview (THE HOOK) ----
+    const showPoise=prev.poiseMul>1;
+    const pvLines=3+(showPoise?1:0);
+    const pvH=26+pvLines*15+8;
+    ctx.fillStyle="#2a2618"; ctx.fillRect(cx,cy,cw,pvH);
+    ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(cx+0.5,cy+0.5,cw,pvH);
+    ctx.textAlign="center"; ctx.fillStyle="#ffd24d"; ctx.font="bold 12px "+FF; ctx.fillText(STR.ngRecapPreviewHdr(a.tier),VW/2,cy+20);
+    ctx.textAlign="left"; ctx.fillStyle=COL.cream; ctx.font="11px "+FF;
+    let py=cy+40;
+    ctx.fillText(STR.ngRecapThreat(Math.round(prev.hpPct*100),Math.round(prev.dmgPct*100)),cx+14,py); py+=15;
+    const lootLbl=(STR.rarity&&STR.rarity[prev.lootFloor])||prev.lootFloor;
+    ctx.fillText(STR.ngRecapLoot(lootLbl),cx+14,py); py+=15;
+    ctx.fillText(STR.ngRecapEss(fmtMul(prev.essMul)),cx+14,py); py+=15;
+    if(showPoise){ ctx.fillText(STR.ngRecapPoise(fmtMul(prev.poiseMul)),cx+14,py); py+=15; }
+    // ---- reward framing (above buttons) ----
+    ctx.textAlign="center"; ctx.fillStyle="#e0c070"; ctx.font="10px "+FF;
+    wrapText(STR.ngRecapReward,VW/2,y+bh-100,bw-44,13);
+    // ---- action buttons (identical skeleton to renderAscend → same ui.ascendRects contract) ----
+    const bwid=bw-40, bhei=34, bxx=x+20; let byy=y+bh-64;
+    ctx.fillStyle="#3a3218"; ctx.fillRect(bxx,byy,bwid,bhei);
+    ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
+    ctx.fillStyle="#ffe2a0"; ctx.font="bold 14px "+FF; ctx.fillText(STR.ascendAccept,VW/2,byy+22);
+    ui.ascendRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"accept"});
+    byy+=bhei+8;
+    ctx.fillStyle="#262a30"; ctx.fillRect(bxx,byy,bwid,bhei);
+    ctx.strokeStyle="#7f8794"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 14px "+FF; ctx.fillText(STR.ascendSkip,VW/2,byy+22);
     ui.ascendRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"skip"});
     ctx.textAlign="left";
   }

@@ -196,7 +196,7 @@ function edge(code){
     return; }
   // CAS-450: World-Tier ascend offer — A / Enter / Space climbs (world re-arms, harder + richer),
   // Esc / S stays on the current tier. Both resume play; a new offer needs a new full clear.
-  if(G.scene==="ascend"){
+  if(G.scene==="ascend"||G.scene==="ascendRecap"){ // CAS-2035: recap overlay shares the ascend keyboard path
     if(code==="KeyA"||code==="Enter"||code==="Space"){ sim.acceptAscend(); }
     else if(code==="Escape"||code==="KeyS"){ sim.declineAscend(); }
     return; }
@@ -577,7 +577,7 @@ function handleUITap(x,y){
   if(G.scene==="bestiary"){ return bestiaryTap(x,y); } // CAS-386
   if(G.scene==="draft"){ return draftTap(x,y); } // CAS-383
   if(G.scene==="curse"){ return curseTap(x,y); } // CAS-394
-  if(G.scene==="ascend"){ return ascendTap(x,y); } // CAS-450
+  if(G.scene==="ascend"||G.scene==="ascendRecap"){ return ascendTap(x,y); } // CAS-450 (CAS-2035: recap overlay reuses ui.ascendRects)
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
     const top=topBtns(); for(const k in top){ const b=top[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
