@@ -1348,7 +1348,7 @@ export const RIPOSTE = {
 // mec #37 SÍ toca input.js (plumbing HOLD KeyN → io.chargeHeld) + render.js (medidor de windup). Auditar settings.binds byte-id.
 // enabled:false ⇒ io.chargeHeld=false → rama muerta → KeyN dispara heavyAttack() inmediato = HEAD byte-id. $0 arte.
 export const CHARGED_ATTACK = {
-  enabled:false,                // SHIP DARK — toggle byte-idéntico OFF == HEAD; el CEO flipea en el Gate post-QA-PASS×2
+  enabled:true,                 // LIVE — flipeado por CEO Gate CAS-2139 post-QA-PASS×2 CAS-2137
   chargeThresholdMs:350,        // hold ≥ umbral ⇒ cargado; soltar antes ⇒ pesado normal (= HEAD byte-id)
   maxChargeMs:900,              // tope del acumulador (evita hold infinito; feel/tuning CEO)
   dmgMul:1.7,                   // ×daño del golpe CARGADO (compone MULTIPLICATIVAMENTE con COMBO.heavyDmgMul y counters)
