@@ -1332,7 +1332,7 @@ export const RALLY = {
 // HARD-GATED: enabled:false ⇒ e._ripArm nunca se arma, ramas de daño INTACTAS ⇒ build byte-idéntico a HEAD (OFF==baseline).
 // $0 arte: reusa primitivas addFx/floater ya vivas. Números = defaults sanos para QA; el CEO retunea + flipea en el Gate.
 export const RIPOSTE = {
-  enabled:false,          // SHIP DARK — toggle byte-idéntico OFF == HEAD. CEO flip false→true en el Gate (config-only 1 línea).
+  enabled:true,           // CAS-2132 CEO GATE GO 07-11 — flip config-only tras QA PASS×2 OBSERVABLE. Reversible→false. sim.js byte-id (srand ON==OFF).
   dmgMul:2.2,             // multiplicador de ejecución sobre el 1er golpe melee al objetivo roto
   poiseMul:1.5,           // poise-damage × (paridad #33/#34; casi no-op contra target ya roto — pausa de acumulación mientras staggerT>0)
   essenceBonus:2,         // Esencia pequeña por ejecución (recompensa de skill; banca a meta, no toca save.v1)
