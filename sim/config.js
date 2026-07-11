@@ -1622,3 +1622,27 @@ export const SIGNATURE_BOSS = {
   ailmentsToHero: { buildPerHit:18, cap:70 },
   rewards: { essenceBonus:200, guaranteedRarity:"rare" },
 };
+
+// CAS-1954 — EVO Cenizas de Espíritu (SPIRIT SUMMON: aliado IA invocable, single-player).
+// $0 arte: sprite de mob REUSADO con tinte espectral cian + alpha (source-atop/lighter procedural). NO PixelLab, NO netcode.
+// 1 knob HARD-GATED, RNG-neutral STRONG: el espíritu es 100% determinista ⇒ 0 draws srand; enabled:false ⇒ byte-idéntico a HEAD
+// (ambos SEAMs — updateEnemies retarget + damageHero redirect — son no-op). Todo el estado (G._spirit, summonCharges, summonZone)
+// es transitorio (fuera del allowlist de serializeSave) ⇒ save.v1 byte-id. Default enabled:false CONSERVADOR (no trivializa jefes:
+// HP moderado, dmg medio, duración corta); el gate CEO decide flip live. Sub-tunes = config-only.
+//   key      — CODE dedicado NO rebindable. KeyN (única letra libre: KeyF ya es "pickup" settings.js:39 y KeyZ es "ability1":36,
+//              ambas acciones REBINDABLES ⇒ colisión al enabled; KeyN es el ÚNICO code de letra sin bind). Ver Build/GE nota.
+//   charges  — cargas transitorias (mirror flaskCharges); refill SÓLO por transición de zona + hoguera (Estus-parity, recurso escaso).
+//   summonMs — vida máxima del espíritu (timer); expira también al llegar hp<=0.
+//   threat   — regla de aggro DETERMINISTA (0 draws): "nearest" ⇒ un enemigo cuya amenaza más cercana es el espíritu lo persigue/ataca.
+//   spirit   — perfil: hpPct de heroMaxHp, dmgMul de equippedDmg (daño PLANO baseline ×1: sin crit/boons/procs/WEAPON_BUFFS/ARTS/TWO_HAND,
+//              0 srand; poise-dmg normal ⇒ divide postura = payoff), moveMul, atkCdMs, range (px), tint/alpha espectral, mold (sprite base).
+export const SUMMON = {
+  enabled: false,               // OFF ⇒ byte-idéntico a HEAD (ambos SEAMs no-op)
+  key: "KeyN",                  // dedicado NO rebindable (KeyF/KeyZ están ligadas ⇒ KeyN, única letra libre)
+  charges: 2, refillOnZone: true, // + bonfire (mirror Estus)
+  summonMs: 14000,              // duración máx conservadora
+  threat: "nearest",            // regla determinista de aggro (0 draws)
+  replaceOnRecast: false, maxActive: 1,
+  spirit: { hpPct:0.35, dmgMul:0.55, moveMul:1.0, attackType:"melee", atkCdMs:900,
+            range:56, tint:"#7fe3ff", alpha:0.72, mold:"skeleton" }
+};
