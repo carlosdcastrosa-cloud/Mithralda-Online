@@ -59,6 +59,15 @@ async function enterPlay(page) {
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })); });
   if (!await waitScene(page, "classsel", 8000)) return false;
   await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true })));
+  // CAS-2058: build now interposes customize/abilitysel between classsel and play — advance through both (Enter).
+  await page.waitForFunction(() => ["customize","abilitysel","play"].includes(window.__dev.scene()), { timeout: 8000 }).catch(() => {});
+  if (await page.evaluate(() => window.__dev.scene()) === "customize") {
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
+    await page.waitForFunction(() => ["abilitysel","play"].includes(window.__dev.scene()), { timeout: 8000 }).catch(() => {});
+  }
+  if (await page.evaluate(() => window.__dev.scene()) === "abilitysel") {
+    await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "Enter", key: "Enter", bubbles: true })));
+  }
   return await waitScene(page, "play", 8000);
 }
 
@@ -83,17 +92,22 @@ try {
   ok(afterReload.reduceMotion === true, "reduceMotion PERSISTS across reload");
 
   // ---- 3) key rebinding persists + actually drives movement ----
-  // rebind "up" to KeyK, reload, then hold KeyK and confirm the hero moves up (y decreases).
-  await page.evaluate(() => window.__dev.setBind("up", "KeyK"));
+  // rebind "up" to KeyM, reload, then hold KeyM and confirm the hero moves up (y decreases).
+  // CAS-2058: test key must be a NEUTRAL code. Do NOT use KeyK/KeyY/KeyL/KeyP — those are RESERVED fixed
+  // (non-rebindable) play-scene action keys (KeyK→Códice, KeyY→Títulos, KeyL→Pactos, KeyP→potion). Binding
+  // movement onto one registers the move but edge() ALSO fires the fixed action (opens a panel ⇒ scene leaves
+  // 'play') so the hero can't move — a pre-existing rebind/reserved-key collision (see bug filed under CAS-27),
+  // NOT a settings-persistence bug. KeyM is neutral, so this asserts the rebind→movement path cleanly.
+  await page.evaluate(() => window.__dev.setBind("up", "KeyM"));
   const reb = await page.evaluate(() => window.__dev.settingsSaved());
-  ok(reb && reb.binds && reb.binds.up === "KeyK", "rebind written to localStorage");
+  ok(reb && reb.binds && reb.binds.up === "KeyM", "rebind written to localStorage");
   if (!await enterPlay(page)) throw new Error("could not reach play (after rebind)");
   const boundUp = await page.evaluate(() => window.__dev.settingsState().binds.up);
-  ok(boundUp === "KeyK", "rebind PERSISTS across reload (up→K)");
+  ok(boundUp === "KeyM", "rebind PERSISTS across reload (up→M)");
   const y0 = await page.evaluate(() => window.__dev.hero().y);
-  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyK", key: "k", bubbles: true })));
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyM", key: "m", bubbles: true })));
   await wait(450);
-  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyK", key: "k", bubbles: true })));
+  await page.evaluate(() => window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyM", key: "m", bubbles: true })));
   const y1 = await page.evaluate(() => window.__dev.hero().y);
   ok(y1 < y0 - 2, `rebound key MOVES hero up (y ${y0.toFixed(0)}→${y1.toFixed(0)})`);
   // old default key (KeyW) should no longer move up after the swap-free remap

@@ -36,7 +36,7 @@ import * as cfg from "../sim/config.js";
 import * as sim from "../sim/sim.js";
 import { G, update, composeTutSteps } from "../sim/sim.js";
 
-const EXPECT_BUILD = "1cc255d4b339"; // CAS-2044: bumped from d1405a9bcfc5 after CAS-2043 NG+ Cycle Recap go-live flip (new live build; recap:false→true, config-only).
+const EXPECT_BUILD = "f5fa24ffe4e2"; // CAS-2058: bumped from 1cc255d4b339 after CAS-2055 Boss Rush Time-Attack go-live flip (timeAttack:false→true, config-only). Prev CAS-2044 recap:false→true.
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 
 let ok = true;
@@ -140,6 +140,14 @@ function auditKnobs() {
   if (suLive && brValid && br.enabled === true && ccLive && obLive && ngLive)
     pass(`[GOLIVE] SUMMON (KeyN) && BOSS_RUSH (KeyB) && COMBAT_CODEX (Backquote, ${ce.length} entries) && ONBOARDING && NG_PLUS — 5/5 PLAYABLE`);
   else fail(`[GOLIVE] SUMMON=${su && su.enabled} BOSS_RUSH=${br && br.enabled}(valid=${brValid}) CODEX=${cc && cc.enabled}(live=${ccLive}) ONBOARDING=${ob && ob.enabled} NG_PLUS=${ng && ng.enabled} (expected all true)`);
+
+  // CAS-2058: Boss Rush TIME-ATTACK (29th live mech, CAS-2055 flip) — headline of build f5fa24ffe4e2.
+  // timeAttack:true arms the layer; showTimer/showScore surface the HUD clock + recap score block. Score knobs present.
+  const taLive = br && br.timeAttack === true && br.showTimer === true && br.showScore === true
+    && br.scoreBase === 100000 && br.scoreTimeW === 100 && br.scoreHitW === 250 && br.scoreCleanBonus === 10000;
+  if (taLive)
+    pass(`[TIMEATTACK] BOSS_RUSH.timeAttack:true (29th mech, CAS-2055) + showTimer/showScore:true, score knobs base=${br.scoreBase}/timeW=${br.scoreTimeW}/hitW=${br.scoreHitW}/clean=${br.scoreCleanBonus} — Time-Attack LIVE`);
+  else fail(`[TIMEATTACK] timeAttack=${br && br.timeAttack} showTimer=${br && br.showTimer} showScore=${br && br.showScore} scoreBase=${br && br.scoreBase} (expected LIVE true/true/true + knobs)`);
 }
 
 function auditNgPlus() {
