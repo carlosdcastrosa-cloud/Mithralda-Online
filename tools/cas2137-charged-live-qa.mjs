@@ -142,19 +142,19 @@ for (const prof of PROFILES) {
   // AC4 HYPER-ARMOR: charging absorbs stun
   const hyp = await page.evaluate(() => window.__h.sim.dev.chargeHyperArmorProbe());
   if (hyp.ok)
-    P(`[${prof.name}] HYPER-ARMOR: stunNoCharge=${hyp.stunNoCharge}, stunDuringCharge=${hyp.stunDuringCharge}, hyperArmorAbsorbs=${hyp.hyperArmorAbsorbs}`);
+    P(`[${prof.name}] HYPER-ARMOR: fuera de la carga el stun aturde (${hyp.stunBase}); durante h.charging el mismo stun NO interrumpe (${hyp.stunCharge}) ⇒ absorbe (${hyp.absorbed})`);
   else F(`[${prof.name}] HYPER-ARMOR broken: ${JSON.stringify(hyp)}`);
 
   // AC5 CAP-IN: incoming damage capped while charging
   const cin = await page.evaluate(() => window.__h.sim.dev.chargeIncomingCapProbe());
   if (cin.ok)
-    P(`[${prof.name}] CAP-IN: cap=${cin.cap}, dUncapped=${cin.dUncapped}>cap, dCapped=${cin.dCapped}≤cap (capOk=${cin.capOk})`);
+    P(`[${prof.name}] CAP-IN: cap=${cin.cap}; fuera resta COMPLETO=${cin.dBase}>cap; durante h.charging ≤cap=${cin.dCap} (capped=${cin.capped}) ⇒ nunca one-shot`);
   else F(`[${prof.name}] CAP-IN broken: ${JSON.stringify(cin)}`);
 
   // AC6 CAP-OUT: release vs boss capped at releaseCapFracMaxHp×maxHp
   const cout = await page.evaluate(() => window.__h.sim.dev.chargeOutgoingCapProbe());
   if (cout.ok)
-    P(`[${prof.name}] CAP-OUT: cap=${cout.cap}, bossDmg=${cout.bossDmg}≤cap, trashDmg=${cout.trashDmg}>cap`);
+    P(`[${prof.name}] CAP-OUT: cap=${cout.cap}; jefe cargado=${cout.dBoss}≤cap (bossCapped=${cout.bossCapped}); trash SIN cap=${cout.dTrash}>cap (${cout.trashUncapped})`);
   else F(`[${prof.name}] CAP-OUT broken: ${JSON.stringify(cout)}`);
 
   // AC7 VFX OBSERVABLE: ¡CARGADO! floater on charged release
