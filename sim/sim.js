@@ -5649,8 +5649,9 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // h.hp-=real (el daño se "recibió") pero ANTES del death-check del tick (heroDie se llama en update: `if(h.hp<=0)
   // heroDie()`, SEPARADO de damageHero) ⇒ niega la muerte sin nueva ruta: si el golpe dejó hp<=0 y hay carga, clampa
   // el HP a surviveHpFrac×maxHp, consume la carga, arma i-frames (evita muerte en el mismo tick por multi-hit) y estalla
-  // una NOVA de empuje radial que reposiciona a los enemigos cercanos (crea espacio para recuperarse). Reusa vx/vy
-  // (mismo empuje que parry/lunge) + shakeAdd/freeze/flash/floater ⇒ $0 arte. Aritmética/geometría pura (hypot/atan2/
+  // una NOVA de empuje radial que reposiciona a los enemigos cercanos (crea espacio para recuperarse). Reusa el canal REAL
+  // de knockback e.knockX/e.knockY (el ÚNICO que updateEnemies integra + decae ×0.82; e.vx/e.vy NO mueve enemigos), mirror
+  // hitEnemy/guard-break + shakeAdd/freeze/flash/floater ⇒ $0 arte. Aritmética/geometría pura (hypot/atan2/
   // ceil) ⇒ 0 srand (NO existe secondWindRng). _secondWind* fuera del allowlist save.v1 ⇒ save byte-id. OFF / sin carga
   // ⇒ rama muerta ⇒ ruta de daño byte-idéntica a HEAD. Poise a los empujados es opcional (novaPoiseDmg=0 por defecto).
   if(SECOND_WIND.enabled && h.hp<=0 && (h._secondWindLeft||0)>0){
@@ -5658,7 +5659,7 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
     h.hp=Math.ceil(swMax*SECOND_WIND.surviveHpFrac); h._secondWindLeft--; h._secondWindIframeT=SECOND_WIND.iframesMs/1000;
     const swR=SECOND_WIND.novaRadius;
     for(const e of G.enemies){ if(e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(Math.hypot(dx,dy)<=swR){
-      const sa=Math.atan2(dy,dx); e.vx=(e.vx||0)+Math.cos(sa)*SECOND_WIND.novaKnockback; e.vy=(e.vy||0)+Math.sin(sa)*SECOND_WIND.novaKnockback;
+      const sa=Math.atan2(dy,dx); e.knockX=(e.knockX||0)+Math.cos(sa)*SECOND_WIND.novaKnockback; e.knockY=(e.knockY||0)+Math.sin(sa)*SECOND_WIND.novaKnockback;   // CAS-2166: canal REAL de knockback (updateEnemies integra knockX/knockY + decae ×0.82; e.vx/e.vy NO se integra en el movimiento enemigo ⇒ empuje observable, mirror hitEnemy/guard-break)
       if(SECOND_WIND.novaPoiseDmg>0 && POISE.enabled && e.staggerT<=0 && e.staggerCD<=0){ const pm=(e.poiseMax=poiseCeil(e));
         if(pm>0){ e.poise=Math.min(pm,(e.poise||0)+SECOND_WIND.novaPoiseDmg); e._poiseDecayT=0; } } } }
     addFx("dodgering",h.x,h.y,{life:0.4}); shakeAdd(12); freeze(6); floater(h.x,h.y-42,STR.secondWind||"¡SEGUNDO ALIENTO!","#ffe08a"); audio.sfx.roll();
@@ -6352,15 +6353,21 @@ export const dev = {
     h.cls="warrior"; h.tt=null; h.mperk=null; h.facing=0;
     const mhp=heroMaxHp(h); h.maxHp=mhp; h.hp=Math.round(mhp*0.5);
     h._secondWindLeft = (opt.charge!==undefined?opt.charge : SECOND_WIND.chargesPerRest); h._secondWindIframeT=0;
-    const eIn=spawnEnemy(opt.type||"revenant", h.x + SECOND_WIND.novaRadius*0.5, h.y); if(eIn){ eIn.state="idle"; eIn.maxHp=eIn.hp=5000; eIn.vx=0; eIn.vy=0; }
-    const eOut=spawnEnemy(opt.type||"revenant", h.x + SECOND_WIND.novaRadius + 80, h.y); if(eOut){ eOut.state="idle"; eOut.maxHp=eOut.hp=5000; eOut.vx=0; eOut.vy=0; }
+    const eIn=spawnEnemy(opt.type||"revenant", h.x + SECOND_WIND.novaRadius*0.5, h.y); if(eIn){ eIn.state="idle"; eIn.maxHp=eIn.hp=5000; eIn.knockX=0; eIn.knockY=0; }
+    const eOut=spawnEnemy(opt.type||"revenant", h.x + SECOND_WIND.novaRadius + 80, h.y); if(eOut){ eOut.state="idle"; eOut.maxHp=eOut.hp=5000; eOut.knockX=0; eOut.knockY=0; }
     const chg0=h._secondWindLeft|0;
+    const d0In=eIn?Math.hypot(eIn.x-h.x,eIn.y-h.y):0, d0Out=eOut?Math.hypot(eOut.x-h.x,eOut.y-h.y):0;
     const landed=damageHero(h.hp+100000, 0, null, null);   // lethal: guaranteed hp<=0 post-armor
-    const inSpeed=eIn?Math.hypot(eIn.vx||0,eIn.vy||0):0, outSpeed=eOut?Math.hypot(eOut.vx||0,eOut.vy||0):0;
+    // CAS-2166: la nova arma e.knockX/e.knockY (canal REAL). Integramos el knockback EXACTAMENTE como updateEnemies (moveEnt + decae ×0.82)
+    // sin correr la IA de persecución ⇒ mide el DESPLAZAMIENTO neto hacia afuera REAL que verá el jugador (no el e.vx/e.vy inerte).
+    const inSpeed=eIn?Math.hypot(eIn.knockX||0,eIn.knockY||0):0, outSpeed=eOut?Math.hypot(eOut.knockX||0,eOut.knockY||0):0;
+    { const dt=1/60; for(let k=0;k<24;k++){ for(const e of [eIn,eOut]){ if(e && (Math.abs(e.knockX)>1||Math.abs(e.knockY)>1)){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*0.6); e.knockX*=0.82; e.knockY*=0.82; } } } }
+    const inDisp=eIn?(Math.hypot(eIn.x-h.x,eIn.y-h.y)-d0In):0, outDisp=eOut?(Math.hypot(eOut.x-h.x,eOut.y-h.y)-d0Out):0;
     const out={ enabled:SECOND_WIND.enabled, maxHp:Math.round(mhp),
       survived:h.hp>0, hpAfter:Math.round(h.hp), hpExpected:Math.ceil(mhp*SECOND_WIND.surviveHpFrac),
       chargeBefore:chg0, chargeAfter:h._secondWindLeft|0, iframeArmed:(h._secondWindIframeT||0)>0, iframeT:+((h._secondWindIframeT||0)).toFixed(4),
-      novaInPushed:inSpeed>0.01, novaInSpeed:+inSpeed.toFixed(2), novaOutPushed:outSpeed>0.01, novaOutSpeed:+outSpeed.toFixed(2),
+      novaInPushed:inSpeed>0.01, novaInSpeed:+inSpeed.toFixed(2), novaInDisp:+inDisp.toFixed(2), novaInMovedOut:inDisp>0.5,
+      novaOutPushed:outSpeed>0.01, novaOutSpeed:+outSpeed.toFixed(2), novaOutDisp:+outDisp.toFixed(2), novaOutMovedOut:outDisp>0.5,
       floated:G.floaters.some(f=>f.txt===STR.secondWind), landedReturn:landed,
       surviveHpFracCfg:SECOND_WIND.surviveHpFrac, novaRadiusCfg:SECOND_WIND.novaRadius, iframesMsCfg:SECOND_WIND.iframesMs, chargesPerRestCfg:SECOND_WIND.chargesPerRest };
     if(opt.probeIframe===true){ h.iframe=0; const hpB=h.hp; const r2=damageHero(h.maxHp+100000,0,null,null); out.iframeIgnoresHit=(r2===false && h.hp===hpB); }
