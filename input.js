@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK, GUARD_BREAK } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -321,6 +321,12 @@ function edge(code){
   // No es una acción rebindable (deliberate, como KeyH parry / TWO_HAND.key: never touches REBINDS/settings.binds ⇒ snapshot byte-id).
   // El sim decide (weaponArt gated en escena play + héroe vivo + cooldown/estamina). Cross-platform (móvil = botón HUD tb.weaponart).
   if(code===WEAPON_ARTS.key && WEAPON_ARTS.enabled){ sim.weaponArt(); return; }
+  // CAS-2146: dedicated GUARD_BREAK.key (default Period "." — code LIBRE; las 26 letras + Semicolon/Quote/Slash/Brackets/Comma
+  // ocupadas) dispara el EMPUJÓN / PATADA ROMPE-GUARDIA (verbo ofensivo anti-turtle) — gated on GUARD_BREAK.enabled, so con la
+  // feature off la tecla es inerte (falls through, no state change ⇒ snapshot byte-id). NO es rebindable (deliberate, como KeyH
+  // parry / WEAPON_ARTS.key: never touches REBINDS/settings.binds). El sim decide (guardBreakKick gated en play + vivo + estamina +
+  // recuperación). Cross-platform (móvil = botón HUD tap tb.guardbreak). Es un TAP en el edge (no held) ⇒ 0 consumidor de keyup.
+  if(code===GUARD_BREAK.key && GUARD_BREAK.enabled){ sim.guardBreakKick(); return; }
   // CAS-1920: dedicated THROWABLES.throwKey (default Quote) LANZA el consumible arrojadizo seleccionado + THROWABLES.cycleKey
   // (default Slash) CICLA el tipo — ambos CODEs LIBRES (26 letras + Semicolon ocupadas). Gated on THROWABLES.enabled, so con la
   // feature off ambas teclas son inertes (falls through, no state change). NO son acciones rebindables (deliberate, como KeyH parry /
@@ -461,6 +467,10 @@ export function tbtns(){ // returns button rects for current scene
     // controles es byte-idéntico a HEAD (mirror tb.twohand). Es un TAP (no hold): handleUITap llama `act` ⇒ sim.weaponArt() dispara
     // el Arte firma del arquetipo equipado (mismo seam del sim que desktop). $0 arte (glifo procedural ✦). Cluster izquierdo.
     ...(WEAPON_ARTS.enabled ? { weaponart:{x:m+bs*4.75, y:VH-m-bs*2.2, r:bs*0.4, label:"✦", act:()=>sim.weaponArt()} } : {}),
+    // CAS-2146: botón táctil del EMPUJÓN / PATADA ROMPE-GUARDIA — SÓLO cuando GUARD_BREAK.enabled, así con el knob OFF no hay
+    // botón ⇒ el layout de controles es byte-idéntico a HEAD (mirror tb.weaponart). Es un TAP (no hold): handleUITap llama `act` ⇒
+    // sim.guardBreakKick() dispara la patada (mismo seam del sim que desktop). $0 arte (glifo procedural 👢). Cluster izquierdo.
+    ...(GUARD_BREAK.enabled ? { guardbreak:{x:m+bs*6.95, y:VH-m-bs*2.2, r:bs*0.4, label:"👢", act:()=>sim.guardBreakKick()} } : {}),
     // CAS-1920: botones táctiles de los CONSUMIBLES ARROJADIZOS — SÓLO cuando THROWABLES.enabled, así con el knob OFF no hay botón ⇒
     // el layout de controles es byte-idéntico a HEAD (mirror tb.weaponart). Son TAPs (no hold): handleUITap llama `act`. `throwable`
     // LANZA el tipo activo (glyph + chargeKey del tipo seleccionado, se atenúa sin cargas/en cd — ver render); `throwcycle` (más

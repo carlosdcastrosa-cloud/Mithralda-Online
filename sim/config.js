@@ -1360,6 +1360,31 @@ export const CHARGED_ATTACK = {
   requiresMelee:true,           // sólo clases melee cargan (identidad del pesado; ranged/casters sin cargo)
 };
 
+// CAS-2146: EMPUJÓN / PATADA ROMPE-GUARDIA (mec #38, 38ª). VERBO OFENSIVO ANTI-TURTLE — la respuesta PROACTIVA que le
+// faltaba al kit DEFENSIVO (Guard Counter #33 / Dodge Counter #34 / Riposte #36 / Parry). ORTOGONAL a los cuatro: aquéllos
+// convierten UNA DEFENSA DEL HÉROE (bloqueo/esquiva/parada) o un ENEMIGO YA ROTO en daño; ÉSTE es un botón que el héroe
+// PULSA para DRENAR la postura de un enemigo que TURTLEA/bloquea y ROMPERLE la guardia — abriendo la MISMA ventana de
+// ejecución que ya existe (staggerT + _ripArm de Riposte #36; chokepoint sim.js:2942/2947), NO un motor nuevo. NO es burst:
+// daño directo BAJO (utilidad), coste de estamina propio + ventana de recuperación (no spammeable). Contra un enemigo
+// ESCUDADO (carapace, daño-inmune) la patada CASCA la guardia (e.shieldBroken ⇒ shatterCarapace) — el anti-turtle real, ya
+// que hoy sólo los procs de estado rompen el carapace. RNG-neutral ESTRICTO: 0 draws, NO existe guardBreakRng (geometría +
+// aritmética). Save-neutral: h._gbCd transitorio (mirror h.artCD ⇒ fuera del allowlist de save.v1). mec #38 toca input.js
+// (tecla dedicada Period + botón HUD móvil) + render.js (botón). enabled:false ⇒ tecla inerte + guardBreakKick() rama muerta
+// ⇒ byte-idéntico a HEAD. $0 arte (reusa knockback/shove + floater + el ¡ATURDIDO! del poise-break del chokepoint).
+export const GUARD_BREAK = {
+  enabled:false,             // DARK — OFF ⇒ tecla inerte, guardBreakKick() no-op ⇒ byte-id HEAD. LIVE sólo por Gate CEO.
+  key:"Period",              // tecla DEDICADA no-rebindable (code LIBRE; Comma=Invocar adyacente). Móvil = botón HUD tap.
+  range:52,                  // alcance del cono de la patada (px) — corto, melee-adyacente (gate natural para ranged/casters)
+  arcDeg:130,                // cono frontal de la patada (grados)
+  dmg:5,                     // daño directo BAJO (utilidad, NO burst)
+  poiseMul:3.2,              // ×daño de POISE en el MISMO sink (POISE.gain) ⇒ drena/rompe la guardia de un enemigo que turtlea
+  staminaCost:20,            // coste de estamina propio (deny sin vigor; spendStam flashea)
+  recoverMs:600,             // ventana de recuperación (no spammeable) — h._gbCd transitorio (mirror h.artCD)
+  knock:1.7,                 // ×knockback del empujón (reusa e.knock/knockX — $0 arte)
+  cracksShield:true,         // ANTI-TURTLE: un enemigo ESCUDADO (carapace daño-inmune) pierde la guardia (shieldBroken ⇒ shatter)
+  requiresMelee:false,       // verbo UNIVERSAL (toda clase responde al turtle); el alcance corto (range) ya lo gatea de facto
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
@@ -2023,6 +2048,7 @@ export const COMBAT_CODEX_ENTRIES = [
   { group:"Ofensiva",   label:"Ataque pesado",      keyOf:()=>COMBO.heavyKey,       desc:"Golpe cargado; rompe poise y encadena combos.", gate:()=>COMBO.enabled },
   { group:"Ofensiva",   label:"Puñalada por la espalda", keyOf:()=>"Espalda",       desc:"Backstab: golpea desde el arco trasero para daño masivo.", gate:()=>BACKSTAB.enabled },
   { group:"Ofensiva",   label:"Arte de Arma",       keyOf:()=>WEAPON_ARTS.key,      desc:"Ejecuta el Arte del arquetipo de arma equipado.", gate:()=>WEAPON_ARTS.enabled },
+  { group:"Ofensiva",   label:"Empujón / Rompe-guardia", keyOf:()=>GUARD_BREAK.key, desc:"Patada que drena la postura de un enemigo que bloquea/turtlea y le rompe la guardia (abre ejecución).", gate:()=>GUARD_BREAK.enabled },
   { group:"Ofensiva",   label:"Arrojar",            keyOf:()=>THROWABLES.throwKey,  desc:"Lanza el consumible arrojadizo seleccionado; cicla el tipo.", gate:()=>THROWABLES.enabled },
   { group:"Ofensiva",   label:"Aplicar resina",     keyOf:()=>WEAPON_BUFFS.applyKey,desc:"Unta el arma con una resina: buff temporal de daño/estado.", gate:()=>WEAPON_BUFFS.enabled },
   // RECURSOS
