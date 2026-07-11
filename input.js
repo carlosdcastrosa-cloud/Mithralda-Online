@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -37,6 +37,11 @@ let aimActive = false;
 // (ShiftLeft) fija true en keydown / false en keyup. Móvil: el botón HUD hold `tb.block` lo mantiene mientras el
 // dedo (blockPointerId) siga abajo. El sim lo lee vía io.blockHeld y fija h.blocking cada fixed-frame (gated).
 let blockHeld = false, blockPointerId = -1;
+// CAS-2133: ATAQUE CARGADO — estado HELD de la tecla/botón del pesado (COMBO.heavyKey="KeyN" / botón táctil ⛏ gated).
+// keydown KeyN fija chargeHeld=true (con CHARGED_ATTACK.enabled ON) en vez de disparar heavyAttack() inmediato.
+// keyup KeyN/onPointerUp lo baja. El sim lo lee vía io.chargeHeld y acumula h.chargeT cada fixed-frame (gated).
+// OFF ⇒ CHARGED_ATTACK.enabled=false ⇒ keydown KeyN dispara heavyAttack() inmediato (= HEAD byte-id) ⇒ chargeHeld inerte.
+let chargeHeld = false, chargePointerId = -1;
 let mouseX = view.VW/2, mouseY = view.VH/2;
 
 const keys = new Set();
@@ -133,7 +138,10 @@ function onKeyDown(e){
 function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md);
   // CAS-1873: soltar la tecla de bloqueo BAJA la guardia (HELD). Siempre se limpia (aunque OFF) ⇒ el estado no queda
   // colgado si el knob se apaga con la tecla pulsada. El sim ya gatea h.blocking en enabled, así que esto es inocuo OFF.
-  if(e.code===SHIELD_BLOCK.key) blockHeld=false; }
+  if(e.code===SHIELD_BLOCK.key) blockHeld=false;
+  // CAS-2133: soltar la tecla del pesado BAJA el charge (HELD). Siempre se limpia (aunque OFF) ⇒ no queda colgado.
+  // El sim lee io.chargeHeld → detecta el release y dispara heavyAttack() en el tick de ese frame (gated en enabled).
+  if(e.code===COMBO.heavyKey) chargeHeld=false; }
 function edge(code){
   // CAS-277: end-of-run recap — PRIMARY "otra ronda" (Space/Enter or the bound attack key)
   // → fresh run; SECONDARY "pueblo/menú" (Escape) → respawn into the calm pause hub.
@@ -280,7 +288,15 @@ function edge(code){
   // CAS-1831: dedicated COMBO.heavyKey (default KeyN) fires the HEAVY attack — gated on COMBO.enabled, so with
   // the feature off the key is inert (falls through, no state change). Not a rebindable action (deliberate, like
   // KeyH parry: never touches REBINDS/settings.binds ⇒ the attack button + settings snapshot stay byte-identical).
-  if(code===COMBO.heavyKey && COMBO.enabled){ sim.heavyAttack(); return; }
+  // CAS-2133: CHARGED_ATTACK.enabled bifurcates the same key into a HOLD: keydown starts the charge windup
+  // (chargeHeld=true; sim accumulates h.chargeT); keyup releases it (sim fires heavyAttack() on release if charged,
+  // or plain heavyAttack() if below threshold). OFF ⇒ else-branch = HEAD byte-id (immediate fire, no chargeHeld).
+  // KeyN has NO other keyup consumer today ⇒ 0 input collision (verified against all bindings in design §2).
+  if(code===COMBO.heavyKey && COMBO.enabled){
+    if(CHARGED_ATTACK.enabled){ chargeHeld=true; }   // ON: defer to sim tick (release fires on keyup)
+    else { sim.heavyAttack(); }                       // OFF: immediate fire = HEAD byte-id
+    return;
+  }
   // CAS-1847: dedicated LOCK_ON.key (default Tab) fija/cicla el ENFOQUE DE OBJETIVO — gated on LOCK_ON.enabled,
   // so con la feature off la tecla es inerte (falls through, no state change). Not a rebindable action (deliberate,
   // like KeyH parry / COMBO.heavyKey: never touches REBINDS/settings.binds). cycleLock es cross-platform.
@@ -350,6 +366,9 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
   // Gated a play+touch+enabled ⇒ OFF / desktop ni entra. Consume el evento (no dispara un ataque detrás del botón).
   if(isTouch && SHIELD_BLOCK.enabled && G.scene==="play"){ const tb=tbtns();
     if(tb.block && dist2tap(x,y,tb.block.x,tb.block.y)<tb.block.r*tb.block.r){ blockHeld=true; blockPointerId=e.pointerId; return; } }
+  // CAS-2133: botón táctil HOLD de carga — press-and-hold, no tap (mirror blockHeld arriba). Gated a play+touch+enabled.
+  if(isTouch && CHARGED_ATTACK.enabled && G.scene==="play"){ const tb=tbtns();
+    if(tb.charge && dist2tap(x,y,tb.charge.x,tb.charge.y)<tb.charge.r*tb.charge.r){ chargeHeld=true; chargePointerId=e.pointerId; return; } }
   if(handleUITap(x,y)) return;
   if(G.scene==="play"){
     // CAS: the fixed left sidebar owns the whole left column — a press there fires its
@@ -374,7 +393,9 @@ function onPointerUp(e){ uiLayout.canvasUp(); // CAS-418: commit (clamp+persist)
   invUp(e.pointerId, e.type==="pointercancel"); // CAS-419: resolve drop / deferred tap (cancel = no action)
   if(stick.active&&e.pointerId===stick.id){ stick.active=false; } aimActive=false;
   // CAS-1873: levantar el dedo que sostenía el botón de bloqueo BAJA la guardia (HELD táctil).
-  if(e.pointerId===blockPointerId){ blockHeld=false; blockPointerId=-1; } }
+  if(e.pointerId===blockPointerId){ blockHeld=false; blockPointerId=-1; }
+  // CAS-2133: levantar el dedo que sostenía el botón de carga BAJA el charge (HELD táctil). El sim detecta el release.
+  if(e.pointerId===chargePointerId){ chargeHeld=false; chargePointerId=-1; } }
 function faceMouse(){ const h=G.hero; if(!h) return; const wx=G.cam.x+mouseX/zoom(), wy=G.cam.y+mouseY/zoom(); h.facing=Math.atan2(wy-h.y,wx-h.x); }
 
 function moveVec(){
@@ -426,6 +447,12 @@ export function tbtns(){ // returns button rects for current scene
     // fija blockHeld mientras el dedo siga abajo (ver blockPointerId), onPointerUp lo suelta. `act` no-op (el hold lo
     // maneja el pointer handler, no el dispatch de tap). $0 arte (glifo procedural 🛡). Cluster izquierdo, sobre pick/⚕.
     ...(SHIELD_BLOCK.enabled ? { block:{x:m+bs*2.6, y:VH-m-bs*2.2, r:bs*0.4, label:"🛡", act:()=>{} } } : {}),
+    // CAS-2133: botón táctil HOLD del ATAQUE CARGADO — SÓLO cuando CHARGED_ATTACK.enabled, así con el knob OFF no hay
+    // botón ⇒ el layout de controles es byte-idéntico a HEAD (mirror tb.block). Es HOLD, no tap: onPointerDown fija
+    // chargeHeld mientras el dedo siga abajo (ver chargePointerId), onPointerUp lo suelta → el sim detecta el release
+    // y dispara heavyAttack() cargado (o normal si no alcanzó el umbral). `act` no-op. $0 arte (glifo procedural ⛏).
+    // Posición: junto al bloqueo (si SHIELD_BLOCK también enabled, desplaza a bs*3.65; si sólo carga, ocupa bs*2.6).
+    ...(CHARGED_ATTACK.enabled ? { charge:{x:m+bs*(SHIELD_BLOCK.enabled?3.65:2.6), y:VH-m-bs*2.2, r:bs*0.4, label:"⛏", act:()=>{} } } : {}),
     // CAS-1895: botón táctil TOGGLE de la EMPUÑADURA A DOS MANOS — SÓLO cuando TWO_HAND.enabled, así con el knob OFF no
     // hay botón ⇒ el layout de controles es byte-idéntico a HEAD (mirror tb.flask). Es un TAP (no hold): el dispatch de
     // handleUITap llama `act` ⇒ sim.toggleTwoHand() alterna la postura. $0 arte (glifo procedural ⚔). Cluster izquierdo.
@@ -796,6 +823,7 @@ export const io = {
   get isTouch(){ return isTouch; },
   get aimActive(){ return aimActive; },
   get blockHeld(){ return blockHeld; },   // CAS-1873: estado HELD del bloqueo (ShiftLeft / botón táctil hold) — el sim fija h.blocking desde aquí
+  get chargeHeld(){ return chargeHeld; }, // CAS-2133: estado HELD de la carga (KeyN / botón táctil ⛏ gated) — el sim acumula h.chargeT desde aquí
 };
 
 // bind DOM listeners; called once by the orchestrator with the canvas + inputs

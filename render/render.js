@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -880,6 +880,22 @@ export function createRenderer(ctx){
       ctx.strokeStyle="#ffe27a"; ctx.lineWidth=2; ctx.beginPath();
       ctx.arc(h.x,h.y+2,15+3*(1-a),0,6.28); ctx.stroke();
       ctx.globalAlpha=0.28*a; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(h.x,h.y+2,15+3*(1-a),0,6.28); ctx.stroke();
+      ctx.restore();
+    }
+    // CAS-2133: WINDUP DE CARGA — medidor visual de la carga en torno al héroe (h.charging && h.chargeT > 0).
+    // Anillo dorado que crece con h.chargeT hasta chargeThresholdMs; al cruzar el umbral destella ("listo").
+    // Procedural $0 arte, additive-lit; gated en CHARGED_ATTACK.enabled + !dead + !reduceMotion.
+    // Derivado sólo de h.charging/h.chargeT (no RNG, no mutación sim) → Stage-2 safe. OFF ⇒ rama muerta ⇒ byte-id.
+    if(CHARGED_ATTACK.enabled && h.charging && (h.chargeT||0)>0 && !h.dead && !G.settings.reduceMotion){
+      const frac=Math.min((h.chargeT*1000)/CHARGED_ATTACK.chargeThresholdMs, 1);  // 0→1 hacia el umbral; >1 posible si sigue cargando
+      const ready=frac>=1;
+      const pulse=ready?(0.7+0.3*Math.sin(G.t*18)):0;   // parpadeo rápido al estar "listo"
+      const alpha=ready?(0.7+pulse*0.25):(0.25+frac*0.45);
+      const r=16+frac*6;                                  // anillo crece con la carga
+      ctx.save(); ctx.globalCompositeOperation="lighter";
+      ctx.strokeStyle=ready?"#ffee44":"#ffc840"; ctx.lineWidth=ready?3:2;
+      ctx.globalAlpha=alpha; ctx.beginPath(); ctx.arc(h.x,h.y+2,r,0,6.28); ctx.stroke();
+      if(ready){ ctx.globalAlpha=alpha*0.35; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(h.x,h.y+2,r+4,0,6.28); ctx.stroke(); }
       ctx.restore();
     }
     // CAS-1814: ESQUIVA RODANTE — a legible INVULNERABILITY aura during a roll's i-frame window: a soft
