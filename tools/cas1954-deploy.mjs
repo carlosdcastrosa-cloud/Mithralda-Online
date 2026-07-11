@@ -60,7 +60,7 @@ function buildAndPush() {
   execFileSync("git", ["update-index", "--add", "--cacheinfo", `100644,${vsha},version.json`], { env });
   const tree = execFileSync("git", ["write-tree"], { env }).toString().trim();
   const parent = gitStr("rev-parse", "origin/gh-pages");
-  const commit = gitStr("commit-tree", tree, "-p", parent, "-m", `CAS-1964: deploy Cenizas de Espíritu / Spirit Summon (SUMMON, Build CAS-1963) — build ${build}`);
+  const commit = gitStr("commit-tree", tree, "-p", parent, "-m", `CAS-1980: GO-LIVE FLIP Cenizas de Espíritu / Spirit Summon (SUMMON enabled:true, config-only) — build ${build}`);
   try {
     execFileSync("git", ["push", "origin", `${commit}:refs/heads/gh-pages`], { stdio: "pipe" });
     return { build, files, commit, pushed: true };

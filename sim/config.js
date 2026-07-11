@@ -1637,7 +1637,7 @@ export const SIGNATURE_BOSS = {
 //   spirit   — perfil: hpPct de heroMaxHp, dmgMul de equippedDmg (daño PLANO baseline ×1: sin crit/boons/procs/WEAPON_BUFFS/ARTS/TWO_HAND,
 //              0 srand; poise-dmg normal ⇒ divide postura = payoff), moveMul, atkCdMs, range (px), tint/alpha espectral, mold (sprite base).
 export const SUMMON = {
-  enabled: false,               // OFF ⇒ byte-idéntico a HEAD (ambos SEAMs no-op)
+  enabled: true,                // CAS-1980 GO-LIVE FLIP (CEO Gate CAS-1979 GO): SUMMON PLAYABLE. SEAMs active.
   key: "KeyN",                  // dedicado NO rebindable (KeyF/KeyZ están ligadas ⇒ KeyN, única letra libre)
   charges: 2, refillOnZone: true, // + bonfire (mirror Estus)
   summonMs: 14000,              // duración máx conservadora
