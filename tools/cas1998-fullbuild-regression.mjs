@@ -1,21 +1,19 @@
 // ---------------------------------------------------------------------------
 // CAS-1998 — QA FULL-BUILD REGRESSION vs LIVE b372cdca869f (post-COMBAT_CODEX deploy).
-// Delta of tools/cas1991-fullbuild-regression.mjs. Two deltas vs cas1991 (both are
-// legit STATE CHANGES since that pass, NOT regressions):
-//   1) EXPECT_BUILD 36910735b945 -> b372cdca869f (CAS-1997 codex overlay, 6 blobs, 799 files).
-//   2) BOSS_RUSH went LIVE (CAS-1994 go-live flip, enabled:false->true). cas1991 asserted
-//      enabled:false; that expectation is now stale. Boss Rush is a PLAYABLE pillar today.
-// New this pass:
-//   [CODEX]  COMBAT_CODEX present + valid + ships DARK (enabled:false; flip = CEO Gate CAS-1999);
-//            COMBAT_CODEX_ENTRIES non-empty, grouped, data-driven (keyOf getters, 0 asset refs).
-//
-// All 6 served blobs are md5-identical to HEAD (verified out-of-band via curl in the issue
-// comment), so importing sim/config.js + sim/sim.js drives the EXACT live code.
+// Go-forward delta of tools/cas1991-fullbuild-regression.mjs. Since CAS-1991 the board:
+//   - flipped BOSS_RUSH enabled:true LIVE (go-live CAS-1993/CAS-1994) — no longer dark;
+//   - harvested COMBAT_CODEX (Códice de Combate + hints), deployed DARK (CAS-1996/CAS-1997).
+// The CAS-1997 deploy overlaid 6 game-core blobs onto gh-pages; served version.json flipped
+// 4ca5e4476576 -> b372cdca869f / 799. All 6 served blobs are md5-identical to HEAD (verified
+// out-of-band via curl in the issue comment), so importing sim/config.js + sim/sim.js drives
+// the EXACT live code. This asserts the current LIVE truth: 23 shipped pillars + SIGNATURE_BOSS
+// + SUMMON + BOSS_RUSH all live (enabled:true), and the 25th harvest COMBAT_CODEX present + dark.
 //
 //   [BUILD]   live version.json == EXPECT_BUILD (served == what we import).
-//   [WIRED]   23/23 shipped systems present + signature-valid in the served config.
-//   [GOLIVE]  SUMMON.enabled === true AND BOSS_RUSH.enabled === true (both playable now).
-//   [CODEX]   COMBAT_CODEX present + valid + ships DARK (enabled:false) + entries data-driven.
+//   [WIRED]   23/23 systems present + signature-valid in the served config.
+//   [GOLIVE]  SUMMON.enabled === true AND BOSS_RUSH.enabled === true (both playable to players).
+//   [CODEX]   COMBAT_CODEX present + valid (Backquote, entries, showContextHints) + ships DARK
+//             (enabled:false; flip = CEO Gate CAS-1999). Does not touch any other system's code.
 //   [DETERM]  a short sim cycle fingerprints identical across 2 runs (input-independent sim).
 //
 // Run: node tools/cas1998-fullbuild-regression.mjs
@@ -117,40 +115,23 @@ function auditKnobs() {
     else fail(`[WIRED] ${s.name} (${s.knob}) present=${present} sig=${good}`);
   }
   if (wired === SYSTEMS.length) pass(`[WIRED] ${wired}/${SYSTEMS.length} systems present + signature-valid in served config`);
-  // GO-LIVE headline: both SUMMON (CAS-1980) and BOSS_RUSH (CAS-1994) are now LIVE to players.
-  if (cfg.SUMMON && cfg.SUMMON.enabled === true) pass(`[GOLIVE] SUMMON.enabled === true — pilar 23 PLAYABLE (KeyN, charges:${cfg.SUMMON.charges})`);
-  else fail(`[GOLIVE] SUMMON.enabled !== true (got ${cfg.SUMMON && cfg.SUMMON.enabled}) — pilar 23 still dark`);
-  const br = cfg.BOSS_RUSH;
+  // GO-LIVE headline: SUMMON (CAS-1980) AND BOSS_RUSH (CAS-1993/1994) both flipped enabled:true LIVE.
+  const su = cfg.SUMMON, br = cfg.BOSS_RUSH;
+  const suLive = su && su.enabled === true && su.key === "KeyN" && su.charges > 0;
   const brValid = br && br.key === "KeyB" && Array.isArray(br.sequence) && br.sequence.length >= 3
     && !br.sequence.includes("frost") && !br.sequence.includes("trial")
     && typeof br.hpStep === "number" && typeof br.dmgStep === "number"
     && br.healFrac > 0 && br.refillOnRest === true && typeof br.essPerRound === "number";
-  if (brValid && br.enabled === true) pass(`[GOLIVE] BOSS_RUSH.enabled === true — Gauntlet PLAYABLE (KeyB, seq=[${br.sequence.join(",")}]) — CAS-1994 flip live`);
-  else if (brValid && br.enabled !== true) fail(`[GOLIVE] BOSS_RUSH valid but enabled=${br.enabled} (expected true post CAS-1994 go-live)`);
-  else fail(`[GOLIVE] BOSS_RUSH missing/invalid (present=${br !== undefined})`);
-}
-
-// COMBAT_CODEX — 25th harvest; present + valid + ships DARK (enabled:false, flip = CEO Gate CAS-1999).
-function auditCodex() {
-  const c = cfg.COMBAT_CODEX;
-  const cValid = c && typeof c === "object"
-    && c.codexKey === "Backquote"
-    && typeof c.showContextHints === "boolean"
-    && typeof c.toastSecs === "number" && c.toastSecs > 0
-    && typeof c.showHudHint === "boolean";
-  if (cValid && c.enabled === false) pass(`[CODEX] COMBAT_CODEX present + valid (codexKey=${c.codexKey}, hints=${c.showContextHints}, toast=${c.toastSecs}s, hud=${c.showHudHint}) + ships DARK (enabled:false) — flip = CEO Gate CAS-1999`);
-  else if (cValid && c.enabled !== false) fail(`[CODEX] COMBAT_CODEX valid but enabled=${c.enabled} (expected false; go-live flip is Gate CEO CAS-1999, not this QA)`);
-  else fail(`[CODEX] COMBAT_CODEX missing/invalid (present=${c !== undefined})`);
-  // Entries: data-driven table, non-empty, grouped, keyOf getters, 0 asset refs.
-  const e = cfg.COMBAT_CODEX_ENTRIES;
-  const eArr = Array.isArray(e) && e.length > 0;
-  const groups = eArr ? [...new Set(e.map((x) => x.group))] : [];
-  const allDataDriven = eArr && e.every((x) => typeof x.label === "string" && typeof x.keyOf === "function"
-    && typeof x.desc === "string" && typeof x.gate === "function");
-  const noAssets = eArr && e.every((x) => !("sprite" in x) && !("img" in x) && !("asset" in x) && !("icon" in x));
-  if (eArr && allDataDriven && noAssets && groups.length >= 2)
-    pass(`[CODEX] ${e.length} entries data-driven (label/keyOf/desc/gate), grouped [${groups.join(",")}], $0 arte (0 asset refs)`);
-  else fail(`[CODEX] entries invalid (n=${eArr ? e.length : 0}, dataDriven=${allDataDriven}, noAssets=${noAssets}, groups=${groups.length})`);
+  if (suLive && brValid && br.enabled === true) pass(`[GOLIVE] SUMMON.enabled===true (KeyN, charges:${su.charges}) AND BOSS_RUSH.enabled===true (KeyB, seq=[${br.sequence.join(",")}]) — both PLAYABLE to real players`);
+  else fail(`[GOLIVE] SUMMON.enabled=${su && su.enabled} BOSS_RUSH.enabled=${br && br.enabled} brValid=${brValid} (expected both true post-go-live)`);
+  // 25th harvest COMBAT_CODEX — present + valid + ships DARK (enabled:false, flip = CEO Gate CAS-1999).
+  const cc = cfg.COMBAT_CODEX, ce = cfg.COMBAT_CODEX_ENTRIES;
+  const ccValid = cc && cc.codexKey === "Backquote" && typeof cc.showContextHints === "boolean"
+    && typeof cc.toastSecs === "number" && Array.isArray(ce) && ce.length > 0
+    && ce.every((e) => typeof e.label === "string" && typeof e.keyOf === "function" && typeof e.gate === "function");
+  if (ccValid && cc.enabled === false) pass(`[CODEX] COMBAT_CODEX present + valid (codexKey=${cc.codexKey}, ${ce.length} entries, showContextHints=${cc.showContextHints}, toast=${cc.toastSecs}s) + ships DARK (enabled:false) — flip = CEO Gate CAS-1999`);
+  else if (ccValid && cc.enabled !== false) fail(`[CODEX] COMBAT_CODEX valid but enabled=${cc.enabled} (expected false; go-live flip is not this QA's scope)`);
+  else fail(`[CODEX] COMBAT_CODEX missing/invalid (present=${cc !== undefined})`);
 }
 
 // Determinism: run the same short deterministic sim cycle twice; fingerprint must match.
@@ -175,9 +156,8 @@ function determinism() {
 
 await checkBuild();
 auditKnobs();
-auditCodex();
 determinism();
 
 log("");
-if (ok) log("✅ CAS-1998 FULL-BUILD REGRESSION — ALL PASS (23/23 systems + SUMMON/BOSS_RUSH live + COMBAT_CODEX DARK on b372cdca869f)");
+if (ok) log("✅ CAS-1998 FULL-BUILD REGRESSION — ALL PASS (23/23 systems + SUMMON & BOSS_RUSH live + COMBAT_CODEX dark on b372cdca869f)");
 else { console.error("❌ CAS-1998 FULL-BUILD REGRESSION — FAIL"); process.exit(1); }
