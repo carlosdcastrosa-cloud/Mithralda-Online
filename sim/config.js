@@ -1724,7 +1724,7 @@ export const BOSS_RUSH = {
 //   variants       — modulaciones puras de stats sobre el clone del tpl (windup↓/lunge↑, poiseMax↑, hp↓/spd↑…) + name/tint.
 //   byZone         — qué variantes son elegibles por zona (variedad temática; se elige una del pool por enemyVariantRng).
 export const ENCOUNTER_VARIANTS = {
-  enabled: false,                 // DARK ship; Gate CEO flippea live (config-only, reversible, mirror CAS-2043/2055)
+  enabled: true,                 // DARK ship; Gate CEO flippea live (config-only, reversible, mirror CAS-2043/2055)
   rngSeed: 0x0ec02071,            // stream dedicado enemyVariantRng; NUNCA consume del master srand
   chancePerZone: { forest:0.30, caves:0.30, swamp:0.30, abyss:0.25 }, // TUNABLE; ausente ⇒ 0 (la variante es sal, no reemplazo)
   markerLabel: true,              // label procedural sobre barra HP (mirror affix render.js:1429)
