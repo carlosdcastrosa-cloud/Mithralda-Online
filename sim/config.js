@@ -1257,6 +1257,35 @@ export const GUARD_COUNTER = {
   staminaCost:10,       // estamina gastada en el contragolpe (reusa STAMINA; 0 = gratis)
 };
 
+// CAS-2110: CONTRAATAQUE DE ESQUIVA / PERFECT DODGE COUNTER (mecánica #34). Cierra el gap #2 del audit de cohesión
+// CAS-2085: el Guard Counter (#33) premia bloquear pero REQUIERE escudo ⇒ las clases ranged/sin-escudo no tienen
+// conversión defensa→ofensiva. Esta mecánica da esa conversión vía el verbo ESQUIVA (universal, todas las clases):
+// una ESQUIVA PERFECTA (i-frames de un rodar que SOLAPAN un ataque que HABRÍA conectado, ya detectada por perfectDodge())
+// abre una ventana breve donde el siguiente swing LIGHT pega reforzado. Paridad SIN romper la identidad del escudo:
+// números POR DEBAJO del Guard Counter (dmg 1.5<1.8, poise 2.0<2.5, stam 6<10) porque la esquiva es más accesible.
+//   · Apertura: en perfectDodge (llamado por damageHero cuando los i-frames de un ROLL activo niegan un golpe REAL
+//     entrante) — si el rodar arrancó hace ≤ perfectWindowMs ⇒ abre h.dodgeCounterT = windowS. Una esquiva NORMAL
+//     (i-frame fuera del solape con un impacto real, o rodar viejo) NO dispara (perfectDodge sólo corre en el solape).
+//   · Consumo: en applyHeroMelee, un swing LIGHT dentro de la ventana pega ×dmgMul, alimenta POISE.gain ×poiseMul
+//     (opt.dodgeCounter), gasta staminaCost (reusa STAMINA CAS-1841) y cierra la ventana (h.dodgeCounterT=0).
+//   · Composición con GUARD_COUNTER (AC3): una esquiva NIEGA el hit ⇒ no hay bloqueo ⇒ jamás disparan ambos en el mismo
+//     evento; y en un swing con ambas ventanas abiertas el guard-counter TIENE PRECEDENCIA (dc gated en !gc) ⇒ nunca
+//     multiplican los dos ⇒ daño acotado.
+// Estado TRANSITORIO `h.dodgeCounterT` (mirror h.guardCounterT/h.parryT): FUERA del allowlist de serializeSave ⇒ save.v1
+// byte-id y SIN clave nueva. RNG-neutral ESTRICTO: todo por input/timing/aritmética, CERO draws de srand, NO existe
+// `dodgeCounterRng`. HARD-GATED: enabled:false ⇒ h.dodgeCounterT nunca sube, rama de ataque intacta ⇒ build byte-idéntico
+// a HEAD (OFF==baseline). Números = defaults sanos para QA; el CEO retunea + flipea enabled:false→true en el Gate CAS-2111
+// (config-only 1 línea). $0 arte (VFX = primitiva canvas existente, render sin tocar).
+export const DODGE_COUNTER = {
+  enabled:false,          // SHIP DARK — el CEO flipea false→true en el Gate CAS-2111 (mirror CAS-2105/2093/2075)
+  windowS:0.5,            // ventana de contragolpe (s) tras una esquiva perfecta
+  dmgMul:1.5,             // < guard counter (1.8): la esquiva es más accesible que el bloqueo con escudo
+  poiseMul:2.0,           // < guard counter (2.5): daño de POISE del contragolpe de esquiva
+  staminaCost:6,          // < guard counter (10): estamina gastada al lanzar el swing reforzado
+  perfectWindowMs:160,    // timing: sólo cuenta como esquiva PERFECTA si el rodar arrancó hace ≤ este umbral
+  requiresShield:false,   // UNIVERSAL — paridad ranged/sin-escudo (documenta la intención; la esquiva no usa escudo)
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
