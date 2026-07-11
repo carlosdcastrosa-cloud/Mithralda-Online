@@ -1715,6 +1715,28 @@ export const JUICE = {
   hitStopCapFrames: 9, // hard cap (frames @60fps ≈ 150ms) — matches current longest freeze; 60fps guard so no single event stalls perceptibly
 };
 
+// CAS-2016/2017 — Onboarding: Primer de Combate (first-run). Presentation/data-only, RNG-neutral, $0 art.
+// EXTIENDE la maquinaria de tutorial YA VIVA (CAS-128: TUT_STEPS + coachmarks + skip + marker aislado
+// mithralda.tut.v1 + seams teach-by-doing) con los 6 verbos Souls que el flujo genérico nunca enseña:
+// esquiva · parry · lock-on · backstab · Estus · hoguera. NO es un tutorial nuevo NI una mecánica de sim
+// nueva — sólo gatea la COBERTURA de enseñanza sobre primitivos live (DODGE/PARRY/LOCK_ON/BACKSTAB/FLASK/
+// BONFIRE). HARD-GATED: enabled:false ⇒ composeTutSteps() == HEAD ["move","attack","skill","travel","loot",
+// "equip","done"] byte-idéntico + los 6 tutMark nuevos hacen early-return (0 state touch) ⇒ save.v1 + srand
+// byte-idénticos a HEAD, marker mithralda.tut.v1 sin cambios de esquema. 0 stream de RNG nuevo, 0 draws.
+// Ships DARK (enabled:false) — Gate CEO decide el flip (mirror SUMMON/BOSS_RUSH/CODEX). Cada sub-flag
+// teach* es un off-switch de accesibilidad independiente: false ⇒ DROP de exactamente ese paso del bloque
+// de combate; todos false (o enabled:false) ⇒ 0 pasos de combate ⇒ byte-id HEAD. Ver design/cas2016-combat-primer.md §3.
+export const ONBOARDING = {
+  enabled: false,          // DARK — Gate CEO flips live. false ⇒ TUT_STEPS == HEAD, byte-id.
+  teachDodge:   true,      // per-verb a11y sub-flags — cada false quita SÓLO su paso del bloque de combate
+  teachParry:   true,
+  teachLockOn:  true,
+  teachBackstab:true,
+  teachEstus:   true,
+  teachBonfire: true,
+  skippable:    true,      // conserva la afordancia de saltar (nunca un temporizador forzado)
+};
+
 // CAS-1996 — tabla DATA-DRIVEN del Códice de Combate. Definida al FINAL (tras TODOS los knobs) porque cada entrada
 // resuelve su tecla por getter sobre el knob REAL (keyOf) — de modo que si el CTO retunea un binding, el códice se
 // actualiza solo, NUNCA miente con un literal (barra dura del ticket). Los getters se evalúan en render-time. Entradas

@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1297,13 +1297,40 @@ export function pactsSnap(){ const p=ensurePacts(); const heat=pactHeat();
 // taught action — movement distance, an attack/skill cast, leaving town, a first pickup,
 // opening the inventory — so it teaches by doing, not by reading. render/ draws the
 // coachmarks; input/ owns skip + replay. Persisted (serializeSave) so a refresh resumes.
-export const TUT_STEPS = ["move","attack","skill","travel","loot","equip","done"];
+// CAS-2016/2017: the base flow is the HEAD generic-ARPG loop. The Souls combat block is INSERTED after
+// "attack" through composeTutSteps() (a gate helper) ONLY when ONBOARDING is armed — NEVER hardcoded as
+// always-present (design D2). Each combat verb rides its own teach* sub-flag so accessibility can drop it.
+const TUT_BASE_STEPS = ["move","attack","skill","travel","loot","equip","done"];
+// verb → sub-flag → tutMark key, in the documented insertion order (design §1). Data-driven: the block is
+// FILTERED by the live sub-flags, so 0..6 combat steps splice in after "attack".
+const TUT_COMBAT_BLOCK = [
+  { step:"dodge",    flag:"teachDodge"    },
+  { step:"parry",    flag:"teachParry"    },
+  { step:"lockon",   flag:"teachLockOn"   },
+  { step:"backstab", flag:"teachBackstab" },
+  { step:"estus",    flag:"teachEstus"    },
+  { step:"bonfire",  flag:"teachBonfire"  },
+];
+// Compose the live step array. enabled:false (or every sub-flag false) ⇒ EXACTLY TUT_BASE_STEPS (byte-id
+// HEAD). enabled:true ⇒ the enabled combat steps splice in right after "attack", order preserved. Pure, 0 RNG.
+export function composeTutSteps(){
+  if(!ONBOARDING.enabled) return TUT_BASE_STEPS.slice();
+  const combat=TUT_COMBAT_BLOCK.filter(c=>ONBOARDING[c.flag]).map(c=>c.step);
+  if(!combat.length) return TUT_BASE_STEPS.slice();
+  const at=TUT_BASE_STEPS.indexOf("attack");
+  return TUT_BASE_STEPS.slice(0,at+1).concat(combat, TUT_BASE_STEPS.slice(at+1));
+}
+// Live bindings (recomposed at each startTutorial so an armed runtime picks up the combat block). Computed
+// at load ⇒ with the DARK default (enabled:false) these are byte-identical to the HEAD const arrays.
+export let TUT_STEPS = composeTutSteps();
 // number of GUIDED steps (excludes the terminal "done" celebration card)
-export const TUT_NSTEPS = TUT_STEPS.length-1;
+export let TUT_NSTEPS = TUT_STEPS.length-1;
 // arm/disarm from the persistence controller (first-run detection lives there)
 export function setTutArm(v){ tutArmed=!!v; }
-export function startTutorial(){ G.tut={ active:true, i:0, moveDist:0, atk:false, skill:false,
-  looted:false, invOpened:false, doneT:0, finished:false, flushed:false }; }
+export function startTutorial(){ TUT_STEPS=composeTutSteps(); TUT_NSTEPS=TUT_STEPS.length-1;
+  G.tut={ active:true, i:0, moveDist:0, atk:false, skill:false, looted:false, invOpened:false,
+  dodge:false, parry:false, lockon:false, backstab:false, estus:false, bonfire:false,   // CAS-2017 combat marks
+  doneT:0, finished:false, flushed:false }; }
 // skip / finish both retire the tutorial AND flag it finished so the controller can
 // persist the "seen" marker (returning players won't get it again on a fresh start).
 export function tutSkip(){ if(!G.tut) return; G.tut.active=false; G.tut.finished=true; }
@@ -1311,6 +1338,10 @@ function tutFinish(){ if(!G.tut) return; G.tut.active=false; G.tut.finished=true
 // event marks set from the natural action sites (heroAttack / castSpell / tryPickup);
 // only recorded while a tutorial is live so they cost nothing otherwise.
 function tutMark(k){ const t=G.tut; if(t&&t.active) t[k]=true; }
+// CAS-2017: mark for the 6 net-new COMBAT verbs. Early-returns when ONBOARDING is off ⇒ 0 state touch,
+// 0 srand ⇒ byte-identical to HEAD (design deliverable 3). Fires ONLY from the REAL success seams
+// (roll started · parry caught · target acquired · rear-arc resolved · Estus drink started · bonfire rested).
+function tutMarkC(k){ if(!ONBOARDING.enabled) return; const t=G.tut; if(t&&t.active) t[k]=true; }
 // One observation tick (play scene only). Advances at most one step per tick.
 function tickTutorial(dt){
   const t=G.tut; if(!t||!t.active) return; const h=G.hero; if(!h) return;
@@ -1325,6 +1356,13 @@ function tickTutorial(dt){
     case "travel": adv = zoneOf(world,h.x,h.y)!=="town"; break;// left the safe town
     case "loot":   adv = t.looted; break;                      // picked up a first drop
     case "equip":  adv = t.invOpened; break;                   // opened the inventory
+    // CAS-2017 combat verbs — advance when the sim OBSERVED the real verb succeed (tutMarkC seams)
+    case "dodge":    adv = t.dodge; break;                     // a roll actually started (costs stamina)
+    case "parry":    adv = t.parry; break;                     // a successful parry caught an incoming melee
+    case "lockon":   adv = t.lockon; break;                    // acquired a lock target
+    case "backstab": adv = t.backstab; break;                  // a rear-arc melee hit resolved
+    case "estus":    adv = t.estus; break;                     // an Estus drink was consumed
+    case "bonfire":  adv = t.bonfire; break;                   // rested safely at a bonfire
   }
   if(adv){ t.i++; if(audio&&audio.sfx&&audio.sfx.pickup) audio.sfx.pickup();
     if(TUT_STEPS[t.i]==="done") t.doneT=0; }
@@ -2197,6 +2235,7 @@ export function cycleLock(){
   cand.sort((a,b)=> a.d2-b.d2 || a.i-b.i);            // determinista, sin RNG
   const cur=cand.findIndex(c=>c.e===h.lockTarget);
   h.lockTarget = cand[(cur+1)%cand.length].e;          // cur=-1 (sin target) ⇒ el más cercano
+  tutMarkC("lockon");                                  // CAS-2017: acquiring a target teaches the lock-on step
 }
 // CAS-1847: mantener el lock sólo mientras el objetivo esté vivo y en rango. Decrementa el debounce. Sin LOS en
 // v1 (YAGNI). OFF ⇒ return inmediato ⇒ byte-idéntico. 0 RNG.
@@ -2216,6 +2255,7 @@ export function drinkFlask(){
   if(!FLASK.enabled || G.scene!=="play" || !h || h.dead) return false;
   if(h.flaskDrinkT>0 || h.flaskCharges<=0 || h.rolling || h.stun>0 || h.hp>=heroMaxHp(h)) return false;
   h.flaskDrinkT = FLASK.drinkMs/1000;   // arranca el canal enraizado + vulnerable
+  tutMarkC("estus");                    // CAS-2017: a real Estus drink (valid charge, past all gates) teaches the Estus step
   return true;
 }
 // CAS-1854: avanza el canal (llamado junto a tickStamina/tickLock, gated). Al terminar consume 1 carga y cura
@@ -2583,7 +2623,7 @@ function hitEnemy(e,dmg,ang,opt){
   let backstab=false;
   if(BACKSTAB.enabled && opt && opt.melee && e.facing!==undefined
      && Math.abs(angDiff(ang, e.facing)) < BACKSTAB.rearArcDeg*Math.PI/360){
-    dmg*=BACKSTAB.mult*((WEAPON_ARCHETYPES.enabled&&opt&&opt.arch)?opt.arch.backstabMul:1); backstab=true; }   // CAS-1907: ×archBackstabMul (dagger↑, greatsword↓; OFF/sword ⇒ ×1)
+    dmg*=BACKSTAB.mult*((WEAPON_ARCHETYPES.enabled&&opt&&opt.arch)?opt.arch.backstabMul:1); backstab=true; tutMarkC("backstab"); }   // CAS-1907: ×archBackstabMul (dagger↑, greatsword↓; OFF/sword ⇒ ×1) // CAS-2017: a rear-arc hit teaches the backstab step
   // CAS-1947: ventana de vulnerabilidad de transición de fase (_sbVuln) — héroe pega ×transitionVulnMul.
   // Aritmética pura, 0 srand; sólo el jefe firma; OFF ⇒ e._sbVuln undefined ⇒ ×1 ⇒ byte-id.
   if(SIGNATURE_BOSS.enabled && e._sbVuln) dmg*=SIGNATURE_BOSS.transitionVulnMul;
@@ -3645,6 +3685,7 @@ export function interact(){
       toast(STR.bonfireRest); audio.sfx.heal();
       // CAS-1996 hint one-time: primer descanso en hoguera confirma el checkpoint + cómo volver (gated; 0 RNG; sobrescribe el toast genérico sólo la 1ª vez).
       fireHint("hint_bonfire", "Hoguera: cura, recarga Estus y fija tu checkpoint. Vuelve y pulsa ["+keyLabel(BONFIRE.key)+"] para descansar.");
+      tutMarkC("bonfire");                                       // CAS-2017: a safe bonfire rest teaches the bonfire step (past the unsafe gate ⇒ genuine)
       return;
     }
     toast(STR.fountainRest); audio.sfx.heal(); return; }
@@ -3926,7 +3967,8 @@ export function doRoll(){ const h=G.hero;
   // siguen SUMANDO intactos. em.iframe/em.dist = 1 con OFF/mid ⇒ byte-idéntico. over+overCanRoll:true ⇒ 0 ⇒ rodada mínima.
   h.rolling=true; h.rollT=CFG.rollTime; h.iframe=(dg?DODGE.iframeMs/1000:CFG.rollIFrame)*em.iframe+((h.bb&&h.bb.iframeAdd)||0)+metaDashIframe(); h.rollCD=dg?DODGE.cooldownMs/1000:CFG.rollCD; h.rollSpd=(dg?DODGE.distance/CFG.rollTime:CFG.rollSpeed)*em.dist; h.rollX=ax; h.rollY=ay; // CAS-1565: +Evasión meta i-frames (read-live)
   if(h.bb&&h.bb.trail>0) h._trailSet=new Set(); // CAS-388: fresh per-roll set so Estela Ardiente burns each enemy once per dash
-  audio.sfx.roll(); } // CAS-383: Viento Veloz widens the dodge window
+  audio.sfx.roll();
+  tutMarkC("dodge"); } // CAS-383: Viento Veloz widens the dodge window // CAS-2017: a real roll teaches the dodge step (past spendStam/cooldown ⇒ genuine)
 
 // CAS-1914: objetivo del Arte de dash (dagger) — el lock-on si sigue vivo/válido, si no el enemigo MÁS CERCANO (determinista,
 // tie-break implícito por orden de array). 100% geometría ⇒ 0 RNG. Sin enemigos ⇒ null (el Arte omite el dash y sólo golpea).
@@ -4924,6 +4966,7 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
       if(pm>0){ src.poise=Math.min(pm,(src.poise||0)+POISE.gain.parry); src._poiseDecayT=0; } }
     addFx("dodgering",h.x,h.y,{life:0.34}); addFx("spark",src.x,src.y);
     floater(h.x,h.y-38,STR.parry||"¡Parada!","#ffe27a"); shakeAdd(7); freeze(6); audio.sfx.roll();
+    tutMarkC("parry");                             // CAS-2017: a successful parry (caught an incoming melee) teaches the parry step
     return false;                                  // hit COMPLETELY negated
   }
   if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return false; } // only an active roll earns the dodge, not mercy i-frames
@@ -8478,7 +8521,9 @@ export const dev = {
   // and the guided-step count — so the headless/live test can assert the flow advances.
   tutState(){ const t=G.tut; return { exists:!!t, active:!!(t&&t.active), finished:!!(t&&t.finished),
     i:t?t.i:-1, step:t?TUT_STEPS[t.i]:null, nSteps:TUT_NSTEPS, steps:TUT_STEPS.slice(),
-    moveDist:+((t&&t.moveDist)||0).toFixed(1), looted:!!(t&&t.looted), invOpened:!!(t&&t.invOpened) }; },
+    moveDist:+((t&&t.moveDist)||0).toFixed(1), looted:!!(t&&t.looted), invOpened:!!(t&&t.invOpened),
+    // CAS-2017 combat marks (harness observability; absent keys read false)
+    dodge:!!(t&&t.dodge), parry:!!(t&&t.parry), lockon:!!(t&&t.lockon), backstab:!!(t&&t.backstab), estus:!!(t&&t.estus), bonfire:!!(t&&t.bonfire) }; },
   // Arm/start/skip the tutorial directly (mirrors the first-run / menu-replay / skip paths).
   tutArm(v){ setTutArm(v!==false); return tutArmed; },
   tutStart(){ startTutorial(); return this.tutState(); },
@@ -8486,6 +8531,52 @@ export const dev = {
   // Force the live tutorial step index (clamped) so the test can jump to a step without
   // re-performing every prior action; the REAL advance logic then runs from there.
   tutSetStep(i){ if(!G.tut) return null; G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,i|0)); return this.tutState(); },
+  // --- CAS-2017 Combat Primer harness hooks (tools/cas2016-primer.mjs); additive, dev-only ---
+  // composeTutSteps() view: the LIVE composed array for the current ONBOARDING config (AC0/AC1/AC8).
+  tutCompose(){ return composeTutSteps(); },
+  // Toggle the ONBOARDING knob + a sub-flag from the harness (mirror _ccArm; served default stays enabled:false).
+  onboardingSet(on, flags){ ONBOARDING.enabled=!!on; if(flags) for(const k in flags) if(k in ONBOARDING) ONBOARDING[k]=!!flags[k]; return { enabled:ONBOARDING.enabled }; },
+  onboardingGet(){ return Object.assign({}, ONBOARDING); },
+  // Run ONE tickTutorial observation tick (update() is DOM-heavy/headless-unsafe; this drives ONLY the tutorial machine).
+  tutTick(dt){ tickTutorial(+dt||0); return this.tutState(); },
+  // Drive a single REAL backstab hit (hitEnemy is module-private): rear=true ⇒ rear-arc melee ⇒ tutMarkC("backstab");
+  // rear=false ⇒ frontal melee ⇒ no backstab branch ⇒ no mark. Isolates AC5 (advance) from its negative (frontal).
+  _primerBackstab(rear){ const savB=BACKSTAB.enabled, savP=POISE.enabled, savC=COMBO.enabled;
+    BACKSTAB.enabled=true; POISE.enabled=false; COMBO.enabled=false;
+    const e=this._bsArm(); e.facing=0; e.hp=1e9;
+    hitEnemy(e, 100, rear?0:Math.PI, {melee:true});   // ang aligned with facing ⇒ rear arc; opposite ⇒ frontal
+    BACKSTAB.enabled=savB; POISE.enabled=savP; COMBO.enabled=savC; G.enemies.length=0; return this.tutState(); },
+  // AC0 RNG-STRONG: seed srand, drive ALL 6 combat seams once (each fires tutMarkC when onboard), fingerprint srand
+  // pre+post. The primer adds ONLY tutMarkC (0 draws) ⇒ toggling ONBOARDING changes the stream by EXACTLY zero, so
+  // the SAME seed + SAME seam script yields a BYTE-IDENTICAL fingerprint ON vs OFF. `marks` proves the seams fired.
+  _primerSrandProbe(onboard, seedVal, probeN){ probeN=Math.max(4,probeN|0);
+    const savO=ONBOARDING.enabled, savD=DODGE.enabled, savP=PARRY.enabled, savL=LOCK_ON.enabled, savB=BACKSTAB.enabled, savF=FLASK.enabled, savBo=BONFIRE.enabled, savPo=POISE.enabled, savC=COMBO.enabled, savRA=G.settings.rollAim;
+    ONBOARDING.enabled=!!onboard; DODGE.enabled=true; PARRY.enabled=true; LOCK_ON.enabled=true; BACKSTAB.enabled=true; FLASK.enabled=true; BONFIRE.enabled=true; POISE.enabled=false; COMBO.enabled=false;
+    startTutorial();                                            // live G.tut so tutMarkC has something to touch when onboard
+    const h=G.hero; G.scene="play"; G.settings.rollAim=true;
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));      // pre-segment
+    G.enemies.length=0;
+    h.rolling=false; h.rollCD=0; h.flaskDrinkT=0; h.stam=STAMINA.max; h.dead=false; h.stun=0; doRoll();          // dodge seam
+    const e1=spawnEnemy("skeleton", h.x+30, h.y); if(e1){ e1.hp=e1.maxHp=500; } h.lockCd=0; h.lockTarget=null; cycleLock();  // lockon seam
+    this.parryReset(); h.hp=heroMaxHp(h); h.parryT=PARRY.windowMs/1000; if(e1){ e1.hp=e1.maxHp=500; damageHero(20, Math.atan2(h.y-e1.y,h.x-e1.x), null, e1); }  // parry catch seam
+    const e2=this._bsArm(); e2.facing=0; e2.hp=1e9; hitEnemy(e2, 100, 0, {melee:true});                          // backstab seam
+    h.hp=Math.max(1,heroMaxHp(h)-50); h.flaskCharges=FLASK.charges; h.rolling=false; h.stun=0; h.flaskDrinkT=0; drinkFlask();  // estus seam (bonfire seam rides interact() elsewhere; 0-srand alike)
+    G.enemies.length=0;
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));                   // post-segment
+    const t=G.tut, marks={ dodge:!!(t&&t.dodge), parry:!!(t&&t.parry), lockon:!!(t&&t.lockon), backstab:!!(t&&t.backstab), estus:!!(t&&t.estus) };
+    ONBOARDING.enabled=savO; DODGE.enabled=savD; PARRY.enabled=savP; LOCK_ON.enabled=savL; BACKSTAB.enabled=savB; FLASK.enabled=savF; BONFIRE.enabled=savBo; POISE.enabled=savPo; COMBO.enabled=savC; G.settings.rollAim=savRA;
+    return { onboard:!!onboard, fingerprint:fp, marks }; },
+  // AC10/AC0 SAVE: the primer NEVER adds a key to save.v1. With the primer armed + an in-progress combat step, the
+  // serialized save carries ONLY tut:{i} (unchanged schema) — no dodge/parry/... mark key leaks (they ride transient
+  // G.tut, out of serializeSave's allowlist). Normalizing the resume index, the ON and OFF shapes are identical.
+  _primerSaveByteId(){ const savO=ONBOARDING.enabled;
+    ONBOARDING.enabled=false; startTutorial(); if(G.tut) G.tut.i=1; const offStr=JSON.stringify(serializeSave());
+    ONBOARDING.enabled=true;  startTutorial(); if(G.tut){ G.tut.i=2; G.tut.dodge=true; G.tut.parry=true; } const onStr=JSON.stringify(serializeSave());
+    ONBOARDING.enabled=savO;
+    const norm=(s)=>s.replace(/"tut":\{"i":\d+\}/,'"tut":{"i":N}');
+    return { tutSchemaOk:/"tut":\{"i":\d+\}/.test(onStr), noPrimerKey:!/"(dodge|parry|lockon|backstab|estus|bonfire|onboarding|teach\w*)":/i.test(onStr),
+      sameShape:norm(offStr)===norm(onStr), offLen:offStr.length, onLen:onStr.length }; },
   // --- CAS-1681 Eventos de Zona harness hooks (tools/cas1681-events.mjs); additive, dev-only ---
   eventSetEnabled(b){ ZONE_EVENTS.enabled=!!b; return { enabled:ZONE_EVENTS.enabled }; },
   eventSetDensity(x){ ZONE_EVENTS.density=Math.max(0,+x||0); return { density:ZONE_EVENTS.density }; },

@@ -449,7 +449,9 @@ export const STR = {
   tutStepLabel: (i, n) => "Paso " + i + "/" + n,
   tutSkip: "Saltar ▸",
   tutReplay: "Repetir guía inicial",
-  tutHead: { move:"MOVERSE", attack:"ATACAR", skill:"HABILIDAD", travel:"EXPLORAR", loot:"BOTÍN", equip:"EQUIPAR" },
+  tutHead: { move:"MOVERSE", attack:"ATACAR", skill:"HABILIDAD", travel:"EXPLORAR", loot:"BOTÍN", equip:"EQUIPAR",
+    // CAS-2017 combat primer verbs
+    dodge:"ESQUIVAR", parry:"PARADA", lockon:"FIJAR", backstab:"POR LA ESPALDA", estus:"ESTUS", bonfire:"HOGUERA" },
   tutSteps: {
     move:   { pc:(k)=>"Muévete con "+k("up")+k("left")+k("down")+k("right")+" o las flechas.", touch:"Arrastra el lado izquierdo de la pantalla para moverte." },
     attack: { pc:(k)=>"Ataca con clic izquierdo o la tecla "+k("attack")+".", touch:"Toca el botón ⚔ (abajo a la derecha) para atacar." },
@@ -457,10 +459,19 @@ export const STR = {
     travel: { pc:"Sal de Puerto Solana hacia una zona de caza para hallar enemigos.", touch:"Sal de Puerto Solana hacia una zona de caza para hallar enemigos." },
     loot:   { pc:(k)=>"Derrota enemigos y recoge tu primer botín con la tecla "+k("pickup")+".", touch:"Derrota enemigos y recoge tu primer botín con el botón F." },
     equip:  { pc:(k)=>"Abre el inventario con "+k("inventory")+" y equípate el botín que encuentres.", touch:"Toca el botón I (arriba) para abrir el inventario y equiparte." },
+    // CAS-2017 — Souls combat primer (keys resolved live via the render resolver: rebind for dodge, knob keys for the rest)
+    dodge:    { pc:(k)=>"Rueda con "+k("roll")+" para esquivar con i-frames (gasta vigor).", touch:"Toca el botón ↻ para rodar y esquivar con i-frames." },
+    parry:    { pc:(k)=>"Pulsa "+k("parry")+" justo al recibir un golpe melee para PARARLO y abrir un contragolpe.", touch:"Pulsa el botón de parada al recibir un golpe melee para pararlo." },
+    lockon:   { pc:(k)=>"Pulsa "+k("lockon")+" para FIJAR al enemigo más cercano; vuelve a pulsar para ciclar objetivos.", touch:"Toca el botón de fijar para enfocar al enemigo más cercano." },
+    backstab: { pc:"Rodea al enemigo y golpéalo POR LA ESPALDA para un crítico posicional.", touch:"Rodea al enemigo y golpéalo por la espalda para un crítico posicional." },
+    estus:    { pc:(k)=>"Bebe Estus con "+k("estus")+" para curarte (quedas enraizado un instante).", touch:"Toca el botón de Estus para curarte (quedas enraizado un instante)." },
+    bonfire:  { pc:(k)=>"Descansa en una HOGUERA con "+k("bonfire")+": cura, recarga Estus y fija tu checkpoint.", touch:"Acércate a una hoguera y descansa: cura, recarga Estus y fija tu checkpoint." },
   },
   tutDoneHead: "¡LISTO PARA LA AVENTURA!",
   // CAS-270 — close the bind-aware loop by also surfacing the Forja and Opciones
   // (Ajustes) keys on the final card, resolved live from the CAS-265 rebind table
   // like every other step. Pure onboarding copy; no balance/economy touch.
   tutDone: (k) => "Sigue el OBJETIVO de arriba. Gasta talentos ("+k("talents")+"), mejora con el Mercader ("+k("interact")+"), forja equipo ("+k("forge")+") y abre Opciones para reconfigurar controles ("+k("pause")+").",
+  // CAS-2017 (design D6): terminal-card pointer to the Códice de Combate (appended only when the primer is armed AND the Códice is live).
+  tutDoneCodex: (k) => "Pulsa ["+k+"] para el Códice de Combate completo.",
 };

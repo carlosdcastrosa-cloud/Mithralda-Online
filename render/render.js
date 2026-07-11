@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -3796,10 +3796,19 @@ export function createRenderer(ctx){
     // CAS-267: resolve copy against the player's LIVE keybindings (CAS-265 rebind
     // table) so the coachmark never shows a stale/hardcoded key. `pc` copy may be a
     // function of this resolver; touch copy / legacy strings pass through unchanged.
-    const tutKey=(a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a]);
+    // CAS-2017: the combat verbs bind to KNOB keys (fixed), not the rebindable table. One resolver serves
+    // both — a knob alias resolves to keyLabel(<KNOB>.key), everything else to the live rebind table — so a
+    // coachmark NEVER shows a hardcoded literal (same discipline as the Códice's keyOf). dodge = the `roll`
+    // rebind; backstab is positional (no key ⇒ no alias). No alias collides with a rebind action name.
+    const ONB_KNOB_KEY={ parry:PARRY.key, lockon:LOCK_ON.key, estus:FLASK.key, bonfire:BONFIRE.key };
+    const tutKey=(a)=> (a in ONB_KNOB_KEY) ? keyLabel(ONB_KNOB_KEY[a]) : keyLabel((G.settings.binds||settings.defaultBinds())[a]);
     const bindAware=(v)=> typeof v==="function" ? v(tutKey) : v;
     let head, body, showSkip=true, prog=true;
-    if(step==="done"){ head=STR.tutDoneHead; body=bindAware(STR.tutDone); showSkip=false; prog=false; }
+    if(step==="done"){ head=STR.tutDoneHead; body=bindAware(STR.tutDone);
+      // CAS-2017 (design D6): the terminal card points at the Códice for the rest — gated on the primer being
+      // armed AND the Códice live (both off ⇒ done card byte-identical to HEAD). Pure pointer, no dependency.
+      if(ONBOARDING.enabled && COMBAT_CODEX.enabled) body += " " + STR.tutDoneCodex(keyLabel(COMBAT_CODEX.codexKey));
+      showSkip=false; prog=false; }
     else { head=STR.tutHead[step]||STR.tutTitle; const s=STR.tutSteps[step]; body=s?bindAware(isTouch?s.touch:s.pc):""; }
     const cw=Math.min(VW*0.86,460), cx=VW/2, x=cx-cw/2, y=VH*0.15, lh=17;
     ctx.font="13px "+FF; const lines=tutWrap(body, cw-28);
