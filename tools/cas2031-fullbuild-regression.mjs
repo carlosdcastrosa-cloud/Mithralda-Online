@@ -36,7 +36,7 @@ import * as cfg from "../sim/config.js";
 import * as sim from "../sim/sim.js";
 import { G, update, composeTutSteps } from "../sim/sim.js";
 
-const EXPECT_BUILD = "f5fa24ffe4e2"; // CAS-2058: bumped from 1cc255d4b339 after CAS-2055 Boss Rush Time-Attack go-live flip (timeAttack:false→true, config-only). Prev CAS-2044 recap:false→true.
+const EXPECT_BUILD = "d1043faa3064"; // CAS-2064: bumped from f5fa24ffe4e2 after CAS-2060 a11y toggles deploy (hitStop+flash, 4-blob byte-change, runtime byte-preserved defaults ON). Prev CAS-2058 (f5fa24, Boss Rush Time-Attack flip).
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 
 let ok = true;
