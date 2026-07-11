@@ -25,7 +25,7 @@ const G = sim.G;
 
 // ----- shared UI state (read by render, written here / by render) ----------
 // CAS-119: talentRects + a live mouse position so the talent panel can hover-describe.
-export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], titleRects:[], pactRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, legacyRects:[], legacyChoose:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, menuArenaRect:{x:0,y:0,w:0,h:0}, menuBossRushRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
+export const ui = { pauseRects:[], shopRects:[], bountyRects:[], bestRects:[], draftRects:[], curseRects:[], ascendRects:[], bossRushRects:[], classRects:[], abilRects:[], abilConfirmRect:{x:0,y:0,w:0,h:0}, talentRects:[], customRects:[], forgeRects:[], titleRects:[], pactRects:[], deadRects:[], altarRects:[], altarAscendConfirm:false, legacyRects:[], legacyChoose:false, invForgeRect:{x:0,y:0,w:0,h:0}, mouseX:0, mouseY:0, menuPlayRect:{x:0,y:0,w:0,h:0}, menuArenaRect:{x:0,y:0,w:0,h:0}, menuBossRushRect:{x:0,y:0,w:0,h:0}, tutSkipRect:{x:0,y:0,w:0,h:0}, classCustomRect:{x:0,y:0,w:0,h:0},
   // CAS-419 inventory DnD: live drag state (render draws the ghost/highlights from it),
   // last rejected drop rect (render shakes it red until `until`, sim time), and the
   // backpack list area rect render publishes so an equip-slot drag can target empty rows.
@@ -199,6 +199,11 @@ function edge(code){
   if(G.scene==="ascend"||G.scene==="ascendRecap"){ // CAS-2035: recap overlay shares the ascend keyboard path
     if(code==="KeyA"||code==="Enter"||code==="Space"){ sim.acceptAscend(); }
     else if(code==="Escape"||code==="KeyS"){ sim.declineAscend(); }
+    return; }
+  // CAS-2047: Boss Rush time-attack results overlay — R / Enter / Space reintenta el gauntlet, Esc / M vuelve al menú.
+  if(G.scene==="bossRushRecap"){
+    if(code==="KeyR"||code==="Enter"||code==="Space"){ sim.retryBossRush(); }
+    else if(code==="Escape"||code==="KeyM"){ sim.exitBossRushRecap(); }
     return; }
   if(G.scene==="inventory"){ const n=G.hero.bag.length; const cols=(ui.invGrid&&ui.invGrid.cols)||5;
     if(code==="KeyI"||code==="Escape") G.scene="play";
@@ -578,6 +583,7 @@ function handleUITap(x,y){
   if(G.scene==="draft"){ return draftTap(x,y); } // CAS-383
   if(G.scene==="curse"){ return curseTap(x,y); } // CAS-394
   if(G.scene==="ascend"||G.scene==="ascendRecap"){ return ascendTap(x,y); } // CAS-450 (CAS-2035: recap overlay reuses ui.ascendRects)
+  if(G.scene==="bossRushRecap"){ return bossRushRecapTap(x,y); } // CAS-2047 time-attack results overlay
   if(G.scene==="play" && isTouch){
     const tb=tbtns(); for(const k in tb){ const b=tb[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
     const top=topBtns(); for(const k in top){ const b=top[k]; if(b.r&&dist2tap(x,y,b.x,b.y)<b.r*b.r){ b.act(); return true; } }
@@ -639,6 +645,9 @@ function curseTap(x,y){ for(const r of (ui.curseRects||[])){ if(x>=r.x&&x<=r.x+r
 // swallowed (the offer must resolve one way or the other before play resumes).
 function ascendTap(x,y){ for(const r of (ui.ascendRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
   if(r.act==="accept") sim.acceptAscend(); else sim.declineAscend(); return true; } } return true; }
+// CAS-2047: route a tap on the time-attack recap overlay to retry/menu via ui.bossRushRects (mirror ascendTap).
+function bossRushRecapTap(x,y){ for(const r of (ui.bossRushRects||[])){ if(x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h){
+  if(r.act==="retry") sim.retryBossRush(); else sim.exitBossRushRecap(); return true; } } return true; }
 // CAS-419 — inventory drag & drop. A press on a bag row or an occupied functional
 // equip slot ARMS a drag; crossing DRAG_PX activates it (render then draws the ghost
 // + target highlights). Release below the threshold falls back to the CAS-226 tap

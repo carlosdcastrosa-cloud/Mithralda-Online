@@ -313,6 +313,7 @@ export function createRenderer(ctx){
     if(G.scene==="curse") renderCurse(); // CAS-394 opt-in zone modifier offer
     if(G.scene==="ascend") renderAscend(); // CAS-450 opt-in World-Tier climb offer
     if(G.scene==="ascendRecap") renderAscendRecap(); // CAS-2035 data-driven NG+ cycle-recap overlay
+    if(G.scene==="bossRushRecap") renderBossRushRecap(); // CAS-2047 Boss Rush time-attack results/records overlay
     if(G.scene==="pause") renderPause();
     if(G.scene==="dead") renderDeath();
     if(G.scene==="altar") renderAltar(); // CAS-1557 meta-progression altar (opened from death)
@@ -3498,6 +3499,64 @@ export function createRenderer(ctx){
     ctx.textAlign="left";
   }
 
+  // CAS-2047: Boss Rush TIME-ATTACK results / records overlay. Shown on the "bossRushRecap" scene (only reached when
+  // BOSS_RUSH.timeAttack && a gauntlet was COMPLETED; DARK by default ⇒ never reached ⇒ HEAD byte-id). Pure view over
+  // the G.bossRushRecap payload (total time, per-round splits, hits, score, Δ vs previous record, NEW-RECORD flags) — 0
+  // RNG. Clones renderAscendRecap's skeleton; pushes retry/menu rects to ui.bossRushRects (mirror ui.ascendRects).
+  function renderBossRushRecap(){ const rc=G.bossRushRecap; ui.bossRushRects=[]; if(!rc) return;
+    const bw=Math.min(VW*0.92,480), bh=Math.min(VH*0.92,472), x=(VW-bw)/2, y=(VH-bh)/2;
+    panel(x,y,bw,bh);
+    const cx=x+20, cw=bw-40, rx=x+bw-20;
+    // ---- title + complete header ----
+    ctx.textAlign="center";
+    ctx.fillStyle=COL.textGold; ctx.font="bold 19px "+FF; ctx.fillText(STR.brTitle,VW/2,y+28);
+    ctx.fillStyle=COL.cream; ctx.font="bold 13px "+FF; ctx.fillText(STR.brComplete,VW/2,y+48);
+    // ---- total time (right-aligned value) + record/delta ----
+    ctx.textAlign="left"; let cy=y+78;
+    ctx.fillStyle=COL.textGold; ctx.font="bold 13px "+FF; ctx.fillText(STR.brTimeLabel,cx,cy);
+    ctx.textAlign="right"; ctx.fillStyle=COL.cream; ctx.fillText(fmtBRTime(rc.timeMs),rx,cy); cy+=16;
+    ctx.font="10px "+FF;
+    if(rc.newTimeRecord){ ctx.fillStyle="#8fe08f"; ctx.fillText(STR.brTimeRecord,rx,cy); }
+    else if((rc.prevBestTimeMs|0)>0){ const d=rc.timeMs-rc.prevBestTimeMs; ctx.fillStyle=COL.textDim;
+      ctx.fillText(STR.brPrevBestTime(fmtBRTime(rc.prevBestTimeMs))+"  ("+(d>=0?"+":"−")+fmtBRTime(Math.abs(d))+")",rx,cy); }
+    cy+=18; ctx.textAlign="left";
+    // ---- per-round splits ----
+    if(rc.roundMs && rc.roundMs.length){ ctx.font="11px "+FF;
+      for(let i=0;i<rc.roundMs.length;i++){ ctx.fillStyle=COL.textDim; ctx.fillText(STR.brRoundSplit(i+1),cx+8,cy);
+        ctx.textAlign="right"; ctx.fillStyle=COL.cream; ctx.fillText(fmtBRTime(rc.roundMs[i]),rx,cy); ctx.textAlign="left"; cy+=15; } }
+    cy+=6;
+    // ---- hits taken (green when flawless) ----
+    ctx.fillStyle=COL.textGold; ctx.font="bold 12px "+FF; ctx.fillText(STR.brHits,cx,cy);
+    ctx.textAlign="right"; ctx.fillStyle=(rc.hits===0?"#8fe08f":COL.cream); ctx.fillText(String(rc.hits|0),rx,cy);
+    ctx.textAlign="left"; cy+=20;
+    // ---- score block (sub-toggle: showScore) — big score + Δ vs previous best + NEW RECORD ----
+    if(BOSS_RUSH.showScore){
+      const boxH=64;
+      ctx.fillStyle="#2a2618"; ctx.fillRect(cx,cy,cw,boxH);
+      ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(cx+0.5,cy+0.5,cw,boxH);
+      ctx.textAlign="center";
+      ctx.fillStyle="#ffd24d"; ctx.font="bold 24px "+FF; ctx.fillText(String(rc.score|0),VW/2,cy+30);
+      ctx.font="10px "+FF; ctx.fillStyle=COL.textDim; ctx.fillText(STR.brScoreLabel,VW/2,cy+44);
+      ctx.font="11px "+FF;
+      if(rc.newScoreRecord){ ctx.fillStyle="#ffe27a"; ctx.fillText(STR.brNewRecord,VW/2,cy+58); }
+      else { const d=(rc.score|0)-(rc.prevBestScore|0); ctx.fillStyle=COL.textDim;
+        ctx.fillText(STR.brPrevBest(rc.prevBestScore|0)+"  ("+(d>=0?"+":"")+d+")",VW/2,cy+58); }
+      ctx.textAlign="left";
+    }
+    // ---- action buttons (identical skeleton to renderAscendRecap → ui.bossRushRects contract) ----
+    const bwid=bw-40, bhei=34, bxx=x+20; let byy=y+bh-64;
+    ctx.fillStyle="#3a3218"; ctx.fillRect(bxx,byy,bwid,bhei);
+    ctx.strokeStyle=COL.textGold; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
+    ctx.textAlign="center"; ctx.fillStyle="#ffe2a0"; ctx.font="bold 14px "+FF; ctx.fillText(STR.brRetry,VW/2,byy+22);
+    ui.bossRushRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"retry"});
+    byy+=bhei+8;
+    ctx.fillStyle="#262a30"; ctx.fillRect(bxx,byy,bwid,bhei);
+    ctx.strokeStyle="#7f8794"; ctx.lineWidth=1; ctx.strokeRect(bxx+0.5,byy+0.5,bwid,bhei);
+    ctx.fillStyle=COL.textDim; ctx.font="bold 14px "+FF; ctx.fillText(STR.brMenu,VW/2,byy+22);
+    ui.bossRushRects.push({x:bxx,y:byy,w:bwid,h:bhei,act:"menu"});
+    ctx.textAlign="left";
+  }
+
   // CAS-265: the pause / settings panel, reorganised into three grouped TABS
   // (Audio · Accesibilidad · Controles) for cohesion. All controls are tap-driven so
   // they behave identically on touch; every persistent toggle writes through
@@ -3969,8 +4028,15 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.fillText(label,cx,y);
     if(BR.resting){ ctx.font="12px "+FF; ctx.fillStyle=COL.cream;
       ctx.fillText("Hoguera… se acerca el siguiente jefe",cx,y+18); }
+    // CAS-2047 Time-Attack: running clock during play (canvas text, $0 art). Gated on timeAttack + showTimer ⇒ off = dead.
+    // Timer FREEZES during the bonfire rest (combatMs doesn't accrue) — drawn under the rest note so it doesn't collide.
+    if(BOSS_RUSH.timeAttack && BOSS_RUSH.showTimer){ const clk=fmtBRTime(BR.combatMs||0); const ty=y+(BR.resting?36:18);
+      ctx.font="15px "+FF; ctx.fillStyle=COL.out; ctx.fillText(clk,cx+1,ty+1); ctx.fillStyle=COL.textGold; ctx.fillText(clk,cx,ty); }
     ctx.restore(); ctx.textAlign="left";
   }
+  // CAS-2047: format an accumulated-ms clock as M:SS.d (tenths). Shared by the HUD timer + recap splits. Pure fn, no state.
+  function fmtBRTime(ms){ const s=Math.max(0,ms)/1000; const m=Math.floor(s/60); const sec=s-m*60;
+    return m+":"+(sec<10?"0":"")+sec.toFixed(1); }
   function renderMenu(){
     // dark fantasy backdrop
     ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);

@@ -259,11 +259,17 @@ export const G = {
   // its OWN store (mithralda.bossrush.v1) via persist.js on the `bossRushDirty` flush flag — the run save
   // schema is untouched. round = current 0-based round index; resting = the between-round hoguera breather.
   bossRushMode:false, pendingBossRush:false, bossRushDirty:false,
+  bossRushRecap:null,   // CAS-2047: results/records payload for the "bossRushRecap" scene (set in gauntletComplete; non-serialized)
   bossRush:{ round:0, spawnedThisRound:0, aliveTarget:0, resting:false, restT:0, best:0,
     // runtime-only telemetry (NOT serialized): last round's banked Esencia + clear/record bonuses + next-boss telegraph:
     lastRoundEss:0, lastClearBonus:0, telegraphRound:-1, complete:false,
     // once-per-run record milestone bookkeeping (runtime-only; bestRound is the durable field):
-    recordBaseline:0, recordHit:false, lastRecordEssBonus:0 },
+    recordBaseline:0, recordHit:false, lastRecordEssBonus:0,
+    // CAS-2047 Time-Attack: DURABLE records (persisted via serializeBossRush ONLY when BOSS_RUSH.timeAttack; absent⇒0):
+    bestTimeMs:0, bestScore:0,
+    // CAS-2047 Time-Attack: per-run telemetry (NON-serialized; reset in startBossRush; only accumulates when timeAttack):
+    combatMs:0, roundMs:[], hitsReceived:0, lastScore:0, lastTimeMs:0,
+    newTimeRecord:false, newScoreRecord:false, prevBestTimeMs:0, prevBestScore:0 },
   // CAS-1681: Eventos de Zona (optional POIs) — PURELY runtime bookkeeping (never serialized into the
   // run save; only a durable per-run completion counter rides the hero additively). `seeded` = zones
   // already rolled this run (seed-once-per-zone, mirroring curseSeen). `pois` = the live POI list read
@@ -1070,6 +1076,11 @@ function startBossRush(){ const BR=G.bossRush;
   BR.spawnedThisRound=0; BR.aliveTarget=0; BR.resting=false; BR.restT=0; BR.complete=false;
   BR.recordBaseline=BR.best|0; BR.recordHit=false; BR.lastRecordEssBonus=0; BR.telegraphRound=-1;
   BR.lastRoundEss=0; BR.lastClearBonus=0;
+  // CAS-2047 Time-Attack: reset the per-run timer/hit telemetry + snapshot the durable records for the recap delta.
+  // Gated ⇒ off = untouched ⇒ startBossRush byte-identical to HEAD.
+  if(BOSS_RUSH.timeAttack){ BR.combatMs=0; BR.roundMs=[]; BR.hitsReceived=0; BR.lastScore=0; BR.lastTimeMs=0;
+    BR.newTimeRecord=false; BR.newScoreRecord=false; BR.prevBestTimeMs=BR.bestTimeMs|0; BR.prevBestScore=BR.bestScore|0;
+    G.bossRushRecap=null; }
   G.scene="play"; BR.round=0; spawnRound(0); // Boss Rush always begins IN play (createHero's later openAbilityDraft re-gates the loadout scene)
 }
 // The between-round payoff: bank the round's Esencia (arithmetic, 0 RNG → survives death), then either finish
@@ -1106,7 +1117,10 @@ function onRoundCleared(){ const BR=G.bossRush, h=G.hero; if(!h) return;
 function tickBossRush(dt){ const BR=G.bossRush, h=G.hero; if(!h) return;
   if(BR.resting){ BR.restT-=dt;
     if(BR.restT<=0){ BR.resting=false; BR.round++; spawnRound(BR.round); }
-    return; }
+    return; }   // REST (hoguera) returns BEFORE the timer accrues ⇒ waiting at the bonfire never penalises the clear
+  // CAS-2047 Time-Attack: accumulate ACTIVE-combat time (rest excluded above) — sim dt, not Date.now (deterministic,
+  // pause/tab-blur-proof). Per-round split rides the same accumulator. Gated ⇒ off = no accrual ⇒ HEAD byte-id.
+  if(BOSS_RUSH.timeAttack){ const ms=dt*1000; BR.combatMs+=ms; const ri=BR.round|0; BR.roundMs[ri]=(BR.roundMs[ri]||0)+ms; }
   const alive=bossRushAliveCount(); BR.aliveTarget=alive;
   if(alive===0 && BR.spawnedThisRound>0) onRoundCleared();
 }
@@ -1121,8 +1135,37 @@ function gauntletComplete(){ const BR=G.bossRush;
   toast("¡GAUNTLET COMPLETA! +"+(BOSS_RUSH.clearBonusEss|0)+" Esencia", 4.0); shakeAdd(10);
   audio&&audio.sfx&&audio.sfx.boss&&audio.sfx.boss();
   bossRushClearEnemies();
+  // CAS-2047 Time-Attack: score the completed clear, bank beaten records, fill the recap payload, and route to the
+  // results overlay INSTEAD of the menu. Gated ⇒ off = the existing menu path below runs verbatim (HEAD byte-id).
+  if(BOSS_RUSH.timeAttack){ bossRushScoreComplete();
+    G.bossRushMode=false; G.pendingBossRush=false; G.scene="bossRushRecap"; return; }
   G.bossRushMode=false; G.pendingBossRush=false; G.scene="menu";   // back to menu, NEVER G.scene="victory"
 }
+// CAS-2047: compute the deterministic Time-Attack score for a COMPLETED gauntlet, compare vs the durable records
+// (snapshotted at run start into prevBest*), bank any beaten record on the flush flag (own store, additive), and
+// fill G.bossRushRecap for the overlay. Pure arithmetic (0 RNG). Only ever reached when BOSS_RUSH.timeAttack (the
+// gauntletComplete gate) ⇒ off = never called ⇒ HEAD byte-identical. score = max(0, base − round(sec×timeW) −
+// hits×hitW + (hits===0?cleanBonus:0)). First completion (prevBestTimeMs<=0) always sets the time record.
+function bossRushScoreComplete(){ const BR=G.bossRush;
+  const timeMs=Math.round(BR.combatMs||0); const combatSec=timeMs/1000; const hits=BR.hitsReceived|0;
+  const clean=(hits===0)?(BOSS_RUSH.scoreCleanBonus|0):0;
+  const score=Math.max(0, (BOSS_RUSH.scoreBase|0) - Math.round(combatSec*(BOSS_RUSH.scoreTimeW|0)) - hits*(BOSS_RUSH.scoreHitW|0) + clean);
+  const prevT=BR.prevBestTimeMs|0, prevS=BR.prevBestScore|0;   // records as they stood at run start (recap delta baseline)
+  BR.lastTimeMs=timeMs; BR.lastScore=score;
+  BR.newTimeRecord = (prevT<=0) || (timeMs<prevT);             // faster clear (or the first-ever completion)
+  BR.newScoreRecord = score>prevS;                             // higher score
+  if(BR.newTimeRecord){ BR.bestTimeMs=timeMs; G.bossRushDirty=true; }
+  if(BR.newScoreRecord){ BR.bestScore=score; G.bossRushDirty=true; }
+  G.bossRushRecap={ timeMs, score, hits, roundMs:(BR.roundMs||[]).map(m=>Math.round(m||0)),
+    prevBestTimeMs:prevT, prevBestScore:prevS, newTimeRecord:BR.newTimeRecord, newScoreRecord:BR.newScoreRecord };
+}
+// CAS-2047: input seams for the Time-Attack recap overlay (mirror acceptAscend/declineAscend). `retry` re-arms Boss
+// Rush with the current hero through the REAL startBossRush; `menu` returns to the main menu. Both clear the recap
+// payload and are scene-guarded so a stray key/tap outside the overlay is inert.
+export function retryBossRush(){ if(G.scene!=="bossRushRecap") return false;
+  G.bossRushRecap=null; G.bossRushMode=true; G.pendingBossRush=false; startBossRush(); return true; }
+export function exitBossRushRecap(){ if(G.scene!=="bossRushRecap") return false;
+  G.bossRushRecap=null; G.bossRushMode=false; G.pendingBossRush=false; G.scene="menu"; return true; }
 // Hero death ends the gauntlet: the highest round REACHED is the score; persist it as the new best (own store,
 // additive) if it beats the record. Called from heroDie (Boss Rush branch only). Mirror arenaOnDeath.
 function bossRushOnDeath(){ const BR=G.bossRush;
@@ -1133,9 +1176,16 @@ function bossRushOnDeath(){ const BR=G.bossRush;
   applyTitles(G.hero); }
 // Additive Boss Rush persistence (mirror serializeArena/loadArena): the sim owns the shape, persist.js owns the
 // localStorage medium + the bossRushDirty flush. bestRound is the durable state. Shape v:1 (additive; absent ⇒ 0).
-export function serializeBossRush(){ return { v:1, bestRound:G.bossRush.best|0 }; }
+// CAS-2047: schema extended ADDITIVELY (no version bump). When timeAttack is OFF we emit the HEAD shape EXACTLY
+// ({v:1,bestRound}) ⇒ save byte-identical; the new record keys are written only while the layer is armed. loadBossRush
+// always coerces both new keys (absent ⇒ 0 = "no record yet") so old blobs load forward and old code ignores them.
+export function serializeBossRush(){ return BOSS_RUSH.timeAttack
+  ? { v:1, bestRound:G.bossRush.best|0, bestTimeMs:G.bossRush.bestTimeMs|0, bestScore:G.bossRush.bestScore|0 }
+  : { v:1, bestRound:G.bossRush.best|0 }; }
 export function loadBossRush(d){
   G.bossRush.best = (d && Number.isFinite(+d.bestRound)) ? Math.max(0, Math.floor(+d.bestRound)) : 0;
+  G.bossRush.bestTimeMs = (d && Number.isFinite(+d.bestTimeMs)) ? Math.max(0, Math.floor(+d.bestTimeMs)) : 0;
+  G.bossRush.bestScore  = (d && Number.isFinite(+d.bestScore))  ? Math.max(0, Math.floor(+d.bestScore))  : 0;
   return G.bossRush.best; }
 // ================== end CAS-1988 Modo Boss Rush ==================
 
@@ -5054,6 +5104,9 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   }
   const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
+  // CAS-2047 Time-Attack: count a LANDED hit while in Boss Rush (all negate/dodge/parry paths returned above, so only
+  // real damage counts). Boss-rush-gated ⇒ normal adventures never touch the counter; off ⇒ dead ⇒ HEAD byte-id.
+  if(G.bossRushMode && BOSS_RUSH.timeAttack) G.bossRush.hitsReceived++;
   // CAS-1996 hint one-time: primer HP bajo (<50%) con Estus disponible enseña a curarse (gated; 0 RNG).
   if(FLASK.enabled && h.hp>0 && h.hp < heroMaxHp(h)*0.5 && (h.flaskCharges|0)>0)
     fireHint("hint_flask", "["+keyLabel(FLASK.key)+"] bebe Estus para curarte.");
@@ -5283,6 +5336,39 @@ export const dev = {
     cq.tier=st;
     return { tier:tier|0, delta:with_-base, essMul:ngEssMul(tier|0),
       rawTerm:(afk|0)*MOB_AFFIX_ESSENCE+(champs|0)*CHAMPION.essence }; },
+  // --- CAS-2047 Boss Rush Time-Attack harness hooks (tools/cas2047-*.mjs); additive, drive/read the REAL paths ---
+  // Live time-attack state: config sub-flags + durable records + this-run telemetry + the recap payload. Pure read.
+  brState(){ const BR=G.bossRush; return { timeAttack:!!BOSS_RUSH.timeAttack, showTimer:!!BOSS_RUSH.showTimer, showScore:!!BOSS_RUSH.showScore,
+    scoreBase:BOSS_RUSH.scoreBase|0, scoreTimeW:BOSS_RUSH.scoreTimeW|0, scoreHitW:BOSS_RUSH.scoreHitW|0, scoreCleanBonus:BOSS_RUSH.scoreCleanBonus|0,
+    bossRushMode:!!G.bossRushMode, scene:G.scene, round:BR.round|0, resting:!!BR.resting,
+    combatMs:Math.round(BR.combatMs||0), roundMs:(BR.roundMs||[]).map(m=>Math.round(m||0)), hitsReceived:BR.hitsReceived|0,
+    best:BR.best|0, bestTimeMs:BR.bestTimeMs|0, bestScore:BR.bestScore|0,
+    lastTimeMs:BR.lastTimeMs|0, lastScore:BR.lastScore|0, newTimeRecord:!!BR.newTimeRecord, newScoreRecord:!!BR.newScoreRecord,
+    prevBestTimeMs:BR.prevBestTimeMs|0, prevBestScore:BR.prevBestScore|0,
+    recap:G.bossRushRecap?{...G.bossRushRecap}:null }; },
+  // Enter Boss Rush with the CURRENT hero (skip the menu/class flow) via the REAL startBossRush.
+  brStart(){ G.bossRushMode=true; G.pendingBossRush=false; startBossRush(); return this.brState(); },
+  // Advance the boss-rush controller by dt (seconds) without the render loop, through the REAL tickBossRush.
+  brTick(dt){ tickBossRush(+dt||0); return this.brState(); },
+  // Force the bonfire rest (proves the timer EXCLUDES it). Sets a real restT so the rest actually LASTS (mirror
+  // onRoundCleared) — otherwise a restT of 0 would end the rest + advance the round on the very first tick. No RNG.
+  brSetResting(v){ const BR=G.bossRush; BR.resting=!!v; BR.restT = v ? (BOSS_RUSH.restSeconds||4) : 0; return BR.resting; },
+  // Drive a real incoming hit through damageHero (clears i-frames first) to exercise the boss-rush hit counter.
+  brHurt(n){ const h=G.hero; if(!h) return null; h.iframe=0; h.rolling=false; damageHero(Math.max(1,n|0)||10,Math.PI,null);
+    return { hits:G.bossRush.hitsReceived|0, hp:Math.round(h.hp) }; },
+  // Stage combat telemetry directly (a specific time/hits) for formula + record tests.
+  brStage(combatMs,hits){ const BR=G.bossRush; BR.combatMs=Math.max(0,+combatMs||0); BR.hitsReceived=Math.max(0,hits|0); return this.brState(); },
+  // Force a completed gauntlet through the REAL gauntletComplete (score+record+recap seam). Returns the resulting state.
+  brComplete(){ gauntletComplete(); return this.brState(); },
+  // Drive the recap input seams (retry/menu) through the REAL exports.
+  brRetry(){ return { ok:retryBossRush(), scene:G.scene, mode:!!G.bossRushMode }; },
+  brExitRecap(){ return { ok:exitBossRushRecap(), scene:G.scene }; },
+  // Round-trip the durable records through the REAL serialize/load to prove persistence.
+  brSerialize(){ return serializeBossRush(); },
+  brLoad(d){ return loadBossRush(d); },
+  // Stage the durable records (records-only tests without a prior run).
+  brSetRecords(timeMs,score){ const BR=G.bossRush; BR.bestTimeMs=Math.max(0,timeMs|0); BR.bestScore=Math.max(0,score|0);
+    return { bestTimeMs:BR.bestTimeMs, bestScore:BR.bestScore }; },
   // --- CAS-169 customization contract consumed by tools/cas169-customize.mjs — additive ---
   customizeState(){ return customizeState(); },
   setPartColor(slot,color){ return setPartColor(slot,color); },

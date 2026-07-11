@@ -405,6 +405,20 @@ export const STR = {
   ngRecapEss: (m) => "Esencia: ×" + m + " por muerte de campeón",
   ngRecapPoise: (m) => "Aguante enemigo: ×" + m,
   ngRecapReward: "Los dominios renacen más letales, pero la recompensa asciende contigo.",
+  // CAS-2047 (EVO CAS-2046) Boss Rush Time-Attack: HUD run-timer + results/records overlay copy. Used ONLY when
+  // BOSS_RUSH.timeAttack (gated at the render/sim call sites) — DARK by default ⇒ never reached ⇒ HEAD byte-id.
+  brTitle: "CONTRARRELOJ",
+  brComplete: "¡Gauntlet completa!",
+  brTimeLabel: "Tiempo total",
+  brRoundSplit: (n) => "Ronda " + n,
+  brHits: "Golpes recibidos",
+  brScoreLabel: "PUNTUACIÓN",
+  brNewRecord: "¡NUEVO RÉCORD!",
+  brPrevBest: (n) => "Mejor: " + n,
+  brTimeRecord: "¡NUEVO RÉCORD DE TIEMPO!",
+  brPrevBestTime: (t) => "Mejor: " + t,
+  brRetry: "Reintentar (R)",
+  brMenu: "Menú (Esc)",
   worldTierChip: (t) => "Mundo " + t,
   dailySlay: (n) => "Da caza a " + n + " enemigos",
   // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).
