@@ -1646,3 +1646,34 @@ export const SUMMON = {
   spirit: { hpPct:0.35, dmgMul:0.55, moveMul:1.0, attackType:"melee", atkCdMs:900,
             range:56, tint:"#7fe3ff", alpha:0.72, mold:"skeleton" }
 };
+
+// CAS-1988 — MODO BOSS RUSH / GAUNTLET. $0 arte, 100% reuso del roster de jefes existente. 1 knob HARD-GATED.
+// Un modo FINITO, opt-in, de jefes encadenados: el jugador pelea una SECUENCIA ORDENADA de los jefes que YA
+// existen (dragón, tirano del pantano, tirano del abismo, Corazón de Magma…) espalda-con-espalda, con una
+// hoguera/refill entre rondas, y termina la gauntlet o muere. Récord persistente = mejor ronda alcanzada.
+// Controlador PARALELO e independiente de la Arena de Oleadas (NO toca una sola línea del código de Arena).
+// enabled:false ⇒ modo INALCANZABLE (menú no muestra la entrada, KeyB inerte, tickBossRush nunca corre) ⇒
+// byte-idéntico a HEAD (Arena/core/APEX intactos). Todo draw viene de bossRushRng dedicado (NUNCA srand).
+// Récord en store propio mithralda.bossrush.v1 ⇒ save.v1 byte-id. El gate CEO decide el flip live (mirror SUMMON).
+//   key           — CODE de menú (mirror KeyA=Arena input.js:93); KeyB libre en la escena menu.
+//   sequence      — jefes ORDENADOS (claves de HUNTS[zone].boss). Escalada → finale = Corazón de Magma.
+//                   EXCLUYE 'frost' (boss final:true ⇒ dispararía la pantalla de victoria) y 'trial' (world-boss opcional).
+//   hpStep/dmgStep— escala por índice de ronda r (0-based): mul = 1 + r*step (ronda 0 = base ×1.0).
+//   restSeconds   — respiro/hoguera entre rondas (mirror ARENA.restSeconds).
+//   healFrac      — hoguera = fracción de maxHp curada entre rondas (1.0 = cura COMPLETA, checkpoint real).
+//   refillOnRest  — recarga TODO el kit consumible en el respiro (estus/arrojadizos/buffs/summon).
+//   essPerRound/essStepRound — Esencia garantizada por ronda limpiada = essPerRound + r*essStepRound (aritmética, 0 RNG).
+//   clearBonusEss — bonus por COMPLETAR toda la gauntlet (aritmética, 0 RNG).
+//   recordEssBase — milestone ronda-récord: ceil(recordEssBase * ronda) 1-vez/run (aritmética, 0 RNG).
+export const BOSS_RUSH = {
+  enabled: false,                 // GATE CEO decide el flip live (mirror SUMMON CAS-1979→1980)
+  key: "KeyB",                    // entrada por teclado en el menú (KeyB libre en escena menu)
+  sequence: ["caves", "swamp", "abyss", "caldera"],   // 4 rondas TUNABLE (CTO): dragón → tirano pantano → tirano abismo → Corazón de Magma
+  hpStep: 0.10, dmgStep: 0.06,    // escala por índice de ronda r (0-based): mul = 1 + r*step
+  restSeconds: 4,                 // respiro/hoguera entre rondas
+  healFrac: 1.0,                  // hoguera = cura COMPLETA entre rondas (checkpoint real; TUNABLE)
+  refillOnRest: true,             // recarga TODO el kit consumible en el respiro (estus/arrojadizos/buffs/summon)
+  essPerRound: 40, essStepRound: 12,  // Esencia garantizada por ronda limpiada = essPerRound + r*essStepRound (0 RNG)
+  clearBonusEss: 250,             // bonus por COMPLETAR toda la gauntlet (0 RNG)
+  recordEssBase: 15,              // milestone ronda-récord: ceil(recordEssBase * ronda) 1-vez/run (0 RNG)
+};

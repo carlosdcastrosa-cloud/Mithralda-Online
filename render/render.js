@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, POISE, LOCK_ON, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -295,6 +295,7 @@ export function createRenderer(ctx){
     ctx.restore();
     renderHUD();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
+    if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
     if(G.scene==="inventory") renderInventory();
     if(G.scene==="talents") renderTalents();
@@ -3492,6 +3493,10 @@ export function createRenderer(ctx){
       // CAS-1675 — surface the persistent boss-wave record alongside the wave record.
       ctx.fillStyle=COL.cream; ctx.font="13px "+FF;
       ctx.fillText("Mejor Jefe: Oleada "+(G.arena.bestBossWave|0), cx, y); y+=24; }
+    // CAS-1988: in Boss Rush the SCORE is the round reached — surface it (+ the best) as a gold banner.
+    if(G.bossRushMode){ const N=BOSS_RUSH.sequence.length;
+      ctx.fillStyle=COL.textGold; ctx.font="bold 16px "+FF;
+      ctx.fillText("Ronda alcanzada: "+((G.bossRush.round|0)+1)+"/"+N+"  ·  Mejor: "+(G.bossRush.best|0), cx, y); y+=24; }
     // recap summary panel — reads the frozen delta snapshot built at death (G.recap)
     const r=G.recap;
     if(r){
@@ -3827,6 +3832,19 @@ export function createRenderer(ctx){
       ctx.fillText("Respiro… próxima oleada",cx,y+18); }
     ctx.restore(); ctx.textAlign="left";
   }
+  // CAS-1988: Modo Boss Rush HUD overlay — current round r/N + best round (top-centre, under the zone band)
+  // and, during the between-round bonfire, a "Hoguera…" note. Screen-space, pixel font, $0 art (mirror renderArenaOverlay).
+  function renderBossRushOverlay(){ const BR=G.bossRush; if(!BR) return;
+    ctx.save(); ctx.textAlign="center";
+    const cx=VW/2, y=64, N=BOSS_RUSH.sequence.length;
+    const label="Ronda "+((BR.round|0)+1)+"/"+N+"  ·  Mejor "+(BR.best|0);
+    ctx.font="16px "+FF;
+    ctx.fillStyle=COL.out; ctx.fillText(label,cx+1,y+1);
+    ctx.fillStyle=COL.textGold; ctx.fillText(label,cx,y);
+    if(BR.resting){ ctx.font="12px "+FF; ctx.fillStyle=COL.cream;
+      ctx.fillText("Hoguera… se acerca el siguiente jefe",cx,y+18); }
+    ctx.restore(); ctx.textAlign="left";
+  }
   function renderMenu(){
     // dark fantasy backdrop
     ctx.fillStyle=COL.night; ctx.fillRect(0,0,VW,VH);
@@ -3854,6 +3872,16 @@ export function createRenderer(ctx){
         // CAS-1675 — show both persistent records under the Arena entry ($0 art, existing font).
         const rec=bestBoss>0 ? ("Mejor oleada: "+best+"  ·  Mejor Jefe: Oleada "+bestBoss) : ("Mejor oleada: "+best);
         ctx.fillText(rec,VW/2,ay+ah+14); } }
+    // CAS-1988: a THIRD entry — Modo Boss Rush (Gauntlet). Same class→ability→play flow (sets G.pendingBossRush);
+    // shows the durable best round. $0 art (reuses the button chrome). HARD-GATED: with enabled:false the entry is
+    // NOT drawn and its hit-rect stays zero (menu inalcanzable ⇒ byte-identical menu vs HEAD).
+    if(BOSS_RUSH.enabled){ const rw=200,rh=42,rx=VW/2-rw/2,ry=ay+ah+24; ui.menuBossRushRect={x:rx,y:ry,w:rw,h:rh};
+      ctx.fillStyle="#2e1a1a"; ctx.fillRect(rx,ry,rw,rh); ctx.fillStyle=COL.panelB; ctx.fillRect(rx,ry,rw,4); ctx.fillRect(rx,ry+rh-4,rw,4);
+      ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="bold 18px "+FF; ctx.fillText("Modo Boss Rush",VW/2,ry+27);
+      const br=(G.bossRush&&G.bossRush.best|0)||0, N=BOSS_RUSH.sequence.length; // loaded at boot by persist.bootBossRush
+      if(br>0){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
+        ctx.fillText(br>=N ? ("Gauntlet COMPLETA ("+N+"/"+N+")") : ("Mejor ronda: "+br+"/"+N),VW/2,ry+rh+14); } }
+    else ui.menuBossRushRect={x:0,y:0,w:0,h:0};
     ctx.fillStyle=COL.textDim; ctx.font="12px "+FF; ctx.fillText(STR.controlsHintPC((a)=>keyLabel((G.settings.binds||settings.defaultBinds())[a])),VW/2,VH-40);
     ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText(STR.version,VW/2,VH-18);
   }
