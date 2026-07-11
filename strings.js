@@ -391,6 +391,20 @@ export const STR = {
   ngAscendName: (t) => "Ciclo " + t + " · NG+",
   ngAscendDesc: (t) => "Comienza el Ciclo " + t + " (Nueva Partida Plus). Conservas tu equipo, Esencia y desbloqueos, pero los dominios renacen más letales (+25% vida y daño por ciclo) y las recompensas ascienden: el botín sube de rareza y ganas más Esencia. La paga por perseverar.",
   ngAscendAccepted: (t) => "Ciclo " + t + " · NG+: los dominios renacen. Tu leyenda continúa.",
+  // CAS-2035: NG+ Cycle Recap overlay copy (data-driven; reads durable/derivable state only). Used ONLY
+  // on the "ascendRecap" scene (NG_PLUS.enabled && recap); the CAS-450/CAS-2024 copy above is untouched.
+  ngRecapTitle: "RESUMEN DEL CICLO",
+  ngRecapCycleHdr: (n) => "Ciclo " + n + " · conquista completa",
+  ngRecapHeroHdr: "Tu héroe",
+  ngRecapHeroLine: (cls, lvl) => cls + " · Nivel " + lvl,
+  ngRecapEssence: (n) => "Esencia acumulada: " + n,
+  ngRecapGear: (name) => "Mejor equipo: " + name,
+  ngRecapPreviewHdr: (t) => "Al ascender · Ciclo " + t + " (NG+)",
+  ngRecapThreat: (hp, dmg) => "Enemigos: +" + hp + "% vida · +" + dmg + "% daño",
+  ngRecapLoot: (r) => "Botín: piso de rareza sube a " + r,
+  ngRecapEss: (m) => "Esencia: ×" + m + " por muerte de campeón",
+  ngRecapPoise: (m) => "Aguante enemigo: ×" + m,
+  ngRecapReward: "Los dominios renacen más letales, pero la recompensa asciende contigo.",
   worldTierChip: (t) => "Mundo " + t,
   dailySlay: (n) => "Da caza a " + n + " enemigos",
   // CAS-375: directed bounty — localized plural mob names (fallback to the raw key).

@@ -721,7 +721,10 @@ export function skipCurse(){ const h=G.hero, c=G.curse; if(!h||!c||G.scene!=="cu
 // No offer at the cap: tier 5 keeps the apex payoff as the repeatable ceiling. No RNG here.
 function offerAscend(){ const h=G.hero; if(!h||!h.conquest) return;
   const t=h.conquest.tier||1; if(t>=WORLD_TIER.cap) return;
-  G.ascend={ tier:t+1 }; G.scene="ascend";
+  // CAS-2035: when NG+ recap sub-flag is armed, route into the data-driven cycle-summary overlay
+  // ("ascendRecap") instead of the bare "ascend" panel. Same G.ascend payload; off ⇒ "ascend" verbatim
+  // (byte-identical to HEAD by construction — no new scene value reached, renderAscend untouched).
+  G.ascend={ tier:t+1 }; G.scene=(NG_PLUS.enabled && NG_PLUS.recap) ? "ascendRecap" : "ascend";
   audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
 }
 // Accept → worldTier++ and the world RE-ARMS for the new cycle: hunt board re-inits (H.cleared/
@@ -729,7 +732,7 @@ function offerAscend(){ const h=G.hero; if(!h||!h.conquest) return;
 // (accepted mods + seen list → the entry offers re-fire per zone). All scaling reads the new
 // tier lazily at spawn time (applyZoneScale / spawnChampion / maybeAffix / drawBoonChoices),
 // so already-live enemies keep their stats — only the re-armed world escalates. No RNG.
-export function acceptAscend(){ const h=G.hero, a=G.ascend; if(!h||!a||G.scene!=="ascend") return false;
+export function acceptAscend(){ const h=G.hero, a=G.ascend; if(!h||!a||!(G.scene==="ascend"||G.scene==="ascendRecap")) return false; // CAS-2035: recap overlay reuses this seam verbatim
   const cq=h.conquest||(h.conquest={tier:1,bossesDown:[]});
   cq.tier=Math.min(WORLD_TIER.cap, (cq.tier||1)+1);
   cq.bossesDown.length=0;
@@ -744,7 +747,7 @@ export function acceptAscend(){ const h=G.hero, a=G.ascend; if(!h||!a||G.scene!=
 }
 // Decline → stay on the current tier. The cycle tracker already reset when apex fired, so the
 // next full clear re-runs the apex ceremony AND re-offers the climb — a real re-decision.
-export function declineAscend(){ const h=G.hero, a=G.ascend; if(!h||!a||G.scene!=="ascend") return false;
+export function declineAscend(){ const h=G.hero, a=G.ascend; if(!h||!a||!(G.scene==="ascend"||G.scene==="ascendRecap")) return false; // CAS-2035: recap overlay reuses this seam verbatim
   audio&&audio.sfx&&audio.sfx.click&&audio.sfx.click();
   G.ascend=null; G.scene="play"; return true;
 }
@@ -780,6 +783,21 @@ function ngEssMul(tier){ if(!NG_PLUS.enabled) return 1;
 // application layer. Returns a scalar (no allocation ⇒ safe on the per-hit poiseCeil path). 0 draws.
 function ngPoiseMul(){ if(!NG_PLUS.enabled || !(NG_PLUS.poisePctPerTier>0)) return 1;
   const k=ngTier()-1; if(k<=0) return 1; return 1+NG_PLUS.poisePctPerTier*k; }
+// CAS-2035: resolve the NG+ escalation numbers for an ARBITRARY target tier (the ascend recap previews
+// tier+1 BEFORE the climb commits, so it cannot read the live ngTier()-driven helpers). Single source of
+// truth for the recap overlay: enemy HP/DMG mirror worldTierMods' formula (WORLD_TIER.hpPct/dmgPct×k),
+// loot floor + Esencia reuse the SAME ngLootFloor/ngEssMul helpers (which already read the tier arg), and
+// poise mirrors ngPoiseMul at the target tier. Pure arithmetic, 0 draws. Off/tier-1 ⇒ neutral (mul 1).
+export function ngTierPreview(tier){ const t=Math.max(1,(tier|0)||1); const k=t-1;
+  const on=!!NG_PLUS.enabled;
+  return {
+    tier:t,
+    hpPct: on?WORLD_TIER.hpPct*k:0, dmgPct: on?WORLD_TIER.dmgPct*k:0,
+    hpMul: on?1+WORLD_TIER.hpPct*k:1, dmgMul: on?1+WORLD_TIER.dmgPct*k:1,
+    essMul: ngEssMul(t),
+    poiseMul: (on&&NG_PLUS.poisePctPerTier>0&&k>0)?1+NG_PLUS.poisePctPerTier*k:1,
+    lootFloor: ngLootFloor("common", t),
+  }; }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
 export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents(); G.scene="play"; G.started=true;
@@ -5233,8 +5251,12 @@ export const dev = {
   ngState(){ const t=ngTier(); return { enabled:!!NG_PLUS.enabled, tier:t, cap:NG_PLUS.cap,
     lootFloorPerTier:NG_PLUS.lootFloorPerTier, essMulPerTier:NG_PLUS.essMulPerTier,
     poisePctPerTier:NG_PLUS.poisePctPerTier, reframePrompt:!!NG_PLUS.reframePrompt,
-    essMul:ngEssMul(t), poiseMul:ngPoiseMul() }; },
-  // Compute the resolved loot floor a base rarity lifts to at `tier` (drives the clamp assertions).
+    essMul:ngEssMul(t), poiseMul:ngPoiseMul(), recap:!!NG_PLUS.recap }; },
+  // CAS-2035: the resolved NG+ escalation preview for a target tier (what the recap overlay renders).
+  ngPreview(tier){ return ngTierPreview(tier); },
+  // CAS-2035: drive the REAL offerAscend() scene branch (the seam pickBoon calls after an apex draft).
+  // Returns the resulting scene + payload so AC2 observes "ascend" vs "ascendRecap" per the recap sub-flag.
+  offerAscend(){ offerAscend(); return { scene:G.scene, ascend:G.ascend?{...G.ascend}:null }; },
   ngLootFloor(baseR, tier){ return ngLootFloor(baseR, tier); },
   // Drive the REAL hunt-champion clear drop path (killEnemy → onChampionKill, the loot-floor seam at
   // ~2980) in `zone` and return the guaranteed drop's rarity, so AC3 observes the lift on the LIVE path
