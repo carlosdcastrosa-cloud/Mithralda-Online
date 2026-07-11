@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -419,6 +419,11 @@ function newHero(name,cls){
     // ventana antes de forzar el pool a 0 (tickRally). Un golpe melee que conecta cura del pool (applyHeroMelee). Fuera del
     // allowlist de serializeSave ⇒ save.v1 byte-id on/off y SIN clave nueva. 0 RNG (no existe rallyRng).
     rallyPool:0, rallyT:0,
+    // CAS-2163: SEGUNDO ALIENTO / SECOND_WIND — estado transitorio (mirror rallyPool/dodgeCounterT). _secondWindLeft =
+    // usos restantes del negado-letal (rearmado en beginRun + HOGUERA cuando SECOND_WIND.enabled); _secondWindIframeT =
+    // segundos de i-frames tras el disparo (decae por dt junto a h.iframe). Fuera del allowlist de serializeSave ⇒ save.v1
+    // byte-id on/off y SIN clave nueva. 0 RNG (no existe secondWindRng).
+    _secondWindLeft:0, _secondWindIframeT:0,
     rolling:false, rollT:0, rollCD:0, iframe:0, atkCD:0, atkT:0, atkAng:0, atkAnim:0, hurtFlash:0, walkT:0, dead:false, moved:false,
     // CAS-256: presentation-only anim timers — hurtAnim drives the hit-react flinch strip
     // on taking a hit, specialAnim drives the skill-cast strip on a class-skill cast. They
@@ -4037,6 +4042,7 @@ export function beginRun(){ const h=G.hero; if(!h) return;
           champElite0:h.champElites|0, // CAS-1590: baseline lifetime champion kills for this run's guaranteed-Esencia delta
           champ0:h.champKills|0, lvl0:h.lvl|0 };
   G._spirit=null;   // CAS-1954: ningún espíritu invocado sobrevive a un nuevo baseline de run (transitorio, no serializado ⇒ byte-neutral)
+  if(SECOND_WIND.enabled){ h._secondWindLeft=SECOND_WIND.chargesPerRest; h._secondWindIframeT=0; }   // CAS-2163: carga de Segundo Aliento a tope al arrancar run (gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD)
   clearHazards();   // CAS-2094: ningún peligro de arena sobrevive a un nuevo baseline de run (transitorio; cubre createHero/load/reset via beginRun)
   G.recap=null; }
 // Build the FROZEN recap delta from current counters minus the run baseline. Time uses
@@ -4190,6 +4196,8 @@ export function interact(){
     h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.respawn={x:rest.x,y:rest.y+TS};   // CAS-1841: la fuente restaura vigor
     if(BONFIRE.enabled){                                            // CAS-1879: la hoguera AÑADE recarga Estus + world reset
       if(BONFIRE.refillFlasks && FLASK.enabled) h.flaskCharges=FLASK.charges;   // recarga Estus (reusa CAS-1854, misma asignación que el refill de zona)
+      if(BONFIRE.refillFlasks && SECOND_WIND.enabled) h._secondWindLeft=SECOND_WIND.chargesPerRest;   // CAS-2163: la hoguera rearma el Segundo Aliento (mismo hook que el Estus / refill de zona); gated ⇒ OFF byte-id
+
       if(BONFIRE.refillFlasks && THROWABLES.enabled && THROWABLES.refillOnZone) refillThrowables(h);   // CAS-1920: la hoguera recarga los arrojadizos (mismo hook que el Estus / refill de zona)
       if(BONFIRE.refillFlasks && WEAPON_BUFFS.enabled && WEAPON_BUFFS.refillOnZone) refillBuffs(h);   // CAS-1926: la hoguera recarga las resinas (mismo hook que el Estus / refill de zona)
       if(BONFIRE.refillFlasks && SUMMON.enabled && SUMMON.refillOnZone){ h.summonCharges=SUMMON.charges; h.summonZone=zoneOf(world,h.x,h.y); }   // CAS-1954: la hoguera recarga las cargas de invocación (mismo hook que el Estus)
@@ -4738,6 +4746,7 @@ export function update(dtMs){
 
   // timers
   h.atkCD=Math.max(0,h.atkCD-dt); h.rollCD=Math.max(0,h.rollCD-dt); h.iframe=Math.max(0,h.iframe-dt); h.hurtFlash=Math.max(0,h.hurtFlash-dt); h.atkAnim=Math.max(0,h.atkAnim-dt);
+  if(SECOND_WIND.enabled) h._secondWindIframeT=Math.max(0,(h._secondWindIframeT||0)-dt);   // CAS-2163: decae la ventana de i-frames del Segundo Aliento (mirror h.iframe). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   if(WEAPON_ARTS.enabled) h.artCD=Math.max(0,(h.artCD||0)-dt);   // CAS-1914: cooldown del Arte de Arma (transitorio, mirror atkCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   if(GUARD_BREAK.enabled) h._gbCd=Math.max(0,(h._gbCd||0)-dt);   // CAS-2146: ventana de recuperación del Empujón/Rompe-guardia (transitorio, mirror artCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   if(LUNGE.enabled) h._lungeCd=Math.max(0,(h._lungeCd||0)-dt);   // CAS-2156: ventana de recuperación de la Estocada (transitorio, mirror _gbCd). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
@@ -5589,6 +5598,11 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
     tutMarkC("parry");                             // CAS-2017: a successful parry (caught an incoming melee) teaches the parry step
     return false;                                  // hit COMPLETELY negated
   }
+  // CAS-2163: i-frames de SEGUNDO ALIENTO. Tras negar un golpe letal (abajo) se arma h._secondWindIframeT; mientras corre,
+  // damageHero ignora el daño por COMPLETO (mirror del i-frame de roll) — evita morir en el mismo tick por multi-hit de
+  // varios enemigos. Decae por dt en el bloque de timers. Gated + h._secondWindIframeT=0 con OFF/sin disparo ⇒ rama muerta
+  // ⇒ byte-idéntico a HEAD. Corre ANTES del i-frame de roll (no toca perfectDodge: no es una esquiva, es un salvavidas).
+  if(SECOND_WIND.enabled && (h._secondWindIframeT||0)>0) return false;
   if(h.iframe>0){ if(h.rolling) perfectDodge(ang); return false; } // only an active roll earns the dodge, not mercy i-frames
   // CAS-119: a dodge build (esquiva) can fully negate a connecting telegraphed strike
   // on a srand roll — reading the tell still beats it for free, this rewards investing
@@ -5631,6 +5645,24 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // Corre POST-armadura (sobre `real`) ⇒ la armadura sigue mitigando. Gated ⇒ OFF / no cargando ⇒ real intacto ⇒ byte-id.
   if(CHARGED_ATTACK.enabled && h.charging){ const cap=CHARGED_ATTACK.incomingDmgCapFracMaxHp*(heroMaxHp(h)||h.hp); if(real>cap) real=cap; }
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
+  // CAS-2163: SEGUNDO ALIENTO / SECOND_WIND (mec #41) — negado-letal automático 1-uso/descanso. Corre DESPUÉS de
+  // h.hp-=real (el daño se "recibió") pero ANTES del death-check del tick (heroDie se llama en update: `if(h.hp<=0)
+  // heroDie()`, SEPARADO de damageHero) ⇒ niega la muerte sin nueva ruta: si el golpe dejó hp<=0 y hay carga, clampa
+  // el HP a surviveHpFrac×maxHp, consume la carga, arma i-frames (evita muerte en el mismo tick por multi-hit) y estalla
+  // una NOVA de empuje radial que reposiciona a los enemigos cercanos (crea espacio para recuperarse). Reusa vx/vy
+  // (mismo empuje que parry/lunge) + shakeAdd/freeze/flash/floater ⇒ $0 arte. Aritmética/geometría pura (hypot/atan2/
+  // ceil) ⇒ 0 srand (NO existe secondWindRng). _secondWind* fuera del allowlist save.v1 ⇒ save byte-id. OFF / sin carga
+  // ⇒ rama muerta ⇒ ruta de daño byte-idéntica a HEAD. Poise a los empujados es opcional (novaPoiseDmg=0 por defecto).
+  if(SECOND_WIND.enabled && h.hp<=0 && (h._secondWindLeft||0)>0){
+    const swMax=heroMaxHp(h);
+    h.hp=Math.ceil(swMax*SECOND_WIND.surviveHpFrac); h._secondWindLeft--; h._secondWindIframeT=SECOND_WIND.iframesMs/1000;
+    const swR=SECOND_WIND.novaRadius;
+    for(const e of G.enemies){ if(e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(Math.hypot(dx,dy)<=swR){
+      const sa=Math.atan2(dy,dx); e.vx=(e.vx||0)+Math.cos(sa)*SECOND_WIND.novaKnockback; e.vy=(e.vy||0)+Math.sin(sa)*SECOND_WIND.novaKnockback;
+      if(SECOND_WIND.novaPoiseDmg>0 && POISE.enabled && e.staggerT<=0 && e.staggerCD<=0){ const pm=(e.poiseMax=poiseCeil(e));
+        if(pm>0){ e.poise=Math.min(pm,(e.poise||0)+SECOND_WIND.novaPoiseDmg); e._poiseDecayT=0; } } } }
+    addFx("dodgering",h.x,h.y,{life:0.4}); shakeAdd(12); freeze(6); floater(h.x,h.y-42,STR.secondWind||"¡SEGUNDO ALIENTO!","#ffe08a"); audio.sfx.roll();
+  }
   // CAS-2114: RECUPERACIÓN/RALLY — arma el pool recuperable con una fracción del DAÑO REAL que acaba de entrar (`real`,
   // ya post-armadura/bloqueo). Corre DESPUÉS de todos los early-outs de negación (espíritu/parry/i-frame/dodge/block, que
   // retornan arriba) ⇒ sólo el daño que de verdad restó HP alimenta el pool. Capeado a capFracMaxHp×HPmax (anti-abuse jefes).
@@ -6308,6 +6340,46 @@ export const dev = {
       if(i===inject && h){ lungeStrike(); if(h._atkHits) applyHeroMelee(); }   // fire the lunge + its swing over 0 enemies ⇒ 0 draw
       fp.push(+srand().toFixed(6)); }
     LUNGE.enabled=sav; return fp.join(","); },
+  // CAS-2163: SEGUNDO ALIENTO / SECOND_WIND (mec #41) probe. Drives the REAL damageHero deny path: a lethal hit is
+  // negated once per charge, hp clamped to surviveHpFrac×maxHp, charge consumed, i-frames armed, nova pushes enemies
+  // INSIDE novaRadius (one enemy inside + one outside proves the radius gate). probeIframe: a further lethal hit while
+  // the SW i-frame is live is IGNORED (mercy iframe cleared to ISOLATE the SW iframe). probeNoCharge: with 0 charge the
+  // lethal hit is NOT denied ⇒ hp<=0 (would die). OFF ⇒ deny branch skipped ⇒ hp<=0 (survived=false).
+  secondWindProbe(opt){ opt=opt||{}; const savEn=SECOND_WIND.enabled, savScene=G.scene;
+    if(opt.enabled!==undefined) SECOND_WIND.enabled=!!opt.enabled;
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.floaters.length=0;
+    G.scene="play"; const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.stun=0; h.blocking=false; h.parryT=0; h.charging=false;
+    h.cls="warrior"; h.tt=null; h.mperk=null; h.facing=0;
+    const mhp=heroMaxHp(h); h.maxHp=mhp; h.hp=Math.round(mhp*0.5);
+    h._secondWindLeft = (opt.charge!==undefined?opt.charge : SECOND_WIND.chargesPerRest); h._secondWindIframeT=0;
+    const eIn=spawnEnemy(opt.type||"revenant", h.x + SECOND_WIND.novaRadius*0.5, h.y); if(eIn){ eIn.state="idle"; eIn.maxHp=eIn.hp=5000; eIn.vx=0; eIn.vy=0; }
+    const eOut=spawnEnemy(opt.type||"revenant", h.x + SECOND_WIND.novaRadius + 80, h.y); if(eOut){ eOut.state="idle"; eOut.maxHp=eOut.hp=5000; eOut.vx=0; eOut.vy=0; }
+    const chg0=h._secondWindLeft|0;
+    const landed=damageHero(h.hp+100000, 0, null, null);   // lethal: guaranteed hp<=0 post-armor
+    const inSpeed=eIn?Math.hypot(eIn.vx||0,eIn.vy||0):0, outSpeed=eOut?Math.hypot(eOut.vx||0,eOut.vy||0):0;
+    const out={ enabled:SECOND_WIND.enabled, maxHp:Math.round(mhp),
+      survived:h.hp>0, hpAfter:Math.round(h.hp), hpExpected:Math.ceil(mhp*SECOND_WIND.surviveHpFrac),
+      chargeBefore:chg0, chargeAfter:h._secondWindLeft|0, iframeArmed:(h._secondWindIframeT||0)>0, iframeT:+((h._secondWindIframeT||0)).toFixed(4),
+      novaInPushed:inSpeed>0.01, novaInSpeed:+inSpeed.toFixed(2), novaOutPushed:outSpeed>0.01, novaOutSpeed:+outSpeed.toFixed(2),
+      floated:G.floaters.some(f=>f.txt===STR.secondWind), landedReturn:landed,
+      surviveHpFracCfg:SECOND_WIND.surviveHpFrac, novaRadiusCfg:SECOND_WIND.novaRadius, iframesMsCfg:SECOND_WIND.iframesMs, chargesPerRestCfg:SECOND_WIND.chargesPerRest };
+    if(opt.probeIframe===true){ h.iframe=0; const hpB=h.hp; const r2=damageHero(h.maxHp+100000,0,null,null); out.iframeIgnoresHit=(r2===false && h.hp===hpB); }
+    if(opt.probeNoCharge===true){ h.iframe=0; h._secondWindIframeT=0; h._secondWindLeft=0; h.hp=Math.round(mhp*0.5); damageHero(h.hp+100000,0,null,null); out.noChargeDies=(h.hp<=0); }
+    SECOND_WIND.enabled=savEn; G.scene=savScene; return out; },
+  // CAS-2163 [RNG-NEUTRAL STRONG]: fingerprint the MASTER srand around a fixed script that DRIVES a real SECOND_WIND deny
+  // mid-stream. damageHero's ONLY srand consumer is the dodge-talent branch (tt.dodge>0 → we null tt); the nova is pure
+  // geometry (hypot/atan2, novaPoiseDmg=0) and fireHint draws nothing ⇒ the deny path consumes 0 srand ⇒ fingerprint
+  // BYTE-IDENTICAL ON vs OFF. The enemy is spawned BEFORE seed() so spawnEnemy's own draws stay out of the fp window.
+  secondWindSrandFp(enabled, s, N){ const sav=SECOND_WIND.enabled; SECOND_WIND.enabled=!!enabled;
+    const h=G.hero; G.enemies.length=0; G.projectiles.length=0;
+    if(h){ h.dead=false; h.rolling=false; h.tt=null; h.iframe=0; h.stun=0; h.blocking=false; h.parryT=0; h.charging=false; h.facing=0; }
+    const eIn=h?spawnEnemy("revenant", h.x + SECOND_WIND.novaRadius*0.5, h.y):null; if(eIn){ eIn.state="idle"; eIn.maxHp=eIn.hp=5000; }
+    seed((s>>>0)||1);
+    const fp=[]; const inject=Math.floor((N||16)/2);
+    for(let i=0;i<(N||16);i++){
+      if(i===inject && h){ const mhp=heroMaxHp(h); h.maxHp=mhp; h.hp=Math.round(mhp*0.5); h._secondWindLeft=1; h.iframe=0; h._secondWindIframeT=0; damageHero(h.hp+100000,0,null,null); }
+      fp.push(+srand().toFixed(6)); }
+    SECOND_WIND.enabled=sav; return fp.join(","); },
   // CAS-121: land a REAL hero basic-attack hit on the zone's live capstone (through
   // hitEnemy, so carapace immunity + weapon/talent status procs apply) and return its
   // hp + shield/status state — proves the shield is damage-IMMUNE and that a STATUS

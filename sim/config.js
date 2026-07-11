@@ -1432,6 +1432,23 @@ export const LUNGE = {
   requiresMelee:false,      // verbo UNIVERSAL anti-kite (toda clase cierra distancia); hitbox propia (_mcfg) ⇒ ranged también golpea al cerrar
 };
 
+// CAS-2163: SEGUNDO ALIENTO / SECOND_WIND (mec #41, umbrella CAS-2162). Verbo de SUPERVIVENCIA CLUTCH — el único
+// que actúa sobre el RESULTADO `hp<=0` en sí, no sobre un golpe. Negado-letal automático de 1 uso por descanso +
+// nova de espacio: cuando un golpe dejaría al héroe en hp<=0 y hay carga, NO muere (clampa hp a surviveHpFrac×maxHp),
+// consume la carga, arma i-frames y estalla una nova de empuje radial que reposiciona a los enemigos cercanos. La
+// carga SÓLO se rearma en HOGUERA (mirror del refill de Estus) ⇒ salvavidas por descanso, no spammeable. No-solape:
+// RALLY=pool cura continua / FLASK=trago manual / BONFIRE=descanso / hyper-armor=absorbe interrupción, NO niega letal.
+// enabled:false ⇒ todas las ramas gated ⇒ build byte-idéntico al HEAD previo (rama inerte). Reversible en 1 línea.
+export const SECOND_WIND = {
+  enabled:false,          // DARK — CEO gate flip false→true tras QA PASS×2. Reversible en 1 línea.
+  surviveHpFrac:0.15,     // HP al que se te clampa al negar el golpe letal (frac de maxHp)
+  novaRadius:120,         // px — radio de la nova de empuje que crea espacio
+  novaKnockback:180,      // fuerza de empuje radial a enemigos en radio (reusa el empuje vx/vy existente, mirror parry/lunge)
+  novaPoiseDmg:0,         // opcional: poise a enemigos empujados (0 = sólo reposición, sin stagger gratis)
+  iframesMs:600,          // breve ventana de i-frames tras el disparo (evita muerte en el mismo tick por multi-hit)
+  chargesPerRest:1,       // usos por descanso; se rearma en HOGUERA (mirror FLASK.charges gated BONFIRE)
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
