@@ -1732,7 +1732,7 @@ export const BOSS_RUSH = {
 //                 lección directa del audit CAS-2085 donde SUMMON.key colisionó en play). La entrada de menú usa la semilla del día.
 //   codePrefix  — formato del código compartible (etiqueta HUD/recap; la semilla del día concatena la fecha estable).
 export const SEEDED_CHALLENGE = {
-  enabled: false,                 // DARK ship; Gate CEO flippea enabled:false→true (config-only, reversible, mirror CAS-2043/2055)
+  enabled: true,                  // LIVE — Gate CEO CAS-2093 GO (config-only flip, reversible→false restores baseline byte-id; mirror CAS-2043/2055/2075)
   key: "KeyC",                    // entrada por la escena menú (KeyC libre en menu; NO es hotkey de play ⇒ sin colisión de combate)
   codePrefix: "MITH-",            // prefijo del código compartible; la semilla del día = codePrefix + fecha estable (YYYYMMDD)
 };
