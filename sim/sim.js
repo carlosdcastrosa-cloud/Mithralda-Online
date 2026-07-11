@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -5664,14 +5664,42 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
         floater(src.x,src.y-src.tpl.size,"+"+heal,af.col); addFx("spark",src.x,src.y); } break; } } }
   return true;
 }
+// CAS-2151: DEFLECT / REFLEJO DE PROYECTIL (mec #39 · verbo OFENSIVO UNIVERSAL anti-ranged). Invierte un proyectil ENEMIGO
+// capturado DURANTE la ventana de parry (h.parryT>0) a HERO-OWNED y REVIERTE su velocidad hacia el tirador — en vez de sólo
+// negarlo. Reusa la ventana/tempo de PARRY (0 tecla nueva, es un tempo-gate; PARRY es melee-only por construcción — los
+// proyectiles pasan src=null y NUNCA entran a su rama en damageHero — así que este desvío NO solapa: captura justo lo que
+// el parry ignora). Consume h.parryT (mirror parry: 1 desvío/ventana ⇒ una ráfaga radial de jefe NO se refleja entera con
+// una pulsación). Geometría/aritmética pura ⇒ 0 draw (NO existe deflectRng). Sólo muta campos del proyectil (G.projectiles
+// NUNCA se serializa) + h.parryT (ya transitorio) ⇒ save.v1 byte-id, SIN clave nueva. p._deflected capea el daño contra
+// e.maxHp en el impacto (anti-one-shot). $0 arte: spark/dodgering + el propio sprite del proyectil (flip de dueño).
+function deflectProjectile(p){ const h=G.hero;
+  if(DEFLECT.oncePerWindow) h.parryT=0;                        // consume la ventana (mirror parry) ⇒ anti-degenerado en ráfagas
+  if(STAMINA.enabled) h.stam=Math.max(0, h.stam-DEFLECT.staminaCost); // coste (drena; la ventana ya es el gate ⇒ sin deny)
+  p.enemy=false;                                               // FLIP de dueño: ahora es TU proyectil (golpea enemigos, no al héroe)
+  p._deflected=true;                                           // marca transitoria (proyectil, no persistido) ⇒ cap de daño al impacto
+  p.vx=-p.vx*DEFLECT.speedMul; p.vy=-p.vy*DEFLECT.speedMul;    // REVIERTE la velocidad hacia el tirador (+boost para alcanzarlo)
+  p.ang=Math.atan2(p.vy,p.vx);                                 // realinea el sprite (mismo asset, dirección invertida) — $0 arte
+  h.iframe=Math.max(h.iframe,0.14);                            // breve premio i-frame (mirror parry): el desvío te cubre del propio proyectil
+  addFx("spark",p.x,p.y); addFx("dodgering",h.x,h.y,{life:0.3}); // VFX reusado ($0 arte)
+  floater(h.x,h.y-38,STR.deflect,"#7ad2ff"); shakeAdd(6); freeze(5); audio.sfx.roll();
+}
 function updateProjectiles(dt){ const h=G.hero;
   for(const p of G.projectiles){ p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt;
     if(solidBlocked(p.x,p.y,4)){ p.life=0; }
-    if(p.enemy){ if(dist2(p.x,p.y,h.x,h.y)<18*18){ damageHero(p.dmg,Math.atan2(p.vy,p.vx),p.infl); p.life=0; } }
-    else { for(const e of G.enemies){ if(e.dead) continue; if(dist2(p.x,p.y,e.x,e.y)<(e.tpl.size+7)*(e.tpl.size+7)){ const ha=Math.atan2(p.vy,p.vx); hitEnemy(e,p.dmg,ha);
+    if(p.enemy){
+      // CAS-2151 DEFLECT (mec #39): durante la ventana de parry (h.parryT>0) un proyectil enemigo que entra en el radio de
+      // captura (> hit-radius 18 para que la lectura sea legible) se DESVÍA en vez de golpear. enabled:false ⇒ esta rama es
+      // muerta ⇒ el proyectil cae al check de daño normal de abajo ⇒ comportamiento byte-idéntico a HEAD.
+      if(DEFLECT.enabled && !p._deflected && h.parryT>0 && dist2(p.x,p.y,h.x,h.y) < DEFLECT.captureRadiusPx*DEFLECT.captureRadiusPx){ deflectProjectile(p); }
+      else if(dist2(p.x,p.y,h.x,h.y)<18*18){ damageHero(p.dmg,Math.atan2(p.vy,p.vx),p.infl); p.life=0; } }
+    else { for(const e of G.enemies){ if(e.dead) continue; if(dist2(p.x,p.y,e.x,e.y)<(e.tpl.size+7)*(e.tpl.size+7)){ const ha=Math.atan2(p.vy,p.vx);
+      // CAS-2151: un proyectil DESVIADO (p._deflected) capea su daño ≤dmgFracCap×maxHp del objetivo (anti-one-shot, mirror Riposte #36);
+      // un proyectil normal ⇒ pdmg===p.dmg ⇒ hitEnemy recibe el valor idéntico ⇒ byte-id con HEAD. El cap se propaga a aoe/chain abajo.
+      const pdmg=(DEFLECT.enabled&&p._deflected)?Math.min(p.dmg, DEFLECT.dmgFracCap*(e.maxHp||e.hp||p.dmg)):p.dmg;
+      hitEnemy(e,pdmg,ha);
       if(p.infl) applyStatus(e,p.infl.type,p.infl);    // CAS-120: skill projectile ignites/dazes on impact
       const aoe=p.aoe||((p.kind==="fire"||p.kind==="orb")?46:0); // basic fire/orb keep their legacy splash; spells carry their own aoe
-      if(aoe){ addFx(p.burstFx||(p.kind==="orb"?"orbburst":"flame"),p.x,p.y,{life:0.45,col:p.col,r:aoe}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<aoe*aoe){ hitEnemy(e2,p.dmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); if(p.infl) applyStatus(e2,p.infl.type,p.infl); } } }
+      if(aoe){ addFx(p.burstFx||(p.kind==="orb"?"orbburst":"flame"),p.x,p.y,{life:0.45,col:p.col,r:aoe}); for(const e2 of G.enemies){ if(e2!==e&&!e2.dead&&dist2(p.x,p.y,e2.x,e2.y)<aoe*aoe){ hitEnemy(e2,pdmg*0.5,Math.atan2(e2.y-p.y,e2.x-p.x)); if(p.infl) applyStatus(e2,p.infl.type,p.infl); } } }
       else addFx(p.burstFx||"impact",p.x,p.y,{ang:ha,col:p.col,life:0.3});
       // CAS-383: Eco Arcano boon — a HERO projectile (`!p.enemy`) arcs to up to bb.chain nearest
       // OTHER enemies, dealing 60% dmg + carrying the same status. Bounded search (capped jumps,
@@ -5681,7 +5709,7 @@ function updateProjectiles(dt){ const h=G.hero;
         while(jumps-->0){ let best=null,bd=CR2;
           for(const e3 of G.enemies){ if(e3.dead||seen.has(e3)) continue; const dd=dist2(p.x,p.y,e3.x,e3.y); if(dd<bd){ bd=dd; best=e3; } }
           if(!best) break; seen.add(best); addFx("spark",best.x,best.y); addFx("impact",best.x,best.y,{ang:Math.atan2(best.y-p.y,best.x-p.x),col:p.col,life:0.22});
-          hitEnemy(best,p.dmg*0.6,Math.atan2(best.y-p.y,best.x-p.x)); if(p.infl) applyStatus(best,p.infl.type,p.infl); } }
+          hitEnemy(best,pdmg*0.6,Math.atan2(best.y-p.y,best.x-p.x)); if(p.infl) applyStatus(best,p.infl.type,p.infl); } }
       shakeAdd(3); p.life=0; break; } } }
     if(p.life<=0){ if(p.kind==="fire") addFx("flame",p.x,p.y); else if(p.kind==="orb") addFx("orbburst",p.x,p.y,{life:0.45}); }
   }
@@ -6149,6 +6177,41 @@ export const dev = {
   // Count live enemy projectiles by kind (the radial slam emits kind:"rune"; the
   // CAS-121 Freeze Nova emits kind:"frostnova").
   enemyProj(){ const ps=G.projectiles.filter(p=>p.enemy); return { total:ps.length, rune:ps.filter(p=>p.kind==="rune").length, frostnova:ps.filter(p=>p.kind==="frostnova").length }; },
+  // CAS-2151 DEFLECT (mec #39): drives the REAL updateProjectiles loop. Parks a tanky hero, spawns a TIRADOR to the right
+  // and ONE enemy projectile inside/at the capture band moving toward the hero, arms the parry window, and steps the loop
+  // until the projectile resolves. ON ⇒ the projectile FLIPS owner (enemy→hero), reverses velocity, flies back and damages
+  // the shooter (capped); the hero takes 0. OFF (or window unarmed) ⇒ it reaches the hero and damages him (0 flip). Returns
+  // the observable seam state so QA asserts the behavior, not an md5.
+  deflectProbe(opt){ opt=opt||{}; const sav=DEFLECT.enabled; if(opt.enabled!==undefined) DEFLECT.enabled=!!opt.enabled;
+    G.enemies.length=0; G.projectiles.length=0; G.fields.length=0; G.fx.length=0; G.floaters.length=0;
+    const h=G.hero; h.dead=false; h.rolling=false; h.iframe=0; h.stun=0; h.cls="warrior"; h.tt=null; h.mperk=null;
+    h.maxHp=1e6; h.hp=1e6; h.facing=0; if(STAMINA.enabled) h.stam=STAMINA.max;   // keep the hero's real (open-tile) spawn — forcing coords can land in a solid tile
+    h.parryT = (opt.arm===false) ? 0 : (PARRY.windowMs/1000); h.parryCD=0;
+    const stam0=h.stam||0, hp0=h.hp;
+    const shooterHp=opt.targetHp||500; const e=spawnEnemy(opt.type||"revenant", h.x+120, h.y); if(!e) return null;
+    e.state="idle"; e.maxHp=e.hp=shooterHp;
+    const dmg=opt.dmg||40; const px=h.x+(opt.dist!==undefined?opt.dist:20);
+    const proj={x:px,y:h.y,vx:-(opt.spd||220),vy:0,life:2.0,dmg,kind:opt.kind||"bolt",enemy:true};
+    if(opt.infl) proj.infl=opt.infl; G.projectiles.push(proj);
+    const vx0=proj.vx; let frames=0, ownerFlipped=false, velReversedAtFlip=false;
+    for(let i=0;i<40 && proj.life>0;i++){ updateProjectiles(1/60); frames++;
+      if(proj.enemy===false && !ownerFlipped){ ownerFlipped=true; velReversedAtFlip = proj.vx>0; } }
+    const capValue=+(DEFLECT.dmgFracCap*shooterHp).toFixed(2);
+    const out={ enabled:DEFLECT.enabled, ownerFlipped, velReversedAtFlip, vx0, parryTAfter:+((h.parryT||0).toFixed(4)),
+      stamSpent:Math.round(stam0-(h.stam||0)), heroHpLoss:Math.round(hp0-h.hp), shooterHpLoss:Math.round(shooterHp-e.hp),
+      reflectedRaw:+Math.min(dmg, capValue).toFixed(2), capValue, capHit:(dmg>capValue), frames, projAlive:proj.life>0 };
+    DEFLECT.enabled=sav; return out; },
+  // CAS-2151 [RNG-NEUTRAL STRONG]: fingerprint the MASTER srand around a fixed script that DRIVES a real deflect mid-stream.
+  // deflectProjectile consumes NO srand (pure geometry/arithmetic — there is no deflectRng), so the fingerprint is
+  // BYTE-IDENTICAL ON vs OFF. Avoids spawnEnemy (which rolls affixes off srand) so the ONLY variable is the deflect path.
+  deflectSrandFp(enabled, s, N){ const sav=DEFLECT.enabled; DEFLECT.enabled=!!enabled;
+    seed((s>>>0)||1); const h=G.hero; G.enemies.length=0; G.projectiles.length=0;
+    if(h){ h.dead=false; h.tt=null; h.maxHp=1e6; h.hp=1e6; h.parryT=PARRY.windowMs/1000; h.parryCD=0; if(STAMINA.enabled) h.stam=STAMINA.max; }
+    const fp=[]; const inject=Math.floor((N||16)/2);
+    for(let i=0;i<(N||16);i++){
+      if(i===inject && h){ G.projectiles.push({x:h.x+12,y:h.y,vx:-200,vy:0,life:1.0,dmg:40,kind:"bolt",enemy:true}); updateProjectiles(1/60); }
+      fp.push(+srand().toFixed(6)); }
+    DEFLECT.enabled=sav; return fp.join(","); },
   // CAS-121: land a REAL hero basic-attack hit on the zone's live capstone (through
   // hitEnemy, so carapace immunity + weapon/talent status procs apply) and return its
   // hp + shield/status state — proves the shield is damage-IMMUNE and that a STATUS

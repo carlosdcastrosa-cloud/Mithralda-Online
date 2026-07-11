@@ -1385,6 +1385,27 @@ export const GUARD_BREAK = {
   requiresMelee:false,       // verbo UNIVERSAL (toda clase responde al turtle); el alcance corto (range) ya lo gatea de facto
 };
 
+// CAS-2151: DEFLECT / REFLEJO DE PROYECTIL (mecánica #39 · verbo OFENSIVO UNIVERSAL anti-ranged). Recomendación #1 del
+// Audit v5 (CAS-2150, GO). Ventana tempo-gated que REUSA la de PARRY (h.parryT): si mientras está activa un PROYECTIL
+// ENEMIGO (G.projectiles con enemy:true) entra en el radio de captura, se INVIERTE a hero-owned + se REVIERTE su velocidad
+// hacia el tirador con daño CAPEADO — en vez de sólo negarlo. Nicho genuinamente ausente: hoy la ÚNICA respuesta a un
+// proyectil es RODAR (defensa pura, 0 ofensa); ranged/casters no tienen respuesta ofensiva. PARRY es melee-only por
+// construcción (src=null en proyectiles ⇒ nunca entra), DODGE niega con i-frames (te mueve, 0 ofensa), SHIELD_BLOCK reduce
+// chip melee. Ninguno CONVIERTE el proyectil en tu ofensa ⇒ DEFLECT es ortogonal (ver design/cas-mec39-deflect.md).
+// $0 arte: reusa el sistema de proyectiles vivo + spark/dodgering + el propio sprite del proyectil (flip de dueño).
+// RNG-neutral STRONG: geometría/aritmética pura, 0 draws, NO existe deflectRng. save-neutral: sólo muta campos del
+// proyectil (G.projectiles NUNCA se serializa) + consume h.parryT (ya transitorio) ⇒ 0 clave nueva. enabled:false ⇒
+// rama muerta ⇒ byte-idéntico al baseline (0-regresión de las 38 mec vivas). Reversible en 1 línea (CEO gate).
+export const DEFLECT = {
+  enabled:false,             // DARK-by-default — el CEO hace el flip a true en el gate final (config-only, 1 línea).
+  captureRadiusPx:34,        // radio de captura del proyectil entrante DURANTE la ventana (px) — mayor que el hit-radius (18) para que la lectura sea legible, aún estrecho
+  dmgFracCap:0.15,           // ANTI-DEGENERADO: daño reflejado capeado ≤15% maxHp del objetivo al impactar (mirror del cap de Riposte #36); nunca one-shot
+  speedMul:1.15,             // × velocidad al revertir — ligero boost para que el proyectil alcance al tirador que ya se movió
+  staminaCost:12,            // coste de estamina en un desvío exitoso (deny sin vigor NO — la ventana ya es el gate; sólo drena)
+  oncePerWindow:true,        // 1 desvío por ventana (consume h.parryT, mirror parry) ⇒ una ráfaga radial de jefe NO se refleja entera con una pulsación
+  requiresParryWindow:true,  // tempo-gate: SÓLO durante la ventana de parry (h.parryT>0) — no es un escudo pasivo
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
@@ -2043,6 +2064,7 @@ export const COMBAT_CODEX_ENTRIES = [
   // DEFENSA
   { group:"Defensa",    label:"Parada con Tempo",   keyOf:()=>PARRY.key,            desc:"Parry: pulsa con timing para anular el golpe y abrir riposte.", gate:()=>PARRY.enabled },
   { group:"Defensa",    label:"Bloqueo con escudo", keyOf:()=>SHIELD_BLOCK.key,     desc:"Mantén para levantar la guardia y reducir daño (consume stamina).", gate:()=>SHIELD_BLOCK.enabled },
+  { group:"Defensa",    label:"Reflejo de proyectil", keyOf:()=>PARRY.key,          desc:"Parada con tempo contra un PROYECTIL: lo devuelve al tirador como tu ataque (daño capeado).", gate:()=>DEFLECT.enabled },
   { group:"Defensa",    label:"Poise / Hiperarmor", keyOf:()=>"—",                  desc:"Aguante: no te interrumpen mientras dure el poise/hiperarmor.", gate:()=>(POISE.enabled||HYPERARMOR.enabled) },
   // OFENSIVA
   { group:"Ofensiva",   label:"Ataque pesado",      keyOf:()=>COMBO.heavyKey,       desc:"Golpe cargado; rompe poise y encadena combos.", gate:()=>COMBO.enabled },
