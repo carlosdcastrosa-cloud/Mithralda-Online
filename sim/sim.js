@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, COMBAT_CODEX, COMBAT_CODEX_ENTRIES } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -225,6 +225,12 @@ export const G = {
   // `codexDirty` is the one-shot flush flag persist.js consumes on each new discovery (durable without
   // waiting for the throttled autosave). When CODEX.enabled=false it is never mutated ⇒ 0 observable effect.
   codex:null, codexDirty:false,
+  // CAS-1996: HINTS CONTEXTUALES (primer-encuentro). Mapa id→true de los toasts one-time YA vistos por el jugador,
+  // en su PROPIO store (mithralda.hints.v1 — nunca el run save/meta/codex/etc.). null hasta persist.bootHints() lo
+  // rehidrata. Ausencia de clave ⇒ default previo ⇒ byte-id. fireHint sólo lo muta bajo COMBAT_CODEX.enabled &&
+  // showContextHints ⇒ con el knob OFF nunca se toca ⇒ 0 store I/O, 0 toast ⇒ save+srand byte-idénticos a HEAD.
+  // `hintsDirty` es el flag one-shot que persist.js consume para escribir el store el instante que un hint dispara.
+  hintsSeen:null, hintsDirty:false,
   // CAS-1758: account-wide TÍTULOS DE GESTA ledger — { v, unlocked{}, equipped }. null until persist.bootTitles()
   // rehydrates it from its OWN store (mithralda.titles.v1 — never the run save). Derives PURELY from milestones
   // already tracked (codex counts / arena bests / ascension); touches NO RNG and no combat state beyond the
@@ -763,7 +769,9 @@ export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunt
   // CAS-1988: same seam for the PARALLEL Boss Rush mode — a new run always starts OUTSIDE the gauntlet;
   // only the menu "Modo Boss Rush" entry (which set pendingBossRush) flips it on. Independent of arena.
   G.bossRushMode=false;
-  if(G.pendingBossRush){ G.pendingBossRush=false; G.bossRushMode=true; startBossRush(); } }
+  if(G.pendingBossRush){ G.pendingBossRush=false; G.bossRushMode=true; startBossRush(); }
+  // CAS-1996 hint one-time: la 1ª entrada a play anuncia el Códice de Combate (cierra el loop de descubribilidad; gated; 0 RNG).
+  fireHint("hint_codex", "Pulsa ["+keyLabel(COMBAT_CODEX.codexKey)+"] en cualquier momento para abrir el Códice de Combate."); }
 
 // ==================== CAS-1664: ARENA DE OLEADAS (Wave Survival) ====================
 // A separate endgame MODE that reuses the WHOLE content library — the ETPL trash pool, the HUNTS
@@ -1780,6 +1788,53 @@ export function loadSave(d){
 
 // ----------------------------- helpers ---------------------------------
 export function toast(msg,dur){ G.toast=msg; G.toastT=dur||2.6; }
+
+// CAS-1996 — CÓDICE DE COMBATE (A). Escena de referencia read-only, gateada por COMBAT_CODEX.enabled (mirror del
+// Códice de Botín/Títulos/Pactos). El gate del OPEN vive aquí (sim, single-source) para que input.js Y el harness
+// DOM-free compartan la MISMA guarda; el CLOSE/scroll lo maneja input.js en la escena (mirror KeyK). enabled:false ⇒
+// nunca cambia de escena ⇒ byte-id. 0 RNG, 0 estado persistido: sólo lee config/estado y togglea G.scene.
+export function openCombatCodex(){ if(COMBAT_CODEX.enabled) G.scene="combatcodex"; return G.scene; }
+
+// Presentational: convierte un KeyboardEvent.code en una etiqueta legible para el Códice/HUD/hints. Pasa CUALQUIER
+// string no reconocida sin tocar (las entradas textuales "Rodar"/"Espalda"/"—" pasan tal cual). Pura, 0 RNG, 0 estado.
+const KEY_LABELS = { Backquote:"`", Tab:"Tab", Escape:"Esc", Space:"Espacio", Enter:"Enter", Semicolon:";", Quote:"'",
+  Slash:"/", Backslash:"\\", BracketLeft:"[", BracketRight:"]", Minus:"-", Equal:"=", Comma:",", Period:".",
+  ShiftLeft:"Shift Izq", ShiftRight:"Shift Der", ControlLeft:"Ctrl", ControlRight:"Ctrl", AltLeft:"Alt", AltRight:"Alt",
+  ArrowUp:"↑", ArrowDown:"↓", ArrowLeft:"←", ArrowRight:"→" };
+export function keyLabel(code){ if(code==null) return "—"; const s=String(code);
+  if(KEY_LABELS[s]) return KEY_LABELS[s];
+  if(/^Key[A-Z]$/.test(s)) return s.slice(3);         // KeyU → U
+  if(/^Digit\d$/.test(s)) return s.slice(5);          // Digit1 → 1
+  if(/^Numpad\d$/.test(s)) return s.slice(6);         // Numpad1 → 1
+  return s; }                                          // "Rodar"/"Espalda"/"—" y demás pasan sin tocar
+
+// CAS-1996 — HINTS CONTEXTUALES (B). Store AISLADO (mithralda.hints.v1). El sim posee la SHAPE (serializeHints/
+// loadHints, mirror serializeCodex/loadCodex); persist.js posee el medio localStorage + el flush hintsDirty. Clave
+// propia ⇒ save.v1 + los 8 stores existentes INTACTOS. Ausencia/blob corrupto ⇒ default vacío.
+function hintsDefault(){ return { v:1, seen:{} }; }
+function ensureHints(){ if(!G.hintsSeen) G.hintsSeen=hintsDefault(); return G.hintsSeen; }
+export function serializeHints(){ const s=ensureHints();
+  return { v:1, seen:Object.assign({}, s.seen) }; }   // shallow-copy ⇒ el blob nunca aliasa estado vivo
+export function loadHints(d){ const def=hintsDefault();
+  if(d && typeof d==="object" && d.seen && typeof d.seen==="object"){
+    // sólo acepta ids KNOWN (guardrail anti-blob como loadCodex): un blob manipulado no inyecta ids fantasma.
+    for(const id of HINT_IDS) if(d.seen[id]) def.seen[id]=1; }
+  G.hintsSeen=def; return true; }
+// Lista canónica de ids de hint (guardrail de loadHints + cobertura del harness). Añadir aquí al cablear un nuevo punto.
+const HINT_IDS = ["hint_codex","hint_stamina","hint_boss","hint_bonfire","hint_flask"];
+
+// fireHint(id,text) — dispara un toast one-time de primer-encuentro y lo persiste. HARD-GATED: enabled:false o
+// showContextHints:false ⇒ retorno temprano ⇒ 0 estado, 0 store I/O, 0 toast ⇒ save+srand byte-id a HEAD. Idempotente:
+// un id ya visto no re-dispara (ni reload). RNG-neutral STRONG: toast() sólo escribe G.toast/G.toastT (no toca ninguna
+// corriente RNG), fireHint no hace draws. Se cablea SÓLO a ramas sim EXISTENTES (spendStam/damageHero/spawnChampion/
+// bonfire-rest/createHero) con una llamada — ninguna rama nueva de daño/RNG.
+function fireHint(id, text){
+  if(!COMBAT_CODEX.enabled || !COMBAT_CODEX.showContextHints) return false;  // gate DURO
+  const s=ensureHints(); if(s.seen[id]) return false;                        // one-time
+  s.seen[id]=1; G.hintsDirty=true;                                           // persistir en mithralda.hints.v1
+  toast(text, COMBAT_CODEX.toastSecs);                                       // primitivo existente, 0 RNG
+  return true;
+}
 // CAS-127 — pooled, capped cosmetic feedback. Floaters & FX are the hottest
 // transient allocators in a dense pack (CAS-126 stress case): without a cap they
 // grow unbounded and the per-frame .filter() reallocated the whole array every
@@ -2107,7 +2162,9 @@ function tickCombo(h,dt){ if(!COMBO.enabled||!h) return;
 // fall through to a cost-0 action ⇒ the caller early-returns. No draws, NO staminaRng ⇒ srand ON==OFF trivially.
 function spendStam(h, cost){
   if(!STAMINA.enabled || !h) return true;                     // knob OFF ⇒ never gate
-  if((h.stam||0) < cost){ h._stamFlash=STAMINA.flashS; audio.sfx.deny(); return false; }
+  if((h.stam||0) < cost){ h._stamFlash=STAMINA.flashS; audio.sfx.deny();
+    fireHint("hint_stamina", "Sin STAMINA no puedes rodar ni lanzar pesados — espera a que se regenere.");  // CAS-1996 hint one-time (gated; 0 RNG)
+    return false; }
   h.stam -= cost; h._stamRegenPauseT = STAMINA.regenDelay; return true;
 }
 // CAS-1841: regen tick (transient, 0 RNG). Winds down the deny-flash, then — after a brief post-spend pause — regens
@@ -2772,6 +2829,8 @@ function huntSpawnPos(zone){ const r=world[zone]; const h=G.hero;
 function spawnChampion(zone){ const cfgH=HUNTS[zone]; const H=G.hunts[zone]; const B=cfgH.boss;
   const p=huntSpawnPos(zone); const e=spawnEnemy(B?B.base:cfgH.base,p.x,p.y); const base=e.tpl;
   if(B){
+    // CAS-1996 hint one-time: primer jefe de hunt enganchado enseña las herramientas clave (gated; 0 RNG).
+    fireHint("hint_boss", "Jefe: ["+keyLabel(LOCK_ON.key)+"] fija objetivo · Parada con tempo · rueda para i-frames.");
     // CAS-65 capstone: an ABSOLUTE elite block on a boss sprite (no scaling math),
     // plus the phase-shift fields read by updateEnemies. Reuses the shared
     // windup→strike→recover AI so the base fight is readable; the climax mechanic
@@ -3576,7 +3635,10 @@ export function interact(){
       if(BONFIRE.refillFlasks && WEAPON_BUFFS.enabled && WEAPON_BUFFS.refillOnZone) refillBuffs(h);   // CAS-1926: la hoguera recarga las resinas (mismo hook que el Estus / refill de zona)
       if(BONFIRE.refillFlasks && SUMMON.enabled && SUMMON.refillOnZone){ h.summonCharges=SUMMON.charges; h.summonZone=zoneOf(world,h.x,h.y); }   // CAS-1954: la hoguera recarga las cargas de invocación (mismo hook que el Estus)
       if(BONFIRE.respawnEnemies) bonfireRespawn(rest);             // world reset DETERMINISTA 0-draw de los no-jefes de la zona (jefes intactos)
-      toast(STR.bonfireRest); audio.sfx.heal(); return;
+      toast(STR.bonfireRest); audio.sfx.heal();
+      // CAS-1996 hint one-time: primer descanso en hoguera confirma el checkpoint + cómo volver (gated; 0 RNG; sobrescribe el toast genérico sólo la 1ª vez).
+      fireHint("hint_bonfire", "Hoguera: cura, recarga Estus y fija tu checkpoint. Vuelve y pulsa ["+keyLabel(BONFIRE.key)+"] para descansar.");
+      return;
     }
     toast(STR.fountainRest); audio.sfx.heal(); return; }
 }
@@ -4890,6 +4952,9 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   }
   const def=equippedDef(h); const real=Math.max(1,dmg-def*0.6);
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
+  // CAS-1996 hint one-time: primer HP bajo (<50%) con Estus disponible enseña a curarse (gated; 0 RNG).
+  if(FLASK.enabled && h.hp>0 && h.hp < heroMaxHp(h)*0.5 && (h.flaskCharges|0)>0)
+    fireHint("hint_flask", "["+keyLabel(FLASK.key)+"] bebe Estus para curarte.");
   h.hurtAnim=HURT_ANIM_DUR; // CAS-256: a landed hit plays the hit-react flinch strip (lower priority than an active cast)
   h.iframe=0.25; // brief mercy invuln
   // CAS-1901: SUPERARMADURA EN GOLPES COMPROMETIDOS (Hyperarmor). El ÚNICO vector de INTERRUPCIÓN del héroe es el `stun`
@@ -9363,4 +9428,94 @@ export const dev = {
     for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
     BOSS_RUSH.enabled=sav; G.enemies.length=0; G.bossRushMode=false;
     return { enabled:!!enabled, spawned, fingerprint:fp }; },
+
+  // ===== CAS-1996 CÓDICE DE COMBATE + HINTS CONTEXTUALES dev hooks (tools/cas1995-codex.mjs) =====
+  // DOM-free: importan sim.js directo y ejercitan los REALES seams (openCombatCodex/keyLabel/fireHint/serializeHints/
+  // loadHints + spendStam) sobre un héroe parqueado. La escena de cierre/scroll (input.js SEAM A5) se replica en
+  // _ccSceneKey (clon literal del handler de codex/titles/pacts). Todo 0-RNG: el códice sólo LEE, los hints sólo toast().
+  combatCodexMeta(){ return { enabled:COMBAT_CODEX.enabled, codexKey:COMBAT_CODEX.codexKey,
+    showContextHints:COMBAT_CODEX.showContextHints, toastSecs:COMBAT_CODEX.toastSecs, showHudHint:COMBAT_CODEX.showHudHint,
+    entryCount:COMBAT_CODEX_ENTRIES.length, groups:[...new Set(COMBAT_CODEX_ENTRIES.map(e=>e.group))] }; },
+  // Resuelve las entradas VISIBLES (gate()===true) exactamente como renderCombatCodex, con la tecla display vía keyLabel
+  // — prueba data-driven (la tecla sale de un getter sobre el knob vivo) + gate honesto (mecánicas dark excluidas).
+  _ccEntries(){ return COMBAT_CODEX_ENTRIES.filter(e=>e.gate()).map(e=>({ group:e.group, label:e.label,
+    raw:e.keyOf(), key:keyLabel(e.keyOf()), desc:e.desc })); },
+  // Aísla: fija enabled, resetea el store de hints a vacío, limpia toast, parquea al héroe en play.
+  _ccArm(enabled){ COMBAT_CODEX.enabled=!!enabled; loadHints(null); G.hintsDirty=false; G.ccScroll=0;
+    const h=G.hero; if(h){ h.x=500; h.y=500; h.dead=false; h.iframe=0; h.stun=0; } G.scene="play"; G.toast=null; G.toastT=0; return h; },
+  // Clon literal de input.js SEAM A5 (cierre/scroll de la escena) para la QA DOM-free.
+  _ccSceneKey(code){ if(G.scene==="combatcodex"){
+      if(code===COMBAT_CODEX.codexKey||code==="Escape"){ G.scene="play"; }
+      else if(code==="ArrowUp") G.ccScroll=Math.max(0,(G.ccScroll||0)-1);
+      else if(code==="ArrowDown") G.ccScroll=(G.ccScroll||0)+1; }
+    return G.scene; },
+  // AC1: codexKey abre "combatcodex" (enabled:true); codexKey/Escape cierran a play; enabled:false ⇒ inerte (sigue en play).
+  _ccOpenProbe(){ this._ccArm(true);
+    const opened=openCombatCodex();                          // ACTIONS.combatCodex → openCombatCodex (mismo seam)
+    const closedByKey=this._ccSceneKey(COMBAT_CODEX.codexKey);
+    openCombatCodex(); const closedByEsc=this._ccSceneKey("Escape");
+    this._ccArm(false); const inertOpen=openCombatCodex();   // gated OFF ⇒ no cambia de escena
+    return { opened, closedByKey, closedByEsc, inertOpen,
+      ok: opened==="combatcodex" && closedByKey==="play" && closedByEsc==="play" && inertOpen==="play" }; },
+  // AC2: scroll clampado (↓ avanza, ↑ clampa a 0).
+  _ccScrollProbe(){ this._ccArm(true); openCombatCodex(); G.ccScroll=0;
+    this._ccSceneKey("ArrowDown"); const down=G.ccScroll;
+    this._ccSceneKey("ArrowUp"); this._ccSceneKey("ArrowUp"); const clamped=G.ccScroll;
+    G.scene="play"; return { down, clamped, ok: down===1 && clamped===0 }; },
+  // AC3 DATA-DRIVEN: retunear FLASK.key ⇒ el texto del códice muestra la tecla NUEVA (nada hardcodeado que mienta).
+  _ccDataDriven(){ const sav=FLASK.key; FLASK.key="KeyZ";
+    const e=COMBAT_CODEX_ENTRIES.find(x=>x.label==="Beber Estus");
+    const raw=e?e.keyOf():null, disp=e?keyLabel(e.keyOf()):null;
+    FLASK.key=sav; const back=e?e.keyOf():null;
+    return { retunedRaw:raw, retunedDisp:disp, restored:back, ok: raw==="KeyZ" && disp==="Z" && back===sav }; },
+  // AC4 gate honesto: una mecánica DARK NO se lista; VIVA sí. No miente.
+  _ccGateHonesty(){ const sav=SUMMON.enabled; SUMMON.enabled=false;
+    const dark=this._ccEntries().some(e=>e.label==="Invocar espíritu"); SUMMON.enabled=true;
+    const live=this._ccEntries().some(e=>e.label==="Invocar espíritu"); SUMMON.enabled=sav;
+    return { listedWhenDark:dark, listedWhenLive:live, ok: !dark && live }; },
+  // AC6/AC7: hint one-time en rama EXISTENTE (spendStam DENY) — dispara 1 vez, persiste, no re-dispara.
+  _ccStaminaHint(){ this._ccArm(true); const savS=STAMINA.enabled; STAMINA.enabled=true;
+    const h=G.hero; h.stam=0; G.toast=null;
+    const denied1=spendStam(h,10)===false; const seen1=!!ensureHints().seen.hint_stamina; const toast1=G.toast; const dirty=!!G.hintsDirty;
+    G.toast=null; spendStam(h,10); const toast2=G.toast;   // one-time ⇒ 2ª vez NO re-dispara ⇒ toast queda null
+    STAMINA.enabled=savS;
+    return { denied:denied1, seen:seen1, firstToast:toast1, secondToast:toast2, dirty,
+      ok: denied1 && seen1 && !!toast1 && toast2===null && dirty }; },
+  // AC7: persiste en mithralda.hints.v1 (serialize→load roundtrip por la SHAPE real); sobrevive un reset a vacío.
+  _ccHintPersist(){ this._ccArm(true); ensureHints().seen.hint_boss=1; ensureHints().seen.hint_flask=1;
+    const blob=JSON.parse(JSON.stringify(serializeHints()));
+    loadHints(null); const clearedCount=Object.keys(ensureHints().seen).length;
+    loadHints(blob); const after=ensureHints().seen;
+    return { blob, clearedCount, restored:{boss:!!after.hint_boss,flask:!!after.hint_flask},
+      ok: clearedCount===0 && !!after.hint_boss && !!after.hint_flask }; },
+  // AC8: showContextHints:false ⇒ 0 hints, pero el códice (A) sigue funcionando.
+  _ccSubToggle(){ this._ccArm(true); const sav=COMBAT_CODEX.showContextHints; COMBAT_CODEX.showContextHints=false;
+    const savS=STAMINA.enabled; STAMINA.enabled=true; const h=G.hero; h.stam=0; G.toast=null;
+    spendStam(h,10); const noHint=(G.toast===null) && !ensureHints().seen.hint_stamina;
+    const codexStillOpens=(openCombatCodex()==="combatcodex"); G.scene="play";
+    STAMINA.enabled=savS; COMBAT_CODEX.showContextHints=sav;
+    return { noHint, codexStillOpens, ok: noHint && codexStillOpens }; },
+  // AC0/AC9 [RNG-STRONG]: enabled:false ⇒ fireHint no-op, hintsSeen nunca se muta, hintsDirty queda false (store nunca se crea), sin clave en save.v1.
+  _ccOffByteId(){ const sav=COMBAT_CODEX.enabled; COMBAT_CODEX.enabled=false; loadHints(null); G.hintsDirty=false;
+    const fired=fireHint("hint_stamina","x"); const seenEmpty=Object.keys(ensureHints().seen).length===0; const cleanDirty=(G.hintsDirty===false);
+    const saveStr=JSON.stringify(serializeSave()||{}); const noKey=!/hints|hintsSeen|hint_/i.test(saveStr);
+    COMBAT_CODEX.enabled=sav;
+    return { fireReturned:fired, seenEmpty, cleanDirty, noKey, ok: fired===false && seenEmpty && cleanDirty && noKey }; },
+  // AC0/AC10: save.v1 byte-id — el estado de hints NUNCA entra en serializeSave (store propio aislado).
+  _ccSaveByteId(){ const snap=serializeHints();
+    loadHints(null); const off=JSON.stringify(serializeSave()||{});
+    const s=ensureHints().seen; s.hint_boss=1; s.hint_flask=1; s.hint_codex=1; s.hint_bonfire=1; s.hint_stamina=1;
+    const on=JSON.stringify(serializeSave()||{});
+    loadHints(snap);
+    const hasKey=/hints|hintsSeen|hint_/i.test(on);
+    return { byteId:off===on, noKey:!hasKey, offLen:off.length, onLen:on.length, ok: off===on && !hasKey }; },
+  // AC10 [RNG-STRONG]: srand ON==OFF — disparar TODOS los fire-points (toast no-RNG) no perturba srand a ningún valor de enabled.
+  _ccSrandProbe(enabled, seedVal, probeN){ probeN=Math.max(4,probeN|0); const sav=COMBAT_CODEX.enabled;
+    COMBAT_CODEX.enabled=!!enabled; loadHints(null);
+    if(seedVal!=null) seed(seedVal>>>0);
+    const fp=[]; for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    for(const id of ["hint_codex","hint_stamina","hint_boss","hint_bonfire","hint_flask"]) fireHint(id,"probe "+id);
+    for(let i=0;i<probeN;i++) fp.push(+srand().toFixed(9));
+    COMBAT_CODEX.enabled=sav; loadHints(null);
+    return { enabled:!!enabled, fingerprint:fp }; },
 };

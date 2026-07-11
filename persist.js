@@ -10,7 +10,7 @@
 // so the latest gold / XP / upgrades survive a refresh. All storage calls are
 // wrapped — private-mode / quota failures degrade silently, the game still runs.
 // ===========================================================================
-import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena, serializeBossRush, loadBossRush, serializeCodex, loadCodex, serializeTitles, loadTitles, serializePacts, loadPacts } from "./sim/sim.js";
+import { G, serializeSave, loadSave, setTutArm, serializeMeta, loadMeta, serializeArena, loadArena, serializeBossRush, loadBossRush, serializeCodex, loadCodex, serializeTitles, loadTitles, serializePacts, loadPacts, serializeHints, loadHints } from "./sim/sim.js";
 import { BLOODSTAIN } from "./sim/config.js";   // CAS-1867: gate del store de la Mancha de Sangre (enabled:false ⇒ nunca leer/escribir)
 
 const KEY = "mithralda.save.v1";
@@ -51,6 +51,13 @@ const KEY_PACTS = "mithralda.pacts.v1";
 // shape (G.bloodstain, mutated in heroDie / tickBloodstain), this controller owns localStorage + the bloodstainDirty
 // flush. When BLOODSTAIN.enabled=false it is NEVER read or written ⇒ byte-identical to HEAD.
 const KEY_BLOODSTAIN = "mithralda.bloodstain.v1";
+// CAS-1996: the CONTEXT-HINTS (first-encounter toasts) store — its OWN key, SEPARATE from the run save + meta + arena +
+// codex + titles + pacts + bloodstain (additive persistence; save.v1 is untouched, never shares a key). Holds the flat
+// id→true map of hints the player has already seen so a one-time toast never re-fires (even across reloads). Same medium-
+// ownership split: the sim owns the shape (serializeHints / loadHints), this controller owns localStorage + the hintsDirty
+// flush. When COMBAT_CODEX.enabled=false fireHint early-returns ⇒ hintsDirty never sets ⇒ this store is NEVER written ⇒
+// byte-identical to HEAD (the key is not even created).
+const KEY_HINTS = "mithralda.hints.v1";
 const SAVE_THROTTLE = 2.0;      // seconds between throttled autosaves while in a run
 let acc = 0;
 let suppressed = false;         // once true, ALL writes are no-ops until the page reloads
@@ -139,6 +146,18 @@ export function savePacts(){ if(suppressed) return false;
 // (the preference is simply never evaluated afterward). Called AFTER bootTitles() in the boot sequence.
 export function bootPacts(){ loadPacts(readPacts()); G.pactsDirty=false; }
 
+// CAS-1996: CONTEXT-HINTS I/O (isolated from every store above; save.v1 untouched). Wrapped — a private-mode / quota
+// failure degrades silently; the game still runs with an in-memory hints ledger. saveHints only ever runs off the
+// hintsDirty flush, and fireHint sets hintsDirty ONLY under COMBAT_CODEX.enabled ⇒ with the feature dark this store is
+// never written (the key is not even created) ⇒ byte-identical to HEAD.
+function readHints(){ try{ const raw=localStorage.getItem(KEY_HINTS); return raw?JSON.parse(raw):null; }catch(e){ return null; } }
+export function saveHints(){ if(suppressed) return false;
+  try{ const blob=serializeHints(); if(!blob) return false; localStorage.setItem(KEY_HINTS, JSON.stringify(blob)); return true; }
+  catch(e){ return false; } }
+// Rehydrate the seen-hints ledger at boot (independent of any run save — a brand-new player has seen none). A
+// corrupt/absent blob → loadHints installs the empty default. Harmless read even when the feature is disabled.
+export function bootHints(){ loadHints(readHints()); G.hintsDirty=false; }
+
 // CAS-1867: Mancha de Sangre I/O (isolated from every store above; save.v1 untouched). Wrapped — a private-mode /
 // quota failure degrades silently; the run simply keeps its at-risk Esencia in memory. saveBloodstain WRITES the
 // current G.bloodstain, or REMOVES the key when there is no active stain (recovered/lost) — so a single dirty flag
@@ -200,6 +219,9 @@ export function tick(dtSec){
   // CAS-1867: flush the Mancha de Sangre the instant it drops (death), is recovered (walk-over) or lost (replaced) —
   // BEFORE the run-save scene gate, so it persists even on the death screen. One-shot: the flag clears on write.
   if(G.bloodstainDirty){ if(saveBloodstain()) G.bloodstainDirty=false; }
+  // CAS-1996: flush the seen-hints ledger the instant a first-encounter toast fires — BEFORE the run-save scene gate, so
+  // a one-time hint never re-fires even if the tab closes right after. One-shot: the flag clears on write. Cheap (tiny blob).
+  if(G.hintsDirty){ if(saveHints()) G.hintsDirty=false; }
   if(!G.started || G.scene==="menu" || G.scene==="classsel") return;
   // CAS-128: the moment the tutorial is finished/skipped, write the one-time seen marker
   // so it never auto-starts for this player again. flushed gates it to a single write.
@@ -216,7 +238,7 @@ export function resetGame(){ suppress(); clear(); try{ if(typeof location!=="und
 // few seconds of progress between throttled autosaves.
 export function initFlush(){
   if(typeof window==="undefined") return;
-  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.bossRushDirty){ if(saveBossRush()) G.bossRushDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; } if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; } if(G.bloodstainDirty){ if(saveBloodstain()) G.bloodstainDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1988 boss-rush best + CAS-1751 codex + CAS-1758 titles + CAS-1763 pacts + CAS-1867 bloodstain ride the same unload flush
+  const flush = ()=>{ if(G.started) save(); if(G.metaDirty){ if(saveMeta()) G.metaDirty=false; } if(G.arenaDirty){ if(saveArena()) G.arenaDirty=false; } if(G.bossRushDirty){ if(saveBossRush()) G.bossRushDirty=false; } if(G.codexDirty){ if(saveCodex()) G.codexDirty=false; } if(G.titlesDirty){ if(saveTitles()) G.titlesDirty=false; } if(G.pactsDirty){ if(savePacts()) G.pactsDirty=false; } if(G.bloodstainDirty){ if(saveBloodstain()) G.bloodstainDirty=false; } if(G.hintsDirty){ if(saveHints()) G.hintsDirty=false; } }; // CAS-1557 meta + CAS-1664 arena best + CAS-1988 boss-rush best + CAS-1751 codex + CAS-1758 titles + CAS-1763 pacts + CAS-1867 bloodstain + CAS-1996 hints ride the same unload flush
   window.addEventListener("beforeunload", flush);
   window.addEventListener("pagehide", flush);
   if(typeof document!=="undefined")
