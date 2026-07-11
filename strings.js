@@ -282,6 +282,7 @@ export const STR = {
   block: "¡BLOQUEO!",                                // CAS-1873: banner de mitigación del ESCUDO/BLOQUEO CON GUARDIA — un golpe MELEE frontal se absorbe a cambio de estamina.
   guardBreak: "¡GUARDIA ROTA!",                      // CAS-1873: banner de RUPTURA DE GUARDIA — la estamina se agotó en un bloqueo ⇒ aturdimiento (mismo STAGGERED de CAS-1826) y el golpe entra completo.
   shove: "¡EMPUJÓN!",                                // CAS-2146: floater de la PATADA ROMPE-GUARDIA (mec #38) sobre el enemigo — verbo ofensivo anti-turtle: drena la postura y casca la guardia. Distinto del guardBreak del HÉROE (arriba). $0 arte.
+  deflect: "¡REFLEJO!",                              // CAS-2151: floater del REFLEJO DE PROYECTIL (mec #39) — un proyectil enemigo desviado en la ventana de parry se invierte a hero-owned y vuelve al tirador con daño capeado. Verbo ofensivo anti-ranged. $0 arte.
   lockOnHint: "Tab: fija/cicla el objetivo — con lock, el héroe orbita en strafe y todos los ataques se orientan al enemigo enfocado.", // CAS-1847: ayuda del Enfoque de Objetivo (Lock-On)
   flaskHint: "U bebe del Frasco: cura parte de tu vida pero te enraíza y expone ~0.75s; moverte/atacar/rodar cancela el trago sin gastarlo; las cargas se rellenan al cambiar de zona.", // CAS-1854: ayuda del Frasco de Curación (Estus)
   bloodstainRecovered: "¡ESENCIA RECUPERADA!",       // CAS-1867: volviste a la Mancha de Sangre y recuperaste la Esencia en riesgo
