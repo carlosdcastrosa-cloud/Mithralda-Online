@@ -1619,7 +1619,7 @@ export const NG_PLUS = {
   essMulPerTier:   0.25,   // +25% Esencia rewards per tier above 1. 0 draws (arithmetic at grant).
   poisePctPerTier: 0.0,    // sub-flag: enemy poise× per tier above 1 (0 = OFF; post-spawn ceiling scale, 0 draws).
   reframePrompt:   true,   // sub-flag: explicit "Ciclo N+1 / NG+" copy on the CAS-450 ascend scene.
-  recap:           false,  // CAS-2035 sub-flag (DARK): route ascend → "ascendRecap" cycle-summary overlay. off ⇒ scene stays "ascend", byte-id HEAD.
+  recap:           true,   // CAS-2043 (CAS-2035): LIVE. Flipped after CEO gate GO (CAS-2039). Reversible → false. Routes ascend → "ascendRecap" cycle-summary overlay.
   cap: 5,                  // align with WORLD_TIER.cap; the ascend offer already stops here.
 };
 
