@@ -87,15 +87,16 @@ for (const prof of PROFILES) {
   await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
   await page.goto(`${BASE}index.html?dev`, { waitUntil: "load" });
 
-  // (2) served DARK reaches browser BEFORE arming.
+  // (2) served state reaches browser. CAS-2044 go-forward: NG+ FLIPPED LIVE (CAS-2029) ⇒ served enabled:true
+  // (was enabled:false DARK pre-flip). Shape (cap/loot/ess/poise/reframe) unchanged. The smoke drives arm/OFF regardless.
   const dark = await page.evaluate(async (base) => {
     const c = await import(base + "sim/config.js");
     return { enabled: c.NG_PLUS.enabled, cap: c.NG_PLUS.cap, wtCap: c.WORLD_TIER.cap,
       loot: c.NG_PLUS.lootFloorPerTier, ess: c.NG_PLUS.essMulPerTier, poise: c.NG_PLUS.poisePctPerTier, reframe: c.NG_PLUS.reframePrompt };
   }, BASE);
-  if (dark.enabled === false && dark.cap === dark.wtCap && dark.loot === 1 && dark.ess === 0.25 && dark.poise === 0 && dark.reframe === true)
-    okp(`[${prof.name}] served NG_PLUS DARK reaches browser: enabled:false, lootFloorPerTier:${dark.loot}, essMulPerTier:${dark.ess}, poisePctPerTier:${dark.poise}, reframe:${dark.reframe}, cap:${dark.cap}==WORLD_TIER.cap`);
-  else badp(`[${prof.name}] served NG_PLUS wrong: ${JSON.stringify(dark)}`);
+  if (dark.enabled === true && dark.cap === dark.wtCap && dark.loot === 1 && dark.ess === 0.25 && dark.poise === 0 && dark.reframe === true)
+    okp(`[${prof.name}] served NG_PLUS LIVE reaches browser: enabled:true (CAS-2029), lootFloorPerTier:${dark.loot}, essMulPerTier:${dark.ess}, poisePctPerTier:${dark.poise}, reframe:${dark.reframe}, cap:${dark.cap}==WORLD_TIER.cap`);
+  else badp(`[${prof.name}] served NG_PLUS wrong (expected LIVE enabled:true post-CAS-2029): ${JSON.stringify(dark)}`);
 
   await enterPlay(page, "NGPLUS");
   await page.screenshot({ path: `${OUT}/${prof.name}-play.png` });
@@ -164,8 +165,8 @@ for (const prof of PROFILES) {
     out.offState = dev.ngState();
     out.offFloor = dev.ngLootFloor("rare", 2); // enabled:false ⇒ base "rare", no lift
 
-    // restore DARK exactly as shipped.
-    c.NG_PLUS.enabled = false;
+    // restore LIVE state exactly as shipped post-CAS-2029 (enabled:true). In-session module only.
+    c.NG_PLUS.enabled = true;
     return out;
   }, BASE);
 

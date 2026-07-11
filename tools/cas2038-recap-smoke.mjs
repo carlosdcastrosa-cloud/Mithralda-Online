@@ -90,13 +90,14 @@ for (const prof of PROFILES) {
   await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (e) {} });
   await page.goto(`${BASE}index.html?dev`, { waitUntil: "load" });
 
-  // (2) served DARK reaches browser BEFORE arming: recap:false byte-correct.
+  // (2) served state reaches browser. CAS-2044 go-forward: recap FLIPPED LIVE (CAS-2043) ⇒ served recap:true.
+  // (Was recap:false DARK pre-flip; the smoke arms it at runtime regardless, so live-true is a harmless no-op there.)
   const dark = await page.evaluate(async (base) => {
     const c = await import(base + "sim/config.js");
     return { recap: c.NG_PLUS.recap, enabled: c.NG_PLUS.enabled };
   }, BASE);
-  if (dark.recap === false) okp(`[${prof.name}] served NG_PLUS.recap DARK reaches browser: recap:false (enabled:${dark.enabled})`);
-  else badp(`[${prof.name}] served NG_PLUS.recap wrong: ${JSON.stringify(dark)}`);
+  if (dark.recap === true) okp(`[${prof.name}] served NG_PLUS.recap LIVE reaches browser: recap:true (CAS-2043, enabled:${dark.enabled})`);
+  else badp(`[${prof.name}] served NG_PLUS.recap wrong (expected LIVE true post-CAS-2043): ${JSON.stringify(dark)}`);
 
   await enterPlay(page, "RECAP");
   await page.screenshot({ path: `${OUT}/${prof.name}-play.png` });
@@ -230,8 +231,8 @@ for (const prof of PROFILES) {
   if (renderOk) okp(`[${prof.name}] RENDER PAINTS: live scene "${paintedScene}" ⇒ renderAscendRecap ran on real canvas (screenshot ${prof.name}-recap.png)`);
   else badp(`[${prof.name}] RENDER scene wrong: ${paintedScene}`);
 
-  // restore DARK exactly as shipped (recap:false; leave enabled as live).
-  await page.evaluate(async (base) => { const c = await import(base + "sim/config.js"); c.NG_PLUS.recap = false; }, BASE);
+  // restore LIVE state exactly as shipped post-CAS-2043 (recap:true; leave enabled as live). In-session module only.
+  await page.evaluate(async (base) => { const c = await import(base + "sim/config.js"); c.NG_PLUS.recap = true; }, BASE);
 
   if (infra5xx.length) console.log(`  · [${prof.name}] ${infra5xx.length} transient CDN 5xx/net flake(s) (infra, ignored): ${JSON.stringify(infra5xx.slice(0, 3))}`);
   if (errors.length === 0) okp(`[${prof.name}] boot+play+drive+render: 0 game-JS errors`);

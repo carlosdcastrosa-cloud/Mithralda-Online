@@ -36,7 +36,7 @@ import * as cfg from "../sim/config.js";
 import * as sim from "../sim/sim.js";
 import { G, update, composeTutSteps } from "../sim/sim.js";
 
-const EXPECT_BUILD = "d1405a9bcfc5";
+const EXPECT_BUILD = "1cc255d4b339"; // CAS-2044: bumped from d1405a9bcfc5 after CAS-2043 NG+ Cycle Recap go-live flip (new live build; recap:false→true, config-only).
 const BASE = "https://carlosdcastrosa-cloud.github.io/Mithralda-Online";
 
 let ok = true;
@@ -152,9 +152,11 @@ function auditNgPlus() {
     && ng.reframePrompt === true
     && typeof ng.cap === "number" && ng.cap > 0;
   const capAligned = ng && wt && ng.cap === wt.cap;
-  if (shapeOk && capAligned)
-    pass(`[NGPLUS] enabled:true (27th mech) loot+${ng.lootFloorPerTier}/tier essMul+${ng.essMulPerTier}/tier poise×${ng.poisePctPerTier}(sub-off) reframe:${ng.reframePrompt} cap ${ng.cap}==WORLD_TIER.cap — rides conquest.tier, 0 new save field`);
-  else fail(`[NGPLUS] shapeOk=${shapeOk} capAligned=${capAligned} ng=${JSON.stringify(ng)} wtCap=${wt && wt.cap}`);
+  // CAS-2044: NG+ Cycle Recap (28th live mech, CAS-2043) — sub-flag recap:true routes ascend → "ascendRecap" overlay. 0 RNG, rides conquest.tier.
+  const recapLive = ng && ng.recap === true;
+  if (shapeOk && capAligned && recapLive)
+    pass(`[NGPLUS] enabled:true (27th) + recap:true (28th mech, CAS-2043) loot+${ng.lootFloorPerTier}/tier essMul+${ng.essMulPerTier}/tier poise×${ng.poisePctPerTier}(sub-off) reframe:${ng.reframePrompt} cap ${ng.cap}==WORLD_TIER.cap — rides conquest.tier, 0 new save field`);
+  else fail(`[NGPLUS] shapeOk=${shapeOk} capAligned=${capAligned} recap=${ng && ng.recap} ng=${JSON.stringify(ng)} wtCap=${wt && wt.cap}`);
 }
 
 function auditOnboarding() {
