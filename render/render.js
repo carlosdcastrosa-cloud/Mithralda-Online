@@ -1139,6 +1139,21 @@ export function createRenderer(ctx){
     thornspitter:{w:5.8,fps:7}, ironback:{w:4.0,fps:6}, ashwraith:{w:4.4,fps:6},
   };
   const mobGait = e => MOB_GAIT[e.type] || {w:6.0,fps:7};
+  // ── CAS-2124: barra de vida + placa de nombre de enemigos estilo Tibia ──────────────────────────
+  // Knob RENDER-LOCAL (a propósito NO en config.js): togglea/ajusta la capa de PRESENTACIÓN de los
+  // enemigos sin tocar sim.js ni config.js ⇒ srand ON==OFF byte-idéntico garantizado (render-only).
+  // default enabled:true — es un fix visual esperado por el board (no DARK). $0 arte, 100% canvas.
+  const NAMEPLATE = { enabled:true, showBar:true, showName:true,
+    normal:"#f2f4f6", elite:"#ffd84a", boss:"#ff7a3a",          // color del NOMBRE por rango (blanco/amarillo/naranja-rojo)
+    border:"rgba(0,0,0,0.85)", track:"rgba(12,14,18,0.72)" };   // marco negro 1px + pista oscura translúcida
+  // Gradiente de vida estilo Tibia por %HP: verde(>60%) → amarillo(30-60%) → naranja(12-30%) → rojo(<12%).
+  function hpTibia(f){ return f>0.6?"#4fd651":(f>0.3?"#d8d43e":(f>0.12?"#e07f2a":"#d63a2a")); }
+  // Texto de placa con OUTLINE negra 1px (4-vecinos, barato) para legibilidad sobre CUALQUIER fondo.
+  function outlineText(txt,x,y,fill,sz){
+    ctx.font="bold "+sz+"px "+FF; ctx.textAlign="center";
+    ctx.fillStyle="#000"; ctx.fillText(txt,x-1,y); ctx.fillText(txt,x+1,y); ctx.fillText(txt,x,y-1); ctx.fillText(txt,x,y+1);
+    ctx.fillStyle=fill; ctx.fillText(txt,x,y);
+  }
   function drawEnemy(e){
     const spr=SP[e.tpl.sprite]; const px=e.isBoss?5:(e.champion?5:(e.tpl.size>20?4:3));
     const fl = (e.facing!==undefined)?Math.cos(e.facing)<0:false;
@@ -1449,36 +1464,51 @@ export function createRenderer(ctx){
         ctx.restore();
       }
     }
-    // health bar
-    const w=e.isBoss?64:(e.champion?58:(e.champElite?54:Math.max(22,e.tpl.size*1.6))); const hh=(e.isBoss||e.champion||e.champElite)?6:4; const yy=e.y-e.tpl.size-((e.isBoss||e.champion||e.champElite)?14:8); // CAS-1590: a champion gets the wide always-on bar
-    ctx.fillStyle=COL.out; ctx.fillRect(e.x-w/2-1,yy-1,w+2,hh+2);
-    ctx.fillStyle=COL.hpb; ctx.fillRect(e.x-w/2,yy,w,hh);
+    // ── CAS-2124: barra de vida + placa de nombre estilo Tibia (RENDER-ONLY, $0 arte, 100% canvas) ──
+    // Barra bordeada (borde negro 1px) sobre pista oscura translúcida, relleno con GRADIENTE por %vida
+    // (verde→amarillo→naranja→rojo), y la placa de NOMBRE del mob centrada arriba con OUTLINE 1px negra,
+    // coloreada por RANGO. Reusa STR.mobName(e.type) — la MISMA fuente de nombres que el Bestiario/Códice
+    // (0 strings inventados). Toda decoración especial (jefe/campeón/campElite/élite/afijo/variante) se
+    // PRESERVA como marcador/sufijo. El campeón conserva sus colores-señal (coraza cian / telegrafía roja).
+    // Antes: mobs normales SIN nombre, relleno de color plano, texto sin contorno (ilegible sobre fondos claros).
+    const special=e.isBoss||e.champion||e.champElite;
+    // CAS-1590: un campeón/élite recibe la barra ANCHA siempre-visible; élite algo más ancha que un básico.
+    const w=e.isBoss?66:(e.champion?58:(e.champElite?54:(e.elite?Math.max(30,e.tpl.size*1.9):Math.max(24,e.tpl.size*1.7))));
+    const hh=e.isBoss?7:(special?6:(e.elite?5:4));
+    const yy=e.y-e.tpl.size-(special?15:(e.elite?11:9));   // anclada al TOP del sprite (escala con size), por encima
+    const hpF=clamp(e.hp/e.maxHp,0,1);
     const champCol=e.capstone?(e.enraged?"#ff4636":"#ff9a3a"):"#ffcf4d";
-    ctx.fillStyle=e.champion?champCol:(e.champElite?CHAMPION.col:(e.hostile?"#ff5a4a":COL.hpf)); ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh);
-    if(e.isBoss){ ctx.fillStyle=COL.textGold; ctx.font="bold 10px "+FF; ctx.textAlign="center"; ctx.fillText(e.tpl.bossLabel||"GÓLEM ANCESTRAL",e.x,yy-4); // CAS-317: data-driven boss name (dragon = "DRAGÓN ANCESTRAL")
-      // CAS-1947: SIGNATURE_BOSS — indicador de fase (glyph procedural sobre la barra, $0 arte).
-      // Fase 1 = "◆ I", Fase 2 = "◆◆ II" en rojo. Flash en ventana de vulnerabilidad.
-      if(SIGNATURE_BOSS.enabled && e._sbPhase){
-        const ph=e._sbPhase; const vuln=e._sbVuln;
-        ctx.fillStyle=vuln?"#ffee44":(ph===2?"#ff5520":"#ffb040");
-        ctx.font="bold 9px "+FF; ctx.textAlign="left";
-        const glyph=ph===2?"◆◆ FASE II":"◆ FASE I";
-        ctx.fillText(glyph, e.x-w/2, yy-4);
-        if(vuln){ ctx.fillStyle="#ffee44aa"; ctx.fillRect(e.x-w/2,yy,w*clamp(e.hp/e.maxHp,0,1),hh); }
+    if(NAMEPLATE.enabled){
+      if(NAMEPLATE.showBar){
+        ctx.fillStyle=NAMEPLATE.border; ctx.fillRect(e.x-w/2-1,yy-1,w+2,hh+2);   // marco negro 1px
+        ctx.fillStyle=NAMEPLATE.track;  ctx.fillRect(e.x-w/2,yy,w,hh);           // pista oscura translúcida
+        // relleno: gradiente por %vida; el campeón conserva su color-señal (coraza cian / telegrafía roja)
+        const fill=(e.champion&&e.shielded)?"#9be7ff":((e.champion&&e.specialNow)?"#ff5230":hpTibia(hpF));
+        ctx.fillStyle=fill; ctx.fillRect(e.x-w/2,yy,w*hpF,hh);
+        ctx.fillStyle="rgba(255,255,255,0.20)"; ctx.fillRect(e.x-w/2,yy,w*hpF,1); // bisel Tibia: brillo superior 1px
+        // CAS-1947: flash de VULNERABILIDAD del jefe insignia (overlay amarillo preservado)
+        if(e.isBoss && SIGNATURE_BOSS.enabled && e._sbVuln){ ctx.fillStyle="#ffee44aa"; ctx.fillRect(e.x-w/2,yy,w*hpF,hh); }
+      }
+      if(NAMEPLATE.showName){
+        // color por RANGO: normal=blanco · élite/afijo/variante=amarillo/tinte · campElite=CHAMPION.col · jefe/campeón=naranja-rojo
+        let label, col, sz=9;
+        if(e.isBoss){ label=e.tpl.bossLabel||"GÓLEM ANCESTRAL"; col=NAMEPLATE.boss; sz=10; }               // CAS-317 nombre de jefe data-driven
+        else if(e.champion){ label=(e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""); col=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); sz=10; }
+        else if(e.champElite){ const ids=e.affixes||(e.affix?[e.affix]:[]); const names=ids.map(id=>MOB_AFFIX[id]&&MOB_AFFIX[id].name).filter(Boolean).join(" + "); label="👑 "+CHAMPION.name+(names?" · "+names:""); col=CHAMPION.col; sz=10; } // CAS-1590 nombra ambos afijos
+        else if(e.elite){ label="⚔ "+STR.mobName(e.type); col=NAMEPLATE.elite; }                            // élite: marcador ⚔ + nombre del mob
+        else if(e.affix && MOB_AFFIX[e.affix]){ label="✦ "+STR.mobName(e.type); col=MOB_AFFIX[e.affix].col; } // CAS-247 tinte del afijo + nombre (el aura ya nombra el modificador)
+        else if(e.variant && ENCOUNTER_VARIANTS.markerLabel && ENCOUNTER_VARIANTS.variants[e.variant]){ label="◈ "+STR.mobName(e.type); col=ENCOUNTER_VARIANTS.variants[e.variant].tint; } // CAS-2071 tinte de variante
+        else { label=STR.mobName(e.type); col=NAMEPLATE.normal; }                                            // CAS-2124: mob NORMAL ahora nombrado (antes sin nombre)
+        outlineText(label, e.x, yy-3, col, sz);
+        // CAS-1947: jefe insignia — indicador de FASE (glyph a la izquierda de la barra, con contorno, preservado)
+        if(e.isBoss && SIGNATURE_BOSS.enabled && e._sbPhase){
+          const ph=e._sbPhase, glyph=ph===2?"◆◆ FASE II":"◆ FASE I", gcol=e._sbVuln?"#ffee44":(ph===2?"#ff5520":"#ffb040");
+          ctx.font="bold 9px "+FF; ctx.textAlign="left";
+          ctx.fillStyle="#000"; ctx.fillText(glyph,e.x-w/2-1,yy-4); ctx.fillText(glyph,e.x-w/2+1,yy-4); ctx.fillText(glyph,e.x-w/2,yy-5); ctx.fillText(glyph,e.x-w/2,yy-3);
+          ctx.fillStyle=gcol; ctx.fillText(glyph,e.x-w/2,yy-4);
+        }
       }
     }
-    else if(e.champion){ ctx.fillStyle=e.shielded?"#9be7ff":(e.specialNow?"#ff5230":champCol); ctx.font="bold 10px "+FF; ctx.textAlign="center";
-      ctx.fillText((e.capstone?"☠ ":"★ ")+e.tpl.champName+(e.shielded?" ❄ CORAZA":e.enraged?" ¡ENFURECIDO!":e.specialNow?" ¡CUIDADO!":""),e.x,yy-4); }
-    // CAS-1590: the champion nameplate names BOTH affixes in gold so its two modifiers read at a glance.
-    else if(e.champElite){ const ids=e.affixes||(e.affix?[e.affix]:[]);
-      const names=ids.map(id=>MOB_AFFIX[id]&&MOB_AFFIX[id].name).filter(Boolean).join(" + ");
-      ctx.fillStyle=CHAMPION.col; ctx.font="bold 10px "+FF; ctx.textAlign="center";
-      ctx.fillText("👑 "+CHAMPION.name+(names?" · "+names:""),e.x,yy-4); }
-    else if(e.elite){ ctx.fillStyle="#ff7a4d"; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("⚔ ÉLITE",e.x,yy-3); }
-    // CAS-247: name the affix above the HP bar in its colour, so the modifier is unmistakable.
-    else if(e.affix && MOB_AFFIX[e.affix]){ ctx.fillStyle=MOB_AFFIX[e.affix].col; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("✦ "+MOB_AFFIX[e.affix].name,e.x,yy-3); }
-    // CAS-2071: name the behaviour variant above the HP bar in its colour (procedural, mirror of the affix label).
-    else if(e.variant && ENCOUNTER_VARIANTS.markerLabel && ENCOUNTER_VARIANTS.variants[e.variant]){ const V=ENCOUNTER_VARIANTS.variants[e.variant]; ctx.fillStyle=V.tint; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.fillText("◈ "+V.name,e.x,yy-3); }
     // CAS-118: status icons/aura sit just above the HP bar so afflictions read at a glance.
     drawStatusFx(e, e.x, e.y+e.tpl.size*0.5, yy-9);
   }
