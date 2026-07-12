@@ -1477,6 +1477,21 @@ export const PIXELART = {
   spritesEnabled: true,   // true = comportamiento LIVE actual (sprites PixelLab). false = fuerza fallback procedural en todo.
 };
 
+// CAS-2226 (EVO open-world, board CAS-2189 "mejorar el mundo abierto"): capa de POIs de ciudad para el minimapa +
+// mapa del mundo (tecla M). El minimapa/mapa YA existen LIVE (renderMiniMap/renderBigMap: silueta del continente,
+// rects de zona, frustum de cámara, blips de portal/enemigo, flecha del héroe). Lo NUEVO de esta tarea es una CAPA
+// DE BLIPS EXTENSIBLE que dibuja los landmarks de la ciudad grande (depósito/templo/taberna/parque) como marcadores,
+// derivada PURAMENTE del estado de mundo (world.deco props colocados por CAS-2191/2224 — NADA hardcodeado, 0 RNG).
+// North-Star MMORPG: la misma capa acepta fuentes futuras (NPCs hoy, OTROS JUGADORES cuando llegue el netcode) con un
+// solo push en mapBlips() (render.js), y al ser función determinista del estado es trivial hacerla server-authoritative.
+// DARK/reversible: default `enabled:false` ⇒ minimapa/mapa renderizan BYTE-IDÉNTICO al pre-CAS-2226 (sólo portal/enemy/
+// héroe). `true` = experimental/flip. Puramente de render: no toca sim/RNG/saves ⇒ srand ON==OFF, saves byte-idénticos.
+// Flip config-only en 1 línea. Los gates de warp YA salen como blips violeta (world.portals) — no se re-dibujan aquí.
+export const MINIMAP = {
+  enabled: true,    // false = LIVE actual (sin blips de POI). true = dibuja los POIs de ciudad en minimapa + mapa (M).
+  labels: true,     // etiquetas de texto de los POIs en el mapa grande (M). El minimapa pequeño sólo muestra el marcador.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
