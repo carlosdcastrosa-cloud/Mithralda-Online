@@ -1,0 +1,60 @@
+{
+  "live": "https://carlosdcastrosa-cloud.github.io/Mithralda-Online",
+  "served": {
+    "config": {
+      "status": 200,
+      "minimapEnabledTrue": true,
+      "exportsTStreet": true,
+      "exportsPixelart": true,
+      "exportsMinimap": true
+    },
+    "render": {
+      "status": 200,
+      "md5": "8ee5abcfd826f7b8aa070403a4b9354e",
+      "matchesQAblob": true,
+      "qaMd5": "8ee5abcfd826f7b8aa070403a4b9354e"
+    }
+  },
+  "observable": {
+    "boot": "play reached",
+    "bigmapPOIpx": {
+      "templo": 16,
+      "deposito": 13,
+      "taberna": 4,
+      "parque": 16
+    },
+    "totalPOIpx": 49,
+    "fps": 61.6,
+    "errors": []
+  },
+  "assertions": [
+    [
+      "served config.js 200",
+      true
+    ],
+    [
+      "served config MINIMAP.enabled:true",
+      true
+    ],
+    [
+      "served config exports PIXELART+MINIMAP",
+      true
+    ],
+    [
+      "served render.js == QA-proven 81c0eba blob",
+      true
+    ],
+    [
+      "LIVE boots, 0 JS errors",
+      true
+    ],
+    [
+      "LIVE M-map draws all 4 POIs",
+      true
+    ],
+    [
+      "LIVE fps>=55",
+      true
+    ]
+  ]
+}

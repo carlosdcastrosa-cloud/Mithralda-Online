@@ -61,8 +61,11 @@ try {
   await page.setViewport({ width: 1000, height: 700, deviceScaleFactor: 2 });
   const errs = [];
   page.on("pageerror", (e) => errs.push("pageerror: " + e.message));
-  page.on("console", (m) => { if (m.type() === "error") errs.push("console: " + m.text()); });
+  // Filter benign favicon 404: the procedural game ships no favicon.ico; the browser's auto-request
+  // 404s as a bare "Failed to load resource: 404" console error every prior LIVE QA has confirmed benign.
+  page.on("console", (m) => { if (m.type() === "error" && !/favicon|Failed to load resource: the server responded with a status of 404/.test(m.text())) errs.push("console: " + m.text()); });
   page.on("requestfailed", (r) => { if (!/favicon/.test(r.url())) errs.push("reqfail: " + r.url()); });
+  page.on("response", (r) => { if (r.status() >= 400 && !/favicon/.test(r.url())) errs.push("http" + r.status() + ": " + r.url()); });
   await page.goto(`${LIVE}/index.html?dev`, { waitUntil: "load", timeout: 45000 });
   await page.waitForFunction("window.__dev && __dev.scene && __dev.scene()==='menu'", { timeout: 25000 });
   await page.evaluate(() => { const ni = document.getElementById("nameInput"); if (ni) ni.value = "QA";
