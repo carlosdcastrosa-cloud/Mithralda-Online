@@ -1503,7 +1503,7 @@ export const MINIMAP = {
 // ⇒ el bloque entero queda SIN LLAMAR ⇒ BYTE-IDÉNTICO al build actual (srand ON==OFF, saves byte-idénticos). Flip
 // config-only en 1 línea (Gate CEO tras QA OBSERVABLE), mismo patrón que MINIMAP/DOORS_INTERIORS.
 export const DAYNIGHT = {
-  enabled: false,        // DARK — Gate CEO flips tras QA. false ⇒ byte-idéntico a HEAD (nunca se dibuja tint/glow).
+  enabled: true,         // CAS-2230 LIVE — Gate CTO flip tras QA PASS 15/15 (commit e7b3d7d). Reversible: true→false = DARK byte-idéntico.
   cycleSeconds: 1200,    // duración de un ciclo completo día→noche→día (20 min). Configurable.
   epochMs: 0,            // origen COMPARTIDO del reloj (UTC ms). Fijo ⇒ mismo instante ⇒ misma fase en todo cliente.
   phaseOverride: null,   // null = fase derivada del reloj; 0..1 fuerza una fase fija (screenshots / QA determinista).
