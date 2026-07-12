@@ -473,6 +473,7 @@ export const STR = {
     "Llena sus rangos y te recompensaré por tu diligencia.",
   ],
 
+  doorStub: "La puerta está cerrada. (Interior próximamente)",  // CAS-2191: umbral de la casa habitable reservado como warp (interior stub de Fase 1)
   fountainRest: "Descansaste en la Fuente. Vida y maná restaurados.",
   fountainSaved: "Punto de reaparición fijado en esta Fuente.",
   bonfireRest: "Descansaste en la Hoguera. Vida, maná y Estus restaurados; el mundo se ha repuesto.",  // CAS-1879: descanso de la HOGUERA (rest site) — cura+recarga Estus+ancla+repuebla no-jefes (referenciado sólo bajo BONFIRE.enabled)

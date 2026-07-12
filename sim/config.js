@@ -20,6 +20,12 @@ export const T_SWAMP = 7;
 // Rendered by reusing the FOUNTAINS dark flagstone (like the abyss/ice path) washed with an
 // ember/molten tint in render/render.js — NO new tile art. Walkable like the abyss floor.
 export const T_CALDERA = 8;
+// CAS-2191 — cobblestone CITY STREET (Batch-1 Tibia-ward art, CAS-2186). A distinct paved
+// road id (separate from the T_COBBLE plaza flagstone) painted by the PixelLab Wang autotile
+// tileset (assets/pixellab/city/cobble_street_tileset.png): grass↔cobble corner-blend curbs.
+// Walkable like grass; render/render.js draws grass as the base then overlays the dual-grid
+// Wang street tile so the road reads with proper curved kerbs where it meets the verges.
+export const T_STREET = 9;
 
 // CAS-80: data-driven town tilemap — Puerto Solana reads as a small hub built from the
 // real Ancient Ruins tiles. One glyph per 32px cell, stamped over the 18×18 town rect
@@ -30,26 +36,31 @@ export const T_CALDERA = 8;
 // flagstone plaza (P) ringed by grass verges (g), with dirt roads (.) punching out to
 // the four hunt-zone exits — N caves / S arena / E forest / W ruins — at local cols/rows
 // 8-9 so they line up with the world's approach paths. Width must equal town.w (18).
-export const TOWN_LEGEND = { g:T_GRASS, P:T_COBBLE, ".":T_DIRT, "~":T_WATER };
+// CAS-2191: the four road spurs INSIDE the walls (town-local cols/rows 8-9, aligned to the
+// rampart gates) are now cobblestone STREET (S → T_STREET) instead of plain dirt (.), so the
+// hub reads as a paved city: cobblestone roads funnel through the gates into the flagstone
+// plaza (P). The Wang autotiler blends S↔g (grass verge) curbs; S↔P (plaza) reads as continuous
+// paving. Outside the walls the radiating dirt paths (world.js) still connect grass→gate.
+export const TOWN_LEGEND = { g:T_GRASS, P:T_COBBLE, ".":T_DIRT, "~":T_WATER, S:T_STREET };
 export const TOWN_MAP = [
-  "gggggggg..gggggggg",
-  "gggggggg..gggggggg",
-  "gggggggg..gggggggg",
+  "ggggggggSSgggggggg",
+  "ggggggggSSgggggggg",
+  "ggggggggSSgggggggg",
   "gggggPPPPPPPPggggg",
   "ggggPPPPPPPPPPgggg",
   "gggPPPPPPPPPPPPggg",
   "gggPPPPPPPPPPPPggg",
   "gggPPPPPPPPPPPPggg",
-  "...PPPPPPPPPPPP...",
-  "...PPPPPPPPPPPP...",
+  "SSSPPPPPPPPPPPPSSS",
+  "SSSPPPPPPPPPPPPSSS",
   "gggPPPPPPPPPPPPggg",
   "gggPPPPPPPPPPPPggg",
   "gggPPPPPPPPPPPPggg",
   "ggggPPPPPPPPPPgggg",
   "gggggPPPPPPPPggggg",
-  "gggggggg..gggggggg",
-  "gggggggg..gggggggg",
-  "gggggggg..gggggggg",
+  "ggggggggSSgggggggg",
+  "ggggggggSSgggggggg",
+  "ggggggggSSgggggggg",
 ];
 
 export const CFG = {

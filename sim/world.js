@@ -208,6 +208,28 @@ export function buildWorld(rng){
   // Set 2.5 tiles NORTH of dead-centre so it stands BEHIND the healer NPC (at tcx,tcy) instead
   // of on her; solid base blocks like the market stalls. No rng draw → balance untouched.
   prop("prop_erw_altar", tcx, tcy-2.5*TS, true, 16);
+  // ---- CAS-2191: City Batch-1 art (CAS-2186 Tibia-ward) — SAMPLE placement ("primer vistazo";
+  // the Art Director delivers the full hub layout in Fase 3). The 18×18 walled town is tightly
+  // ringed by adjacent zones, so the big landmark/housing props go in the OPEN grass gaps just
+  // OUTSIDE the north gate + west wall (clear of the gate roads and the caves/ruins rects), while
+  // the cobblestone STREET (TOWN_MAP 'S' → T_STREET) paves the roads INSIDE the walls. Footprint =
+  // solid circles at the building BODY (raised off the feet) so the bottom-center DOOR tile stays
+  // walkable; anchored bottom-center + Y-sorted like every prop. All positions are FIXED (no rng
+  // draw) → the spawn/prop fingerprint and balance are byte-identical (determinism intact).
+  const cityProp=(kind,x,y,halfW,r,rise)=>{ deco.push({x,y,kind});
+    if(halfW>0){ solids.push({x:x-halfW,y:y-rise,r,kind}); solids.push({x:x+halfW,y:y-rise,r,kind}); }
+    else if(r>0){ solids.push({x,y:y-rise,r,kind}); } };
+  // north-gate approach (grass gap between the caves' south edge and the town's north wall)
+  cityProp("prop_city_temple",(town.x+3)*TS,(town.y-1)*TS, 56, 34, 1.6*TS);   // 6-tile temple landmark, W of the N road
+  cityProp("prop_city_depot", (town.x+14)*TS,(town.y-1)*TS, 48, 30, 1.4*TS);  // 5-tile depot landmark, E of the N road
+  cityProp("prop_city_lamp",  (town.x+6.5)*TS,(town.y-2)*TS, 0, 0, 0);        // street lamps flanking the N road (non-solid)
+  cityProp("prop_city_lamp",  (town.x+11)*TS,(town.y-2)*TS, 0, 0, 0);
+  // west-wall row (grass gap between the ruins' east edge and the town's west wall)
+  const hab={x:(town.x-2)*TS, y:(town.y+6)*TS};
+  cityProp("prop_city_house", hab.x, hab.y, 44, 24, 1.4*TS);                  // HABITABLE house (door tile walkable via the gap between its two body circles)
+  portals.push({x:hab.x, y:hab.y, dx:hab.x, dy:hab.y, to:"house_stub", stub:true, kind:"door"}); // CAS-2191: reserve the door as a warp/threshold (interior is a Stage-1 stub — reads "se puede entrar"); dx/dy set so the buildTiledWorld shift stays a valid number (unused — stub never warps)
+  cityProp("prop_city_house", (town.x-2)*TS,(town.y+14)*TS, 44, 24, 1.4*TS); // second house (pure prop)
+  cityProp("prop_city_lamp",  (town.x-2)*TS,(town.y+10)*TS, 0, 0, 0);        // lamp by the west row
   for(let i=0;i<16;i++){ const tx=caves.x+rr(2,caves.w-2), ty=caves.y+rr(3,caves.h-2); if(isWall(tx,ty)) continue; const x=tx*TS, y=ty*TS;
     const k=srand(); if(k<0.30) prop("prop_barrel",x,y,true,9);
     else if(k<0.50) prop("prop_pillar",x,y,true,9);

@@ -629,7 +629,11 @@ export const CLASS_DIRS=["down","up","side"];
 // (CAS-21, board-approved 2026-06-27). Not the class-select card preview, which
 // fits-to-card independently.
 export const HERO_SPRITE_SCALE=1.85;
-export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58, prop_erw_fountain:0.5, prop_erw_altar:0.5 };
+// CAS-2191: city Batch-1 building props (CAS-2186 Tibia-ward art) render at NATIVE resolution —
+// authored to game scale (house 128px≈4 tiles, depot 160px≈5, temple 192px≈6, lamp 48×80≈1.5×2.5),
+// so scale 1.0 (explicit for intent/tuning). Anchored bottom-center + Y-sorted like every prop.
+export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58, prop_erw_fountain:0.5, prop_erw_altar:0.5,
+  prop_city_house:1.0, prop_city_depot:1.0, prop_city_temple:1.0, prop_city_lamp:1.0 };
 // CAS-353: nature pack (board-supplied) for the wilderness forest that fills the empty
 // field (the "tiles negras" — the dark negative space outside every zone). Authored at
 // tile resolution (trees 48×80, pines 32×80, rocks 16–48px, foliage 16–32px), so they
@@ -675,6 +679,16 @@ export function loadAllAssets(){
   loadImg("erw_wall_v","./assets/tiles/erw_wall_v.png");
   loadImg("erw_flag","./assets/tiles/erw_flag.png");
   loadImg("erw_flag2","./assets/tiles/erw_flag2.png");
+  // CAS-2191: City Batch-1 (CAS-2186) — cobblestone STREET Wang autotile tileset (128×128 =
+  // 4×4 of 32px corner tiles; render.js dual-grid samples it over T_STREET cells) + the four
+  // building props. Loaded per-file straight from the delivered source (assets/pixellab/city/,
+  // byte-identical STYLE TOKEN) like every other prop/tile — the modular client loads assets
+  // via loadImg (the assets/atlas/* artifact is legacy, not consumed by this build).
+  loadImg("city_street","./assets/pixellab/city/cobble_street_tileset.png");
+  loadImg("prop_city_house","./assets/pixellab/city/house_red.png");
+  loadImg("prop_city_depot","./assets/pixellab/city/depot.png");
+  loadImg("prop_city_temple","./assets/pixellab/city/temple.png");
+  loadImg("prop_city_lamp","./assets/pixellab/city/street_lamp.png");
   loadImg("prop_erw_fountain","./assets/props/erw_fountain.png");
   // ERW Atlas-Props (real art) → the central shrine plaza monument. The greek-key altar is a
   // y-sorted deco prop (player walks behind it); the radiant sun glyph is blitted flat on the

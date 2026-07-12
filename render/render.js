@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -33,6 +33,12 @@ import {
   dir4FromAngle, drawClassFrame, drawAnim, frameIndex, FX_STRIP,
 } from "./sprites.js";
 import { ensureMasks, bakeHero } from "./customize.js"; // CAS-169 part-recolor bake
+
+// CAS-2191: cobblestone STREET dual-grid Wang lookup (CAS-2186 tileset — 4×4 of 32px corner
+// tiles). Derived from cobble_street_tileset.json: each display tile is chosen by its 4 corner
+// terrains (paved=1 / grass=0), mask = NW|NE<<1|SE<<2|SW<<3. Value = [col,row] into the 128×128
+// sheet. mask 0 (all grass) is never drawn (the grass base shows through); 15 = full cobble.
+const CITY_WANG=[[2,1],[1,1],[2,0],[3,0],[3,1],[2,3],[3,2],[0,0],[2,2],[1,0],[0,1],[1,3],[1,2],[0,2],[3,3],[0,3]];
 
 // CAS-82: the board's main-character art is a single 256×256 hooded pose
 // (assets/erw/hero/hero_hooded.png) — a higher-fidelity match for our existing
@@ -274,9 +280,9 @@ export function createRenderer(ctx){
   // tones are now DARK frozen-stone (not bright pale-blue) so the zone reads cold even
   // before the image loads / in unit tooling.
   // index 7 = T_SWAMP (CAS-441) — teal marsh fallback tones until the CAS-439 tiles load.
-  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#2c3a48","#3a463e","#2a1712"];   // idx 8 = T_CALDERA molten basalt (CAS-1744)
-  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#4a6072","#4e5f52","#c4562a"]; // ember light
-  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#1a2632","#2a342e","#160a07"];  // charred dark
+  const tileBase=[COL.grass,COL.dirt,COL.stone,COL.cobble,COL.sand,COL.water,"#2c3a48","#3a463e","#2a1712",COL.cobble];   // idx 8 = T_CALDERA molten basalt (CAS-1744); idx 9 = T_STREET pre-load base (CAS-2191)
+  const tileLight=[COL.grassL,COL.dirtL,COL.stoneL,COL.cobbleL,COL.sandL,COL.waterL,"#4a6072","#4e5f52","#c4562a",COL.cobbleL]; // ember light; idx9 street
+  const tileDark=[COL.grassD,COL.dirtD,COL.stoneD,COL.cobbleD,COL.sandD,COL.water,"#1a2632","#2a342e","#160a07",COL.cobbleD];  // charred dark; idx9 street
 
   function render(alpha){
     VW=view.VW; VH=view.VH;
@@ -488,7 +494,9 @@ export function createRenderer(ctx){
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
-      if(t===T_GRASS){ const img=(hash2(x,y)<0.5?IMG.ruins_grass:IMG.ruins_grass2);
+      // CAS-2191: T_STREET cells paint GRASS as their base here; the cobblestone Wang road is
+      // laid on top in the dual-grid overlay pass below (so the road's curbs blend into the verge).
+      if(t===T_GRASS || t===T_STREET){ const img=(hash2(x,y)<0.5?IMG.ruins_grass:IMG.ruins_grass2);
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo); continue; } }
       // CAS-441: Ciénaga de Bruma floor (CAS-439 teal marsh tiles). A LOW-frequency hash
       // (x>>1,y>>1) gates the water so pools clump into 2×2-ish ponds instead of lone
@@ -506,6 +514,25 @@ export function createRenderer(ctx){
       if(hash2(x+7,y+3)<0.28){ ctx.fillStyle=tileLight[t]; ctx.fillRect(px+ ((hash2(x,y+1)*22)|0)+5, py+((hash2(x+1,y)*22)|0)+5, 3,3); }
       if(t===T_GRASS && hash2(x*2,y)<0.10){ ctx.fillStyle=COL.twig; ctx.fillRect(px+10,py+14,3,6); }
       if(t===T_SAND && hash2(x,y*2)<0.08){ ctx.fillStyle=COL.bloodSand; ctx.fillRect(px+8,py+10,6,5); }
+    }
+    // CAS-2191: cobblestone STREET overlay (dual-grid Wang autotile). Each display tile sits at a
+    // WORLD-CELL CORNER (offset −½ tile) and is picked by the terrain of the 4 cells around that
+    // corner — a robust 16-tile corner blend, no per-tile heuristics. `paved` = T_STREET OR the
+    // T_COBBLE plaza (so street meets plaza seamlessly, grass curbs only at the verges); we only
+    // draw where at least one corner is actual STREET, so the plaza interior keeps its flagstone.
+    // Ground-level (before entities) so hero/props Y-sort above; view-culled to the visible span.
+    { const cimg=IMG.city_street;
+      if(cimg&&cimg.complete&&cimg.naturalWidth){
+        const paved=(tx,ty)=>{ if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H) return 0; const tt=world.terr[ty*MAP_W+tx]; return (tt===T_STREET||tt===T_COBBLE)?1:0; };
+        const street=(tx,ty)=> (tx>=0&&ty>=0&&tx<MAP_W&&ty<MAP_H) && world.terr[ty*MAP_W+tx]===T_STREET;
+        for(let cy=y0;cy<=y1+1;cy++)for(let cx=x0;cx<=x1+1;cx++){
+          if(!(street(cx-1,cy-1)||street(cx,cy-1)||street(cx-1,cy)||street(cx,cy))) continue; // near a real street only
+          const mask=paved(cx-1,cy-1)|(paved(cx,cy-1)<<1)|(paved(cx,cy)<<2)|(paved(cx-1,cy)<<3);
+          if(mask===0) continue;
+          const w=CITY_WANG[mask];
+          ctx.drawImage(cimg, w[0]*TS, w[1]*TS, TS, TS, Math.round(cx*TS-TS/2), Math.round(cy*TS-TS/2), TSo, TSo);
+        }
+      }
     }
     // CAS: enterable walled-city houses (open-top / cutaway). Pre-rendered per kind+size to a
     // cached canvas, blitted at GROUND level here so entities (player/NPCs) draw ON TOP → you
@@ -567,6 +594,7 @@ export function createRenderer(ctx){
     // a barred glyph) until the hero's power clears the gate, then OPEN (violet swirl);
     // the return gate is always open. Animated from sim time only (no render RNG).
     if(world.portals) for(const p of world.portals){
+      if(p.stub) continue;   // CAS-2191: a house-door threshold is not a magic gate — no swirl (the house sprite's door is the affordance)
       // CAS-121: each deeper gate reads its own power requirement (abyss < cripta).
       const req = p.to==="abyss"?ABYSS_POWER_REQ : p.to==="frost"?FROST_POWER_REQ : p.to==="trial"?TRIAL_POWER_REQ : p.to==="caldera"?CALDERA_POWER_REQ : 0;
       const locked = req>0 && sim.heroPower(G.hero) < req;
@@ -2541,7 +2569,7 @@ export function createRenderer(ctx){
     ctx.strokeStyle="rgba(255,255,255,0.35)"; ctx.lineWidth=1;
     ctx.strokeRect(mmox+G.cam.x*sx, mmoy+G.cam.y*sy, vpW*sx, vpH*sy);
     // CAS-114 — portal blips on the minimap (violet)
-    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(mmox+p.x*sx-1,mmoy+p.y*sy-1,3,3); } }
+    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ if(p.stub) continue; ctx.fillRect(mmox+p.x*sx-1,mmoy+p.y*sy-1,3,3); } }
     ctx.fillStyle="#ff5a4a"; for(const e of G.enemies){ ctx.fillRect(mmox+e.x*sx-1,mmoy+e.y*sy-1,2,2); }
     // CAS-454: directional arrow for player position
     const hx=mmox+G.hero.x*sx, hy=mmoy+G.hero.y*sy, fa=G.hero.facing, ar=5;
@@ -2568,7 +2596,7 @@ export function createRenderer(ctx){
     for(const [r,c,nm] of zr){ if(!r) continue; ctx.fillStyle=c; ctx.fillRect(x+r.x*TS*sx,y+r.y*TS*sy,r.w*TS*sx,r.h*TS*sy);
       ctx.fillStyle=COL.cream; ctx.font="9px "+FF; ctx.fillText(nm,x+(r.x+r.w/2)*TS*sx,y+(r.y+r.h/2)*TS*sy); }
     // CAS-114 — portal markers on the world map (violet diamonds)
-    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ ctx.fillRect(x+p.x*sx-2,y+p.y*sy-2,4,4); } }
+    if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ if(p.stub) continue; ctx.fillRect(x+p.x*sx-2,y+p.y*sy-2,4,4); } }
     ctx.fillStyle=COL.textGold; ctx.fillRect(x+G.hero.x*sx-3,y+G.hero.y*sy-3,6,6);
     ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText("M / tap: cerrar",VW/2,y+mh+18);
   }
