@@ -96,7 +96,7 @@ function onKeyDown(e){
     G.rebind=null; e.preventDefault(); return; }
   if(G.scene==="menu"){ if(document.activeElement===nameInput && e.code!=="Enter") return;
     if(e.code==="Enter"){ G.pendingArena=false; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); }       // CAS-1664: Enter = normal adventure
-    else if(e.code===ARENA.key){ G.pendingArena=true; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); }   // CAS-1664: A = Arena de Oleadas (CAS-1996: lee ARENA.key, antes literal "KeyA" — behavior-identical, data-driven)
+    else if(e.code===ARENA.key && ARENA.menuEnabled){ G.pendingArena=true; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); }   // CAS-1664: A = Arena de Oleadas (CAS-1996: lee ARENA.key). CAS-2190: gated en ARENA.menuEnabled ⇒ menuEnabled:false ⇒ tecla inerte, entrada oculta del menú.
     else if(e.code===BOSS_RUSH.key && BOSS_RUSH.enabled){ G.pendingBossRush=true; G.pendingArena=false; G.pendingSeededChallenge=false; startGame(); } // CAS-1988: B = Modo Boss Rush (gated ⇒ enabled:false ⇒ tecla inerte, menú no muestra la entrada)
     else if(e.code===SEEDED_CHALLENGE.key && SEEDED_CHALLENGE.enabled){ G.pendingSeededChallenge=true; G.pendingArena=false; G.pendingBossRush=false; G.seededCode=G.seededDailyCode||null; startGame(); } // CAS-2090: C = Desafío con Semilla (entrada de menú; usa la semilla del día; gated ⇒ enabled:false ⇒ tecla inerte, menú no muestra la entrada)
     return; }
@@ -360,7 +360,7 @@ function onPointerDown(e){ const r=canvas.getBoundingClientRect(); const x=e.cli
   audio.resume();
   if(G.scene==="menu"){ if(SEEDED_CHALLENGE.enabled && menuSeededHit(x,y)){ G.pendingSeededChallenge=true; G.pendingArena=false; G.pendingBossRush=false; G.seededCode=G.seededDailyCode||null; startGame(); } // CAS-2090: Desafío con Semilla entry (gated; semilla del día)
     else if(BOSS_RUSH.enabled && menuBossRushHit(x,y)){ G.pendingBossRush=true; G.pendingArena=false; G.pendingSeededChallenge=false; startGame(); } // CAS-1988: Modo Boss Rush entry (gated)
-    else if(menuArenaHit(x,y)){ G.pendingArena=true; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); } // CAS-1664: Arena de Oleadas entry
+    else if(ARENA.menuEnabled && menuArenaHit(x,y)){ G.pendingArena=true; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); } // CAS-1664: Arena de Oleadas entry. CAS-2190: gated en ARENA.menuEnabled (rect ya en cero cuando oculto).
     else if(menuPlayHit(x,y)){ G.pendingArena=false; G.pendingBossRush=false; G.pendingSeededChallenge=false; startGame(); } return; }
   if(G.scene==="classsel"){ const pc=ui.classCustomRect; if(pc&&pc.w&&x>=pc.x&&x<=pc.x+pc.w&&y>=pc.y&&y<=pc.y+pc.h){ customizeNewHero(CLASS_LIST[G.classSel]); return; }
     for(const c of ui.classRects){ if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h){ chooseClass(c.cls); return; } } return; }
