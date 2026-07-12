@@ -395,9 +395,16 @@ export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"e
 const _s=(fc,key)=>({key,fc,fw:64,fh:64});
 export const ENEMY_STRIPS={
   skel:{
-    walk: _s(6,"skel_walk_strip"),
-    idle: _s(8,"skel_idle_strip"),
-    attack: _s(7,"skel_attack_strip"),
+    // CAS-2194: PixelLab pilot (CAS-2183) side-view Skeleton Wight strips — LIVE for
+    // skeleton/spearman/mage/summoner (all sprite:"skel"). Native 124² v3 canvas (feet baseline
+    // y~92 → footPad 0.25 plants feet on the ground, same mechanism as dragon/golem). `src` loads
+    // straight from the committed pilot dir (not the shared fountains/anim/ dir). `bodyScale` 2.03
+    // (=124/61, frame/body) rescales so the ~61px body renders at the standard mob height
+    // (size*2.4) instead of ~half-size — the padded 124px frame would otherwise draw the body at
+    // ~24px. idle 1f / walk 6f / attack 7f. Falls back to ENEMY_IMG.skel if a strip 404s.
+    idle:   {key:"skel_pilot_idle",   src:"./assets/pixellab/pilot/mobs/skel_idle_side.png",   fc:1, fw:124, fh:124, footPad:0.25, bodyScale:2.03},
+    walk:   {key:"skel_pilot_walk",   src:"./assets/pixellab/pilot/mobs/skel_walk_side.png",   fc:6, fw:124, fh:124, footPad:0.25, bodyScale:2.03},
+    attack: {key:"skel_pilot_attack", src:"./assets/pixellab/pilot/mobs/skel_attack_side.png", fc:7, fw:124, fh:124, footPad:0.25, bodyScale:2.03},
   },
   bandit:{
     walk: _s(6,"bandit_walk_strip"),
@@ -617,7 +624,14 @@ export const ENEMY_STRIP={
 export const NPC_ANIM={ merchant:"merchant", healernpc:"healernpc", blacksmithnpc:"blacksmithnpc" };
 // player class sprites: directional (down/up/side, left=side mirrored), states idle/walk/attack
 export const CLS={
-  warrior: {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
+  // CAS-2194/CAS-2193: game-ready PixelLab warrior strips committed to assets/class/warrior_*
+  // (88×64, feet baseline y~58, body ~53px). `scale` 0.64 normalises the 64px frame back to the
+  // ~63px standard hero body (HERO_SPRITE_SCALE 1.85 was tuned for the legacy 34px frame);
+  // `footPad` 0.08 plants the feet. This supersedes the raw CAS-2183 pilot (124px padded) in this
+  // slot. NOTE: the CLS/drawClassFrame path is SHADOWED live by the ERW clshero_ hero
+  // (CLARICE_CLASSES → drawHeroClass wins) — this drives the class-select card fallback + the
+  // last-resort strip fallback, not the playable hero. Live-hero swap = AD/CEO call (CAS-2179).
+  warrior: {fw:88, fh:64, footPad:0.08, scale:0.64, fc:{idle:2,walk:6,attack:9}},
   paladin: {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
   mage:    {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
   druid:   {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
@@ -713,8 +727,8 @@ export function loadAllAssets(){
   // Missing state strips (file 404s) silently fall through to ENEMY_IMG procedural fallback.
   const _loaded=new Set();
   for(const mob in ENEMY_STRIPS) for(const st in ENEMY_STRIPS[mob]){
-    const {key}=ENEMY_STRIPS[mob][st]; if(_loaded.has(key)) continue; _loaded.add(key);
-    loadImg(key,"./assets/pixellab/fountains/anim/"+key+".png");
+    const {key,src}=ENEMY_STRIPS[mob][st]; if(_loaded.has(key)) continue; _loaded.add(key);
+    loadImg(key, src||("./assets/pixellab/fountains/anim/"+key+".png")); // CAS-2194: optional per-strip `src` override (pilot skel loads from assets/pixellab/pilot/mobs/)
   }
   // CAS-417: UI icon set (art CAS-415, 32x32) — spell bar, equip slots, HUD consumables.
   for(const cl of ["warrior","paladin","mage","druid","priest"]) for(let i=0;i<4;i++)
@@ -732,6 +746,12 @@ export function loadAllAssets(){
   // effect progress. FX_STRIP holds per-effect frame count + frame size (see assets/fx/_meta.json).
   for(const fx of ["slash","fire","nova","holy","impact","crit","heal","thorn","arcane","spark"])
     loadImg("fx_"+fx, "./assets/fx/"+fx+"_strip.png");
+  // CAS-2194: PixelLab pilot (CAS-2183) Fire Nova strip (9f × 128px — byte-matches FX_STRIP.nova
+  // geometry). Overrides the purchased nova strip in the fx_nova slot (used by spellburst +
+  // novacast). Loaded LAST so it wins. Reversible: delete this line to restore the purchased VFX.
+  // NOTE (AD review): fx_nova is shared by all class spell-cast bursts — confirm the fire-nova reads
+  // OK for non-fire casts (mage arcane / priest holy) or split into a dedicated slot.
+  loadImg("fx_nova", "./assets/pixellab/pilot/fx/nova_strip.png");
 }
 // CAS-1545: frame geometry for the purchased VFX strips (frames, frame width = frame height).
 export const FX_STRIP = { slash:{n:5,fw:96}, fire:{n:8,fw:64}, nova:{n:9,fw:128}, holy:{n:8,fw:96}, impact:{n:6,fw:96}, crit:{n:8,fw:96}, heal:{n:5,fw:64}, thorn:{n:8,fw:128}, arcane:{n:16,fw:64}, spark:{n:9,fw:96} };
@@ -744,7 +764,11 @@ const _tc=(typeof document!=="undefined")?document.createElement("canvas"):null,
 export function drawClassFrame(ctx,cls,state,dir,fidx,cx,cy,scale,tint){
   const stripDir=(dir==="left"||dir==="right")?"side":dir, flip=(dir==="left"), meta=CLS[cls];
   const img=IMG["cls_"+cls+"_"+state+"_"+stripDir]; if(!img||!img.complete||!img.naturalWidth) return false;
-  const fw=meta.fw, fh=meta.fh, dw=fw*scale, dh=fh*scale, dx=cx-dw/2, dy=cy-dh;
+  // CAS-2194: `meta.scale` normalises art authored at a larger native canvas (PixelLab 64px) back
+  // to the legacy hero on-screen size; `meta.footPad` shifts the draw DOWN by footPad·dh so feet
+  // land on (cx,cy). Both default (scale 1 / footPad 0) → legacy 22×34 classes are byte-identical.
+  const S=scale*(meta.scale||1);
+  const fw=meta.fw, fh=meta.fh, dw=fw*S, dh=fh*S, dx=cx-dw/2, dy=cy-dh+(meta.footPad||0)*dh;
   if(tint && _tx){ _tc.width=fw; _tc.height=fh; _tx.clearRect(0,0,fw,fh); _tx.imageSmoothingEnabled=false;
     _tx.globalCompositeOperation="source-over"; _tx.drawImage(img,fidx*fw,0,fw,fh,0,0,fw,fh);
     _tx.globalCompositeOperation="source-atop"; _tx.globalAlpha=0.8; _tx.fillStyle=tint; _tx.fillRect(0,0,fw,fh);

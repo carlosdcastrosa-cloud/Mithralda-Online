@@ -1434,7 +1434,10 @@ export function createRenderer(ctx){
         // golem BOSS renders one consistent imposing size across all 4 zones (zone bosses
         // differ in tpl.size 36–50 — the generic size×3.4 mult would balloon the Coliseo
         // boss to ~5 tiles). Preserves the legacy ~3.6-tile "stone capstone" scale.
-        const dh=(strip.tiles? strip.tiles*32 : e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4)), dw=dh*(fw/fh);
+        // CAS-2194: strip.bodyScale (default 1) rescales the whole frame so a PixelLab strip with a
+        // padded canvas (body << frame, e.g. pilot skel 61px body in a 124px frame) still renders at
+        // the standard mob height instead of half-size. Existing strips omit it → byte-identical.
+        const dh=(strip.tiles? strip.tiles*32 : e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4))*(strip.bodyScale||1), dw=dh*(fw/fh);
         const feetY=e.y+e.tpl.size*0.5, ph=(e.gaitPhase!==undefined?e.gaitPhase:(e.x*0.7+e.y*0.9)); // CAS-240: STATIC spawn-phase, not live pos
         // CAS-317: attack1/attack2/hurt are ONE-SHOT (synced to the sim's e.animT clock, hold
         // the final frame); idle/walk loop on render time as before. Legacy "attack" (golem)
