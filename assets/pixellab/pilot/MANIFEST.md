@@ -72,7 +72,7 @@ PixelLab source: object `f916e936-672a-4b26-9071-1253e5c1afda` (selected from no
 
 | PNG (`assets/pixellab/pilot/fx/`) | In-game slot | frames | fw×fh | anchor |
 |---|---|---|---|---|
-| `nova_strip.png` | `FX_STRIP.nova` (`fx_nova`) | _(see file; appended below)_ | 128×128 | center |
+| `nova_strip.png` | `FX_STRIP.nova` (`fx_nova`) | **9** | 128×128 | center |
 
 - FX are center-anchored (not feet) — `drawFx` centers on the effect origin. No footPad.
 - Matches existing `FX_STRIP.nova = {n:9,fw:128}` geometry; load as `fx_nova` from `assets/fx/nova_strip.png`.
