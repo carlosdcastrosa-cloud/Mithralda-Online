@@ -1,0 +1,136 @@
+{
+  "live": "https://carlosdcastrosa-cloud.github.io/Mithralda-Online",
+  "expectBuild": "1aa455ccb76b",
+  "served": {
+    "config": {
+      "status": 200,
+      "md5": "dc890bd979f622f04855b00e62c0ee12",
+      "matchesHEAD": true,
+      "headMd5": "dc890bd979f622f04855b00e62c0ee12",
+      "daynightEnabledTrue": true,
+      "doorsDark": true
+    },
+    "render": {
+      "status": 200,
+      "md5": "3ed238b62219909171675f711df8684a",
+      "matchesHEAD": true,
+      "headMd5": "3ed238b62219909171675f711df8684a"
+    }
+  },
+  "observable": {
+    "build": "1aa455ccb76b",
+    "def": {
+      "enabled": true,
+      "phase": 0.9687,
+      "override": null,
+      "tint": {
+        "r": 13,
+        "g": 16,
+        "b": 46,
+        "a": 0.528
+      },
+      "glow": 0.976,
+      "lamps": 11,
+      "lamp0": {
+        "x": 5056,
+        "y": 23564,
+        "tx": 158,
+        "ty": 737
+      }
+    },
+    "noonProbe": {
+      "lum": 57.67,
+      "centreLum": 70.97
+    },
+    "nightNoGlowProbe": {
+      "lum": 33.39,
+      "centreLum": 39.79
+    },
+    "nightProbe": {
+      "lum": 47.36,
+      "centreLum": 95.8
+    },
+    "nightTint": {
+      "r": 8,
+      "g": 14,
+      "b": 42,
+      "a": 0.55
+    },
+    "nightGlow": 1,
+    "noonTint": {
+      "r": 0,
+      "g": 0,
+      "b": 0,
+      "a": 0
+    },
+    "noonGlow": 0,
+    "duskTint": {
+      "r": 255,
+      "g": 126,
+      "b": 52,
+      "a": 0.26
+    },
+    "duskGlow": 0.46,
+    "fpStable": true,
+    "fps": 60.2,
+    "errors": []
+  },
+  "assertions": [
+    [
+      "served config.js 200 + byte-identical to HEAD blob",
+      true
+    ],
+    [
+      "served config DAYNIGHT.enabled:true",
+      true
+    ],
+    [
+      "served config DOORS_INTERIORS.enabled:false (doors stay DARK live)",
+      true
+    ],
+    [
+      "served render.js byte-identical to HEAD blob",
+      true
+    ],
+    [
+      "LIVE build == 1aa455ccb76b",
+      true
+    ],
+    [
+      "LIVE boots to play, 0 JS errors",
+      true
+    ],
+    [
+      "11 farolas derived from world.deco (>0)",
+      true
+    ],
+    [
+      "worldFingerprint byte-stable across phase toggles (0 sim drift)",
+      true
+    ],
+    [
+      "night tint alpha strong (>0.2)",
+      true
+    ],
+    [
+      "night scene DARKER than noon baseline",
+      true
+    ],
+    [
+      "lamp halo brightens lamp area (glow ON > glow OFF)",
+      true
+    ],
+    [
+      "noon neutral (tint alpha ≈ 0)",
+      true
+    ],
+    [
+      "dusk tint WARM (r>b) + glow active",
+      true
+    ],
+    [
+      "LIVE fps >= 55 with night+glow",
+      true
+    ]
+  ]
+}
