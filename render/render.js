@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, MINIMAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -2577,6 +2577,26 @@ export function createRenderer(ctx){
     for(let y=0;y<ch;y++)for(let x=0;x<cw;x++){ const c=C[world.terr[(y*sc)*MAP_W+(x*sc)]]||[50,50,50];
       const i=(y*cw+x)*4; px[i]=c[0];px[i+1]=c[1];px[i+2]=c[2];px[i+3]=255; }
     c2.putImageData(img,0,0); mmTerra=cv; mmTerraW=cw; }
+  // CAS-2226: extensible BLIP LAYER for the minimap + world map (M). Every blip is DERIVED PURELY
+  // from world state — never hardcoded, never RNG — so it is deterministic and trivially made
+  // server-authoritative when netcode lands. City landmark POIs come from the deco props placed by
+  // CAS-2191 (temple/depot) + CAS-2224 (tavern) + the park well; a FUTURE source (NPCs today, remote
+  // players later) is one push away — the draw loops below are source-agnostic ({x,y,col,label}).
+  // Gated by MINIMAP.enabled (DARK): OFF ⇒ mapBlips() never called ⇒ maps render byte-identically.
+  const CITY_POI = {
+    prop_city_temple: { label:"Templo",   col:"#f0d878" }, // gold — respawn temple landmark
+    prop_city_depot:  { label:"Depósito", col:"#7cb8f0" }, // blue — storage depot
+    prop_city_tavern: { label:"Taberna",  col:"#f0a850" }, // amber — habitable tavern
+    prop_city_well:   { label:"Parque",   col:"#74d68e" }, // green — park centrepiece (well+tree+bench)
+  };
+  let _blipCache=null, _blipWorld=null;
+  function mapBlips(){
+    if(_blipWorld===world && _blipCache) return _blipCache;   // deco is static per world build → memoize
+    const out=[];
+    for(const d of (world.deco||[])){ const p=CITY_POI[d.kind]; if(p) out.push({x:d.x, y:d.y, col:p.col, label:p.label}); }
+    // Future sources plug in here (one push each): NPCs → world.npcs; remote players → net snapshot.
+    _blipWorld=world; _blipCache=out; return out;
+  }
   function renderMiniMap(){ if(isTouch) return;
     const sidebar=view.sbw>0;
     let mw=120, mh=120, x, y;
@@ -2616,6 +2636,11 @@ export function createRenderer(ctx){
     // CAS-114 — portal blips on the minimap (violet)
     if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ if(p.stub) continue; ctx.fillRect(mmox+p.x*sx-1,mmoy+p.y*sy-1,3,3); } }
     ctx.fillStyle="#ff5a4a"; for(const e of G.enemies){ ctx.fillRect(mmox+e.x*sx-1,mmoy+e.y*sy-1,2,2); }
+    // CAS-2226: city POI blips (DARK — only when MINIMAP.enabled). Small square + dark outline so
+    // the landmark reads over the terrain silhouette. Text labels are reserved for the big map.
+    if(MINIMAP.enabled){ for(const b of mapBlips()){ const bx=mmox+b.x*sx, by=mmoy+b.y*sy;
+      ctx.fillStyle=b.col; ctx.fillRect(bx-2,by-2,4,4);
+      ctx.strokeStyle="rgba(10,12,16,0.85)"; ctx.lineWidth=1; ctx.strokeRect(bx-2.5,by-2.5,5,5); } }
     // CAS-454: directional arrow for player position
     const hx=mmox+G.hero.x*sx, hy=mmoy+G.hero.y*sy, fa=G.hero.facing, ar=5;
     ctx.save(); ctx.translate(hx,hy); ctx.rotate(fa);
@@ -2642,6 +2667,12 @@ export function createRenderer(ctx){
       ctx.fillStyle=COL.cream; ctx.font="9px "+FF; ctx.fillText(nm,x+(r.x+r.w/2)*TS*sx,y+(r.y+r.h/2)*TS*sy); }
     // CAS-114 — portal markers on the world map (violet diamonds)
     if(world.portals){ ctx.fillStyle="#b07cff"; for(const p of world.portals){ if(p.stub) continue; ctx.fillRect(x+p.x*sx-2,y+p.y*sy-2,4,4); } }
+    // CAS-2226: city POI markers (DARK — only when MINIMAP.enabled). Diamond + dark outline, with a
+    // text label above when MINIMAP.labels. Same extensible blip source as the minimap (mapBlips()).
+    if(MINIMAP.enabled){ ctx.lineWidth=1; for(const b of mapBlips()){ const bx=x+b.x*sx, by=y+b.y*sy;
+      ctx.fillStyle=b.col; ctx.beginPath(); ctx.moveTo(bx,by-4); ctx.lineTo(bx+4,by); ctx.lineTo(bx,by+4); ctx.lineTo(bx-4,by); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle="rgba(10,12,16,0.85)"; ctx.stroke();
+      if(MINIMAP.labels){ ctx.fillStyle=COL.cream; ctx.font="9px "+FF; ctx.textAlign="center"; ctx.fillText(b.label, bx, by-6); } } }
     ctx.fillStyle=COL.textGold; ctx.fillRect(x+G.hero.x*sx-3,y+G.hero.y*sy-3,6,6);
     ctx.fillStyle=COL.textDim; ctx.font="11px "+FF; ctx.fillText("M / tap: cerrar",VW/2,y+mh+18);
   }
