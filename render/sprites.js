@@ -657,7 +657,10 @@ export const HERO_SPRITE_SCALE=1.85;
 // authored to game scale (house 128px≈4 tiles, depot 160px≈5, temple 192px≈6, lamp 48×80≈1.5×2.5),
 // so scale 1.0 (explicit for intent/tuning). Anchored bottom-center + Y-sorted like every prop.
 export const PROP_SCALE={ prop_tree_a:0.5, prop_tree_b:0.5, prop_shrub:0.62, prop_bush:0.72, prop_ruin_statue:0.55, prop_ruin_obelisk:0.6, prop_ruin_arch:0.58, prop_erw_fountain:0.5, prop_erw_altar:0.5,
-  prop_city_house:1.0, prop_city_depot:1.0, prop_city_temple:1.0, prop_city_lamp:1.0 };
+  prop_city_house:1.0, prop_city_depot:1.0, prop_city_temple:1.0, prop_city_lamp:1.0,
+  // CAS-2224: city Batch-2 building/park props — authored to game scale (house_blue 128px≈4t,
+  // tavern 160px≈5t, park_tree 96px≈3t, stone_well 64px≈2t, park_bench 64×48≈2t) → native 1.0.
+  prop_city_house_blue:1.0, prop_city_tavern:1.0, prop_city_park_tree:1.0, prop_city_well:1.0, prop_city_bench:1.0 };
 // CAS-353: nature pack (board-supplied) for the wilderness forest that fills the empty
 // field (the "tiles negras" — the dark negative space outside every zone). Authored at
 // tile resolution (trees 48×80, pines 32×80, rocks 16–48px, foliage 16–32px), so they
@@ -713,6 +716,14 @@ export function loadAllAssets(){
   loadImg("prop_city_depot","./assets/pixellab/city/depot.png");
   loadImg("prop_city_temple","./assets/pixellab/city/temple.png");
   loadImg("prop_city_lamp","./assets/pixellab/city/street_lamp.png");
+  // CAS-2224: City Batch-2 — east outskirts district (habitable tavern + blue house) + a small
+  // green (park tree/bench around a stone well). Loaded per-file from the delivered source like
+  // every Batch-1 prop; render.js draws them via the "prop_" image deco path at native scale.
+  loadImg("prop_city_house_blue","./assets/pixellab/city/house_blue.png");
+  loadImg("prop_city_tavern","./assets/pixellab/city/tavern.png");
+  loadImg("prop_city_park_tree","./assets/pixellab/city/park_tree.png");
+  loadImg("prop_city_well","./assets/pixellab/city/stone_well.png");
+  loadImg("prop_city_bench","./assets/pixellab/city/park_bench.png");
   loadImg("prop_erw_fountain","./assets/props/erw_fountain.png");
   // ERW Atlas-Props (real art) → the central shrine plaza monument. The greek-key altar is a
   // y-sorted deco prop (player walks behind it); the radiant sun glyph is blitted flat on the

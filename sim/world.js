@@ -230,6 +230,25 @@ export function buildWorld(rng){
   portals.push({x:hab.x, y:hab.y, dx:hab.x, dy:hab.y, to:"house_stub", stub:true, kind:"door"}); // CAS-2191: reserve the door as a warp/threshold (interior is a Stage-1 stub — reads "se puede entrar"); dx/dy set so the buildTiledWorld shift stays a valid number (unused — stub never warps)
   cityProp("prop_city_house", (town.x-2)*TS,(town.y+14)*TS, 44, 24, 1.4*TS); // second house (pure prop)
   cityProp("prop_city_lamp",  (town.x-2)*TS,(town.y+10)*TS, 0, 0, 0);        // lamp by the west row
+  // ---- CAS-2224: City Batch-2 art (CAS-2186) — the EAST outskirts district, along the road
+  // OUT of the town's east gate (east dirt path at y≈cyp). Same pattern as Batch-1: NATIVE
+  // scale, footprint solids at the BUILDING BODY raised off the feet so the bottom-center DOOR
+  // tile stays walkable, anchored bottom-center + Y-sorted, all positions FIXED (no rng draw →
+  // determinism byte-identical). Placement collision-verified clear of every existing solid /
+  // fountain / npc and off the dirt roads (see tools/cas2224-place-verify.mjs). The tavern and
+  // house are HABITABLE (door reserved as a warp/threshold stub like the Batch-1 house — reads
+  // "se puede entrar"; interior is a Stage-1 stub). The park groups a tree + bench around the
+  // stone well as a small green just east of the gate.
+  const tavern={x:(town.x+21)*TS, y:(town.y+4)*TS};
+  cityProp("prop_city_tavern", tavern.x, tavern.y, 48, 30, 1.4*TS);          // HABITABLE tavern landmark (5-tile), N of the east road
+  portals.push({x:tavern.x, y:tavern.y, dx:tavern.x, dy:tavern.y, to:"tavern_stub", stub:true, kind:"door"}); // door threshold (interior stub — never warps; dx/dy keep the buildTiledWorld shift a valid number)
+  const habB={x:(town.x+21)*TS, y:(town.y+15)*TS};
+  cityProp("prop_city_house_blue", habB.x, habB.y, 44, 24, 1.4*TS);          // HABITABLE second-colour house, S of the east road
+  portals.push({x:habB.x, y:habB.y, dx:habB.x, dy:habB.y, to:"house_stub", stub:true, kind:"door"});
+  // little green: a stone well ringed by a tree + bench (bench is non-solid dressing)
+  cityProp("prop_city_well", (town.x+26)*TS,(town.y+6)*TS, 0, 14, 0);        // stone well centrepiece (solid)
+  cityProp("prop_city_park_tree",(town.x+28)*TS,(town.y+5)*TS, 0, 12, 0.4*TS); // park tree (thin solid trunk)
+  cityProp("prop_city_bench", (town.x+24)*TS,(town.y+5)*TS, 0, 0, 0);        // park bench (non-solid)
   for(let i=0;i<16;i++){ const tx=caves.x+rr(2,caves.w-2), ty=caves.y+rr(3,caves.h-2); if(isWall(tx,ty)) continue; const x=tx*TS, y=ty*TS;
     const k=srand(); if(k<0.30) prop("prop_barrel",x,y,true,9);
     else if(k<0.50) prop("prop_pillar",x,y,true,9);
