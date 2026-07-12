@@ -2113,6 +2113,34 @@ export const JUICE = {
   hitStopCapFrames: 9, // hard cap (frames @60fps ≈ 150ms) — matches current longest freeze; 60fps guard so no single event stalls perceptibly
 };
 
+// CAS-2225 — Door open/close + interior-warp MECHANIC (open-world Thais rebuild, parent CAS-2186).
+// Code-only, DARK. Turns the city door-STUBS already placed in Batch-1/Batch-2 (tavern + house
+// threshold portals, kind:"door") into interactive AUTHORITATIVE doors and adds a walk-through warp
+// into a small habitable interior. Server-authority-READY by design (see design/cas2225-doors-interiors.md):
+//   • Door open/closed is SHARED WORLD STATE keyed by a stable, position-derived id (door:tx,ty) in
+//     G.doors — a server would own this map; nearby clients read it. No client-only truth. Toggled ONLY
+//     by the interact intent (deterministic, 0 RNG draws).
+//   • Interior is an INSTANCE: a small walled room carved into the unused ocean margin of the tiled
+//     world (the caldera "self-contained region reached only by warp" precedent), reached by crossing an
+//     OPEN threshold; the exit tile warps back to the exact origin threshold. The room is a per-house
+//     instance TEMPLATE — under Stage-2 concurrency the server keys instances by (houseId, partyId) so N
+//     players/parties resolve to distinct rooms; Stage-1 single-player resolves to the one carved room.
+// HARD-GATED behind DOORS_INTERIORS.enabled. enabled:false ⇒ world.js carves NO rooms + creates NO door
+// records (terr/wallSet/prop fingerprint byte-identical, the stubs keep their "coming soon" toast) and
+// sim.js runs ZERO door/warp/collision code (0 RNG draws, save-neutral — G.doors is transient run-state,
+// never serialized) ⇒ a run is byte-identical to a build without the feature. srand ON==OFF (the build
+// mutates terrain, never the seeded RNG stream). Ships DARK; CEO Gate byte-verifies + flips config-only.
+export const DOORS_INTERIORS = {
+  enabled:false,           // DARK — Gate CEO flips after QA OBSERVABLE. false ⇒ byte-identical to HEAD.
+  startOpen:false,         // doors begin CLOSED (solid collision); interact toggles open (walkable).
+  warpCooldown:0.5,        // s — debounce after any threshold warp so you don't instantly re-trigger.
+  // interior instance geometry — a row of small walled rooms carved into the ocean margin of the tiled
+  // world (cols>procW, rows in the oldlands band: unreachable on foot, reached ONLY by warp). All fixed
+  // (no RNG). roomW×roomH = walkable stone floor; `apron` extra solid-wall tiles wrap the 1-tile wall ring
+  // so the viewport fills with wall/floor (reads as an interior, not an island). pitch = cols between rooms.
+  interior:{ baseTx:380, baseTy:630, roomW:13, roomH:9, apron:6, pitch:30 },
+};
+
 // CAS-2016/2017 — Onboarding: Primer de Combate (first-run). Presentation/data-only, RNG-neutral, $0 art.
 // EXTIENDE la maquinaria de tutorial YA VIVA (CAS-128: TUT_STEPS + coachmarks + skip + marker aislado
 // mithralda.tut.v1 + seams teach-by-doing) con los 6 verbos Souls que el flujo genérico nunca enseña:

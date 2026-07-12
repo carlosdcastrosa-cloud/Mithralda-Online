@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, MINIMAP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -538,6 +538,23 @@ export function createRenderer(ctx){
         }
       }
     }
+    // CAS-2225: door open/close slab (DARK mechanic — procedural, no art dep; the Thais art dresses it
+    // later under the PixelLab lane). Drawn at GROUND level (entities Y-sort above) on each door threshold:
+    // CLOSED = a solid wooden panel across the gap; OPEN = a dark doorway you can read as passable. Gated ⇒
+    // with the feature OFF world.doors is null ⇒ this loop is skipped entirely (byte-identical to HEAD).
+    if(DOORS_INTERIORS.enabled && world.doors){ for(const d of world.doors){
+      const dxp=d.tx*TS, dyp=d.ty*TS;
+      if(dxp>camX+VW/Z+48 || dxp+TS<camX-48 || dyp>camY+VH/Z+48 || dyp+TS<camY-48) continue; // view-cull
+      const open=!!(G.doors&&G.doors[d.id]);
+      if(open){
+        ctx.fillStyle="#141014"; ctx.fillRect(dxp+5,dyp+3,TS-10,TS-4);        // dark interior threshold (passable)
+        ctx.fillStyle="#4a372352"; ctx.fillRect(dxp+2,dyp+2,3,TS-3); ctx.fillRect(dxp+TS-5,dyp+2,3,TS-3); // side jambs, door swung in
+      } else {
+        ctx.fillStyle="#5a3f27"; ctx.fillRect(dxp+4,dyp+2,TS-8,TS-3);         // wooden panel (solid)
+        ctx.fillStyle="#432e1c"; ctx.fillRect(dxp+TS/2-1,dyp+2,2,TS-3);        // plank seam
+        ctx.fillStyle="#c8a24a"; ctx.fillRect(dxp+TS-9,dyp+TS/2-1,3,3);        // brass handle
+      }
+    } }
     // CAS: enterable walled-city houses (open-top / cutaway). Pre-rendered per kind+size to a
     // cached canvas, blitted at GROUND level here so entities (player/NPCs) draw ON TOP → you
     // walk inside on the same screen. Walls block via world.blockSet (sim); door gap is open.

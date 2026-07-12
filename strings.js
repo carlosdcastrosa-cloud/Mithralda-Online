@@ -474,6 +474,10 @@ export const STR = {
   ],
 
   doorStub: "La puerta está cerrada. (Interior próximamente)",  // CAS-2191: umbral de la casa habitable reservado como warp (interior stub de Fase 1)
+  doorOpen:  "Abres la puerta.",       // CAS-2225: door open/close + interior-warp mechanic (DARK)
+  doorClose: "Cierras la puerta.",     // CAS-2225
+  enteredInterior: "Entras en la casa.",   // CAS-2225: crossed an open threshold into the interior instance
+  leftInterior:    "Sales a la calle.",    // CAS-2225: interior exit → back to the origin threshold
   fountainRest: "Descansaste en la Fuente. Vida y maná restaurados.",
   fountainSaved: "Punto de reaparición fijado en esta Fuente.",
   bonfireRest: "Descansaste en la Hoguera. Vida, maná y Estus restaurados; el mundo se ha repuesto.",  // CAS-1879: descanso de la HOGUERA (rest site) — cura+recarga Estus+ancla+repuebla no-jefes (referenciado sólo bajo BONFIRE.enabled)
