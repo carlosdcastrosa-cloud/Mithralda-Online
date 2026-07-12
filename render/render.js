@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -4200,14 +4200,18 @@ export function createRenderer(ctx){
     ctx.fillStyle=COL.textGold; ctx.font="bold 24px "+FF; ctx.fillText(STR.play,VW/2,by+34);
     // CAS-1664: a SECOND entry — Arena de Oleadas (Wave Survival). Same class→ability→play flow
     // (sets G.pendingArena); shows the durable best wave. $0 art (reuses the button chrome).
-    const aw=200,ah=42,ax=VW/2-aw/2,ay=by+bh+16; ui.menuArenaRect={x:ax,y:ay,w:aw,h:ah};
-    ctx.fillStyle="#241d2e"; ctx.fillRect(ax,ay,aw,ah); ctx.fillStyle=COL.panelB; ctx.fillRect(ax,ay,aw,4); ctx.fillRect(ax,ay+ah-4,aw,4);
-    ctx.fillStyle=COL.cream; ctx.font="bold 18px "+FF; ctx.fillText("Arena de Oleadas",VW/2,ay+27);
-    { const best=(G.arena&&G.arena.best|0)||0, bestBoss=(G.arena&&G.arena.bestBossWave|0)||0; // loaded at boot by persist.bootArena
-      if(best>0){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
-        // CAS-1675 — show both persistent records under the Arena entry ($0 art, existing font).
-        const rec=bestBoss>0 ? ("Mejor oleada: "+best+"  ·  Mejor Jefe: Oleada "+bestBoss) : ("Mejor oleada: "+best);
-        ctx.fillText(rec,VW/2,ay+ah+14); } }
+    // CAS-2190: Arena de Oleadas OCULTA del menú (mundo-abierto directo). menuEnabled:false ⇒ NO se dibuja y su hit-rect
+    // queda en cero (menú inalcanzable). ay/ah se declaran incondicionalmente (el bloque Boss Rush aún los referencia).
+    const aw=200,ah=42,ax=VW/2-aw/2,ay=by+bh+16;
+    if(ARENA.menuEnabled){ ui.menuArenaRect={x:ax,y:ay,w:aw,h:ah};
+      ctx.fillStyle="#241d2e"; ctx.fillRect(ax,ay,aw,ah); ctx.fillStyle=COL.panelB; ctx.fillRect(ax,ay,aw,4); ctx.fillRect(ax,ay+ah-4,aw,4);
+      ctx.fillStyle=COL.cream; ctx.font="bold 18px "+FF; ctx.fillText("Arena de Oleadas",VW/2,ay+27);
+      { const best=(G.arena&&G.arena.best|0)||0, bestBoss=(G.arena&&G.arena.bestBossWave|0)||0; // loaded at boot by persist.bootArena
+        if(best>0){ ctx.fillStyle=COL.textDim; ctx.font="10px "+FF;
+          // CAS-1675 — show both persistent records under the Arena entry ($0 art, existing font).
+          const rec=bestBoss>0 ? ("Mejor oleada: "+best+"  ·  Mejor Jefe: Oleada "+bestBoss) : ("Mejor oleada: "+best);
+          ctx.fillText(rec,VW/2,ay+ah+14); } } }
+    else ui.menuArenaRect={x:0,y:0,w:0,h:0};
     // CAS-1988: a THIRD entry — Modo Boss Rush (Gauntlet). Same class→ability→play flow (sets G.pendingBossRush);
     // shows the durable best round. $0 art (reuses the button chrome). HARD-GATED: with enabled:false the entry is
     // NOT drawn and its hit-rect stays zero (menu inalcanzable ⇒ byte-identical menu vs HEAD).

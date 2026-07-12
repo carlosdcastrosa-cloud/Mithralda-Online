@@ -830,6 +830,7 @@ export const HUNTS = {
 //   healFrac                — fraction of maxHp healed at the start of each rest
 //   essStep                 — Esencia banked per cleared wave = ceil(n*essStep) → feeds the meta tree
 export const ARENA = {
+  menuEnabled:false,                // CAS-2190: OCULTA la entrada "Arena de Oleadas" del menú (mundo-abierto directo). A diferencia de Boss Rush/Seeded, la Arena no tenía knob enabled (siempre dibujada); este flag gatea render (menuArenaRect zeroing) + input.js (keyboard ARENA.key + tap). La lógica de Arena (G.arenaMode/startArena) queda intacta; re-activar como actividad MMORPG = flip false→true.
   key:"KeyA",                       // CAS-1996: CODE de menú de la Arena de Oleadas (antes hardcodeado en input.js:93). Data-driven ⇒ el Códice de Combate lee ARENA.key. Behavior-identical.
   baseMobs:4, mobStep:0.5, mobCap:24,
   hpStep:0.12, dmgStep:0.08,
@@ -1911,7 +1912,7 @@ export const SUMMON = {
 //   clearBonusEss — bonus por COMPLETAR toda la gauntlet (aritmética, 0 RNG).
 //   recordEssBase — milestone ronda-récord: ceil(recordEssBase * ronda) 1-vez/run (aritmética, 0 RNG).
 export const BOSS_RUSH = {
-  enabled: true,                  // CAS-1993 GO-LIVE flip (Gate CEO CAS-1992 = GO; mirror SUMMON CAS-1980)
+  enabled: false,                 // CAS-2190: OCULTO del menú (Mithralda = MMORPG mundo-abierto; el jugador entra directo). enabled:false hard-gatea la entrada de menú (render zeroing rect + input.js keyboard/tap) ⇒ NO seleccionable. La LÓGICA del gauntlet queda intacta detrás de este flag; re-activar como actividad MMORPG = flip false→true. (era true CAS-1993)
   key: "KeyB",                    // entrada por teclado en el menú (KeyB libre en escena menu)
   sequence: ["caves", "swamp", "abyss", "caldera"],   // 4 rondas TUNABLE (CTO): dragón → tirano pantano → tirano abismo → Corazón de Magma
   hpStep: 0.10, dmgStep: 0.06,    // escala por índice de ronda r (0-based): mul = 1 + r*step
@@ -1948,7 +1949,7 @@ export const BOSS_RUSH = {
 //                 lección directa del audit CAS-2085 donde SUMMON.key colisionó en play). La entrada de menú usa la semilla del día.
 //   codePrefix  — formato del código compartible (etiqueta HUD/recap; la semilla del día concatena la fecha estable).
 export const SEEDED_CHALLENGE = {
-  enabled: true,                  // LIVE — Gate CEO CAS-2093 GO (config-only flip, reversible→false restores baseline byte-id; mirror CAS-2043/2055/2075)
+  enabled: false,                 // CAS-2190: OCULTO del menú (mundo-abierto directo). enabled:false hard-gatea la entrada de menú (render + input.js) ⇒ NO seleccionable; startSeededChallenge nunca corre ⇒ srand byte-id a baseline. La lógica queda intacta detrás del flag; re-activar como actividad MMORPG = flip false→true. Records aislados en mithralda.seededchallenge.v1 se conservan. (era true CAS-2093)
   key: "KeyC",                    // entrada por la escena menú (KeyC libre en menu; NO es hotkey de play ⇒ sin colisión de combate)
   codePrefix: "MITH-",            // prefijo del código compartible; la semilla del día = codePrefix + fecha estable (YYYYMMDD)
 };
@@ -2126,5 +2127,5 @@ export const COMBAT_CODEX_ENTRIES = [
   // JEFES
   { group:"Jefes",      label:"Jefe de Firma",      keyOf:()=>"—",                  desc:"Jefes de 2 fases con ventana de vulnerabilidad tras romper poise.", gate:()=>SIGNATURE_BOSS.enabled },
   { group:"Jefes",      label:"Modo Boss Rush",     keyOf:()=>BOSS_RUSH.key,        desc:"Gauntlet finito de jefes encadenados (desde el menú); récord = mejor ronda.", gate:()=>BOSS_RUSH.enabled },
-  { group:"Jefes",      label:"Arena de Oleadas",   keyOf:()=>ARENA.key,            desc:"Oleadas infinitas con jefes periódicos (desde el menú); récord = mejor oleada.", gate:()=>true }, // Arena SIEMPRE disponible (modo de menú, gateado por G.arenaMode en runtime, no por un knob enabled)
+  { group:"Jefes",      label:"Arena de Oleadas",   keyOf:()=>ARENA.key,            desc:"Oleadas infinitas con jefes periódicos (desde el menú); récord = mejor oleada.", gate:()=>ARENA.menuEnabled }, // CAS-2190: gateado por menuEnabled (oculto del menú ⇒ no se anuncia en el Códice). Antes gate:()=>true.
 ];
