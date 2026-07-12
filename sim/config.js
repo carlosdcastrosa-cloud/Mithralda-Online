@@ -1461,22 +1461,6 @@ export const SECOND_WIND = {
   chargesPerRest:1,       // usos por descanso; se rearma en HOGUERA (mirror FLASK.charges gated BONFIRE)
 };
 
-// CAS-2208 (origen CAS-2185 Fase 1, deliverable #3): PIXELART master A/B kill-switch. Un único knob global,
-// PURAMENTE de render, que fuerza el fallback PROCEDURAL en TODO el juego (héroe, enemigos, VFX y tiles) sin tocar
-// una sola línea de simulación. Uso: comparación A/B sprite-vs-procedural, o kill-switch si un lote de sprites
-// PixelLab saliera mal en LIVE. El pipeline YA carga sprites con fallback procedural POR-ASSET; esto sólo antepone
-// un gate global a las tiers de sprite en render.js — cuando spritesEnabled===false cada seam SALTA su drawImage y
-// cae a la rama procedural que YA existe (no borra nada). Determinista: la selección de frame no usa RNG.
-// OJO SEMÁNTICA: los sprites YA están LIVE (hero 45 strips + ~18 enemigos), por eso el default DEBE ser `true` para
-// 0 regresión — el build servido queda BYTE-IDÉNTICO al HEAD (el gate `spritesOn && …` con spritesOn=true toma la
-// MISMA rama por short-circuit). El "DARK/reversible" se cumple porque el default preserva LIVE; poner `false` es el
-// modo experimental. Flip config-only, reversible en 1 línea. NOTA: los mobs richAnim CAVES sin blob procedural SP
-// (ashwraith/ironback/thornspitter) sólo tienen tier sprite ⇒ en modo procedural muestran placa/vida pero no cuerpo
-// (limitación inherente: no existe fallback procedural para ellos; el juego sigue jugable).
-export const PIXELART = {
-  spritesEnabled: true,   // true = comportamiento LIVE actual (sprites PixelLab). false = fuerza fallback procedural en todo.
-};
-
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
