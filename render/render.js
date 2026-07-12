@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -426,12 +426,16 @@ export function createRenderer(ctx){
     // CAS-1709 AC4: BLEED is the single kill-switch constant — BLEED=0 ⇒ TSo===TS ⇒ every
     // ground drawImage/fill reverts to byte-identical pre-fix output (trivial A/B & rollback).
     const BLEED=1, TSo=TS+BLEED;
+    // CAS-2208: PIXELART master A/B gate. `spritesOn` guards each IMG-backed floor branch; when false the
+    // branch is skipped and the tile falls through to the procedural `tileBase[t]` fill + fleck pass below
+    // (byte-identical to the pre-sprite look). Default true ⇒ same branch taken (byte-identical LIVE).
+    const spritesOn=PIXELART.spritesEnabled;
     const x0=Math.max(0,Math.floor(camX/TS)-1), y0=Math.max(0,Math.floor(camY/TS)-1);
     const x1=Math.min(MAP_W-1,Math.ceil((camX+VW/Z)/TS)+1), y1=Math.min(MAP_H-1,Math.ceil((camY+VH/Z)/TS)+1);
     for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
       const t=world.terr[y*MAP_W+x]; const px=x*TS, py=y*TS;
       // CAS-462: dentro del continente Tiled el suelo se dibuja del atlas horneado del TMX.
-      if(world.tiledVisual && x<GROUND.W && y<GROUND.H){ const ga=IMG.tiled_ground;
+      if(spritesOn && world.tiledVisual && x<GROUND.W && y<GROUND.H){ const ga=IMG.tiled_ground;
         if(ga&&ga.complete&&ga.naturalWidth){ let gi=GROUND.grid[y*GROUND.W+x];
           if(gi>=GROUND.animStart) gi+=((G.t*8)|0)%GROUND.animFrames;   // CAS-463: agua animada
           ctx.drawImage(ga,(gi%GROUND.cols)*TS,((gi/GROUND.cols)|0)*TS,TS,TS,px,py,TSo,TSo); continue; } }
@@ -445,9 +449,9 @@ export function createRenderer(ctx){
           const erw=(y===T.y||y===T.y+T.h-1)?IMG.erw_wall_h:IMG.erw_wall_v;
           wimg=(erw&&erw.complete&&erw.naturalWidth)?erw:(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
         } else wimg=(hash2(x,y)<0.5?IMG.wall:IMG.wall2);
-        if(wimg&&wimg.complete&&wimg.naturalWidth) ctx.drawImage(wimg,px,py,TS,TS); else { ctx.fillStyle="#2b313a"; ctx.fillRect(px,py,TS,TS); }
+        if(spritesOn && wimg&&wimg.complete&&wimg.naturalWidth) ctx.drawImage(wimg,px,py,TS,TS); else { ctx.fillStyle="#2b313a"; ctx.fillRect(px,py,TS,TS); }
         continue; }
-      if(t===T_STONE){ const r=hash2(x,y); const img = (r<0.10?IMG.cave_blood:(r<0.65?IMG.cave_floor:IMG.cave_floor2)); // CAS-217: flagstone-dominant + void + rare war-torn blood accent
+      if(spritesOn && t===T_STONE){ const r=hash2(x,y); const img = (r<0.10?IMG.cave_blood:(r<0.65?IMG.cave_floor:IMG.cave_floor2)); // CAS-217: flagstone-dominant + void + rare war-torn blood accent
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
@@ -455,7 +459,7 @@ export function createRenderer(ctx){
       // SAME hi-fi FOUNTAINS dark flagstone as caves/abyss (parity with CAS-217), then wash
       // it cold: an UNEVEN near-black ambient (torch-pool falloff) + rime-blue tint so the
       // crypt reads frozen-and-dark, not bright. Rime cracks/glints carry icy zone identity.
-      if(t===T_ICE){ const r=hash2(x,y); const img=(r<0.58?IMG.cave_floor:IMG.cave_floor2);
+      if(spritesOn && t===T_ICE){ const r=hash2(x,y); const img=(r<0.58?IMG.cave_floor:IMG.cave_floor2);
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
           const dk=(0.30+hash2(x*3,y*3)*0.24).toFixed(2);                 // 0.30–0.54 per-tile = torch falloff
           ctx.fillStyle="rgba(8,16,28,"+dk+")"; ctx.fillRect(px,py,TSo,TSo); // near-black cold ambient (match TSo so the seam-overlap strip is tinted too)
@@ -469,7 +473,7 @@ export function createRenderer(ctx){
       // CAS-1744: Caldera de Cenizas floor — reuses the SAME FOUNTAINS dark flagstone as caves/abyss
       // (no new tile art, mirrors the T_ICE approach), washed molten: a warm charred-basalt ambient +
       // ember-orange tint, with rare cracks glowing lava and stray sparks so the biome reads volcanic.
-      if(t===T_CALDERA){ const r=hash2(x,y); const img=(r<0.58?IMG.cave_floor:IMG.cave_floor2);
+      if(spritesOn && t===T_CALDERA){ const r=hash2(x,y); const img=(r<0.58?IMG.cave_floor:IMG.cave_floor2);
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
           const dk=(0.30+hash2(x*3,y*3)*0.22).toFixed(2);                 // 0.30–0.52 per-tile charred ambient
           ctx.fillStyle="rgba(22,8,6,"+dk+")"; ctx.fillRect(px,py,TSo,TSo); // dark basalt shadow
@@ -491,18 +495,18 @@ export function createRenderer(ctx){
         const T=world.town, inTown=T&&x>=T.x&&x<T.x+T.w&&y>=T.y&&y<T.y+T.h;
         let img=inTown ? (hash2(x,y)<0.5?IMG.erw_flag:IMG.erw_flag2) : null;
         if(!(img&&img.complete&&img.naturalWidth)) img=(hash2(x,y)<0.5?IMG.ruins_floor:IMG.ruins_floor2);
-        if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
+        if(spritesOn && img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo);
           if(world.wallSet.has((y-1)*MAP_W+x)){ ctx.fillStyle="rgba(0,0,0,0.34)"; ctx.fillRect(px,py,TS,6); }
           continue; } }
       // CAS-2191: T_STREET cells paint GRASS as their base here; the cobblestone Wang road is
       // laid on top in the dual-grid overlay pass below (so the road's curbs blend into the verge).
-      if(t===T_GRASS || t===T_STREET){ const img=(hash2(x,y)<0.5?IMG.ruins_grass:IMG.ruins_grass2);
+      if(spritesOn && (t===T_GRASS || t===T_STREET)){ const img=(hash2(x,y)<0.5?IMG.ruins_grass:IMG.ruins_grass2);
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo); continue; } }
       // CAS-441: Ciénaga de Bruma floor (CAS-439 teal marsh tiles). A LOW-frequency hash
       // (x>>1,y>>1) gates the water so pools clump into 2×2-ish ponds instead of lone
       // speckles; puddles + the two mud variants alternate per-tile. All walkable —
       // the marsh is shallow (wading), depth reads from the props, not collision.
-      if(t===T_SWAMP){ const pool=hash2(x>>1,y>>1), r=hash2(x,y);
+      if(spritesOn && t===T_SWAMP){ const pool=hash2(x>>1,y>>1), r=hash2(x,y);
         const img=(pool<0.08?IMG.swamp_water:(r<0.12?IMG.swamp_puddle:(r<0.66?IMG.swamp_mud:IMG.swamp_mud2)));
         if(img&&img.complete&&img.naturalWidth){ ctx.drawImage(img,px,py,TSo,TSo); continue; } }
       ctx.fillStyle=tileBase[t]; ctx.fillRect(px,py,TSo,TSo);
@@ -522,7 +526,7 @@ export function createRenderer(ctx){
     // draw where at least one corner is actual STREET, so the plaza interior keeps its flagstone.
     // Ground-level (before entities) so hero/props Y-sort above; view-culled to the visible span.
     { const cimg=IMG.city_street;
-      if(cimg&&cimg.complete&&cimg.naturalWidth){
+      if(spritesOn && cimg&&cimg.complete&&cimg.naturalWidth){  // CAS-2208: Wang road overlay gated ⇒ procedural leaves the grass base painted above
         const paved=(tx,ty)=>{ if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H) return 0; const tt=world.terr[ty*MAP_W+tx]; return (tt===T_STREET||tt===T_COBBLE)?1:0; };
         const street=(tx,ty)=> (tx>=0&&ty>=0&&tx<MAP_W&&ty<MAP_H) && world.terr[ty*MAP_W+tx]===T_STREET;
         for(let cy=y0;cy<=y1+1;cy++)for(let cx=x0;cx<=x1+1;cx++){
@@ -981,10 +985,14 @@ export function createRenderer(ctx){
       rg.addColorStop(0,`rgba(${ac[0]},${ac[1]},${ac[2]},${0.14+0.10*pulse})`); rg.addColorStop(1,`rgba(${ac[0]},${ac[1]},${ac[2]},0)`);
       ctx.fillStyle=rg; ctx.beginPath(); ctx.ellipse(gx,gy,17,19,0,0,6.283); ctx.fill(); ctx.restore();
     }
-    const ok=drawHeroClass(CLASS_HERO_ART[cls],cstate,h.animT||0,hx,hfeet,flip,sqX,sqY,bobUp,tint,ang) // CAS-98/110/223 state-driven class anim; CAS-333 ang→8-dir row
+    // CAS-2208: PIXELART master A/B gate. When spritesEnabled===false the entire sprite chain is
+    // short-circuited (ok=false) so the procedural `blit(SP.hero…)` fallback below runs. Default
+    // true ⇒ the chain evaluates exactly as before (byte-identical LIVE).
+    const ok=PIXELART.spritesEnabled && (
+             drawHeroClass(CLASS_HERO_ART[cls],cstate,h.animT||0,hx,hfeet,flip,sqX,sqY,bobUp,tint,ang) // CAS-98/110/223 state-driven class anim; CAS-333 ang→8-dir row
           || drawHeroAnim(def.img,fi,h.x,feet,flip,tint,bob)                     // hooded anim fallback
           || drawHeroErw(h.x,feet,flip,1,1,0,tint)       // hooded pose until strips load
-          || drawClassFrame(ctx,cls,(state==="roll")?"walk":state,dir4FromAngle(ang),fi,h.x,feet,HERO_SPRITE_SCALE,tint);
+          || drawClassFrame(ctx,cls,(state==="roll")?"walk":state,dir4FromAngle(ang),fi,h.x,feet,HERO_SPRITE_SCALE,tint));
     ctx.globalAlpha=1;
     if(!ok){ const b2=h.walkT?Math.sin(h.walkT)*2:0; blit(ctx,SP.hero.rows, h.hurtFlash>0?redden(SP.hero.pal):SP.hero.pal, h.x,h.y-12-b2,3, Math.cos(h.facing)<0); }
     // CAS-2202: el PUNTO AMARILLO de dirección/apuntado (dot dorado a facing*18 enfrente del héroe) queda RETIRADO
@@ -1420,8 +1428,12 @@ export function createRenderer(ctx){
         ctx.globalAlpha=0.45; ctx.lineWidth=1.5; ctx.strokeStyle="#ffd0a0";
         ctx.beginPath(); ctx.ellipse(e.x,cy,R*0.62,R*0.31,0,0,6.28); ctx.stroke(); ctx.restore(); }
     }
+    // CAS-2208: PIXELART master A/B gate — `sprOn` short-circuits every mob sprite tier (drawAnim /
+    // resolveStrip / ENEMY_IMG) so `drew` stays false and the procedural `blit(spr…)` fallback runs.
+    // Default true ⇒ identical branch selection as before (byte-identical LIVE).
+    const sprOn=PIXELART.spritesEnabled;
     let drew=false; const ch=ENEMY_ANIM[e.type];
-    if(ch && IMG[ch+"_walk"]){
+    if(sprOn && ch && IMG[ch+"_walk"]){
       const ds=ANIM[ch]&&ANIM[ch].ds; const S=ds?ds*(e.isBoss?1.15:e.champion?1.0:0.82):(e.isBoss?1.3:0.85), feet=e.y+e.tpl.size*0.5, st=e.animState||"idle";
       const fps = st==="attack"? (ANIM[ch].fc.attack/(e.tpl.windup+0.15)) : (st==="walk"?gait.fps:6); // CAS-222 per-mob walk cadence
       const fi=frameIndex(ch,st,e.animT||0,fps, st!=="attack");
@@ -1430,7 +1442,7 @@ export function createRenderer(ctx){
     // CAS-209: per-state PixelLab MCP strips for solid-bodied mobs (skel/bandit/orc).
     // resolveStrip picks the state-specific strip (idle/walk) or falls back to walk.
     // Stage-2 safe: reads only render state, mutates nothing.
-    if(!drew){ const st=e.animState||"idle"; const strip=resolveStrip(e.tpl.sprite,st);
+    if(!drew && sprOn){ const st=e.animState||"idle"; const strip=resolveStrip(e.tpl.sprite,st);
       const simg=strip&&IMG[strip.key]&&IMG[strip.key].complete&&IMG[strip.key].naturalWidth?IMG[strip.key]:null;
       if(simg){
         const fw=strip.fw, fh=strip.fh;
@@ -1471,7 +1483,7 @@ export function createRenderer(ctx){
     // CAS-206: FOUNTAINS-style PixelLab enemy cutout. Single-frame image drawn
     // bottom-anchored at the feet, sized to the mob's tpl.size, with the CAS-203
     // breathe/walk-bob applied so it never reads frozen. Hurt-flash brightens it.
-    if(!drew){ const ik=ENEMY_IMG[e.tpl.sprite]; const eimg=ik&&IMG[ik];
+    if(!drew && sprOn){ const ik=ENEMY_IMG[e.tpl.sprite]; const eimg=ik&&IMG[ik];
       if(eimg && eimg.complete && eimg.naturalWidth){
         const dh=e.tpl.size*(e.isBoss?3.4:e.champion?2.9:2.4), dw=dh*(eimg.naturalWidth/eimg.naturalHeight);
         const feetY=e.y+e.tpl.size*0.5, ph=(e.gaitPhase!==undefined?e.gaitPhase:(e.x*0.7+e.y*0.9)), st=e.animState||"idle"; // CAS-240: STATIC spawn-phase
@@ -1774,6 +1786,7 @@ export function createRenderer(ctx){
   // rotated to the attack angle. Returns false if the strip isn't loaded yet -> caller falls
   // back to the procedural draw (graceful during asset load). Presentation-only, no RNG.
   function drawFxSprite(name,x,y,prog,size,ang){ const im=IMG["fx_"+name], m=FX_STRIP&&FX_STRIP[name];
+    if(!PIXELART.spritesEnabled) return false;  // CAS-2208: master A/B gate ⇒ caller (drawFx) falls to procedural FX
     if(!m||!im||!im.complete||!im.naturalWidth) return false;
     const fi=clamp(Math.floor(prog*m.n),0,m.n-1), fw=m.fw, s=size/fw;
     ctx.save(); ctx.imageSmoothingEnabled=false; ctx.translate(x,y); if(ang!=null) ctx.rotate(ang); ctx.scale(s,s);
