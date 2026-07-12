@@ -1440,7 +1440,7 @@ export const LUNGE = {
 // RALLY=pool cura continua / FLASK=trago manual / BONFIRE=descanso / hyper-armor=absorbe interrupción, NO niega letal.
 // enabled:false ⇒ todas las ramas gated ⇒ build byte-idéntico al HEAD previo (rama inerte). Reversible en 1 línea.
 export const SECOND_WIND = {
-  enabled:false,          // DARK — CEO gate flip false→true tras QA PASS×2. Reversible en 1 línea.
+  enabled:true,          // DARK — CEO gate flip false→true tras QA PASS×2. Reversible en 1 línea.
   surviveHpFrac:0.15,     // HP al que se te clampa al negar el golpe letal (frac de maxHp)
   novaRadius:120,         // px — radio de la nova de empuje que crea espacio
   novaKnockback:180,      // fuerza de empuje radial a enemigos en radio (reusa el empuje vx/vy existente, mirror parry/lunge)
