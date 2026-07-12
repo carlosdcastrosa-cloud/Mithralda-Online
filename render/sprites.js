@@ -632,10 +632,20 @@ export const CLS={
   // (CLARICE_CLASSES → drawHeroClass wins) — this drives the class-select card fallback + the
   // last-resort strip fallback, not the playable hero. Live-hero swap = AD/CEO call (CAS-2179).
   warrior: {fw:88, fh:64, footPad:0.08, scale:0.64, fc:{idle:2,walk:6,attack:9}},
-  paladin: {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
-  mage:    {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
-  druid:   {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
-  priest:  {fw:22, fh:34, fc:{idle:2,walk:4,attack:3}},
+  // CAS-2217/CAS-2210: mage/paladin/druid game-ready PixelLab strips (walk 6f + derived idle 2f),
+  // sliced with the same global-transform as warrior → 64×64 frame, body ~51px, feet baseline y57
+  // (≈ warrior's 53px/y58), so warrior's scale 0.64 + footPad 0.08 transfer directly. `attack` is
+  // OMITTED on purpose: those strips are still the ~66×34 budget-blocked placeholders (PixelLab at
+  // 0/2000, CAS-2214), and fw/fh are global per class — including attack would mis-slice a 64×64
+  // window over the 22px placeholder. With attack absent the loader skips it and any attack render
+  // falls through drawClassFrame → false → graceful fallback. Re-add {attack:8} once generated.
+  paladin: {fw:64, fh:64, footPad:0.08, scale:0.64, fc:{idle:2,walk:6}},
+  mage:    {fw:64, fh:64, footPad:0.08, scale:0.64, fc:{idle:2,walk:6}},
+  druid:   {fw:64, fh:64, footPad:0.08, scale:0.64, fc:{idle:2,walk:6}},
+  // priest: only the derived idle (2f, 64×64) is ready; its WALK is still an 88×34 placeholder
+  // (PixelLab walk gen budget-blocked). walk omitted so the placeholder isn't sliced at 64×64.
+  // The live hero's priest walk comes from the ERW clswalk_ path, unaffected by this fallback slot.
+  priest:  {fw:64, fh:64, footPad:0.08, scale:0.64, fc:{idle:2}},
 };
 export const CLASS_DIRS=["down","up","side"];
 // In-world hero render scale. 22×34 source frame → 34×1.85 ≈ 63px ≈ 2 tiles,
