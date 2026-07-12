@@ -20,6 +20,12 @@ export const T_SWAMP = 7;
 // Rendered by reusing the FOUNTAINS dark flagstone (like the abyss/ice path) washed with an
 // ember/molten tint in render/render.js — NO new tile art. Walkable like the abyss floor.
 export const T_CALDERA = 8;
+// CAS-2191 — cobblestone CITY STREET (Batch-1 Tibia-ward art, CAS-2186). A distinct paved
+// road id (separate from the T_COBBLE plaza flagstone) painted by the PixelLab Wang autotile
+// tileset (assets/pixellab/city/cobble_street_tileset.png): grass↔cobble corner-blend curbs.
+// Walkable like grass; render/render.js draws grass as the base then overlays the dual-grid
+// Wang street tile so the road reads with proper curved kerbs where it meets the verges.
+export const T_STREET = 9;
 
 // CAS-80: data-driven town tilemap — Puerto Solana reads as a small hub built from the
 // real Ancient Ruins tiles. One glyph per 32px cell, stamped over the 18×18 town rect
@@ -30,26 +36,31 @@ export const T_CALDERA = 8;
 // flagstone plaza (P) ringed by grass verges (g), with dirt roads (.) punching out to
 // the four hunt-zone exits — N caves / S arena / E forest / W ruins — at local cols/rows
 // 8-9 so they line up with the world's approach paths. Width must equal town.w (18).
-export const TOWN_LEGEND = { g:T_GRASS, P:T_COBBLE, ".":T_DIRT, "~":T_WATER };
+// CAS-2191: the four road spurs INSIDE the walls (town-local cols/rows 8-9, aligned to the
+// rampart gates) are now cobblestone STREET (S → T_STREET) instead of plain dirt (.), so the
+// hub reads as a paved city: cobblestone roads funnel through the gates into the flagstone
+// plaza (P). The Wang autotiler blends S↔g (grass verge) curbs; S↔P (plaza) reads as continuous
+// paving. Outside the walls the radiating dirt paths (world.js) still connect grass→gate.
+export const TOWN_LEGEND = { g:T_GRASS, P:T_COBBLE, ".":T_DIRT, "~":T_WATER, S:T_STREET };
 export const TOWN_MAP = [
-  "gggggggg..gggggggg",
-  "gggggggg..gggggggg",
-  "gggggggg..gggggggg",
+  "ggggggggSSgggggggg",
+  "ggggggggSSgggggggg",
+  "ggggggggSSgggggggg",
   "gggggPPPPPPPPggggg",
   "ggggPPPPPPPPPPgggg",
   "gggPPPPPPPPPPPPggg",
   "gggPPPPPPPPPPPPggg",
   "gggPPPPPPPPPPPPggg",
-  "...PPPPPPPPPPPP...",
-  "...PPPPPPPPPPPP...",
+  "SSSPPPPPPPPPPPPSSS",
+  "SSSPPPPPPPPPPPPSSS",
   "gggPPPPPPPPPPPPggg",
   "gggPPPPPPPPPPPPggg",
   "gggPPPPPPPPPPPPggg",
   "ggggPPPPPPPPPPgggg",
   "gggggPPPPPPPPggggg",
-  "gggggggg..gggggggg",
-  "gggggggg..gggggggg",
-  "gggggggg..gggggggg",
+  "ggggggggSSgggggggg",
+  "ggggggggSSgggggggg",
+  "ggggggggSSgggggggg",
 ];
 
 export const CFG = {
@@ -1448,6 +1459,22 @@ export const SECOND_WIND = {
   novaPoiseDmg:0,         // opcional: poise a enemigos empujados (0 = sólo reposición, sin stagger gratis)
   iframesMs:600,          // breve ventana de i-frames tras el disparo (evita muerte en el mismo tick por multi-hit)
   chargesPerRest:1,       // usos por descanso; se rearma en HOGUERA (mirror FLASK.charges gated BONFIRE)
+};
+
+// CAS-2208 (origen CAS-2185 Fase 1, deliverable #3): PIXELART master A/B kill-switch. Un único knob global,
+// PURAMENTE de render, que fuerza el fallback PROCEDURAL en TODO el juego (héroe, enemigos, VFX y tiles) sin tocar
+// una sola línea de simulación. Uso: comparación A/B sprite-vs-procedural, o kill-switch si un lote de sprites
+// PixelLab saliera mal en LIVE. El pipeline YA carga sprites con fallback procedural POR-ASSET; esto sólo antepone
+// un gate global a las tiers de sprite en render.js — cuando spritesEnabled===false cada seam SALTA su drawImage y
+// cae a la rama procedural que YA existe (no borra nada). Determinista: la selección de frame no usa RNG.
+// OJO SEMÁNTICA: los sprites YA están LIVE (hero 45 strips + ~18 enemigos), por eso el default DEBE ser `true` para
+// 0 regresión — el build servido queda BYTE-IDÉNTICO al HEAD (el gate `spritesOn && …` con spritesOn=true toma la
+// MISMA rama por short-circuit). El "DARK/reversible" se cumple porque el default preserva LIVE; poner `false` es el
+// modo experimental. Flip config-only, reversible en 1 línea. NOTA: los mobs richAnim CAVES sin blob procedural SP
+// (ashwraith/ironback/thornspitter) sólo tienen tier sprite ⇒ en modo procedural muestran placa/vida pero no cuerpo
+// (limitación inherente: no existe fallback procedural para ellos; el juego sigue jugable).
+export const PIXELART = {
+  spritesEnabled: true,   // true = comportamiento LIVE actual (sprites PixelLab). false = fuerza fallback procedural en todo.
 };
 
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
