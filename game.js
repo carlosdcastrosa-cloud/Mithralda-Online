@@ -22,7 +22,7 @@ import { createRenderer } from "./render/render.js";
 import { loadAllAssets, IMG } from "./render/sprites.js";
 import { loadUIFont } from "./render/font.js";   // CAS-1610: pixel UI webfont (replaces Courier)
 import { rarityRank } from "./sim/gear.js";
-import { STAMINA, FLASK, EQUIP_LOAD, TWO_HAND, SEEDED_CHALLENGE } from "./sim/config.js";   // CAS-1841/CAS-1854/CAS-1889/CAS-1895: gated HUD feeds (vigor bar + Estus pips + banda de carga + marcador a dos manos — absent OFF ⇒ HUD byte-identical). CAS-2090: SEEDED_CHALLENGE for the UI-layer daily code (date derived HERE, never in the deterministic sim)
+import { STAMINA, FLASK, EQUIP_LOAD, TWO_HAND, SEEDED_CHALLENGE, PIXELART } from "./sim/config.js";  // CAS-2208: PIXELART for the dev A/B toggle hook   // CAS-1841/CAS-1854/CAS-1889/CAS-1895: gated HUD feeds (vigor bar + Estus pips + banda de carga + marcador a dos manos — absent OFF ⇒ HUD byte-identical). CAS-2090: SEEDED_CHALLENGE for the UI-layer daily code (date derived HERE, never in the deterministic sim)
 import * as persist from "./persist.js";
 import * as settings from "./settings.js";
 import { analytics } from "./analytics.js";
@@ -231,6 +231,10 @@ export function createGame(canvas, ctx, getView){
       // dash vector in all 8 directions (streak angle == atan2(rollY,rollX); dir8 bucket 0=E..7=NE).
       dashStreak:()=>{const h=G.hero; if(!h||!h.rolling||!(h.rollX||h.rollY))return{active:false}; const ang=Math.atan2(h.rollY,h.rollX); return {active:true, ang:+ang.toFixed(4), dx:+(h.rollX||0).toFixed(4), dy:+(h.rollY||0).toFixed(4), dir8:((Math.round(ang/(Math.PI/4))%8)+8)%8, rollT:+(h.rollT||0).toFixed(4)};},
       enemyCount:()=>G.enemies.length,
+      // CAS-2208: read/flip the PIXELART master A/B kill-switch headlessly (render-only, RNG-neutral).
+      // pixelart() reads; pixelart(false) forces procedural for hero/enemies/VFX/tiles; pixelart(true)
+      // restores sprites. Same-page A/B: flip and re-screenshot the identical seed with zero reload.
+      pixelart:(v)=>{ if(v!==undefined) PIXELART.spritesEnabled=!!v; return PIXELART.spritesEnabled; },
       // CAS-441: positional enemy snapshot (read-only) so the swamp harness can prove the
       // zone spawner populates the rect from its pool — consumed by tools/cas441-swamp.mjs.
       // CAS-442 adds animState/arch/champion fields (still read-only) so the swamp-family

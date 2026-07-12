@@ -4159,6 +4159,10 @@ export function heroPower(h){ h=h||G.hero; if(!h) return 0; const u=h.upg||{};
 // denies with a clear toast (HUD feedback); at/above it warps the hero to the abyss
 // vestibule. The abyss→town gate always returns. Clears transient state on arrival.
 function usePortal(p){ const h=G.hero;
+  // CAS-2191: a habitable-house door threshold is RESERVED as a warp point (interior is a Stage-1
+  // stub). Interacting reads back a clear "coming soon" toast so the door reads enterable without
+  // shipping an interior yet. No warp, no state change — the Phase-2 interior hooks in right here.
+  if(p.stub){ toast(STR.doorStub,2.6); audio.sfx.deny(); return false; }
   // CAS-114/121: each deeper biome has a power gate (abyss < cripta). Below REQ the
   // gate denies with a clear toast; at/above it warps the hero to the vestibule.
   if(p.to==="abyss"){ const pw=heroPower(h);
