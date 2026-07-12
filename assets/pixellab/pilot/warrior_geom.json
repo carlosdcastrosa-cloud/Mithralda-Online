@@ -1,0 +1,45 @@
+{
+  "key": "warrior",
+  "fw": 124,
+  "fh": 124,
+  "feetY": 92,
+  "footPad": 0.25,
+  "anims": [
+    {
+      "file": "hero/warrior_walk_down.png",
+      "frames": 6,
+      "fw": 124,
+      "fh": 124
+    },
+    {
+      "file": "hero/warrior_walk_up.png",
+      "frames": 6,
+      "fw": 124,
+      "fh": 124
+    },
+    {
+      "file": "hero/warrior_walk_side.png",
+      "frames": 6,
+      "fw": 124,
+      "fh": 124
+    },
+    {
+      "file": "hero/warrior_attack_down.png",
+      "frames": 9,
+      "fw": 124,
+      "fh": 124
+    },
+    {
+      "file": "hero/warrior_attack_up.png",
+      "frames": 9,
+      "fw": 124,
+      "fh": 124
+    },
+    {
+      "file": "hero/warrior_attack_side.png",
+      "frames": 9,
+      "fw": 124,
+      "fh": 124
+    }
+  ]
+}

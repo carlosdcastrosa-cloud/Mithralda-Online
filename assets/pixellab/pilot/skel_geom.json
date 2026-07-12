@@ -1,0 +1,21 @@
+{
+  "key": "skel",
+  "fw": 124,
+  "fh": 124,
+  "feetY": 92,
+  "footPad": 0.25,
+  "anims": [
+    {
+      "file": "mobs/skel_walk_side.png",
+      "frames": 6,
+      "fw": 124,
+      "fh": 124
+    },
+    {
+      "file": "mobs/skel_attack_side.png",
+      "frames": 7,
+      "fw": 124,
+      "fh": 124
+    }
+  ]
+}
