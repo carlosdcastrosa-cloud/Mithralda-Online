@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -302,6 +302,11 @@ export const G = {
   // by render + the event tick. Reset on every new/loaded run beside G.ambush. Empty + untouched while
   // ZONE_EVENTS.enabled is false → byte-identical to a build without the feature.
   zoneEvents:{ seeded:[], pois:[], lastPayoff:null },
+  // CAS-2225: AUTHORITATIVE door open/closed state, keyed by the stable position-derived door id
+  // (door:tx,ty). This is the shared world state a Stage-2 server would own; nearby clients read it.
+  // Transient run-state (reset on every new/loaded run, never serialized ⇒ save-neutral). Empty +
+  // untouched while DOORS_INTERIORS.enabled is false ⇒ byte-identical to a build without the feature.
+  doors:{},
 };
 // CAS-128: armed at boot by the persistence controller when this is a FIRST run
 // (no save AND the tutorial-seen flag is unset). createHero() reads it once so the
@@ -852,7 +857,7 @@ export function ngTierPreview(tier){ const t=Math.max(1,(tier|0)||1); const k=t-
   }; }
 
 // creates the hero and enters play (audio/music wiring stays in the controller)
-export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents(); G.scene="play"; G.started=true;
+export function createHero(name,cls){ G.hero=newHero(name||"Héroe",cls); G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents(); G.doors={}; G.scene="play"; G.started=true; // CAS-2225: doors start CLOSED each run (transient, save-neutral)
   // CAS-1557: apply the account-wide meta upgrades at this run-start seam. reconcileMeta bakes
   // the +HP/+dmg/+gold/+moveSpeed delta (idempotent via metaApplied); applyMetaReroll adds the
   // per-run reroll charges on top of newHero's fresh budget; then fill HP to the boosted cap.
@@ -2035,7 +2040,7 @@ export function loadSave(d){
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
-    G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents();
+    G.hero=h; G.hunts=initHunts(); G.fields.length=0; G.ambush={t:AMBUSH.first, active:false}; resetZoneEvents(); G.doors={}; // CAS-2225: doors reset CLOSED on a resumed run (transient, save-neutral)
     G.arenaMode=false; G.pendingArena=false; // CAS-1664: a resumed run is the normal adventure, never arena (the arena best lives in its own store)
     G.bossRushMode=false; G.pendingBossRush=false; G.seededChallengeMode=false; G.seededCode=null; // CAS-1988/2090: a resumed run is the normal adventure, never Boss Rush / Seeded Challenge (records live in their own stores)
     if(d.quest){ G.quest.wolves=Math.max(0,Math.floor(num(d.quest.wolves,0))); G.quest.done=!!d.quest.done; G.quest.rewarded=!!d.quest.rewarded; }
@@ -2133,6 +2138,9 @@ function solidBlocked(x,y,r){
   if(world.terr[ty*MAP_W+tx]===T_WATER) return true;
   if(world.wallSet && world.wallSet.has(ty*MAP_W+tx)) return true;
   if(world.blockSet && world.blockSet.has(ty*MAP_W+tx)) return true; // CAS: enterable-house walls
+  // CAS-2225: a CLOSED door threshold is solid; an OPEN one is walkable (falls through). Gated ⇒ with
+  // the feature OFF world.doorAt is null ⇒ this is skipped ⇒ byte-identical collision to HEAD.
+  if(DOORS_INTERIORS.enabled && world.doorAt){ const did=world.doorAt.get(ty*MAP_W+tx); if(did && !doorOpen(did)) return true; }
   // CAS-397: only scan buckets within reach (r + largest solid radius) of the point.
   const reach=r+solidMaxR;
   const c0=Math.floor((x-reach)/SGRID_CELL), c1=Math.floor((x+reach)/SGRID_CELL);
@@ -4158,7 +4166,34 @@ export function heroPower(h){ h=h||G.hero; if(!h) return 0; const u=h.upg||{};
 // CAS-114 — warp through a portal. The town→abyss gate is power-gated: below REQ it
 // denies with a clear toast (HUD feedback); at/above it warps the hero to the abyss
 // vestibule. The abyss→town gate always returns. Clears transient state on arrival.
+// CAS-2225 — door open/close + interior-warp mechanic (DARK). All gated behind DOORS_INTERIORS.enabled;
+// with the flag OFF none of this runs (world.doorAt/exitAt are null, the door portals keep p.stub) so the
+// sim is byte-identical to HEAD. State is authoritative + sync-ready: G.doors[id] is the shared truth a
+// Stage-2 server would own, toggled only by the interact intent (deterministic, 0 RNG).
+function doorOpen(id){ const v=G.doors&&G.doors[id]; return v===undefined ? !!DOORS_INTERIORS.startOpen : !!v; }
+function toggleDoor(p){ const open=!doorOpen(p.doorId); G.doors[p.doorId]=open;
+  audio.sfx.roll(); toast(open?STR.doorOpen:STR.doorClose,1.6); return true; }
+// warp the hero across an OPEN threshold into that door's interior instance (place just inside the exit).
+function warpToInterior(id){ const h=G.hero; const d=world.doors&&world.doors.find(x=>x.id===id); if(!d) return;
+  h.x=d.inX; h.y=d.inY; h.vx=h.vy=0; h.rolling=false; h.rollT=0; h.iframe=0.4; h._doorCd=DOORS_INTERIORS.warpCooldown;
+  audio.sfx.roll(); toast(STR.enteredInterior,2.2); }
+// warp the hero back out of an interior to the EXACT origin threshold (place just outside the door).
+function warpToWorld(id){ const h=G.hero; const d=world.doors&&world.doors.find(x=>x.id===id); if(!d) return;
+  h.x=d.outX; h.y=d.outY; h.vx=h.vy=0; h.rolling=false; h.rollT=0; h.iframe=0.4; h._doorCd=DOORS_INTERIORS.warpCooldown;
+  audio.sfx.roll(); toast(STR.leftInterior,2.2); }
+// per-frame threshold check — fire ONLY on an OPEN exterior door tile or an interior exit tile, with a
+// short post-warp cooldown so you don't instantly re-trigger the tile you land on.
+function maybeDoorWarp(h){
+  if(!DOORS_INTERIORS.enabled || (h._doorCd||0)>0) return;
+  const tx=Math.floor(h.x/TS), ty=Math.floor(h.y/TS), idx=ty*MAP_W+tx;
+  if(world.doorAt){ const did=world.doorAt.get(idx); if(did && doorOpen(did)){ warpToInterior(did); return; } }
+  if(world.exitAt){ const eid=world.exitAt.get(idx); if(eid){ warpToWorld(eid); return; } }
+}
 function usePortal(p){ const h=G.hero;
+  // CAS-2225: an interactive door (feature ON) TOGGLES open/closed on interact — closed blocks, open lets
+  // you walk the threshold to warp inside. Checked before the stub branch so the "coming soon" toast only
+  // survives while the feature is OFF (p.stub stays true then).
+  if(DOORS_INTERIORS.enabled && p.kind==="door" && p.doorId) return toggleDoor(p);
   // CAS-2191: a habitable-house door threshold is RESERVED as a warp point (interior is a Stage-1
   // stub). Interacting reads back a clear "coming soon" toast so the door reads enterable without
   // shipping an interior yet. No warp, no state change — the Phase-2 interior hooks in right here.
@@ -4756,6 +4791,7 @@ export function update(dtMs){
   if(LUNGE.enabled) h._lungeCd=Math.max(0,(h._lungeCd||0)-dt);   // CAS-2156: ventana de recuperación de la Estocada (transitorio, mirror _gbCd). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   h.hurtAnim=Math.max(0,(h.hurtAnim||0)-dt); h.specialAnim=Math.max(0,(h.specialAnim||0)-dt); // CAS-256 hit-react / skill-cast anim timers
   h._pdCD=Math.max(0,(h._pdCD||0)-dt); // perfect-dodge reward cooldown
+  if(DOORS_INTERIORS.enabled) h._doorCd=Math.max(0,(h._doorCd||0)-dt); // CAS-2225: post-warp threshold debounce (transient, mirror _pdCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   h.riposte=Math.max(0,(h.riposte||0)-dt); // CAS-210: the riposte counter window decays if unused
   // spell cooldowns + timed buffs (in-place; no per-frame allocation)
   for(let s=1;s<4;s++){ if(h.spellCD[s]>0) h.spellCD[s]=Math.max(0,h.spellCD[s]-dt); }
@@ -4847,6 +4883,9 @@ export function update(dtMs){
       if(!io.aimActive) h.facing=Math.atan2(mv[1],mv[0]); }
     else h.walkT=0;
   }
+  // CAS-2225: after the hero settles this frame, test the door thresholds — cross an OPEN exterior door
+  // → warp inside; step on an interior exit → warp back out. Gated ⇒ OFF is an immediate no-op (byte-id).
+  if(DOORS_INTERIORS.enabled) maybeDoorWarp(h);
   if(!io.isTouch && io.aimActive) io.aim(); // CAS-347: steer to cursor ONLY while aiming (mouse held); plain walking faces movement (above)
   // CAS-1847: SEAM MAESTRO del Lock-On. Corre ÚLTIMO (tras movimiento Y ratón) para ser autoritativo, y corre
   // AUNQUE el héroe esté quieto ⇒ strafe en el sitio. Con lock activo el héroe AUTO-ENCARA al objetivo, así que
@@ -6552,6 +6591,29 @@ export const dev = {
   tryPortal(to){ const P=world.portals&&world.portals.find(p=>p.to===to); if(!P) return null;
     G.hero.x=P.x; G.hero.y=P.y; const before=zoneOf(world,G.hero.x,G.hero.y);
     interact(); return { to, before, after:zoneOf(world,G.hero.x,G.hero.y), power:heroPower(G.hero), req:ABYSS_POWER_REQ }; },
+  // --- CAS-2225 door open/close + interior-warp harness hooks (tools/cas2225-*.mjs); additive ---
+  // All read/drive the REAL door authority so QA OBSERVABLE proves the mechanic vs a served build.
+  // enabled:false ⇒ world.doors is null ⇒ doorList() returns [] and the rest no-op.
+  doorList(){ if(!DOORS_INTERIORS.enabled || !world.doors) return [];
+    return world.doors.map(d=>({ id:d.id, tx:d.tx, ty:d.ty, open:doorOpen(d.id),
+      solidClosed:solidBlocked((d.tx+0.5)*TS,(d.ty+0.5)*TS,12), // true when the CLOSED threshold blocks
+      inX:d.inX, inY:d.inY, outX:d.outX, outY:d.outY })); },
+  // Raw collision probe (hero radius 12 by default) — lets a harness map the walkable gap at a door.
+  probeSolid(x,y,r){ return solidBlocked(x,y,r==null?12:r); },
+  // Park the hero at a door threshold and fire the REAL interact()→toggleDoor path; report state+collision.
+  doorInteract(id){ const d=world.doors&&world.doors.find(x=>x.id===id); if(!d) return null;
+    G.hero.x=d.outX; G.hero.y=d.outY; interact();
+    const open=doorOpen(id); return { id, open, thresholdSolid:solidBlocked((d.tx+0.5)*TS,(d.ty+0.5)*TS,12) }; },
+  // Walk the hero ONTO the (open) threshold and step the warp check — proves the in→interior warp.
+  doorEnter(id){ const d=world.doors&&world.doors.find(x=>x.id===id); if(!d) return null;
+    G.hero._doorCd=0; G.hero.x=(d.tx+0.5)*TS; G.hero.y=(d.ty+0.5)*TS; maybeDoorWarp(G.hero);
+    return { id, x:G.hero.x, y:G.hero.y, zoneNowFarFromDoor:Math.hypot(G.hero.x-(d.tx+0.5)*TS,G.hero.y-(d.ty+0.5)*TS)>200 }; },
+  // Step onto the interior exit tile and step the warp check — proves the exit→origin-threshold warp.
+  doorExit(id){ const d=world.doors&&world.doors.find(x=>x.id===id); if(!d) return null;
+    let exitIdx=null; for(const [k,v] of world.exitAt){ if(v===id){ exitIdx=k; break; } }
+    if(exitIdx==null) return null; const ex=exitIdx%MAP_W, ey=(exitIdx/MAP_W|0);
+    G.hero._doorCd=0; G.hero.x=(ex+0.5)*TS; G.hero.y=(ey+0.5)*TS; maybeDoorWarp(G.hero);
+    return { id, x:G.hero.x, y:G.hero.y, backAtThreshold:Math.abs(G.hero.x-d.outX)<TS && Math.abs(G.hero.y-d.outY)<TS }; },
   bag(){ return G.hero.bag.map(b=>({ slot:b.slot, rarity:b.rarity, stat:gearStat(b), defId:b.defId, name:gearName(b), affixes:b.affixes||[] })); },
   equipBag(i){ return equipBag(i); },
   // CAS-419: DnD seam passthrough — lets the live harness prove bag reorders route

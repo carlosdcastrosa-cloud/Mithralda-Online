@@ -235,6 +235,18 @@ export function createGame(canvas, ctx, getView){
       // pixelart() reads; pixelart(false) forces procedural for hero/enemies/VFX/tiles; pixelart(true)
       // restores sprites. Same-page A/B: flip and re-screenshot the identical seed with zero reload.
       pixelart:(v)=>{ if(v!==undefined) PIXELART.spritesEnabled=!!v; return PIXELART.spritesEnabled; },
+      // CAS-2230: día/noche + farolas OBSERVABLE hook (DARK). daynight() lee {enabled,phase,tint,glow,lamps};
+      // daynight(p) fija un override de fase 0..1 (p=null vuelve al reloj compartido) para screenshots QA.
+      daynight:(p)=>renderer.daynight(p),
+      // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
+      // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
+      // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
+      // DOORS_INTERIORS flag OFF ⇒ no OBSERVABLE surface until CEO flips it.
+      doorList:()=>simDev.doorList(),
+      doorInteract:(id)=>simDev.doorInteract(id),
+      doorEnter:(id)=>simDev.doorEnter(id),
+      doorExit:(id)=>simDev.doorExit(id),
+      probeSolid:(x,y,r)=>simDev.probeSolid(x,y,r),
       // CAS-441: positional enemy snapshot (read-only) so the swamp harness can prove the
       // zone spawner populates the rect from its pool — consumed by tools/cas441-swamp.mjs.
       // CAS-442 adds animState/arch/champion fields (still read-only) so the swamp-family

@@ -5,7 +5,7 @@
 // chests, fragments, fountains, npcs, spawners) — no ctx, no DOM.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_WATER, T_ICE, T_SWAMP, T_CALDERA, TOWN_MAP, TOWN_LEGEND, setMapDims, NEW_MOBS, ZONE5 } from "./config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_SAND, T_WATER, T_ICE, T_SWAMP, T_CALDERA, TOWN_MAP, TOWN_LEGEND, setMapDims, NEW_MOBS, ZONE5, DOORS_INTERIORS } from "./config.js";
 import { inRect } from "./math.js";
 import { TDECO } from "./tiled-deco-data.js";  // CAS-462: props visuales del mapa Tiled
 import { MAP as TILED_MAP } from "./tiled-map-data.js";
@@ -557,7 +557,46 @@ export function buildTiledWorld(rng){
   const procTX=proc.tcx, procTY=proc.tcy+dyPx;
   portals.push({x:tcx+4*TS, y:tcy, to:"oldlands", dx:procTX, dy:procTY+TS*2, kind:"down"});
   portals.push({x:procTX+5*TS, y:procTY-6*TS, to:"continent", dx:tcx+4*TS, dy:tcy+TS*2, kind:"up"});
-  return { terr, town, tiledVisual:true,
+  // ---- CAS-2225: door open/close + interior-warp (DARK) ------------------------------------------
+  // When DOORS_INTERIORS.enabled, promote every city door-STUB (kind:"door") to an interactive
+  // authoritative door and carve it a small habitable interior instance in the unused OCEAN margin
+  // (cols>procW, oldlands band rows — reachable ONLY by warp, like the caldera). Fixed positions, 0
+  // RNG. enabled:false ⇒ this whole block is skipped ⇒ terr/wallSet untouched, stubs unchanged ⇒
+  // byte-identical to a build without the feature. (`CW` here == the grown MAP_W after setMapDims.)
+  let doors=null, doorAt=null, exitAt=null;
+  if(DOORS_INTERIORS.enabled){
+    const DI=DOORS_INTERIORS.interior, margin=1+DI.apron, bw=DI.roomW+2*margin, bh=DI.roomH+2*margin;
+    doors=[]; doorAt=new Map(); exitAt=new Map();
+    const stubs=portals.filter(p=>p.kind==="door");
+    stubs.forEach((p,i)=>{
+      const dtx=Math.floor(p.x/TS), dty=Math.floor(p.y/TS), id="door:"+dtx+","+dty;
+      p.doorId=id; p.stub=false;                        // now a real interactive door (interact toggles it)
+      // clear the DOORWAY: the oldlands scatter (procedural trees/rocks) can land ON the threshold or its
+      // south approach, which would wall off an OPEN door. Drop only their COLLISION (solids) — the deco
+      // stays drawn — for the door tile + the tile just south, so the hero can actually walk through.
+      const cx=(dtx+0.5)*TS, cy=(dty+0.5)*TS, sx=cx, sy=cy+TS;
+      for(let si=solids.length-1;si>=0;si--){ const s=solids[si], reach=(s.r+16), r2=reach*reach;
+        const dc=(s.x-cx)*(s.x-cx)+(s.y-cy)*(s.y-cy), ds=(s.x-sx)*(s.x-sx)+(s.y-sy)*(s.y-sy);
+        if(dc<r2 || ds<r2) solids.splice(si,1); }
+      // carve interior block i: a solid stone-wall slab with a room hollowed out + a south exit gap
+      const blockX0=DI.baseTx+i*DI.pitch, blockY0=DI.baseTy;
+      const roomX0=blockX0+margin, roomY0=blockY0+margin;
+      for(let yy=0;yy<bh;yy++)for(let xx=0;xx<bw;xx++){
+        const gx=blockX0+xx, gy=blockY0+yy, gi=gy*CW+gx;
+        terr[gi]=T_STONE;                               // stone floor everywhere in the slab
+        const inRoom = gx>=roomX0 && gx<roomX0+DI.roomW && gy>=roomY0 && gy<roomY0+DI.roomH;
+        if(inRoom) wallSet.delete(gi); else wallSet.add(gi);   // room hollow = walkable; rest = wall
+      }
+      const exitTx=roomX0+((DI.roomW/2)|0), exitTy=roomY0+DI.roomH;   // gap in the south wall row
+      const exitIdx=exitTy*CW+exitTx; wallSet.delete(exitIdx); terr[exitIdx]=T_STONE;
+      doorAt.set(dty*CW+dtx, id);                        // exterior threshold tile → door id
+      exitAt.set(exitIdx, id);                           // interior exit tile → door id
+      doors.push({ id, tx:dtx, ty:dty,
+        outX:(dtx+0.5)*TS, outY:(dty+1.5)*TS,            // world standpoint just SOUTH of the door (outside)
+        inX:(exitTx+0.5)*TS, inY:(exitTy-0.5)*TS });     // interior standpoint just NORTH of the exit (inside)
+    });
+  }
+  return { terr, town, tiledVisual:true, doors, doorAt, exitAt,
     forest:shR(proc.forest), caves:shR(proc.caves), arena:shR(proc.arena), ruins:shR(proc.ruins),
     abyss:shR(proc.abyss), frost:shR(proc.frost), trial:shR(proc.trial), swamp:shR(proc.swamp),
     ...(proc.caldera ? { caldera:shR(proc.caldera) } : {}),  // CAS-1784: export translated caldera rect (ZONE5 ON only) so zoneOf resolves "caldera" in the tiled world; absent OFF ⇒ byte-identical

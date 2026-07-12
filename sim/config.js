@@ -1492,6 +1492,26 @@ export const MINIMAP = {
   labels: true,     // etiquetas de texto de los POIs en el mapa grande (M). El minimapa pequeño sólo muestra el marcador.
 };
 
+// CAS-2230: CICLO DÍA/NOCHE + BRILLO DE FAROLAS (EVO mundo-abierto, code+render-only, $0 arte, MMORPG-shared).
+// Reloj de mundo COMPARTIDO y determinista: la fase (0..1, 0=medianoche) deriva de un EPOCH global (`epochMs`) +
+// el reloj UTC real (`Date.now`, idéntico en TODO cliente) mod `cycleSeconds` ⇒ todos los clientes coinciden en la
+// hora POR CONSTRUCCIÓN — listo para el mundo autoritativo/netcode sin desync (NO usa `performance.now` por-cliente
+// ni RNG; el origen UTC compartido es lo que sincroniza, no un contador local por-página). Puramente de RENDER:
+// (a) tint ambiental interpolado amanecer→día→atardecer→noche (overlay a pantalla completa) y (b) halo cálido de
+// las farolas YA colocadas (world.deco `prop_city_lamp`/`lantern`, 0 RNG — misma deriva pura que los blips del
+// minimapa CAS-2226) sólo de noche/crepúsculo. NO toca colisión/spawns/sim/saves. DARK/reversible: `enabled:false`
+// ⇒ el bloque entero queda SIN LLAMAR ⇒ BYTE-IDÉNTICO al build actual (srand ON==OFF, saves byte-idénticos). Flip
+// config-only en 1 línea (Gate CEO tras QA OBSERVABLE), mismo patrón que MINIMAP/DOORS_INTERIORS.
+export const DAYNIGHT = {
+  enabled: true,         // CAS-2230 LIVE — Gate CTO flip tras QA PASS 15/15 (commit e7b3d7d). Reversible: true→false = DARK byte-idéntico.
+  cycleSeconds: 1200,    // duración de un ciclo completo día→noche→día (20 min). Configurable.
+  epochMs: 0,            // origen COMPARTIDO del reloj (UTC ms). Fijo ⇒ mismo instante ⇒ misma fase en todo cliente.
+  phaseOverride: null,   // null = fase derivada del reloj; 0..1 fuerza una fase fija (screenshots / QA determinista).
+  lampGlow: true,        // halo cálido radial de las farolas de noche/crepúsculo (deriva pura de world.deco, 0 RNG).
+  lampColor: "#ffd27a",  // color cálido del halo (ámbar de farol).
+  lampRadius: 120,       // radio del halo en px de mundo.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
@@ -2111,6 +2131,34 @@ export const JUICE = {
   screenShake: true,   // escalated camera shake (already reduceMotion+settings.shake gated; this is an extra master toggle on top)
   flash:       true,   // crit / backstab / riposte / execute floater-banner polish (base damage numbers stay for legibility)
   hitStopCapFrames: 9, // hard cap (frames @60fps ≈ 150ms) — matches current longest freeze; 60fps guard so no single event stalls perceptibly
+};
+
+// CAS-2225 — Door open/close + interior-warp MECHANIC (open-world Thais rebuild, parent CAS-2186).
+// Code-only, DARK. Turns the city door-STUBS already placed in Batch-1/Batch-2 (tavern + house
+// threshold portals, kind:"door") into interactive AUTHORITATIVE doors and adds a walk-through warp
+// into a small habitable interior. Server-authority-READY by design (see design/cas2225-doors-interiors.md):
+//   • Door open/closed is SHARED WORLD STATE keyed by a stable, position-derived id (door:tx,ty) in
+//     G.doors — a server would own this map; nearby clients read it. No client-only truth. Toggled ONLY
+//     by the interact intent (deterministic, 0 RNG draws).
+//   • Interior is an INSTANCE: a small walled room carved into the unused ocean margin of the tiled
+//     world (the caldera "self-contained region reached only by warp" precedent), reached by crossing an
+//     OPEN threshold; the exit tile warps back to the exact origin threshold. The room is a per-house
+//     instance TEMPLATE — under Stage-2 concurrency the server keys instances by (houseId, partyId) so N
+//     players/parties resolve to distinct rooms; Stage-1 single-player resolves to the one carved room.
+// HARD-GATED behind DOORS_INTERIORS.enabled. enabled:false ⇒ world.js carves NO rooms + creates NO door
+// records (terr/wallSet/prop fingerprint byte-identical, the stubs keep their "coming soon" toast) and
+// sim.js runs ZERO door/warp/collision code (0 RNG draws, save-neutral — G.doors is transient run-state,
+// never serialized) ⇒ a run is byte-identical to a build without the feature. srand ON==OFF (the build
+// mutates terrain, never the seeded RNG stream). Ships DARK; CEO Gate byte-verifies + flips config-only.
+export const DOORS_INTERIORS = {
+  enabled:false,           // DARK — Gate CEO flips after QA OBSERVABLE. false ⇒ byte-identical to HEAD.
+  startOpen:false,         // doors begin CLOSED (solid collision); interact toggles open (walkable).
+  warpCooldown:0.5,        // s — debounce after any threshold warp so you don't instantly re-trigger.
+  // interior instance geometry — a row of small walled rooms carved into the ocean margin of the tiled
+  // world (cols>procW, rows in the oldlands band: unreachable on foot, reached ONLY by warp). All fixed
+  // (no RNG). roomW×roomH = walkable stone floor; `apron` extra solid-wall tiles wrap the 1-tile wall ring
+  // so the viewport fills with wall/floor (reads as an interior, not an island). pitch = cols between rooms.
+  interior:{ baseTx:380, baseTy:630, roomW:13, roomH:9, apron:6, pitch:30 },
 };
 
 // CAS-2016/2017 — Onboarding: Primer de Combate (first-run). Presentation/data-only, RNG-neutral, $0 art.
