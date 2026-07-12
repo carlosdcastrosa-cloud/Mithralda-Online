@@ -1,0 +1,9 @@
+{
+  "class": "druid",
+  "base": "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/81e176fe-1d33-4a8c-9497-88c91772448c/",
+  "walk": {
+    "down": ["4465c8a4-9293-4bc9-b423-3e8b41bb1f16", 6],
+    "up": ["8ef82a40-f14c-4392-8454-90a9474da822", 6],
+    "side": ["168281ee-e6fe-47e4-b791-4db2676ec031", 6]
+  }
+}

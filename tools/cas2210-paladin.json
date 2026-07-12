@@ -1,0 +1,9 @@
+{
+  "class": "paladin",
+  "base": "https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/336df0da-587c-4408-84ec-af33b142131c/",
+  "walk": {
+    "down": ["3b757741-dbb5-4ee6-9873-c648af142c65", 6],
+    "up": ["e071f714-7ebd-4df1-bfa4-ffdd1ed54e5c", 6],
+    "side": ["95e3bb1b-c063-4245-981a-670125aca089", 6]
+  }
+}

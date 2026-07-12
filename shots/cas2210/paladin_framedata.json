@@ -1,0 +1,12 @@
+{
+  "paladin": {
+    "fc": {
+      "idle": 2,
+      "walk": 6,
+      "attack": 0
+    },
+    "fw": 64,
+    "fh": 64,
+    "note": "attack BUDGET-BLOCKED (gen=0); idle=breathing bob from rotation"
+  }
+}
