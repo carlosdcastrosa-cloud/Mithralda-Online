@@ -1492,6 +1492,26 @@ export const MINIMAP = {
   labels: true,     // etiquetas de texto de los POIs en el mapa grande (M). El minimapa pequeño sólo muestra el marcador.
 };
 
+// CAS-2230: CICLO DÍA/NOCHE + BRILLO DE FAROLAS (EVO mundo-abierto, code+render-only, $0 arte, MMORPG-shared).
+// Reloj de mundo COMPARTIDO y determinista: la fase (0..1, 0=medianoche) deriva de un EPOCH global (`epochMs`) +
+// el reloj UTC real (`Date.now`, idéntico en TODO cliente) mod `cycleSeconds` ⇒ todos los clientes coinciden en la
+// hora POR CONSTRUCCIÓN — listo para el mundo autoritativo/netcode sin desync (NO usa `performance.now` por-cliente
+// ni RNG; el origen UTC compartido es lo que sincroniza, no un contador local por-página). Puramente de RENDER:
+// (a) tint ambiental interpolado amanecer→día→atardecer→noche (overlay a pantalla completa) y (b) halo cálido de
+// las farolas YA colocadas (world.deco `prop_city_lamp`/`lantern`, 0 RNG — misma deriva pura que los blips del
+// minimapa CAS-2226) sólo de noche/crepúsculo. NO toca colisión/spawns/sim/saves. DARK/reversible: `enabled:false`
+// ⇒ el bloque entero queda SIN LLAMAR ⇒ BYTE-IDÉNTICO al build actual (srand ON==OFF, saves byte-idénticos). Flip
+// config-only en 1 línea (Gate CEO tras QA OBSERVABLE), mismo patrón que MINIMAP/DOORS_INTERIORS.
+export const DAYNIGHT = {
+  enabled: false,        // DARK — Gate CEO flips tras QA. false ⇒ byte-idéntico a HEAD (nunca se dibuja tint/glow).
+  cycleSeconds: 1200,    // duración de un ciclo completo día→noche→día (20 min). Configurable.
+  epochMs: 0,            // origen COMPARTIDO del reloj (UTC ms). Fijo ⇒ mismo instante ⇒ misma fase en todo cliente.
+  phaseOverride: null,   // null = fase derivada del reloj; 0..1 fuerza una fase fija (screenshots / QA determinista).
+  lampGlow: true,        // halo cálido radial de las farolas de noche/crepúsculo (deriva pura de world.deco, 0 RNG).
+  lampColor: "#ffd27a",  // color cálido del halo (ámbar de farol).
+  lampRadius: 120,       // radio del halo en px de mundo.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -299,6 +299,13 @@ export function createRenderer(ctx){
     renderWorld(camX,camY,Z);
     renderEntities();
     ctx.restore();
+    // CAS-2230: ciclo día/noche + farolas (render-only, DARK). Con DAYNIGHT.enabled:false este bloque nunca
+    // corre ⇒ salida byte-idéntica. ON: tinte ambiental a pantalla completa (oscurece la escena) y luego un
+    // segundo pase transformado dibuja el halo de las farolas ENCIMA de esa oscuridad (perfora la noche).
+    if(DAYNIGHT.enabled){ const _dn=dayNightState(worldPhase());
+      renderAmbientTint(_dn);
+      if(_dn.glow>0.02 && DAYNIGHT.lampGlow){ ctx.save(); ctx.scale(Z,Z); ctx.translate(-camX,-camY);
+        renderLampGlow(_dn.glow, camX, camY, Z); ctx.restore(); } }
     renderHUD();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
@@ -2614,6 +2621,83 @@ export function createRenderer(ctx){
     // Future sources plug in here (one push each): NPCs → world.npcs; remote players → net snapshot.
     _blipWorld=world; _blipCache=out; return out;
   }
+
+  // CAS-2230: DÍA/NOCHE + FAROLAS (render-only, DARK — gated por DAYNIGHT.enabled en render()).
+  // worldPhase() 0..1 (0=medianoche) desde el reloj COMPARTIDO/determinista: UTC real (Date.now, idéntico en
+  // todo cliente) − epoch, mod cycleSeconds ⇒ mismo instante ⇒ misma fase en cada cliente por construcción
+  // (listo para netcode autoritativo, sin desync; 0 RNG, 0 toque de sim/save). phaseOverride (config o el
+  // override runtime de QA _dnPhaseOverride) fija una fase para screenshots deterministas.
+  let _dnPhaseOverride=null;   // override de fase para dev/QA — NO toca config ni sim
+  function worldPhase(){
+    const cfgOv=DAYNIGHT.phaseOverride;
+    const ov=(_dnPhaseOverride!=null)?_dnPhaseOverride:((typeof cfgOv==="number")?cfgOv:null);
+    if(ov!=null) return ((ov%1)+1)%1;
+    const cyc=Math.max(1, DAYNIGHT.cycleSeconds||1200);
+    const t=(Date.now()/1000 - (DAYNIGHT.epochMs||0)/1000)/cyc;
+    return ((t%1)+1)%1;   // 0..1
+  }
+  // Keyframes fase → [r,g,b,a de tinte-pantalla] + glow 0..1 (visibilidad del halo de farolas).
+  // Interpolación lineal entre stops adyacentes ⇒ transición suave amanecer→día→atardecer→noche.
+  const _DN_STOPS=[
+    {p:0.00, c:[8,14,42,0.55],   g:1.00},  // medianoche — azul profundo
+    {p:0.22, c:[16,22,58,0.46],  g:0.88},  // pre-amanecer
+    {p:0.28, c:[255,150,74,0.24],g:0.42},  // amanecer cálido
+    {p:0.36, c:[255,224,150,0.06],g:0.10}, // primera mañana
+    {p:0.50, c:[0,0,0,0.0],      g:0.00},  // mediodía — sin tinte
+    {p:0.66, c:[255,206,130,0.05],g:0.10}, // tarde
+    {p:0.74, c:[255,126,52,0.26],g:0.46},  // atardecer cálido
+    {p:0.84, c:[36,28,66,0.44],  g:0.88},  // crepúsculo
+    {p:1.00, c:[8,14,42,0.55],   g:1.00},  // vuelta a medianoche
+  ];
+  function dayNightState(phase){
+    const S=_DN_STOPS; let a=S[0], b=S[S.length-1];
+    for(let i=0;i<S.length-1;i++){ if(phase>=S[i].p && phase<=S[i+1].p){ a=S[i]; b=S[i+1]; break; } }
+    const span=(b.p-a.p)||1, k=clamp((phase-a.p)/span,0,1), L=(i)=>a.c[i]+(b.c[i]-a.c[i])*k;
+    return { r:L(0)|0, g:L(1)|0, b:L(2)|0, a:L(3), glow:a.g+(b.g-a.g)*k };
+  }
+  function renderAmbientTint(st){ if(!st||st.a<=0.002) return;
+    ctx.fillStyle="rgba("+st.r+","+st.g+","+st.b+","+st.a.toFixed(3)+")"; ctx.fillRect(0,0,VW,VH); }
+  // Farolas: deriva PURA de world.deco (0 RNG, misma idea que mapBlips) → posición del foco (elevada al
+  // farol). Memoizado por world build (estático). El halo se dibuja aditivo ("lighter") sólo en cámara.
+  let _lampCache=null, _lampWorld=null;
+  function lampGlows(){
+    if(_lampWorld===world && _lampCache) return _lampCache;
+    const out=[];
+    for(const d of (world.deco||[])){ if(d.kind==="prop_city_lamp"||d.kind==="lantern") out.push({x:d.x, y:d.y-20}); }
+    _lampWorld=world; _lampCache=out; return out;
+  }
+  const _lampRgb=(()=>{ const h=(DAYNIGHT.lampColor||"#ffd27a").replace("#",""); return [parseInt(h.slice(0,2),16)||255, parseInt(h.slice(2,4),16)||210, parseInt(h.slice(4,6),16)||122]; })();
+  function renderLampGlow(glowAmt, camX, camY, Z){
+    const lamps=lampGlows(); if(!lamps.length) return;
+    const R=DAYNIGHT.lampRadius||120, rgb=_lampRgb;
+    const vL=camX-R, vR=camX+VW/Z+R, vT=camY-R, vB=camY+VH/Z+R;   // rect de cámara (+R margen) en px de mundo
+    ctx.save(); ctx.globalCompositeOperation="lighter";
+    const A=(m)=>"rgba("+rgb[0]+","+rgb[1]+","+rgb[2]+","+(m*glowAmt).toFixed(3)+")";
+    for(const l of lamps){ if(l.x<vL||l.x>vR||l.y<vT||l.y>vB) continue;
+      const grd=ctx.createRadialGradient(l.x,l.y,0,l.x,l.y,R);
+      grd.addColorStop(0,A(0.55)); grd.addColorStop(0.5,A(0.20)); grd.addColorStop(1,A(0));
+      ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(l.x,l.y,R,0,6.2832); ctx.fill(); }
+    ctx.restore();
+  }
+  // Dev/QA hook (expuesto vía __dev.daynight): daynight() lee estado. Formas de escritura:
+  //   daynight(0.0)                     → fija override de fase 0..1 (null → vuelve al reloj compartido).
+  //   daynight({enabled:true, phase:0}) → flip runtime IN-MEMORY (mismo patrón que __dev.pixelart) para
+  //                                       OBSERVAR en DARK: el default en disco sigue false (build byte-id).
+  // Render-only, RNG-neutral: no toca sim/save. El flip runtime NO persiste; el flip live real es config-only.
+  function daynight(p){
+    if(p!==undefined){
+      if(p&&typeof p==="object"){
+        if("enabled" in p) DAYNIGHT.enabled=!!p.enabled;
+        if("lampGlow" in p) DAYNIGHT.lampGlow=!!p.lampGlow;   // A/B isolate the halo (QA)
+        if("phase" in p) _dnPhaseOverride=(p.phase==null)?null:((((+p.phase)%1)+1)%1);
+      } else _dnPhaseOverride=(p===null)?null:((((+p)%1)+1)%1);
+    }
+    const ph=worldPhase(), st=dayNightState(ph), lg=lampGlows();
+    return { enabled:DAYNIGHT.enabled, phase:+ph.toFixed(4), override:_dnPhaseOverride,
+      tint:{r:st.r,g:st.g,b:st.b,a:+st.a.toFixed(3)}, glow:+st.glow.toFixed(3),
+      lamps:lg.length, lamp0:lg[0]?{x:Math.round(lg[0].x),y:Math.round(lg[0].y),tx:Math.round(lg[0].x/TS),ty:Math.round((lg[0].y+20)/TS)}:null };
+  }
+
   function renderMiniMap(){ if(isTouch) return;
     const sidebar=view.sbw>0;
     let mw=120, mh=120, x, y;
@@ -4567,5 +4651,5 @@ export function createRenderer(ctx){
     ctx.strokeStyle="#cdd4dc"; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(-18,-18); ctx.lineTo(18,18); ctx.moveTo(18,-18); ctx.lineTo(-18,18); ctx.stroke();
     ctx.strokeStyle=COL.out; ctx.lineWidth=1.5; ctx.stroke(); ctx.restore(); }
 
-  return { render, customImgReady };
+  return { render, customImgReady, daynight };
 }

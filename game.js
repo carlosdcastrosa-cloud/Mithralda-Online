@@ -235,6 +235,9 @@ export function createGame(canvas, ctx, getView){
       // pixelart() reads; pixelart(false) forces procedural for hero/enemies/VFX/tiles; pixelart(true)
       // restores sprites. Same-page A/B: flip and re-screenshot the identical seed with zero reload.
       pixelart:(v)=>{ if(v!==undefined) PIXELART.spritesEnabled=!!v; return PIXELART.spritesEnabled; },
+      // CAS-2230: día/noche + farolas OBSERVABLE hook (DARK). daynight() lee {enabled,phase,tint,glow,lamps};
+      // daynight(p) fija un override de fase 0..1 (p=null vuelve al reloj compartido) para screenshots QA.
+      daynight:(p)=>renderer.daynight(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
