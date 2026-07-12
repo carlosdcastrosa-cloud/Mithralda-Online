@@ -81,9 +81,10 @@ PixelLab source: object `f916e936-672a-4b26-9071-1253e5c1afda` (selected from no
 
 ## Generation budget (this pilot)
 
-- PixelLab Tier 1, 2000/mo. Start of task: **185 remaining**. Cap for pilot: **≤60**.
-- Used: **≈54 generations** (2× v3 character bases, walk+attack animations for both, 1 VFX
-  object review pack (20) + nova animation). **Well inside the 60 cap.**
+- PixelLab Tier 1, 2000/mo. Start of task: **185 remaining** → end **126 remaining**.
+- Used: **59 generations** (2× v3 character bases + walk/attack animations for both, +
+  the 1 VFX object review pack alone = 20, + nova animation). Cap **≤60** — **met** (the
+  20-gen object review pack is the big line item; note it for future FX budgeting).
 - **Not generated** (deferred, budget-gated pending board mass-migration decision CAS-2177):
   the optional prop + ground tileset, the other 4 hero classes (derive via
   `create_character_state` from the warrior base), full 8-direction sets, and enemy hurt/death.
