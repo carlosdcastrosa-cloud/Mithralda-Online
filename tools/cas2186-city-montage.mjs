@@ -80,12 +80,8 @@ for (let ty = 0; ty < TN; ty++) for (let tx = 0; tx < TN; tx++) {
 const groundTile = (x, y) => ts.img[((bestTile.ty*32) + (y & 31)) * ts.W + (bestTile.tx*32) + (x & 31)];
 
 // assets to show, in tile-scale order; bottom-center anchored
-const items = [
-  { name: "street_lamp", label: "street_lamp" },
-  { name: "house_red", label: "house_red" },
-  { name: "depot", label: "depot" },
-];
-if (fs.existsSync(path.join(CITY, "temple.png"))) items.push({ name: "temple", label: "temple" });
+const ALL = ["street_lamp_v2","street_lamp","park_bench","stone_well","park_tree","house_red","house_blue","tavern","depot","temple"];
+const items = ALL.filter(n => fs.existsSync(path.join(CITY, n+".png"))).map(n=>({name:n,label:n}));
 for (const it of items) it.png = load(it.name + ".png");
 
 // layout: one row of sprites on a cobble ground band, at 1x game density
