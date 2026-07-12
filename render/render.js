@@ -1785,9 +1785,33 @@ export function createRenderer(ctx){
   // frame for this effect's life-progress, centred at (x,y), scaled to `size` px, optionally
   // rotated to the attack angle. Returns false if the strip isn't loaded yet -> caller falls
   // back to the procedural draw (graceful during asset load). Presentation-only, no RNG.
-  function drawFxSprite(name,x,y,prog,size,ang){ const im=IMG["fx_"+name], m=FX_STRIP&&FX_STRIP[name];
+  // CAS-2216: per-cast element tint for the pilot Fire-Nova strip. The purchased fx_nova strip is
+  // baked ORANGE, so cold/nature casts (frost/vines) read as fire. We recolour the whole strip once
+  // per element colour (cached) using a "color" blend that keeps the sprite's LUMINANCE (bright core
+  // stays bright) while adopting the element's hue+saturation, then clip back to the sprite alpha.
+  const _fxTintCache=(typeof document!=="undefined")?Object.create(null):null;
+  function tintedFxStrip(im,name,col){
+    if(!_fxTintCache) return im;
+    const ck=name+"|"+col; let cv=_fxTintCache[ck]; if(cv) return cv;
+    const w=im.naturalWidth, h=im.naturalHeight;
+    cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+    const g=cv.getContext("2d"); g.imageSmoothingEnabled=false;
+    g.drawImage(im,0,0);
+    g.globalCompositeOperation="color"; g.fillStyle=col; g.fillRect(0,0,w,h); // hue/sat of col, keep sprite luminance
+    g.globalCompositeOperation="destination-in"; g.drawImage(im,0,0);         // restore original alpha mask
+    g.globalCompositeOperation="source-over";
+    _fxTintCache[ck]=cv; return cv; }
+  // Decide whether a cast colour warrants a tint. Warm/fire (red-dominant) casts keep the default
+  // orange strip untinted; cold/nature (blue- or green-leaning) casts get recoloured.
+  function fxTintFor(col){
+    if(!col||col[0]!=="#"||col.length<7) return null;
+    const r=parseInt(col.slice(1,3),16), g=parseInt(col.slice(3,5),16), b=parseInt(col.slice(5,7),16);
+    if(r>=g && r>=b && (r-b)>40) return null; // fire/warm → default orange strip
+    return col; }
+  function drawFxSprite(name,x,y,prog,size,ang,tint){ const im0=IMG["fx_"+name], m=FX_STRIP&&FX_STRIP[name];
     if(!PIXELART.spritesEnabled) return false;  // CAS-2208: master A/B gate ⇒ caller (drawFx) falls to procedural FX
-    if(!m||!im||!im.complete||!im.naturalWidth) return false;
+    if(!m||!im0||!im0.complete||!im0.naturalWidth) return false;
+    const im=tint?tintedFxStrip(im0,name,tint):im0;
     const fi=clamp(Math.floor(prog*m.n),0,m.n-1), fw=m.fw, s=size/fw;
     ctx.save(); ctx.imageSmoothingEnabled=false; ctx.translate(x,y); if(ang!=null) ctx.rotate(ang); ctx.scale(s,s);
     ctx.drawImage(im, fi*fw, 0, fw, fw, -fw/2, -fw/2, fw, fw); ctx.restore(); return true; }
@@ -1803,7 +1827,8 @@ export function createRenderer(ctx){
     const SM=FXSPRITEMAP[f.kind];
     if(SM && !G.settings.reduceMotion){ const size=SM.size || ((f.r||SM.rDef||80)*(SM.sizeR||1));
       const ang=SM.rot? (f.ang||0) : null;
-      if(drawFxSprite(SM.s, f.x, f.y, clamp(f.t/f.life,0,1), size, ang)) return; }
+      const tint=(SM.s==="nova")? fxTintFor(f.col) : null; // CAS-2216: recolour the Fire-Nova strip per element (frost=blue, nature=green; fire stays orange)
+      if(drawFxSprite(SM.s, f.x, f.y, clamp(f.t/f.life,0,1), size, ang, tint)) return; }
     if(f.kind==="chainbolt"){ // CAS-1570: jagged lightning arc from (f.x,f.y) → (f.x2,f.y2)
       const x2=(f.x2!=null)?f.x2:f.x, y2=(f.y2!=null)?f.y2:f.y; const col=f.col||"#bfe6ff";
       const seg=6, dx=(x2-f.x)/seg, dy=(y2-f.y)/seg, nx=-(y2-f.y), ny=(x2-f.x), nl=Math.hypot(nx,ny)||1;
