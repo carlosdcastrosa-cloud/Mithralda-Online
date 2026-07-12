@@ -1488,7 +1488,7 @@ export const PIXELART = {
 // héroe). `true` = experimental/flip. Puramente de render: no toca sim/RNG/saves ⇒ srand ON==OFF, saves byte-idénticos.
 // Flip config-only en 1 línea. Los gates de warp YA salen como blips violeta (world.portals) — no se re-dibujan aquí.
 export const MINIMAP = {
-  enabled: false,   // false = LIVE actual (sin blips de POI). true = dibuja los POIs de ciudad en minimapa + mapa (M).
+  enabled: true,    // false = LIVE actual (sin blips de POI). true = dibuja los POIs de ciudad en minimapa + mapa (M).
   labels: true,     // etiquetas de texto de los POIs en el mapa grande (M). El minimapa pequeño sólo muestra el marcador.
 };
 
