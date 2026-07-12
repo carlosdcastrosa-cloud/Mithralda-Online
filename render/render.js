@@ -987,7 +987,11 @@ export function createRenderer(ctx){
           || drawClassFrame(ctx,cls,(state==="roll")?"walk":state,dir4FromAngle(ang),fi,h.x,feet,HERO_SPRITE_SCALE,tint);
     ctx.globalAlpha=1;
     if(!ok){ const b2=h.walkT?Math.sin(h.walkT)*2:0; blit(ctx,SP.hero.rows, h.hurtFlash>0?redden(SP.hero.pal):SP.hero.pal, h.x,h.y-12-b2,3, Math.cos(h.facing)<0); }
-    if(!h.dead){ ctx.globalAlpha=0.8; ctx.fillStyle=COL.textGold; const fx=h.x+Math.cos(h.facing)*18, fy=h.y-2+Math.sin(h.facing)*18; ctx.fillRect(fx-1.5,fy-1.5,3,3); ctx.globalAlpha=1; }
+    // CAS-2202: el PUNTO AMARILLO de dirección/apuntado (dot dorado a facing*18 enfrente del héroe) queda RETIRADO
+    // por pedido del board (CAS-2201: "elimina ese ángulo de dirección… también el punto amarillo"). Presentación pura:
+    // era el único overlay de facing SIEMPRE-visible que "sale enfrente del personaje". El facing interno (h.facing) sigue
+    // intacto — sólo desaparece el dibujado. Reversible (revert-on-fail): re-descomentar restaura el marcador byte-idéntico.
+    // if(!h.dead){ ctx.globalAlpha=0.8; ctx.fillStyle=COL.textGold; const fx=h.x+Math.cos(h.facing)*18, fy=h.y-2+Math.sin(h.facing)*18; ctx.fillRect(fx-1.5,fy-1.5,3,3); ctx.globalAlpha=1; }
     if(!h.dead) drawStatusFx(h, h.x, h.y+14, h.y-40); // CAS-118: the hero shows its own afflictions (aura + pips above head)
     // CAS-199: 3 floating motes orbiting the hero (class-accent colour), in FRONT for
     // depth. Off when reduce-motion is on. Pure presentation, derived from G.t.
