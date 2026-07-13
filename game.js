@@ -241,6 +241,9 @@ export function createGame(canvas, ctx, getView){
       // CAS-2231: clima (lluvia/niebla) OBSERVABLE hook (DARK). weather() lee {enabled,phase,rain,fog,state,drops};
       // weather(p) fija un override de fase 0..1 (p=null vuelve al reloj compartido) o {enabled,phase} para QA.
       weather:(p)=>renderer.weather(p),
+      // CAS-2234: banner de zona/región OBSERVABLE hook (DARK). zone() lee {enabled,current,banner,regions};
+      // zone("Templo") fuerza un banner; zone(null) lo limpia; zone({enabled:true}) flip runtime IN-MEMORY para QA.
+      zone:(p)=>renderer.zone(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
