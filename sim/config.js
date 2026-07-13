@@ -2043,7 +2043,7 @@ export const FELLOWSHIP_BOND = {
 // (rol observado + alimentado por acciones que YA existen, 0 hotkey — anti-CAS-2273). Reversible en 1 línea (enabled:false→true + redeploy overlay
 // consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO (retune barato).
 export const MENTOR_BOND = {
-  enabled: false,            // DARK (CAS-2322). El CEO gatea el flip false→true tras QA PASS. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  enabled: true,             // CAS-2323 LIVE (EVO#48). CEO gate APPROVED tras QA PASS 14/14 (asimétrico 2-cliente, byte-id OFF). Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
   periodSec: 604800,         // ciclo del VÍNCULO (1 semana). Reloj de pared COMPARTIDO ⇒ MISMO compañero asignado en N clientes (0 desync). Propio (no acopla a Fellowship/Órdenes).
   epochMs: 0,                // ancla del reloj (0 = epoch Unix). Compartida ⇒ period idéntico en todo cliente.
   gapThreshold: 5,           // gap de nivel MÍNIMO para que exista una relación mentor/protégé (|heroLvl − partnerLvl| ≥ umbral). CEO balance knob.
