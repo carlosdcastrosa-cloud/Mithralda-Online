@@ -1699,6 +1699,42 @@ export const SANCTUARY_REP = {
   ],
 };
 
+// CAS-2278: INTENDENTE DEL SANTUARIO / SANCTUARY QUARTERMASTER (DARK, SANCTUARY_REWARDS) — cierra el loop de FACCIÓN abierto por
+// SANCTUARY_REP (LIVE). Canon MMORPG: el reward vendor de facción (WoW quartermaster / Tibia faction rep). Hoy la reputación del
+// Santuario sólo da un perk pasivo de XP-bounty; le falta la otra mitad de todo sistema de facción: un PAYOFF concreto y RECLAMABLE
+// por rango, más un TÍTULO DE RENOMBRE visible socialmente (nameplate) para la capa social del mundo compartido (Stage-2). Diseño
+// Stage-1, per-hero, 100% DETERMINISTA (0 RNG, 0 moneda/key/inventario nuevo) y server-authority-ready:
+//   · HITO POR RANGO: al alcanzar cada rango de SANCTUARY_REP (Reconocido→Honrado→Venerado→Exaltado) se DESBLOQUEA UN reward
+//     reclamable en el Intendente (dentro de la SAFEZONE, mismo gating de zona que el Tablón). Se reclama UNA vez (idempotente).
+//   · CADA reward REUTILIZA un knob YA vivo (0 sistema nuevo): reducción de cooldown de RECALL, +cap de RESTED_XP, +regen de
+//     SAFEZONE, +bono de XP de Descanso. El efecto es un MULTIPLICADOR gateado aplicado en el chokepoint del knob (sanctuaryRewardMul);
+//     con la feature OFF (o 0 rewards reclamados) devuelve 0 ⇒ el knob queda BYTE-IDÉNTICO a HEAD (anti-CAS-2220).
+//   · TÍTULO DE RENOMBRE = el `title` del reward RECLAMADO de mayor rango, dibujado sobre el nameplate del héroe (texto puro, $0 arte).
+//   · RECLAMADO PERSISTENTE: h.sanctuaryRewards = array de ids reclamados, persistido por el MISMO mecanismo que sanctuaryRep
+//     (serializeSave gated). enabled:false ⇒ el campo NUNCA se crea ⇒ save.v1 + worldFingerprint + ruta de knobs byte-idénticos.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tryQuartermaster devuelve "off" (tecla Supr inerte río arriba en input.js), el
+// Intendente nunca dibuja, h.sanctuaryRewards nunca existe, sanctuaryRewardMul devuelve 0. Reversible en 1 línea (enabled:true→false
+// + redeploy overlay CONSISTENTE-HEAD: config+sim+render+input). Tecla dedicada "Delete" (Supr) = code LIBRE verificado (grep de
+// playAction/REBINDS/config: 26 letras + End/Home/Backslash/Semicolon/Quote/Backquote ocupadas; Supr libre — LECCIÓN CAS-2273).
+// Los NÚMEROS (rank→reward, kind, value) = decisión de BALANCE del CEO (retune = edición de knob barata y reversible).
+export const SANCTUARY_REWARDS = {
+  enabled: false,          // DARK. Ruta: DARK build → QA observable → CEO Gate → flip. Reversible: true→false + redeploy overlay consistente-HEAD.
+  key: "Delete",           // tecla dedicada (Supr) — code LIBRE (mirror RECALL.key="Home" / BOUNTY_BOARD.key="End"); NO rebindable (nunca toca REBINDS/settings.binds).
+  requireSafeZone: true,   // el Intendente vive en el Santuario (mismo gating de hub que el Tablón)
+  // Un reward por rango NO-neutral de SANCTUARY_REP. `rank` = id del rango de SANCTUARY_REP que lo desbloquea; `kind`+`value` =
+  // el knob reutilizado y su fracción de bono (sanctuaryRewardMul suma los `value` de los rewards reclamados de ese kind).
+  //   recallCd   → RECALL.cooldownSec  × (1 - Σvalue)   (retorno más rápido a casa)
+  //   restedCap  → RESTED_XP.poolCap   × (1 + Σvalue)   (mayor reserva de Descanso)
+  //   safeRegen  → regen de SAFEZONE   × (1 + Σvalue)   (santuario más restaurador)
+  //   restedMult → bono XP de Descanso + Σvalue          (el Descanso rinde más al cazar)
+  rewards: [
+    { rank:"recognized", id:"swift_return", kind:"recallCd",   value:0.20, name:"Retorno Veloz",       title:"Reconocido del Santuario", desc:"Piedra de Vínculo: -20% de enfriamiento" },
+    { rank:"honored",    id:"deep_reserves",kind:"restedCap",  value:0.50, name:"Reservas del Peregrino",title:"Honrado del Santuario",    desc:"Descanso: +50% de reserva máxima" },
+    { rank:"revered",    id:"temple_grace", kind:"safeRegen",  value:0.40, name:"Gracia del Templo",    title:"Venerado del Santuario",   desc:"Zona Segura: +40% de regeneración" },
+    { rank:"exalted",    id:"pilgrims_zeal",kind:"restedMult", value:0.15, name:"Fervor del Peregrino",  title:"Exaltado del Santuario",   desc:"Descanso: +0.15 al multiplicador de XP" },
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
