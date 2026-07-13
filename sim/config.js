@@ -1575,7 +1575,7 @@ export const SAFEZONE = {
   templeMul: 2.5,          // multiplicador de la tasa de regen dentro del radio del Templo (santuario de curación).
   templeRadius: 220,       // radio (px de mundo) alrededor del POI Templo para el regen acelerado.
   cityMargin: 300,         // margen (px) que expande el bbox de los POIs = extensión de la zona segura (mirror ZONE_BANNER).
-  noAggro: false,          // sub-flag reservado (NO Batch 1): mobs no persiguen dentro del margen de ciudad.
+  noAggro: true,           // CAS-2250 flip LIVE, CEO Gate APPROVED tras QA CAS-2252 PASS 12/12. Reversible: true→false + redeploy. Mobs no adquieren/persiguen dentro del margen de ciudad; leash en el borde.
   epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER), MMORPG-safe.
 };
 
