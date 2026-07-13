@@ -1758,7 +1758,7 @@ export const SANCTUARY_REWARDS = {
 // Reversible en 1 línea (enabled:true→false + redeploy overlay CONSISTENTE-HEAD: config+sim+render). Escala a N jugadores sin
 // contención (el horario es una función pura compartida; el reward es per-hero por el chokepoint gainXP/rep ya vivo).
 export const WORLD_EVENT = {
-  enabled: false,          // DARK. Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+render).
+  enabled: true,           // CAS-2289 LIVE. Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+render).
   periodSec: 900,          // cada 15 min suena el Toque (bucket determinista del epoch). CEO balance knob.
   windowSec: 180,          // duración de la ventana activa (3 min de convergencia/recompensa). CEO balance knob.
   xpMult: 1.25,            // multiplicador de XP durante la fase LLAMADA (1ª mitad), vía gainXP (estilo RESTED). Acotado.
