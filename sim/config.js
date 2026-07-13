@@ -1718,7 +1718,7 @@ export const SANCTUARY_REP = {
 // playAction/REBINDS/config: 26 letras + End/Home/Backslash/Semicolon/Quote/Backquote ocupadas; Supr libre — LECCIÓN CAS-2273).
 // Los NÚMEROS (rank→reward, kind, value) = decisión de BALANCE del CEO (retune = edición de knob barata y reversible).
 export const SANCTUARY_REWARDS = {
-  enabled: false,          // DARK. Ruta: DARK build → QA observable → CEO Gate → flip. Reversible: true→false + redeploy overlay consistente-HEAD.
+  enabled: true,           // LIVE (CAS-2279 flip; QA 23/23 PASS build c4a549ae2fa1, CEO Gate). Reversible: true→false + redeploy overlay consistente-HEAD.
   key: "Delete",           // tecla dedicada (Supr) — code LIBRE (mirror RECALL.key="Home" / BOUNTY_BOARD.key="End"); NO rebindable (nunca toca REBINDS/settings.binds).
   requireSafeZone: true,   // el Intendente vive en el Santuario (mismo gating de hub que el Tablón)
   // Un reward por rango NO-neutral de SANCTUARY_REP. `rank` = id del rango de SANCTUARY_REP que lo desbloquea; `kind`+`value` =
