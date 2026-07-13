@@ -1512,6 +1512,28 @@ export const DAYNIGHT = {
   lampRadius: 120,       // radio del halo en px de mundo.
 };
 
+// CAS-2231: SISTEMA DE CLIMA (lluvia / niebla, render-only, DARK). North Star MMORPG: el clima es ESTADO DEL
+// MUNDO COMPARTIDO, no un efecto de cliente aislado — igual que DÍA/NOCHE (CAS-2230), la fase deriva de un
+// reloj COMPARTIDO/determinista (UTC real Date.now − epochMs, mod cycleSeconds) ⇒ por construcción todos los
+// clientes del mismo shard ven el MISMO clima en el mismo instante (listo para netcode autoritativo vía
+// phaseOverride, 0 desync). Overlay puramente render/derivado: 0 RNG, save/determinism-neutral, NO toca
+// colisión/spawns/sim/movimiento/combate. Compone ENCIMA del tinte DAYNIGHT (noche+lluvia = más oscuro; el
+// halo de farolas se dibuja DESPUÉS del clima ⇒ sigue perforando la niebla/lluvia). Partículas de lluvia
+// CAPADAS (presupuesto fijo maxDrops, sin allocs por-frame en el hot loop). DARK/reversible: `enabled:false`
+// ⇒ el bloque entero queda SIN LLAMAR ⇒ BYTE-IDÉNTICO al build actual. Flip config-only en 1 línea (Gate CEO
+// tras QA OBSERVABLE), mismo patrón que MINIMAP/DOORS_INTERIORS/DAYNIGHT.
+export const WEATHER = {
+  enabled: true,         // LIVE (CAS-2233 Gate CEO APROBADO tras QA PASS 16/16). Reversible: true→false + redeploy overlay.
+  cycleSeconds: 900,     // duración de un ciclo completo clear→rain→fog→clear (15 min). Configurable.
+  epochMs: 0,            // origen COMPARTIDO del reloj (UTC ms). Fijo ⇒ mismo instante ⇒ mismo clima en todo cliente.
+  phaseOverride: null,   // null = fase derivada del reloj; 0..1 fuerza una fase fija (screenshots / QA determinista).
+  maxDrops: 140,         // presupuesto FIJO de gotas de lluvia (cap de perf; sin allocs por-frame, pool memoizado).
+  rainTint: "#3a4a6a",   // tinte azulado-gris del velo de lluvia (screen overlay, oscurece leve).
+  rainDarken: 0.18,      // alpha máx. del velo azulado-gris de lluvia (oscurecimiento leve).
+  fogColor: "#c8ccd4",   // color del velo de niebla (gris claro).
+  fogMax: 0.42,          // alpha máx. del velo radial de niebla (reduce visibilidad ambiental; centro más claro = combate legible).
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
