@@ -1545,7 +1545,7 @@ export const WEATHER = {
 // reversible: `enabled:false` ⇒ el update+render del banner NUNCA se llama ⇒ BYTE-IDÉNTICO al build actual (srand
 // ON==OFF, worldFingerprint sin drift). Flip config-only/overlay (Gate CEO tras QA OBSERVABLE), patrón WEATHER/DAYNIGHT.
 export const ZONE_BANNER = {
-  enabled: false,         // DARK (default). true = dibuja el banner al entrar a una zona con nombre. Reversible true→false.
+  enabled: true,          // CAS-2236 LIVE — Gate CEO=GO tras QA OBSERVABLE PASS (build c04dfa6). Reversible: true→false + redeploy overlay.
   radius: 200,            // radio (px de mundo) alrededor del centro de cada POI que cuenta como "dentro" de esa zona.
   cityMargin: 300,        // margen (px) que expande el bbox de los POIs para la región contenedora "Ciudad".
   holdSeconds: 2.5,       // tiempo que el banner queda a plena opacidad antes del fade-out.
