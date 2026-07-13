@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK, GUARD_BREAK, LUNGE, RECALL } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK, GUARD_BREAK, LUNGE, RECALL, BOUNTY_BOARD } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -133,7 +133,7 @@ function onKeyDown(e){
   // navegador si no se hace preventDefault). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
   // CAS-1873: suprime el default del navegador para la tecla de bloqueo cuando está enabled (ShiftLeft es un
   // modificador; sin esto podría interferir con atajos). OFF ⇒ la condición no añade nada ⇒ byte-idéntico a hoy.
-  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key) || (THROWABLES.enabled && (e.code===THROWABLES.throwKey || e.code===THROWABLES.cycleKey)) || (WEAPON_BUFFS.enabled && (e.code===WEAPON_BUFFS.applyKey || e.code===WEAPON_BUFFS.cycleKey)) || (SUMMON.enabled && e.code===SUMMON.key) || (RECALL.enabled && e.code===RECALL.key) || (COMBAT_CODEX.enabled && e.code===COMBAT_CODEX.codexKey)) e.preventDefault();
+  if(md || playAction(e.code) || e.code==="Digit1" || e.code==="Escape" || (LOCK_ON.enabled && e.code===LOCK_ON.key) || (SHIELD_BLOCK.enabled && e.code===SHIELD_BLOCK.key) || (TWO_HAND.enabled && e.code===TWO_HAND.key) || (THROWABLES.enabled && (e.code===THROWABLES.throwKey || e.code===THROWABLES.cycleKey)) || (WEAPON_BUFFS.enabled && (e.code===WEAPON_BUFFS.applyKey || e.code===WEAPON_BUFFS.cycleKey)) || (SUMMON.enabled && e.code===SUMMON.key) || (RECALL.enabled && e.code===RECALL.key) || (BOUNTY_BOARD.enabled && e.code===BOUNTY_BOARD.key) || (COMBAT_CODEX.enabled && e.code===COMBAT_CODEX.codexKey)) e.preventDefault();
 }
 function onKeyUp(e){ const md=moveDir(e.code); if(md) keys.delete(md);
   // CAS-1873: soltar la tecla de bloqueo BAJA la guardia (HELD). Siempre se limpia (aunque OFF) ⇒ el estado no queda
@@ -356,6 +356,11 @@ function edge(code){
   // es rebindable (deliberate, como SUMMON.key / KeyH parry: never touches REBINDS/settings.binds). El sim decide (tryRecall
   // gated en escena play + vivo + vinculado + cooldown). Cross-platform (móvil: botón HUD reservado; QA: __dev.recall({cast})).
   if(code===RECALL.key && RECALL.enabled){ sim.tryRecall(); return; }
+  // CAS-2269: tecla dedicada BOUNTY_BOARD.key (default "KeyB") dispara el TABLÓN DE RECOMPENSAS (acepta/reclama en el Santuario).
+  // Gated on BOUNTY_BOARD.enabled ⇒ con la feature off la tecla es inerte (falls through, no state change) ⇒ snapshot byte-id. NO
+  // es rebindable (mirror RECALL.key/SUMMON.key). El sim decide (tryBounty gated en escena play + vivo + [requireSafeZone] en la
+  // SAFEZONE). Cross-platform (móvil: botón HUD reservado; QA: __dev.bounty({act})).
+  if(code===BOUNTY_BOARD.key && BOUNTY_BOARD.enabled){ sim.tryBounty(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }

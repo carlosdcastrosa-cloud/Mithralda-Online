@@ -1633,6 +1633,39 @@ export const RECALL = {
   epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER/SAFEZONE), MMORPG-safe.
 };
 
+// CAS-2269: TABLÓN DE RECOMPENSAS DEL SANTUARIO (BOUNTY BOARD, DARK, BOUNTY_BOARD) — el loop de CONTENIDO DIRIGIDO que da
+// PROPÓSITO a la caza y otra RAZÓN para volver al hub (arco Santuario: SAFEZONE regen + noAggro + TEMPLE_RESPAWN + Rested +
+// RECALL, TODOS LIVE). Canon MMORPG: el tablón de recompensas / daily bounties (WoW/GW2/Tibia hunting tasks). Un contrato
+// simple y legible: "mata N de X" ⇒ recompensa (oro + XP). Diseño Stage-1, per-hero, 100% DETERMINISTA y server-authority-ready:
+//   · PROGRESO DERIVADO (0 tracking nuevo por-frame, 0 hook en killEnemy): el avance = contador MONÓTONO ya existente y ya
+//     persistido (h.kills para "any", h.killsByType[target] para un tipo) MENOS un snapshot `base` tomado al ACEPTAR. Es
+//     aritmética pura de lectura ⇒ idéntico en todo cliente por construcción, listo para netcode autoritativo.
+//   · ROTACIÓN DETERMINISTA (0 RNG): el tablón muestra un contrato "destacado" = bounties[bountyIdx % N]; reclamar avanza
+//     bountyIdx (variedad a lo largo del tiempo sin azar). Sin reloj local ⇒ MMORPG-safe.
+//   · HUB LOOP: aceptar/reclamar sólo DENTRO de la SAFEZONE (requireSafeZone, mirror del BIND del Recall) ⇒ vas al Santuario,
+//     tomas el contrato, cazas fuera, vuelves a cobrar. Refuerza el hub social compartido. Un único chokepoint de jugador
+//     (tryBounty): tecla dedicada BOUNTY_BOARD.key — acepta el destacado / reclama si está completo / no-op si en progreso.
+//     La recompensa pasa por los chokepoints REALES ya vivos (h.gold += ; gainXP()) ⇒ compone con Rested/meta sin código nuevo.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tryBounty RETURN inmediato, h.bounty/h.bountyIdx NUNCA se crean, serializeSave
+// OMITE las claves ⇒ save.v1 + comportamiento + worldFingerprint BYTE-IDÉNTICOS a HEAD (la tecla es inerte, el badge nunca se
+// dibuja). Reversible: enabled:true→false + redeploy overlay CONSISTENTE-HEAD (config+sim+game[+dev hook]+render[+badge]+input
+// [+tecla gated]). Escala a N jugadores sin contención (estado 100% per-hero). Los NÚMEROS (count/oro/xp) = decisión de
+// BALANCE del CEO (retune = edición de knob barata y reversible). target debe ser una clave de ETPL o "any".
+export const BOUNTY_BOARD = {
+  enabled: false,          // DARK (CAS-2269 build). Reversible: false→true + redeploy overlay consistente-HEAD (config+sim+game+render+input).
+  key: "KeyB",             // tecla dedicada del Tablón ("Bounty"); acepta/reclama en el Santuario. Gated ⇒ OFF inerte.
+  requireSafeZone: true,   // aceptar/reclamar sólo DENTRO de la SAFEZONE (hub loop, mirror del BIND del Recall). false = desde cualquier lugar.
+  bounties: [              // pool ORDENADO de contratos; el destacado rota por bountyIdx. target = clave ETPL o "any".
+    { id:"cull",    name:"Limpieza del Sendero", target:"any",      count:10, gold:70,  xp:140 },
+    { id:"wolves",  name:"Acecho de Lobos",       target:"wolf",     count:6,  gold:80,  xp:170 },
+    { id:"rats",    name:"Plaga de Ratas",        target:"rat",      count:8,  gold:60,  xp:120 },
+    { id:"bones",   name:"Reposo de Huesos",      target:"skeleton", count:6,  gold:100, xp:210 },
+    { id:"raiders", name:"Bandidos del Camino",   target:"bandit",   count:5,  gold:120, xp:240 },
+    { id:"greenrage", name:"Furia Verde",         target:"orc",      count:4,  gold:150, xp:300 },
+  ],
+  epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER/SAFEZONE), MMORPG-safe.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
