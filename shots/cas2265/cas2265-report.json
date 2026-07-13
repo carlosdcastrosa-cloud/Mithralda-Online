@@ -1,0 +1,174 @@
+{
+  "live": "https://carlosdcastrosa-cloud.github.io/Mithralda-Online",
+  "expectBuild": "3ab0de365ccf",
+  "build": "3ab0de365ccf",
+  "desk": {
+    "served": {
+      "renderStatus": 200,
+      "renderLen": 390901,
+      "renderHasAnchor": true,
+      "configStatus": 200,
+      "rested": "true",
+      "safezone": "true"
+    },
+    "dock": {
+      "mm1": {
+        "x": 828,
+        "y": 12,
+        "w": 120,
+        "h": 120
+      },
+      "mmBottom1": 132,
+      "gBelow1": {
+        "n": 202,
+        "minY": 175
+      },
+      "gOld1": {
+        "n": 0,
+        "minY": -1
+      },
+      "barBelow1": {
+        "on": 927,
+        "off": 352,
+        "back": 882,
+        "delta": 575
+      }
+    },
+    "drag": {
+      "mm2": {
+        "x": 44,
+        "y": 210,
+        "w": 120,
+        "h": 120
+      },
+      "mmBottom2": 330,
+      "gBelow2": {
+        "n": 613,
+        "minY": 342
+      }
+    },
+    "descanso": {
+      "outState": {
+        "willSpend": true,
+        "pool": 400
+      },
+      "barOut": {
+        "on": 851,
+        "off": 330,
+        "back": 815,
+        "delta": 521
+      },
+      "inState": {
+        "willSpend": false,
+        "pool": 401.5
+      },
+      "greenIn": 25,
+      "barIn": {
+        "on": 615,
+        "off": 365,
+        "back": 544,
+        "delta": 250
+      }
+    },
+    "byteIdOff": {
+      "off": 365,
+      "back": 544,
+      "on": 615,
+      "pipOff": 22
+    },
+    "accrual": {
+      "p0": 1.1,
+      "p1": 8.3,
+      "rate": 6,
+      "inZone": true
+    },
+    "spend": {
+      "mult": 1.5,
+      "willSpend": true,
+      "before": 300,
+      "after": 250,
+      "bounded": 0,
+      "expDrain": 50,
+      "drain": 50
+    },
+    "regression": {
+      "hp0": 40,
+      "hp1": 78.98,
+      "na": {
+        "noAggro": true,
+        "heroInZone": true,
+        "states": [
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle"
+        ]
+      },
+      "tr": {
+        "inSafeZone": true,
+        "nearTemple": true,
+        "dist": 48
+      }
+    },
+    "nav": {
+      "enabled": true,
+      "regions": [
+        "Templo",
+        "Depósito",
+        "Taberna",
+        "Parque",
+        "Ciudad"
+      ],
+      "hasCity": true
+    },
+    "ambient": {
+      "dnEnabled": true,
+      "noonGlow": 0,
+      "nightGlow": 1,
+      "wEnabled": true,
+      "s0": "clear",
+      "s1": "rain"
+    },
+    "combat": {
+      "normal": 36,
+      "elite": 36
+    },
+    "fps": 60,
+    "fpsSamples": [
+      56,
+      61,
+      60
+    ],
+    "errors": [],
+    "net404": []
+  },
+  "mobile": {
+    "moveDelta": 51.7,
+    "badge": {
+      "scene": "play",
+      "inCity": true,
+      "pipInk": 61,
+      "pipMinY": 51
+    },
+    "accrual": {
+      "p0": 1.2,
+      "p1": 8.3,
+      "inZone": true,
+      "enabled": true
+    },
+    "fps": 60,
+    "errs": [],
+    "net404": []
+  }
+}
