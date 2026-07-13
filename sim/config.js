@@ -1555,6 +1555,30 @@ export const ZONE_BANNER = {
   citySubtitle: "Zona segura",  // sub-título opcional de la ciudad (estilo Tibia).
 };
 
+// CAS-2242: ZONA SEGURA / SANTUARIO DE CIUDAD (sim+render, $0 arte, DARK). North Star MMORPG: la ciudad es el
+// HUB social/de descanso del mundo compartido; esto es una PvE-sanctuary determinista y server-authority-ready.
+// La AUTORIDAD vive en sim (tickSafeZone): dentro del bbox de la región "Ciudad" — derivado de los MISMOS POIs de
+// world.deco que usan minimapa (CAS-2226) y banner de zona (CAS-2234), NO geometría nueva — el héroe REGENERA HP
+// pasivamente (tick determinista, 0 RNG, derivado de dt+posición ⇒ idéntico en todo cliente por construcción,
+// listo para netcode autoritativo). El regen se PAUSA brevemente tras recibir daño (feel, mismo patrón que
+// STAMINA.regenDelay) y se ACELERA cerca del Templo (santuario de curación). El render añade una afordancia visual
+// SUTIL ("Zona segura", $0 arte, procedural) — cosmética, no toca sim/save. HARD-GATED: enabled:false ⇒ tickSafeZone
+// sale sin tocar HP/estado, no se crea campo transitorio nuevo, y el badge no se dibuja ⇒ dmg/knock/save/srand/DOM
+// byte-idénticos a HEAD (srand ON==OFF: 0 draws — es aritmética pura comparar-bbox + sumar-HP). Los NÚMEROS
+// (radios/tasas) son decisión de FEEL/BALANCE del CEO (retune = edición de knob barata y reversible).
+// noAggro: sub-flag reservado (mobs no persiguen dentro de la ciudad) — NO se prende en Batch 1 (roza netcode/IA);
+// sólo el regen va LIVE primero. epochMs reservado (config compartible como DAYNIGHT/WEATHER, MMORPG-safe).
+export const SAFEZONE = {
+  enabled: false,          // DARK. Reversible: true→false + redeploy (overlay consistente-HEAD config+sim+render).
+  regenPct: 0.045,         // fracción de HP máx regenerada por segundo dentro de la ciudad (~22s de 1→100% ocioso).
+  regenDelay: 2.0,         // pausa de regen (s) tras recibir daño — no te curas mientras te pegan (feel Tibia/Souls).
+  templeMul: 2.5,          // multiplicador de la tasa de regen dentro del radio del Templo (santuario de curación).
+  templeRadius: 220,       // radio (px de mundo) alrededor del POI Templo para el regen acelerado.
+  cityMargin: 300,         // margen (px) que expande el bbox de los POIs = extensión de la zona segura (mirror ZONE_BANNER).
+  noAggro: false,          // sub-flag reservado (NO Batch 1): mobs no persiguen dentro del margen de ciudad.
+  epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER), MMORPG-safe.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

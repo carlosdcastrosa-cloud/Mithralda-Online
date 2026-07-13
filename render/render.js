@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -317,6 +317,10 @@ export function createRenderer(ctx){
     // una región con nombre (deriva pura de los POIs de world.deco = minimapa CAS-2226) y dibuja un título de
     // texto top-third que hace fade-in/hold/fade-out. Screen-space, encima del HUD, no tapa el centro de acción.
     if(ZONE_BANNER.enabled){ updateZoneBanner(); renderZoneBanner(); }
+    // CAS-2242: afordancia SUTIL de Zona Segura (render-only, $0 arte, DARK). Con SAFEZONE.enabled:false nunca corre
+    // ⇒ salida byte-idéntica. ON: un pip discreto de escudo + "Zona segura" mientras el héroe está dentro del bbox de
+    // la Ciudad (misma derivación de POIs que el minimapa; la AUTORIDAD del regen vive en sim). Cosmético, 0 sim/save.
+    if(SAFEZONE.enabled) renderSafeZoneBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -2901,6 +2905,40 @@ export function createRenderer(ctx){
     return { enabled:ZONE_BANNER.enabled, current:z?z.name:null,
       banner:b?{name:b.name, sub:b.sub, alpha:+zbAlpha(el).toFixed(3), t:+el.toFixed(2)}:null,
       regions:zoneRegions().map(r=>r.container?{name:r.name, container:true, bbox:r.bbox}:{name:r.name, x:Math.round(r.x), y:Math.round(r.y), r:r.r}) };
+  }
+
+  // CAS-2242: ¿está (x,y) dentro de la Zona Segura de la Ciudad? Mismo bbox que la autoridad de sim (POIs de world.deco
+  // + SAFEZONE.cityMargin), computado render-side sólo para la afordancia visual. Desacoplado de ZONE_BANNER (usa el
+  // margen de SAFEZONE). 0 RNG, deriva pura de world (reusa mapBlips memoizado). Sólo se llama con SAFEZONE.enabled.
+  function inCitySafe(x,y){ const blips=mapBlips(); if(!blips.length) return false;
+    let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+    for(const b of blips){ if(b.x<minx)minx=b.x; if(b.y<miny)miny=b.y; if(b.x>maxx)maxx=b.x; if(b.y>maxy)maxy=b.y; }
+    const m=SAFEZONE.cityMargin|0;
+    return x>=minx-m && x<=maxx+m && y>=miny-m && y<=maxy+m; }
+  // Pip discreto de "Zona segura": escudo procedural (canvas, $0 arte) + micro-label, esquina superior-derecha del área
+  // de juego, alpha bajo con pulso suave. Screen-space, no toca sim/save. Sólo se dibuja dentro de la ciudad.
+  function renderSafeZoneBadge(){
+    const h=G.hero; if(!h || !inCitySafe(h.x,h.y)) return;
+    const GCX=view.gcx ? view.gcx() : VW/2;   // centro X del área de juego visible (respeta el sidebar si existe)
+    const gx=(GCX*2>VW)?VW:GCX*2;             // borde derecho útil del área de juego
+    const pulse=0.72+0.14*Math.sin(G.t*3);
+    const bx=gx-118, by=VH*0.055, sw=13, sh=16;  // ancla del escudo
+    ctx.save(); ctx.globalAlpha=pulse;
+    // escudo: contorno oscuro + relleno verde suave + tick de check
+    ctx.beginPath();
+    ctx.moveTo(bx, by); ctx.lineTo(bx+sw, by); ctx.lineTo(bx+sw, by+sh*0.55);
+    ctx.quadraticCurveTo(bx+sw, by+sh, bx+sw/2, by+sh); ctx.quadraticCurveTo(bx, by+sh, bx, by+sh*0.55);
+    ctx.closePath();
+    ctx.fillStyle="rgba(46,120,64,0.55)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.75)"; ctx.stroke();
+    ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle="#8fe6a0"; ctx.lineJoin="round";
+    ctx.moveTo(bx+sw*0.28, by+sh*0.5); ctx.lineTo(bx+sw*0.46, by+sh*0.68); ctx.lineTo(bx+sw*0.74, by+sh*0.3); ctx.stroke();
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=by+sh/2, tx=bx+sw+5;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText("Zona segura",tx,ty);
+    ctx.fillStyle=COL.cream; ctx.fillText("Zona segura",tx,ty);
+    ctx.restore();
   }
 
   function renderMiniMap(){ if(isTouch) return;
