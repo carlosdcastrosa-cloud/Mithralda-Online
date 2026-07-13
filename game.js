@@ -286,6 +286,12 @@ export function createGame(canvas, ctx, getView){
       // warhorn({enabled:true}) flip runtime IN-MEMORY; warhorn({nowMs}) inyecta el reloj compartido para observar idle/ventana/
       // pico sin esperar minutos reales; warhorn({nowMs,kill:true}) simula un kill de mundo abierto (observa +XP/+RENOMBRE).
       warhorn:(p)=>simDev.warhorn(p),
+      // CAS-2292: EMISARIO DEL SANTUARIO / SANCTUARY EMISSARY OBSERVABLE hook (DARK, SANCTUARY_EMISSARY). emissary() lee {enabled,
+      // periodSec,inZone,schedule:<rotación compartida del reloj: period/nextInSec/def>,active:<emisario aceptado>,progress,complete,
+      // hasField,kills,gold,rep,hero}; emissary({enabled:true}) flip runtime IN-MEMORY; emissary({nowMs})/{setPeriod:n} fija la
+      // rotación compartida sin esperar minutos reales; emissary({kill:{type,n}}) bump los contadores monótonos; emissary({act:true})
+      // dispara tryEmissary() por el chokepoint real (acepta/entrega/no-op; observa oro+RENOMBRE+rol de period).
+      emissary:(p)=>simDev.emissary(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
