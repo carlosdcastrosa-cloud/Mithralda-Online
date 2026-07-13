@@ -1944,7 +1944,7 @@ export const ORDER_STANDINGS = {
 // dibuja ⇒ comportamiento + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (pasivo/automático, 0 hotkey — anti-CAS-2273).
 // Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Depende de ORDER_STANDINGS (LIVE).
 export const ORDER_TERRITORY = {
-  enabled: false,            // DARK. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  enabled: true,             // LIVE (CAS-2311). Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
   controlKind: "safeRegen",  // canal del pasivo de DOMINIO: reusa el regen de la SAFEZONE (SÓLO surte efecto en zona). DISTINTO de ORDER_STANDINGS.leadKind ("restedMult") ⇒ no se dobla.
   controlValue: 0.10,        // +10% al regen de la Zona Segura para los miembros de la orden CONTROLADORA, SÓLO dentro de la zona. CEO balance knob.
 };
