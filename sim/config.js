@@ -1523,7 +1523,7 @@ export const DAYNIGHT = {
 // ⇒ el bloque entero queda SIN LLAMAR ⇒ BYTE-IDÉNTICO al build actual. Flip config-only en 1 línea (Gate CEO
 // tras QA OBSERVABLE), mismo patrón que MINIMAP/DOORS_INTERIORS/DAYNIGHT.
 export const WEATHER = {
-  enabled: false,        // DARK por defecto — flip 1-línea (Gate CEO tras QA PASS). false = build byte-idéntico.
+  enabled: true,         // LIVE (CAS-2233 Gate CEO APROBADO tras QA PASS 16/16). Reversible: true→false + redeploy overlay.
   cycleSeconds: 900,     // duración de un ciclo completo clear→rain→fog→clear (15 min). Configurable.
   epochMs: 0,            // origen COMPARTIDO del reloj (UTC ms). Fijo ⇒ mismo instante ⇒ mismo clima en todo cliente.
   phaseOverride: null,   // null = fase derivada del reloj; 0..1 fuerza una fase fija (screenshots / QA determinista).
