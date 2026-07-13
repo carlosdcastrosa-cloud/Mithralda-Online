@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1984,6 +1984,11 @@ export function serializeSave(){
     // anti-CAS-2220: 0 campos nuevos con la feature off). Additive cuando ON: saves viejos carecen de la clave → loadSave
     // rehidrata a sin-contrato / idx 0 → sin SAVE_VERSION bump.
     ...(BOUNTY_BOARD.enabled ? { bountyIdx:(h.bountyIdx|0), ...(h.bounty ? { bounty:{ id:String(h.bounty.id), target:String(h.bounty.target), count:h.bounty.count|0, gold:h.bounty.gold|0, xp:h.bounty.xp|0, base:h.bounty.base|0 } } : {}) } : {}),
+    // CAS-2272: persist el RENOMBRE del Santuario (sanctuaryRep) SÓLO cuando la feature está ON (spread condicional). El
+    // faction-standing acumulado sobrevive al reload (canon MMORPG). enabled:false ⇒ la clave NO se emite ⇒ save.v1 byte-idéntico
+    // a HEAD (allowlist anti-CAS-2220: 0 campos nuevos con la feature off). Additive cuando ON: saves viejos carecen de la clave →
+    // loadSave rehidrata a 0 → sin SAVE_VERSION bump.
+    ...(SANCTUARY_REP.enabled ? { sanctuaryRep:Math.max(0,h.sanctuaryRep|0) } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2067,6 +2072,9 @@ export function loadSave(d){
       const b=d.bounty;
       if(b && typeof b==="object" && b.target && (b.count|0)>0){
         h.bounty={ id:String(b.id||""), target:String(b.target), count:b.count|0, gold:Math.max(0,b.gold|0), xp:Math.max(0,b.xp|0), base:Math.max(0,b.base|0) }; } }
+    // CAS-2272: rehidrata el RENOMBRE del Santuario (clamp ≥0; saves viejos carecen de la clave → 0; gated ⇒ OFF la clave
+    // sanctuaryRep NUNCA se crea ⇒ byte-id). El rep es un contador monótono acumulado (faction-standing persistente).
+    if(SANCTUARY_REP.enabled){ h.sanctuaryRep=Math.max(0,Math.floor(num(d.sanctuaryRep,0))); }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2678,6 +2686,22 @@ function bountyDef(idx){ const L=BOUNTY_BOARD.bounties||[]; if(!L.length) return
 function bountyProgress(h){ if(!h||!h.bounty) return 0; const b=h.bounty; return Math.max(0, Math.min(b.count|0, bountyCount(h,b.target)-(b.base|0))); }
 function bountyReady(h){ return !!(h&&h.bounty) && bountyProgress(h) >= (h.bounty.count|0); }
 
+// CAS-2272: RENOMBRE DEL SANTUARIO / SANCTUARY REPUTATION — funciones PURAS (0 RNG, 0 estado, 0 side-effect). sanctuaryRank(rep)
+// = función pura del total acumulado ⇒ el rango más alto cuyo umbral `at` ≤ rep + el siguiente rango + progreso derivado
+// (into/span/toNext). sanctuaryPerkXP(h,xp) = aplica el multiplicador de XP de bounty del rango ACTUAL (round, acotado ≥xp);
+// gated ⇒ OFF devuelve xp SIN tocar ⇒ ruta gainXP byte-idéntica a HEAD. Sólo se invocan bajo SANCTUARY_REP.enabled.
+function sanctuaryRank(rep){ const R=SANCTUARY_REP.ranks||[]; rep=Math.max(0,rep|0);
+  let idx=0, cur=R[0]||{id:"neutral",name:"Neutral",at:0,xpMult:1};
+  for(let i=0;i<R.length;i++){ if(rep>=(R[i].at|0)){ idx=i; cur=R[i]; } }
+  const next=R[idx+1]||null;
+  return { idx, cur, next, rep,
+    into: next ? Math.max(0, rep-(cur.at|0)) : 0,
+    span: next ? Math.max(1,(next.at|0)-(cur.at|0)) : 0,
+    toNext: next ? Math.max(0,(next.at|0)-rep) : 0 };
+}
+function sanctuaryPerkXP(h,xp){ if(!SANCTUARY_REP.enabled||!h) return xp;
+  const m=+(sanctuaryRank(h.sanctuaryRep||0).cur.xpMult)||1; return Math.max(xp|0, Math.round((xp|0)*m)); }
+
 // CAS-2269: INTENTO de Tablón — el ÚNICO chokepoint de jugador (input tecla BOUNTY_BOARD.key + __dev.bounty({act})). Contextual:
 // sin contrato ⇒ ACEPTA el destacado (snapshot base); con contrato completo ⇒ RECLAMA (oro+XP por los chokepoints reales,
 // avanza la rotación, limpia); con contrato en progreso ⇒ no-op. Gate: feature ON, escena play, héroe vivo, y (si requireSafeZone)
@@ -2691,7 +2715,13 @@ export function tryBounty(){
     if(!bountyReady(h)) return "inprogress";                                // aún cazando ⇒ no-op
     const b=h.bounty, gold=Math.max(0,b.gold|0), xp=Math.max(0,b.xp|0);     // RECLAMAR
     if(gold>0){ h.gold=(h.gold|0)+gold; audio.sfx.coin&&audio.sfx.coin(); }
-    if(xp>0) gainXP(xp);                                                    // XP por el ÚNICO chokepoint (compone con Rested/meta)
+    // CAS-2272: perk de RENOMBRE — el rango ACTUAL del Santuario multiplica la XP del bounty ANTES de entrar al chokepoint
+    // (aplicado SÓLO aquí, dentro de la XP de bounty; el gainXP global queda intacto). Gated ⇒ OFF sanctuaryPerkXP devuelve xp
+    // sin tocar ⇒ gainXP(xp) idéntico a HEAD ⇒ byte-id. El perk usa el rango ANTES de sumar el rep de ESTE bounty (rango-al-ganar).
+    if(xp>0) gainXP(sanctuaryPerkXP(h,xp));                                 // XP por el ÚNICO chokepoint (compone con Rested/meta)
+    // CAS-2272: acumula RENOMBRE por bounty COMPLETADO (flat, determinista, 0 RNG; mismo evento validado que ya otorga oro+XP).
+    // El campo h.sanctuaryRep SÓLO se crea con la feature ON (gated) ⇒ OFF nunca existe ⇒ save/fingerprint byte-idénticos a HEAD.
+    if(SANCTUARY_REP.enabled) h.sanctuaryRep=Math.max(0,(h.sanctuaryRep||0)+(SANCTUARY_REP.repPerBounty|0));
     h.bountyIdx=(h.bountyIdx|0)+1;                                          // rota el destacado (variedad determinista)
     h.bounty=null;
     floater(h.x, h.y-34, "Recompensa +"+gold+" oro", C_GOLD);
@@ -6189,6 +6219,30 @@ export const dev = {
       hasField: h ? ("bounty" in h) : false,                              // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       kills: h?(h.kills|0):0,
       gold: h?(h.gold|0):0, lvl: h?(h.lvl|0):0,
+      hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
+  // CAS-2272: RENOMBRE DEL SANTUARIO / SANCTUARY REPUTATION OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del rep + rango
+  // DERIVADO (función pura del total) + perk + flip/drivers IN-MEMORY para OBSERVAR en DARK (disco sigue false, patrón __dev.bounty).
+  //   sanctuary()                → {enabled,rep,rankIdx,rank,nextRank,into,span,toNext,xpMult,hasField,lvl,xp,hero}
+  //   sanctuary({enabled:true})  → flip runtime IN-MEMORY de SANCTUARY_REP.enabled (acumular/rango/perk sin tocar el disco)
+  //   sanctuary({setRep:n})      → fija el rep (sólo crea el campo con la feature ON ⇒ byte-id OFF) para observar rangos concretos
+  //   sanctuary({addRep:n})      → suma rep (mismo efecto que completar bounties) para observar cruces de umbral
+  //   sanctuary({perkXp:n})      → devuelve sanctuaryPerkXP(n) al rango actual (observa el multiplicador de XP de bounty acotado)
+  sanctuary(p){
+    let perk=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) SANCTUARY_REP.enabled=!!p.enabled;
+      if("setRep" in p && G.hero && SANCTUARY_REP.enabled) G.hero.sanctuaryRep=Math.max(0,Math.floor(+p.setRep||0));
+      if("addRep" in p && G.hero && SANCTUARY_REP.enabled) G.hero.sanctuaryRep=Math.max(0,(G.hero.sanctuaryRep||0)+Math.floor(+p.addRep||0));
+      if("perkXp" in p && G.hero) perk=sanctuaryPerkXP(G.hero, Math.max(0,+p.perkXp||0));
+    }
+    const h=G.hero, rep=h?(h.sanctuaryRep||0):0, info=sanctuaryRank(rep);
+    return { enabled:SANCTUARY_REP.enabled, rep:rep|0, perk, repPerBounty:SANCTUARY_REP.repPerBounty|0, rankCount:(SANCTUARY_REP.ranks||[]).length,
+      rankIdx:info.idx,
+      rank: info.cur?{ id:info.cur.id, name:info.cur.name, at:info.cur.at|0, xpMult:info.cur.xpMult }:null,
+      nextRank: info.next?{ id:info.next.id, name:info.next.name, at:info.next.at|0, xpMult:info.next.xpMult }:null,
+      into:info.into, span:info.span, toNext:info.toNext, xpMult:info.cur?info.cur.xpMult:1,
+      hasField: h ? ("sanctuaryRep" in h) : false,                          // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      lvl:h?(h.lvl|0):0, xp:h?(h.xp|0):0,
       hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset

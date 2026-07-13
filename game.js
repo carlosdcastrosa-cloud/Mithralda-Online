@@ -271,6 +271,11 @@ export function createGame(canvas, ctx, getView){
       // módulo config); bounty({act:true}) dispara tryBounty() por el chokepoint real (acepta/reclama/no-op); bounty({setIdx:n})
       // fija el destacado; bounty({clear:true}) limpia el contrato activo.
       bounty:(p)=>simDev.bounty(p),
+      // CAS-2272: RENOMBRE DEL SANTUARIO / SANCTUARY REPUTATION OBSERVABLE hook (DARK). sanctuary() lee {enabled,rep,rankIdx,rank,
+      // nextRank,into,span,toNext,xpMult,hasField,lvl,xp,hero}; sanctuary({enabled:true}) flip runtime IN-MEMORY (sim, mismo módulo
+      // config); sanctuary({setRep:n})/{addRep:n} fijan/suman rep para observar cruces de rango; sanctuary({perkXp:n}) devuelve la
+      // XP de bounty con el perk del rango actual aplicado.
+      sanctuary:(p)=>simDev.sanctuary(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
