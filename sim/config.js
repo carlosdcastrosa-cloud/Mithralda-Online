@@ -1653,7 +1653,12 @@ export const RECALL = {
 // BALANCE del CEO (retune = edición de knob barata y reversible). target debe ser una clave de ETPL o "any".
 export const BOUNTY_BOARD = {
   enabled: true,           // LIVE (CAS-2270 flip). Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+game+render+input).
-  key: "KeyB",             // tecla dedicada del Tablón ("Bounty"); acepta/reclama en el Santuario. Gated ⇒ OFF inerte.
+  key: "End",              // CAS-2273 FIX: tecla dedicada del Tablón; acepta/reclama en el Santuario. Gated ⇒ OFF inerte.
+                           //   Antes "KeyB" pero customize/wardrobe (REBINDS settings.js) YA defaultea a KeyB desde CAS-1659 ⇒
+                           //   playAction("KeyB")→"customize" ganaba en input.js edge() y la línea del bounty era código muerto
+                           //   (feature 100% inalcanzable por el jugador real, sólo vía __dev). 26 letras ocupadas ⇒ "End" es un
+                           //   code LIBRE (grep-verificado: no en REBINDS ni en Home/Comma/Period/Backslash/Backquote dedicados),
+                           //   sibling natural del RECALL.key="Home". Móvil = botón HUD tb.bounty (contextual, sólo en la SAFEZONE).
   requireSafeZone: true,   // aceptar/reclamar sólo DENTRO de la SAFEZONE (hub loop, mirror del BIND del Recall). false = desde cualquier lugar.
   bounties: [              // pool ORDENADO de contratos; el destacado rota por bountyIdx. target = clave ETPL o "any".
     { id:"cull",    name:"Limpieza del Sendero", target:"any",      count:10, gold:70,  xp:140 },
@@ -2395,6 +2400,7 @@ export const COMBAT_CODEX_ENTRIES = [
   { group:"Recursos",   label:"STAMINA",            keyOf:()=>"—",                  desc:"Sin stamina no puedes rodar ni lanzar pesados; se regenera.", gate:()=>STAMINA.enabled },
   { group:"Recursos",   label:"Invocar espíritu",   keyOf:()=>SUMMON.key,           desc:"Cenizas de Espíritu: invoca un aliado que divide la aggro del jefe.", gate:()=>SUMMON.enabled },
   { group:"Recursos",   label:"Hoguera",            keyOf:()=>BONFIRE.key,          desc:"Descansa: cura, recarga Estus y fija checkpoint.", gate:()=>BONFIRE.enabled },
+  { group:"Recursos",   label:"Tablón de Recompensas", keyOf:()=>BOUNTY_BOARD.key,  desc:"En el Santuario: acepta el contrato destacado (mata N de X) y reclámalo al completarlo por oro + XP.", gate:()=>BOUNTY_BOARD.enabled }, // CAS-2273: entrada data-driven ⇒ la tecla mostrada nunca miente
   { group:"Recursos",   label:"Mancha de sangre",   keyOf:()=>"—",                  desc:"Al morir sueltas la Esencia; recupérala en el punto de muerte.", gate:()=>BLOODSTAIN.enabled },
   // JEFES
   { group:"Jefes",      label:"Jefe de Firma",      keyOf:()=>"—",                  desc:"Jefes de 2 fases con ventana de vulnerabilidad tras romper poise.", gate:()=>SIGNATURE_BOSS.enabled },

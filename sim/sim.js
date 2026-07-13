@@ -2733,6 +2733,11 @@ export function tryBounty(){
   return "accepted";
 }
 
+// CAS-2273: helper presentacional PURO (0 RNG, 0 estado) para el HUD táctil — ¿está el héroe DENTRO de la SAFEZONE?
+// Reusa el mismo bbox memoizado (safeZoneGeom) que regen/rested/recall/bounty ⇒ una sola verdad. input.js lo usa para
+// mostrar el botón HUD del Tablón SÓLO en el Santuario (contextual; fuera no clutteriza el cluster de combate).
+export function heroInSafeZone(){ const h=G.hero; return !!h && inSafeZone(h.x,h.y); }
+
 // CAS-1841: regen tick (transient, 0 RNG). Winds down the deny-flash, then — after a brief post-spend pause — regens
 // stam toward max at STAMINA.regen/s. OFF ⇒ return immediately ⇒ byte-identical.
 function tickStamina(h,dt){ if(!STAMINA.enabled||!h) return;
