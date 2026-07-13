@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1993,6 +1993,12 @@ export function serializeSave(){
     // condicional; orden canónico de config vía sanctuaryRewardsSave). enabled:false ⇒ la clave NO se emite ⇒ save.v1 byte-idéntico
     // a HEAD (allowlist anti-CAS-2220). Additive cuando ON: saves viejos carecen de la clave → loadSave rehidrata a sin-rewards.
     ...(SANCTUARY_REWARDS.enabled && h.sanctuaryRewards && h.sanctuaryRewards.length ? { sanctuaryRewards:sanctuaryRewardsSave(h) } : {}),
+    // CAS-2292: persist el EMISARIO aceptado (h.emissary: rotación compartida `period` + snapshot `base` + `claimed`) SÓLO con la
+    // feature ON y un emisario aceptado (spread condicional). La world-quest + su progreso (derivado del `base`) sobreviven al
+    // reload (canon MMORPG: la tarea persiste dentro de su period). enabled:false / sin aceptar ⇒ la clave NO se emite ⇒ save.v1
+    // byte-idéntico a HEAD (allowlist anti-CAS-2220). Additive cuando ON: saves viejos carecen de la clave → loadSave rehidrata a
+    // sin-emisario → sin SAVE_VERSION bump.
+    ...(SANCTUARY_EMISSARY.enabled && h.emissary ? { emissary:{ id:String(h.emissary.id||""), period:(h.emissary.period|0), target:String(h.emissary.target), count:h.emissary.count|0, gold:h.emissary.gold|0, rep:h.emissary.rep|0, base:h.emissary.base|0, claimed:!!h.emissary.claimed } } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2087,6 +2093,12 @@ export function loadSave(d){
     // CAS-2272: rehidrata el RENOMBRE del Santuario (clamp ≥0; saves viejos carecen de la clave → 0; gated ⇒ OFF la clave
     // sanctuaryRep NUNCA se crea ⇒ byte-id). El rep es un contador monótono acumulado (faction-standing persistente).
     if(SANCTUARY_REP.enabled){ h.sanctuaryRep=Math.max(0,Math.floor(num(d.sanctuaryRep,0))); }
+    // CAS-2292: rehidrata el EMISARIO aceptado (validado; saves viejos carecen de la clave → sin-emisario; gated ⇒ OFF la clave
+    // emissary NUNCA se crea ⇒ byte-id). El emisario sólo se acepta si referencia un target/count válidos; `base` se clamp-ea a ≥0
+    // (snapshot de un contador monótono). Si el `period` guardado no coincide con la rotación al reanudar, tryEmissary re-acepta.
+    if(SANCTUARY_EMISSARY.enabled){ const e=d.emissary;
+      if(e && typeof e==="object" && e.target && (e.count|0)>0){
+        h.emissary={ id:String(e.id||""), period:(e.period|0), target:String(e.target), count:e.count|0, gold:Math.max(0,e.gold|0), rep:Math.max(0,e.rep|0), base:Math.max(0,e.base|0), claimed:!!e.claimed }; } }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2743,6 +2755,29 @@ function warhornOnKill(h, e, tpl){
     h.sanctuaryRep=Math.max(0,(h.sanctuaryRep||0)+(w.repPerKill|0)); }
 }
 
+// CAS-2292: EMISARIO DEL SANTUARIO — helpers PUROS de la ROTACIÓN compartida. emissaryDef(period) = el emisario ACTIVO para ese
+// period (rotación determinista emissaries[period%N], 0 RNG); emissaryScheduleAt(nowMs) = función PURA del reloj de pared ⇒
+// {period, def, nextInSec} (idéntico en todo cliente con el reloj correcto ⇒ convergencia social). NO leen/escriben save/RNG.
+// Exportada para el harness de QA (prueba "mismo nowMs ⇒ mismo emisario en N clientes"). Sólo tiene efecto observable bajo enabled.
+function emissaryDef(period){ const L=SANCTUARY_EMISSARY.emissaries||[]; if(!L.length) return null; const n=L.length; return L[(((period|0)%n)+n)%n]; }
+export function emissaryScheduleAt(nowMs){
+  const out={ enabled:!!SANCTUARY_EMISSARY.enabled, period:0, def:null, nextInSec:0 };
+  if(!Number.isFinite(nowMs) || nowMs<=0) return out;            // sin reloj (harness sin nowMs) ⇒ inactivo, nada que derivar
+  const periodMs=Math.max(1000,(SANCTUARY_EMISSARY.periodSec|0)*1000);
+  const elapsed=nowMs-(SANCTUARY_EMISSARY.epochMs||0); if(elapsed<0) return out;
+  const period=Math.floor(elapsed/periodMs), into=elapsed-period*periodMs;
+  out.period=period>>>0; out.def=emissaryDef(period); out.nextInSec=(periodMs-into)/1000;
+  return out;
+}
+// tick del EMISARIO (mirror tickWorldEvent): deriva+cachea la rotación del reloj COMPARTIDO (Date.now, leído SÓLO aquí y SÓLO bajo
+// el gate) en G.emissary (transitorio, fuera del allowlist de serializeSave ⇒ nunca persiste). OFF ⇒ NUNCA se invoca ⇒ Date.now
+// nunca se llama, G.emissary nunca se crea ⇒ byte-idéntico a HEAD.
+function tickEmissary(){ if(!SANCTUARY_EMISSARY.enabled) return; G.emissary=emissaryScheduleAt(Date.now()); }
+// Progreso DERIVADO (mismo contador monótono h.killsByType/h.kills que BOUNTY_BOARD; 0 tracking nuevo). base = snapshot al aceptar.
+function emissaryCount(h,target){ if(!h) return 0; return target==="any" ? (h.kills|0) : (((h.killsByType||{})[target])|0); }
+function emissaryProgress(h){ if(!h||!h.emissary) return 0; const q=h.emissary, c=q.count|0; return Math.max(0, Math.min(c, emissaryCount(h,q.target)-(q.base|0))); }
+function emissaryReady(h){ return !!(h&&h.emissary) && emissaryProgress(h) >= ((h.emissary.count|0)) && (h.emissary.count|0)>0; }
+
 // CAS-2269: TABLÓN DE RECOMPENSAS — helpers deterministas. El PROGRESO no se rastrea: se DERIVA de un contador MONÓTONO ya
 // vivo y ya persistido (h.kills para "any", h.killsByType[target] para un tipo, poblado en killEnemy) MENOS el snapshot `base`
 // tomado al aceptar. 0 RNG, 0 estado nuevo por-frame, 0 hook en killEnemy. Sólo se invoca bajo BOUNTY_BOARD.enabled.
@@ -2842,6 +2877,36 @@ export function tryBounty(){
   h.bounty={ id:def.id, target:def.target, count:def.count|0, gold:def.gold|0, xp:def.xp|0, base:bountyCount(h,def.target) };
   floater(h.x, h.y-34, "Contrato: "+def.name, "#ffd479");
   return "accepted";
+}
+
+// CAS-2292: INTENTO de Emisario — el ÚNICO chokepoint de jugador (input tecla SANCTUARY_EMISSARY.key + móvil tb.emissary +
+// __dev.emissary({act})). Contextual sobre la ROTACIÓN COMPARTIDA (G.emissary, derivada del reloj): sin emisario para el period
+// actual (o period rolado) ⇒ ACEPTA el emisario del turno (snapshot base, expira el anterior); con emisario cumplido ⇒ ENTREGA
+// (oro + RENOMBRE por los chokepoints reales, marca claimed); con emisario en progreso ⇒ no-op; ya entregado este period ⇒ "done".
+// Gate: feature ON, escena play, héroe vivo, y (si requireSafeZone) dentro de la SAFEZONE = en el Santuario. Devuelve un motivo
+// para el HUD/QA. OFF ⇒ return "off" sin tocar nada ⇒ byte-idéntico (la tecla es inerte río arriba en input.js; G.emissary/h.emissary
+// nunca se crean). El pago pasa por h.gold += y h.sanctuaryRep += (mismos seams que tryBounty) ⇒ compone con la meta de facción.
+export function tryEmissary(){
+  const h=G.hero; if(!SANCTUARY_EMISSARY.enabled) return "off";
+  if(!h || h.dead || G.scene!=="play") return "unavailable";
+  if(SANCTUARY_EMISSARY.requireSafeZone && !inSafeZone(h.x,h.y)) return "away";  // hay que estar en el Santuario (Emisario)
+  const sched=G.emissary||emissaryScheduleAt(Date.now());        // rotación compartida (ya cacheada por tickEmissary cada frame)
+  const def=sched.def, period=sched.period|0; if(!def) return "none";
+  const q=h.emissary;
+  if(!q || (q.period|0)!==period){                               // period nuevo (o primera vez) ⇒ ACEPTAR (snapshot base); expira el anterior
+    h.emissary={ id:def.id, period:period, target:def.target, count:def.count|0, gold:def.gold|0, rep:def.rep|0, base:emissaryCount(h,def.target), claimed:false };
+    floater(h.x, h.y-34, "Emisario: "+def.name, "#8fd0ff");
+    return "accepted";
+  }
+  if(q.claimed) return "done";                                   // ya entregado este period ⇒ no-op hasta que rote
+  if(!emissaryReady(h)) return "inprogress";                     // aún cazando fuera ⇒ no-op
+  const gold=Math.max(0,q.gold|0), rep=Math.max(0,q.rep|0);      // ENTREGAR
+  if(gold>0){ h.gold=(h.gold|0)+gold; audio.sfx.coin&&audio.sfx.coin(); }
+  // el RENOMBRE reutiliza el knob de facción (gated ⇒ OFF campo intacto; mismo seam que tryBounty/warhornOnKill)
+  if(SANCTUARY_REP.enabled && rep>0) h.sanctuaryRep=Math.max(0,(h.sanctuaryRep||0)+rep);
+  q.claimed=true;                                                // idempotente dentro del period (rolar el period re-habilita)
+  floater(h.x, h.y-34, "Emisario cumplido +"+gold+" oro", C_GOLD);
+  return "claimed";
 }
 
 // CAS-2273: helper presentacional PURO (0 RNG, 0 estado) para el HUD táctil — ¿está el héroe DENTRO de la SAFEZONE?
@@ -5140,6 +5205,7 @@ export function update(dtMs){
   tickRestedXP(h,dt);// CAS-2255: acumulación del pool de Descanso mientras el héroe está en la SAFEZONE (aritmética, no RNG, gated on RESTED_XP.enabled ⇒ OFF byte-id)
   tickRecall(h,dt); // CAS-2266: bind al Santuario en zona + enfriar cooldown del Recall + canal (dormido) (aritmética/geometría, no RNG, gated on RECALL.enabled ⇒ OFF byte-id)
   if(WORLD_EVENT.enabled) tickWorldEvent(); // CAS-2284: Toque de Guerra — horario compartido derivado del reloj de pared (transitorio en G.warhorn, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(SANCTUARY_EMISSARY.enabled) tickEmissary(); // CAS-2292: Emisario — rotación compartida derivada del reloj (transitorio en G.emissary, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -6417,6 +6483,36 @@ export const dev = {
       xpMult:+WORLD_EVENT.xpMult, peakXpMult:+WORLD_EVENT.peakXpMult, repPerKill:WORLD_EVENT.repPerKill|0, peakRepPerKill:WORLD_EVENT.peakRepPerKill|0,
       now: w, killObserved,
       hero:h?{ xp:h.xp|0, rep:(h.sanctuaryRep|0), hasRepField:("sanctuaryRep" in h), x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead }:null }; },
+  // CAS-2292: EMISARIO DEL SANTUARIO / SANCTUARY EMISSARY OBSERVABLE hook (DARK). Snapshot autoritativo (sim) de la ROTACIÓN
+  // compartida (derivada del reloj) + el emisario ACEPTADO + progreso DERIVADO + flip/drivers IN-MEMORY para OBSERVAR en DARK sin
+  // esperar minutos reales (disco sigue false, patrón __dev.warhorn/bounty). El nowMs/setPeriod INYECTADO prueba el determinismo
+  // "mismo reloj ⇒ mismo emisario" (convergencia). Formas:
+  //   emissary()                    → {enabled,periodSec,inZone,schedule,active,progress,complete,hasField,kills,gold,rep,lvl,hero}
+  //   emissary({enabled:true})      → flip runtime IN-MEMORY de SANCTUARY_EMISSARY.enabled (rotar/aceptar/entregar sin tocar el disco)
+  //   emissary({nowMs})             → deriva+cachea la rotación en G.emissary PARA ese reloj (observa qué emisario está activo) — 0 espera real
+  //   emissary({setPeriod:n})       → fija el period de la rotación (observa emisarios concretos y el ROL de period ⇒ re-aceptar)
+  //   emissary({kill:{type,n}})     → driver de PRUEBA: bump los MISMOS contadores monótonos que killEnemy (progreso derivado sin combate)
+  //   emissary({act:true})          → dispara tryEmissary() por el chokepoint REAL (acepta / entrega / no-op; observa oro+RENOMBRE+rotación)
+  emissary(p){
+    let result=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) SANCTUARY_EMISSARY.enabled=!!p.enabled;
+      if("nowMs" in p) G.emissary=emissaryScheduleAt(+p.nowMs);              // inyecta el reloj compartido para OBSERVAR la rotación
+      if("setPeriod" in p){ const per=Math.max(0,Math.floor(+p.setPeriod||0)); G.emissary={ enabled:!!SANCTUARY_EMISSARY.enabled, period:per>>>0, def:emissaryDef(per), nextInSec:0 }; }
+      if(p.kill && G.hero){ const t=p.kill.type||"any", n=Math.max(0,Math.floor(+p.kill.n||0));   // mirror killEnemy: bump los contadores monótonos
+        const h=G.hero; h.kills=(h.kills|0)+n; if(t!=="any"){ const kt=h.killsByType||(h.killsByType={}); kt[t]=(kt[t]|0)+n; } }
+      if(p.act) result=tryEmissary();                                        // pasa por el ÚNICO chokepoint del Emisario (validación real)
+    }
+    const h=G.hero, q=h&&h.emissary?h.emissary:null, sched=G.emissary||null;
+    return { enabled:SANCTUARY_EMISSARY.enabled, result, periodSec:SANCTUARY_EMISSARY.periodSec|0,
+      inZone:h?inSafeZone(h.x,h.y):false,
+      schedule: sched?{ period:sched.period|0, nextInSec:sched.nextInSec!=null?+(+sched.nextInSec).toFixed(2):0,
+        def: sched.def?{ id:sched.def.id, name:sched.def.name, target:sched.def.target, count:sched.def.count|0, gold:sched.def.gold|0, rep:sched.def.rep|0 }:null }:null,
+      active: q?{ id:q.id, period:q.period|0, target:q.target, count:q.count|0, gold:q.gold|0, rep:q.rep|0, base:q.base|0, claimed:!!q.claimed }:null,
+      progress: h?emissaryProgress(h):0, complete: h?emissaryReady(h):false,
+      hasField: h ? ("emissary" in h) : false,                              // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      kills: h?(h.kills|0):0, gold: h?(h.gold|0):0, rep: h?(h.sanctuaryRep|0):0, lvl: h?(h.lvl|0):0,
+      hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset
   // cell — not the whole sheet — reached world.deco in vivo. Pure read, no mutation.

@@ -9,7 +9,7 @@
 // ===========================================================================
 import * as sim from "./sim/sim.js";
 import { norm } from "./sim/math.js";
-import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK, GUARD_BREAK, LUNGE, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS } from "./sim/config.js";
+import { CLASS_LIST, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATE_MAP, CODEX, TITLES, PACTS, PARRY, COMBO, LOCK_ON, FLASK, SHIELD_BLOCK, TWO_HAND, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, COMBAT_CODEX, CHARGED_ATTACK, GUARD_BREAK, LUNGE, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, SANCTUARY_EMISSARY } from "./sim/config.js";
 import { talentNodes } from "./sim/talents.js";
 import { STR } from "./strings.js";
 import { audio } from "./audio.js";
@@ -370,6 +370,14 @@ function edge(code){
   // rebindable (deliberate, como RECALL.key/BOUNTY_BOARD.key: never touches REBINDS/settings.binds). El sim decide (tryQuartermaster
   // gated en escena play + vivo + [requireSafeZone] en la SAFEZONE).
   if(code===SANCTUARY_REWARDS.key && SANCTUARY_REWARDS.enabled){ sim.tryQuartermaster(); return; }
+  // CAS-2292: tecla dedicada SANCTUARY_EMISSARY.key (default "Insert") dispara el EMISARIO DEL SANTUARIO (acepta la world-quest
+  // ROTATIVA del turno / la entrega si está cumplida, contextual en la SAFEZONE). "Insert" es un code LIBRE (grep de playAction/
+  // REBINDS/config: 26 letras + Home/End/Delete/Backslash/Semicolon/Quote/Backquote ocupadas; Insert libre — sibling nav de la
+  // familia Home/End/Delete, LECCIÓN CAS-2273). Gated on SANCTUARY_EMISSARY.enabled ⇒ con la feature off la tecla es inerte (falls
+  // through, no state change) ⇒ snapshot byte-id. NO es rebindable (mirror RECALL.key/BOUNTY_BOARD.key/SANCTUARY_REWARDS.key: never
+  // touches REBINDS/settings.binds). El sim decide (tryEmissary gated en escena play + vivo + [requireSafeZone] en la SAFEZONE).
+  // Cross-platform (móvil: botón HUD tb.emissary contextual en la SAFEZONE; QA: __dev.emissary({act})).
+  if(code===SANCTUARY_EMISSARY.key && SANCTUARY_EMISSARY.enabled){ sim.tryEmissary(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
 }
@@ -531,6 +539,12 @@ export function tbtns(){ // returns button rects for current scene
     // izquierda aislada (stack: ab1/ab2 3.35, ult 4.45, bounty 5.55, quartermaster 6.65; 1.1·bs de gap > Σradios 0.92·bs ⇒ sin
     // solape). $0 arte (glifo ✦). El render (renderTouch btn()) sigue tb.quartermaster.x/y ⇒ se reubica solo.
     ...((SANCTUARY_REWARDS.enabled && sim.heroInSafeZone()) ? { quartermaster:{x:m+bs*0.5, y:VH-m-bs*6.65, r:bs*0.46, label:"✦", act:()=>sim.tryQuartermaster()} } : {}),
+    // CAS-2292: botón táctil del EMISARIO — SÓLO cuando SANCTUARY_EMISSARY.enabled Y el héroe está en la SAFEZONE (contextual:
+    // acción de hub, no de combate ⇒ con el knob OFF NO hay botón ⇒ layout byte-idéntico a HEAD, mirror tb.bounty/tb.quartermaster).
+    // Es un TAP: handleUITap llama `act` ⇒ sim.tryEmissary() acepta/entrega la world-quest rotativa (mismo chokepoint que Insert en
+    // desktop). Slot LIBRE `VH-m-bs*7.75` = encima del Intendente (6.65) en la columna hub izquierda aislada (stack: ab1/ab2 3.35,
+    // ult 4.45, bounty 5.55, quartermaster 6.65, emissary 7.75; 1.1·bs de gap > Σradios ⇒ sin solape con tb.ult, LECCIÓN CAS-2278).
+    ...((SANCTUARY_EMISSARY.enabled && sim.heroInSafeZone()) ? { emissary:{x:m+bs*0.5, y:VH-m-bs*7.75, r:bs*0.46, label:"✉", act:()=>sim.tryEmissary()} } : {}),
     bs
   };
 }

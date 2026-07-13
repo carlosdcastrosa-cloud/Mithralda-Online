@@ -1769,6 +1769,47 @@ export const WORLD_EVENT = {
   epochMs: 0,              // ancla del epoch compartido (0 = epoch Unix). Bucket = floor((Date.now()-epochMs)/periodMs).
 };
 
+// CAS-2292: EMISARIO DEL SANTUARIO / SANCTUARY EMISSARY (DARK, SANCTUARY_EMISSARY) — la ROTACIÓN de WORLD-QUEST del arco Santuario.
+// Canon MMORPG: el "emisario" diario (WoW Legion/BfA emissary) — una world-quest ROTATIVA que envía al jugador AL MUNDO ABIERTO a
+// abatir un objetivo y se ENTREGA en el hub por un gran pago de RENOMBRE. Cierra un hueco del arco: hoy el Tablón (BOUNTY_BOARD,
+// LIVE) rota POR-HÉROE (bountyIdx avanza al reclamar) y paga ORO; NO existe un objetivo COMPARTIDO que lleve a TODOS los jugadores
+// al MISMO blanco a la vez (el gancho social "todos hacemos la misma world-quest hoy"). El Emisario lo aporta. Diseño Stage-1,
+// per-hero, 100% DETERMINISTA (0 RNG) y server-authority-ready:
+//   · ROTACIÓN COMPARTIDA (función PURA del reloj de pared, mirror WORLD_EVENT): el emisario ACTIVO = emissaries[period % N] con
+//     period = floor((now-epochMs)/periodSec). Idéntico en todo cliente con el reloj correcto ⇒ convergencia (a diferencia del
+//     bountyIdx per-hero). Date.now se lee SÓLO dentro del tick GATEADO (tickEmissary) ⇒ con la feature OFF es CÓDIGO MUERTO, nunca
+//     entra en el sim determinista (save/worldFingerprint/RNG byte-idénticos a HEAD — respeta game.js:120 y el anti-CAS-2220).
+//   · OBJETIVO DE MUNDO ABIERTO (world-quest): "abate N de X" contado por el MISMO contador MONÓTONO ya persistido
+//     (h.killsByType[target], poblado en killEnemy) MENOS un snapshot `base` tomado al ACEPTAR. 0 tracking nuevo por-frame, 0 hook
+//     en killEnemy (misma técnica que BOUNTY_BOARD). Se ACEPTA/ENTREGA en el Santuario (tecla dedicada, mismo gating de hub que el
+//     Tablón / el Intendente): vas al Santuario, tomas al emisario del turno, cazas fuera, vuelves a entregar.
+//   · PAGO EN RENOMBRE: al ENTREGAR ⇒ +rep de RENOMBRE (SANCTUARY_REP, reusa ese knob, gated a su enabled) + un `gold` cache, por
+//     los chokepoints REALES ya vivos (h.gold += ; h.sanctuaryRep +=). Alimenta la meta-progresión de facción (rangos → Intendente)
+//     con un chunk MAYOR que un bounty ⇒ el emisario es la fuente "premium/diaria" del renombre. UNA entrega por period (cadencia
+//     daily-quest): al rolar el period, el objetivo cambia (compartido) y se puede volver a aceptar/entregar.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tryEmissary RETURN "off" (tecla Insert inerte río arriba en input.js), tickEmissary
+// RETURN inmediato (Date.now NUNCA se llama), G.emissary/h.emissary NUNCA se crean, serializeSave OMITE la clave, el badge nunca se
+// dibuja ⇒ save.v1 + comportamiento + worldFingerprint BYTE-IDÉNTICOS a HEAD. Reversible en 1 línea (enabled:true→false + redeploy
+// overlay CONSISTENTE-HEAD: config+sim+game+render+input). Escala a N jugadores sin contención (la rotación es una función pura
+// compartida; el progreso/pago es per-hero por los contadores/chokepoints ya vivos). Los NÚMEROS (period/count/oro/rep) = decisión
+// de BALANCE del CEO (retune = edición de knob barata y reversible). target debe ser una clave de ETPL o "any".
+export const SANCTUARY_EMISSARY = {
+  enabled: false,          // DARK. Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+game+render+input).
+  key: "Insert",           // tecla dedicada — ACEPTA / ENTREGA en el Santuario. code LIBRE (grep-verificado: 26 letras + Home/End/
+                           //   Delete/Backslash/Semicolon/Quote/Backquote ocupadas; Insert libre — sibling nav de Home/End/Delete).
+                           //   NO rebindable (nunca toca REBINDS/settings.binds). Móvil = botón HUD tb.emissary (contextual, hub).
+  requireSafeZone: true,   // aceptar/entregar sólo DENTRO de la SAFEZONE (mismo gating de hub que el Tablón / Intendente).
+  periodSec: 1200,         // cada 20 min rota el emisario (bucket determinista del epoch; mayor que el evento para cadencia "diaria"). CEO knob.
+  epochMs: 0,              // ancla del epoch compartido (0 = epoch Unix). period = floor((Date.now()-epochMs)/(periodSec*1000)).
+  emissaries: [            // pool ORDENADO de world-quests; el ACTIVO rota por period (COMPARTIDO). target = clave ETPL o "any".
+    { id:"wolfcull",    name:"Emisario: Manada Menguante",     target:"wolf",     count:8,  gold:90,  rep:60 },
+    { id:"boneward",    name:"Emisario: Vigilia de Huesos",    target:"skeleton", count:8,  gold:110, rep:70 },
+    { id:"roadwardens", name:"Emisario: Guardianes del Camino", target:"bandit",   count:6,  gold:130, rep:80 },
+    { id:"greentide",   name:"Emisario: Marea Verde",          target:"orc",      count:5,  gold:160, rep:90 },
+    { id:"pathpurge",   name:"Emisario: Purga del Sendero",     target:"any",      count:14, gold:100, rep:65 },
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

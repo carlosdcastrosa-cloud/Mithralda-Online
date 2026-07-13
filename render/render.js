@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -344,6 +344,11 @@ export function createRenderer(ctx){
     // OCIOSO = cuenta atrás "próx mm:ss" al siguiente Toque; ACTIVO = "¡ACTIVO! mm:ss" pulsante + fase (Fervor en el pico). Refleja
     // el horario derivado del reloj compartido (G.warhorn, autoridad en sim); cosmético puro (no lee/escribe RNG ni save).
     if(WORLD_EVENT.enabled) renderWarhornBadge();
+    // CAS-2292: indicador "Emisario del Santuario" (Sanctuary Emissary, render-only, $0 arte, DARK). Con SANCTUARY_EMISSARY.enabled:false
+    // NUNCA corre ⇒ salida byte-idéntica (0 refs render fuera de este gate). ON: sello de emisario + la world-quest ROTATIVA del turno —
+    // con emisario aceptado = nombre + progreso n/N (verde "listo"); en el Santuario sin aceptar = pista del emisario activo (invita a
+    // aceptar). Progreso DERIVADO de los mismos contadores monótonos que sim (h.killsByType); cosmético puro (no lee/escribe RNG ni save).
+    if(SANCTUARY_EMISSARY.enabled) renderEmissaryBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3247,6 +3252,64 @@ export function createRenderer(ctx){
     ctx.restore();
   }
 
+  // CAS-2292: indicador "Emisario del Santuario" (Sanctuary Emissary). Sello de emisario procedural (canvas, $0 arte) + micro-label
+  // con el nombre de la world-quest ROTATIVA del turno + progreso n/N + barra discreta, ANCLADO bajo toda la fila de badges (gap
+  // anti-solape con el Toque de Guerra @+120). El progreso se DERIVA de los MISMOS contadores monótonos que usa sim (h.killsByType),
+  // cosmético puro: NO lee/escribe sim ni RNG. Gated arriba en SANCTUARY_EMISSARY.enabled ⇒ OFF nunca se invoca ⇒ salida byte-idéntica.
+  //   · Con emisario ACEPTADO del period actual → sello azul + "nombre" + "n/N" (verde "listo"/"cumplido"; rastreable al cazar fuera).
+  //   · En el Santuario sin aceptar (o period rolado) → sello atenuado + pista "Emisario" + nombre del activo (invita a aceptar).
+  function renderEmissaryBadge(){
+    const h=G.hero; if(!h) return;
+    const inZone=inCitySafe(h.x,h.y);
+    const sched=G.emissary||null;                                    // rotación compartida (autoridad en sim, derivada del reloj)
+    const q=h.emissary||null;
+    const active=!!(q && sched && (q.period|0)===(sched.period|0));   // emisario aceptado y VIGENTE para el period actual (no rolado)
+    if(!active && !inZone) return;                                    // sin emisario vigente y fuera del Santuario ⇒ sin indicador
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+142, sw=13, sh=14;                        // bajo el Toque de Guerra (@+120); gap anti-solape (CAS-2263)
+    // progreso derivado (mismo cálculo que sim; lectura pura)
+    let prog=0, count=0, done=false, claimed=false, label="";
+    if(active){ count=q.count|0;
+      const cur=(q.target==="any")?(h.kills|0):(((h.killsByType||{})[q.target])|0);
+      prog=Math.max(0, Math.min(count, cur-(q.base|0))); done=prog>=count && count>0; claimed=!!q.claimed;
+      const def=(SANCTUARY_EMISSARY.emissaries||[]).find(x=>x.id===q.id); label=(def&&def.name)||"Emisario"; }
+    else { label=(sched&&sched.def&&sched.def.name)?sched.def.name:"—"; }                          // pista del emisario del turno
+    const ready=active&&(done||claimed);
+    const pulse=active?(ready?(0.78+0.16*Math.sin(G.t*3)):0.74):0.55;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // sello de emisario ($0 arte): rombo (lacre) con contorno oscuro + cinta central (azul si vigente, atenuado como pista)
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, by+sh*0.1); ctx.lineTo(bx+sw*0.92, cy); ctx.lineTo(cx, by+sh*0.9); ctx.lineTo(bx+sw*0.08, cy); ctx.closePath();
+    ctx.fillStyle=active?(ready?"rgba(90,150,70,0.6)":"rgba(60,110,160,0.58)"):"rgba(80,86,96,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.75)"; ctx.stroke();
+    ctx.beginPath(); ctx.lineWidth=1.4; ctx.strokeStyle=active?(ready?"#c9f0a8":"#bfe0ff"):"#adb7c2"; ctx.lineJoin="round";
+    ctx.moveTo(bx+sw*0.28, cy); ctx.lineTo(bx+sw*0.72, cy); ctx.stroke();
+    // micro-label (nombre del emisario / pista)
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5;
+    const lbl=(active?label:("Emisario: "+label));
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=active?COL.cream:"#a9bccb"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha de la fila (dentro de [bx, bx+104]): "cumplido" / "listo" / progreso n/N
+    if(active){
+      let st, stc;
+      if(claimed){ st="cumplido"; stc="#a8e08a"; }
+      else if(done){ st="listo"; stc="#a8e08a"; }
+      else { st=prog+"/"+count; stc="#bfe0ff"; }
+      ctx.font="bold 10px "+FF; ctx.textAlign="right";
+      ctx.globalAlpha=ready?pulse:0.85;
+      ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(st,bx+104,ty);
+      ctx.fillStyle=stc; ctx.fillText(st,bx+104,ty);
+      // barra de progreso discreta bajo la fila
+      const barW=104, barH=3, byy=by+sh+2, fr=count>0?prog/count:0;
+      ctx.globalAlpha=0.7;
+      ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(bx,byy,barW,barH);
+      ctx.fillStyle=(done||claimed)?"#8fe07a":"#5aa0e0"; ctx.fillRect(bx,byy,Math.round(barW*fr),barH);
+    }
+    ctx.restore();
+  }
+
   function renderMiniMap(){ if(isTouch) return;
     const sidebar=view.sbw>0;
     let mw=120, mh=120, x, y;
@@ -4885,6 +4948,9 @@ export function createRenderer(ctx){
         const ca=Array.isArray(h.sanctuaryRewards)?h.sanctuaryRewards:null;
         for(const d of defs){ if(repIdx>=rankIdxOf(d.rank) && !(ca&&ca.indexOf(d.id)>=0)){ ready=true; break; } } } // ¿hay recompensa lista? (progreso DERIVADO puro, 0 sim/RNG)
       btn(tb.quartermaster, ready?"#e0b0ff":"#8f7ab0"); } // se ilumina en violeta cuando hay una recompensa de renombre LISTA para reclamar
+    if(tb.emissary){ const h=G.hero, q=h&&h.emissary, sched=G.emissary; let rdy=false; // CAS-2292: botón del EMISARIO (present only when SANCTUARY_EMISSARY.enabled Y en la SAFEZONE ⇒ undefined fuera/OFF ⇒ byte-id)
+      if(q && sched && (q.period|0)===(sched.period|0)){ const cur=(q.target==="any")?(h.kills|0):(((h.killsByType||{})[q.target])|0); rdy=(!q.claimed)&&(Math.max(0,Math.min(q.count|0,cur-(q.base|0)))>=(q.count|0))&&(q.count|0)>0; } // progreso DERIVADO puro (mismo cálculo que renderEmissaryBadge; 0 sim, 0 RNG)
+      btn(tb.emissary, rdy?COL.textGold:"#5aa0e0"); } // se ilumina en oro cuando la world-quest está LISTA para entregar
     if(tb.throwable){ const h=G.hero; const noThrow=!h || h.throwCD>0 || h.throwWind>0 || (h[tb.throwable.chargeKey]||0)<=0; btn(tb.throwable, noThrow?"#7a5a3a":"#e0a45a"); // CAS-1920: botón del ARROJADIZO (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA sin cargas / en cooldown / durante el windup; muestra el glyph del tipo activo
       if(h){ ctx.font="bold 9px "+FF; ctx.textAlign="center"; const cn=""+(h[tb.throwable.chargeKey]||0); ctx.fillStyle=COL.out; ctx.fillText(cn,tb.throwable.x+1,tb.throwable.y+tb.throwable.r+10); ctx.fillStyle=noThrow?"#caa27a":"#ffd9a0"; ctx.fillText(cn,tb.throwable.x,tb.throwable.y+tb.throwable.r+9); } } // conteo de cargas bajo el botón
     if(tb.throwcycle) btn(tb.throwcycle, "#c79a55"); // CAS-1920: botón de CICLAR el tipo de arrojadizo (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id)
