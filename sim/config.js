@@ -1652,7 +1652,7 @@ export const RECALL = {
 // [+tecla gated]). Escala a N jugadores sin contención (estado 100% per-hero). Los NÚMEROS (count/oro/xp) = decisión de
 // BALANCE del CEO (retune = edición de knob barata y reversible). target debe ser una clave de ETPL o "any".
 export const BOUNTY_BOARD = {
-  enabled: false,          // DARK (CAS-2269 build). Reversible: false→true + redeploy overlay consistente-HEAD (config+sim+game+render+input).
+  enabled: true,           // LIVE (CAS-2270 flip). Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+game+render+input).
   key: "KeyB",             // tecla dedicada del Tablón ("Bounty"); acepta/reclama en el Santuario. Gated ⇒ OFF inerte.
   requireSafeZone: true,   // aceptar/reclamar sólo DENTRO de la SAFEZONE (hub loop, mirror del BIND del Recall). false = desde cualquier lugar.
   bounties: [              // pool ORDENADO de contratos; el destacado rota por bountyIdx. target = clave ETPL o "any".
