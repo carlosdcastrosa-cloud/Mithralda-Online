@@ -2097,7 +2097,7 @@ export const MENTOR_BOND = {
 // nueva). SIN tocar input.js (recuperación por proximidad+dwell + rol observado, 0 hotkey). Reversible en 1 línea (enabled:false→true + redeploy
 // overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO (retune barato).
 export const SOUL_RECOVERY = {
-  enabled: false,            // DARK. OFF ⇒ tickSoul nunca corre, ninguna clave nueva, byte-id a HEAD. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  enabled: true,             // CAS-2327 LIVE FLIP (EVO#49). ON ⇒ tickSoul corre; vestigio ambiental COMPARTIDO + recuperación proximidad/dwell activos. CEO Gate APPROVED; QA re-QA post-CAS-2326 (soulPos zone-guard) = 15/15 ×2. Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
   periodSec: 300,            // ciclo del VESTIGIO (5 min — corto y OBSERVABLE, no acopla a otros relojes). Reloj de pared COMPARTIDO ⇒ MISMO vestigio en N clientes (0 desync).
   epochMs: 0,                // ancla del reloj (0 = epoch Unix). Compartida ⇒ period idéntico en todo cliente.
   liveFrac: 0.5,             // el vestigio está VIVO sólo esta fracción inicial del period; luego CADUCA (limpieza determinista, "tras N ticks si nadie recupera"). CEO balance knob.
