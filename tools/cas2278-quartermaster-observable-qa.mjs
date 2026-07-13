@@ -281,32 +281,45 @@ try {
   await toPlay(mp);
   await mp.evaluate(() => { window.dispatchEvent(new Event("touchstart")); window.__dev.quartermaster({ enabled: true }); window.__dev.sanctuary({ setRep: 2000 }); });
   const mInZone = await ensureZone(mp); await sleep(150);
-  const tapQM = (p) => p.evaluate(async () => { const s = (ms) => new Promise(r => setTimeout(r, ms));
+  // tap a left-hub touch slot: slot=6.65 is the FIXED tb.quartermaster (commit 4592074), slot=4.45 is the OLD/tb.ult combat slot.
+  const tapSlot = (p, slot) => p.evaluate(async (slotMul) => { const s = (ms) => new Promise(r => setTimeout(r, ms));
     const cv = document.getElementById("c"); const rect = cv.getBoundingClientRect();
     const VW = rect.width, VH = rect.height; const m = 14; const bs = Math.max(56, Math.min(VW, VH) * 0.115);
-    const bx = m + bs * 0.5, by = VH - m - bs * 4.45;         // tb.quartermaster slot (input.js:529)
+    const bx = m + bs * 0.5, by = VH - m - bs * slotMul;
     window.dispatchEvent(new Event("touchstart"));
     cv.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 4, pointerType: "touch", clientX: rect.left + bx, clientY: rect.top + by, bubbles: true })); await s(60);
-    cv.dispatchEvent(new PointerEvent("pointerup", { pointerId: 4, pointerType: "touch", clientX: rect.left + bx, clientY: rect.top + by, bubbles: true })); await s(140); });
+    cv.dispatchEvent(new PointerEvent("pointerup", { pointerId: 4, pointerType: "touch", clientX: rect.left + bx, clientY: rect.top + by, bubbles: true })); await s(140); }, slot);
+  const tapQM = (p) => tapSlot(p, 6.65);                       // tb.quartermaster FIXED slot (input.js:531, commit 4592074)
 
-  // 18a POSITIVE CONTROL: with NO drafted ultimate, the tb.quartermaster tap DOES claim ⇒ coords + gating + sim path all correct.
+  // 18a POSITIVE CONTROL: with NO drafted ultimate, the tb.quartermaster tap (new slot 6.65) claims ⇒ coords + gating + sim path OK.
   await mp.evaluate(() => { if (window.__dev.setUltId) window.__dev.setUltId("__none__"); });   // clear ult ⇒ tb.ult.r=0
   const mPre = await mp.evaluate(() => window.__dev.quartermaster().claimedIds.length);
   await tapQM(mp);
   const mNoUlt = await mp.evaluate(() => window.__dev.quartermaster().claimedIds);
-  ok("18a MOBILE (no ultimate) tb.quartermaster tap claims via tryQuartermaster chokepoint",
+  ok("18a MOBILE (no ultimate) tb.quartermaster tap @slot6.65 claims via tryQuartermaster chokepoint",
      mInZone && mPre === 0 && mNoUlt.length === 1 && mNoUlt[0] === "swift_return", `inZone=${mInZone} pre=${mPre} claimed=${JSON.stringify(mNoUlt)}`);
 
-  // 18b ⛔ DEFECT: with a drafted ULTIMATE, tb.ult sits at the SAME slot (x:m+bs*0.5, y:VH-m-bs*4.45) as tb.quartermaster and is
-  //     iterated FIRST in handleUITap (input.js:667) ⇒ it CONSUMES the tap; the quartermaster is UNREACHABLE by touch. This is the
-  //     CAS-2273-class collision (dedicated trigger shadowed), but for the TOUCH button — caught in QA BEFORE flip. Desktop (Delete) OK.
+  // 18b ✅ FIX-FORWARD RE-VERIFY (commit 4592074): the OLD collision was tb.quartermaster sharing tb.ult's exact slot 4.45; iterated
+  //     FIRST, tb.ult (r>0 once an ult is drafted) swallowed the tap ⇒ QM unreachable by touch. GE moved QM to a FREE slot 6.65.
+  //     Now, WITH a drafted ultimate present, a tap on the NEW slot 6.65 MUST advance the claim (collision resolved).
   await mp.evaluate(() => { const m = window.__dev.ultMeta(); if (window.__dev.setUltId) window.__dev.setUltId(m.ults[0].id); }); // draft an ult ⇒ tb.ult.r>0
   const mPreU = await mp.evaluate(() => window.__dev.quartermaster().claimedIds.length);
   await tapQM(mp);
   const mWithUlt = await mp.evaluate(() => window.__dev.quartermaster().claimedIds.length);
-  const shadowed = (mWithUlt === mPreU);                       // claim count did NOT advance ⇒ tap was swallowed by tb.ult
-  ok("18b ⛔ DEFECT: with a drafted ultimate the quartermaster tap is SHADOWED by tb.ult (same slot) ⇒ unreachable by touch",
-     shadowed === false, `preUlt=${mPreU} afterTap=${mWithUlt} shadowed=${shadowed} (FAIL = collision confirmed, hand to GE)`);
+  ok("18b ✅ FIX (blocker 18b): with a drafted ultimate the tb.quartermaster tap @slot6.65 STILL claims (no longer shadowed by tb.ult)",
+     mWithUlt > mPreU, `preUlt=${mPreU} afterTap=${mWithUlt} (PASS = collision resolved, QM reachable with an ult drafted)`);
+
+  // 18b-alt: the OLD slot 4.45 (now tb.ult only) with an ult drafted & fully charged must NOT claim the quartermaster AND must fire
+  //     the ultimate (charge consumed) ⇒ proves the button truly moved and the ult is unbroken by the relocation.
+  await mp.evaluate(() => { const m = window.__dev.ultMeta(); if (window.__dev.setUltId) window.__dev.setUltId(m.ults[0].id); if (window.__dev.fillUltimate) window.__dev.fillUltimate(); });
+  const oldSlot = await mp.evaluate(() => ({ qm: window.__dev.quartermaster().claimedIds.length,
+    ch: (() => { const s = window.__dev.ultimateState ? window.__dev.ultimateState() : null; return s ? (s.charge ?? s.ultCharge ?? null) : null; })() }));
+  await tapSlot(mp, 4.45);
+  const oldSlotAfter = await mp.evaluate(() => ({ qm: window.__dev.quartermaster().claimedIds.length,
+    ch: (() => { const s = window.__dev.ultimateState ? window.__dev.ultimateState() : null; return s ? (s.charge ?? s.ultCharge ?? null) : null; })() }));
+  const ultFired = (oldSlot.ch === null || oldSlotAfter.ch === null) ? true : oldSlotAfter.ch < oldSlot.ch;   // charge consumed on cast
+  ok("18b-alt OLD slot 4.45 casts tb.ult (charge consumed) and does NOT claim the quartermaster ⇒ button truly relocated, ult intact",
+     oldSlotAfter.qm === oldSlot.qm && ultFired, `qm ${oldSlot.qm}->${oldSlotAfter.qm} ultCharge ${oldSlot.ch}->${oldSlotAfter.ch}`);
 
   // 18c gated in the wild: button absent ⇒ tap same spot does NOT claim more (clear ult first to isolate the zone gate)
   await mp.evaluate(() => { if (window.__dev.setUltId) window.__dev.setUltId("__none__"); });
