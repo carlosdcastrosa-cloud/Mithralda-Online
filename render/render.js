@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -334,6 +334,11 @@ export function createRenderer(ctx){
     // n/N + barra (rastreable mientras cazas); en el Santuario sin contrato = pista del destacado. Refleja la autoridad de sim
     // (h.bounty + progreso derivado de h.kills/killsByType); cosmético puro (no lee/escribe RNG ni save).
     if(BOUNTY_BOARD.enabled) renderBountyBadge();
+    // CAS-2278: indicador "Intendente" (Sanctuary Quartermaster, render-only, $0 arte, DARK). Con SANCTUARY_REWARDS.enabled:false
+    // NUNCA corre ⇒ salida byte-idéntica (0 refs render fuera de este gate). ON + en el Santuario: cuenta de recompensas de
+    // renombre reclamables (ámbar pulsante si hay ≥1) + título de renombre actual. Refleja la autoridad de sim
+    // (h.sanctuaryRewards + rango de rep); cosmético puro (no lee/escribe RNG ni save).
+    if(SANCTUARY_REWARDS.enabled) renderQuartermasterBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -1062,6 +1067,13 @@ export function createRenderer(ctx){
         if(al>0){ ctx.fillStyle=`rgba(${ac[0]},${ac[1]},${ac[2]},${al})`; ctx.fillRect(mx-1,my-1,2,2); } }
       ctx.restore();
     }
+    // CAS-2278: TÍTULO DE RENOMBRE sobre el nameplate del héroe (capa social MMO — en Stage-2 otros jugadores lo ven en el mundo
+    // compartido; Stage-1 lo lleva el héroe local). Texto puro violeta ($0 arte), anclado sobre la cabeza (encima de los pips de
+    // estado). Derivado puro de h.sanctuaryRewards (renownTitleOf; 0 sim/RNG). Gated ⇒ OFF / sin rewards ⇒ "" ⇒ nada dibuja ⇒ byte-id.
+    if(!h.dead && SANCTUARY_REWARDS.enabled){ const rt=renownTitleOf(h);
+      if(rt){ ctx.save(); ctx.globalAlpha=0.92; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+        const ty=h.y-52; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.8)"; ctx.strokeText("«"+rt+"»",h.x,ty);
+        ctx.fillStyle="#d9b8ff"; ctx.fillText("«"+rt+"»",h.x,ty); ctx.restore(); } }
   }
   // CAS-92: draw one frame of a hero animation strip. Every frame is HERO_FW×HERO_FH;
   // source column HERO_AX (body centroid) maps to world hx and source row HERO_FOOT
@@ -2987,9 +2999,15 @@ export function createRenderer(ctx){
   //   · FUERA de la Zona Segura con pool>0 → willSpend: el próximo gainXP GASTA descanso (bonus ×xpMult). Afordancia
   //     tipo "rested" de WoW: tag pulsante "zZ ×N" (alineado al borde de la barra) para que salir a cazar con bono se sienta.
   //   La condición willSpend refleja EXACTAMENTE la autoridad de sim: !inSafeZone (mismo bbox POI+cityMargin que inCitySafe).
+  // CAS-2278: cap de Descanso VISUAL incluyendo el reward "restedCap" del Intendente (mirror sim.restedCapFor; 0 sim/RNG).
+  // Gated ⇒ SANCTUARY_REWARDS OFF / sin ese reward ⇒ devuelve RESTED_XP.poolCap exacto ⇒ barra byte-idéntica a HEAD.
+  function restedCapView(h){ if(!SANCTUARY_REWARDS.enabled || !h || !Array.isArray(h.sanctuaryRewards) || !h.sanctuaryRewards.length) return RESTED_XP.poolCap;
+    const defs=SANCTUARY_REWARDS.rewards||[]; let sum=0;
+    for(const d of defs){ if(d.kind==="restedCap" && h.sanctuaryRewards.indexOf(d.id)>=0) sum+=(+d.value||0); }
+    return RESTED_XP.poolCap*(1+sum); }
   function renderRestedBadge(){
     const h=G.hero; if(!h) return;
-    const pool=+(h.restedPool||0), cap=RESTED_XP.poolCap||1;
+    const pool=+(h.restedPool||0), cap=restedCapView(h)||1;
     if(pool<=0) return;                                   // sin bono acumulado ⇒ sin indicador (0 draws)
     const pct=Math.max(0,Math.min(1,pool/cap));
     const willSpend=!inCitySafe(h.x,h.y);                 // fuera de la Zona Segura ⇒ el bono se está gastando (WoW rested)
@@ -3136,6 +3154,49 @@ export function createRenderer(ctx){
         ctx.globalAlpha=0.82; ctx.font="9px "+FF; ctx.textAlign="right"; ctx.fillStyle="#c7b3e6"; ctx.fillText(into+"/"+span, bx+barW, ry+6);
       } else { ctx.globalAlpha=0.85; ctx.font="9px "+FF; ctx.textAlign="right"; ctx.fillStyle="#b98fe0"; ctx.fillText("máx", bx+104, ry+6); }
     }
+    ctx.restore();
+  }
+
+  // CAS-2278: TÍTULO DE RENOMBRE — el `title` del reward RECLAMADO de mayor rango (o "" si ninguno). Cálculo PURO idéntico a
+  // sim.sanctuaryRewardTitle (0 sim/RNG); lo comparten el badge del Intendente y el nameplate del héroe. Gated ⇒ OFF / sin
+  // rewards ⇒ "" ⇒ nada dibuja ⇒ byte-idéntico a HEAD.
+  function renownTitleOf(h){ if(!SANCTUARY_REWARDS.enabled || !h) return "";
+    const arr=Array.isArray(h.sanctuaryRewards)?h.sanctuaryRewards:null; if(!arr||!arr.length) return "";
+    const defs=SANCTUARY_REWARDS.rewards||[], ranks=SANCTUARY_REP.ranks||[];
+    const rankIdxOf=id=>{ for(let i=0;i<ranks.length;i++){ if(ranks[i].id===id) return i; } return 1e9; };
+    let best=-1, title=""; for(const d of defs){ if(arr.indexOf(d.id)>=0){ const ri=rankIdxOf(d.rank); if(ri>=best){ best=ri; title=d.title||d.name||""; } } }
+    return title; }
+
+  // CAS-2278: indicador "Intendente" (Sanctuary Quartermaster). Sólo DENTRO del Santuario (inCitySafe) — es un vendor de hub.
+  // Muestra la cuenta de recompensas de renombre RECLAMABLES (rango de rep alcanzado + no reclamadas; ámbar-violeta pulsante si
+  // ≥1) + el título de renombre actual. Progreso DERIVADO puro (misma aritmética que sim.tryQuartermaster; NO lee/escribe sim ni
+  // RNG). Gated arriba en SANCTUARY_REWARDS.enabled ⇒ OFF nunca se invoca ⇒ salida byte-idéntica.
+  function renderQuartermasterBadge(){
+    const h=G.hero; if(!h || !inCitySafe(h.x,h.y)) return;
+    const defs=SANCTUARY_REWARDS.rewards||[], ranks=SANCTUARY_REP.ranks||[];
+    const rep=Math.max(0,h.sanctuaryRep|0);
+    let repIdx=0; for(let i=0;i<ranks.length;i++){ if(rep>=(ranks[i].at|0)) repIdx=i; }
+    const rankIdxOf=id=>{ for(let i=0;i<ranks.length;i++){ if(ranks[i].id===id) return i; } return 1e9; };
+    const claimedArr=Array.isArray(h.sanctuaryRewards)?h.sanctuaryRewards:null;
+    let claimable=0; for(const d of defs){ const unlocked=repIdx>=rankIdxOf(d.rank), claimed=!!(claimedArr&&claimedArr.indexOf(d.id)>=0); if(unlocked&&!claimed) claimable++; }
+    const title=renownTitleOf(h);
+    if(claimable<=0 && !title) return;                    // sin recompensas listas ni título ⇒ sin indicador (0 draws)
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+100;                           // bajo la fila de badges (safezone/rested/recall/bounty+rep); gap generoso anti-solape (CAS-2263)
+    ctx.save();
+    // línea 1: ✦ Intendente + estado a la derecha (N listas [Supr] / al día)
+    const pulse=claimable>0 ? (0.7+0.28*Math.sin(G.t*3.4)) : 0.62;
+    ctx.globalAlpha=pulse; ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const lbl="✦ Intendente";
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,bx,by+6);
+    ctx.fillStyle=claimable>0?"#e7c9ff":"#c9b3e0"; ctx.fillText(lbl,bx,by+6);
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=claimable>0?("✦"+claimable+" [Supr]"):"al día";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,by+6);
+    ctx.fillStyle=claimable>0?"#d9b0ff":"#a99bc4"; ctx.fillText(st,bx+104,by+6);
+    // línea 2: título de renombre reclamado
+    if(title){ ctx.globalAlpha=0.85; ctx.font="9px "+FF; ctx.textAlign="left"; ctx.lineWidth=2.5; ctx.strokeStyle="rgba(0,0,0,0.6)";
+      ctx.strokeText("«"+title+"»",bx,by+18); ctx.fillStyle="#c7b3e6"; ctx.fillText("«"+title+"»",bx,by+18); }
     ctx.restore();
   }
 
@@ -4762,6 +4823,13 @@ export function createRenderer(ctx){
     if(tb.bounty){ const h=G.hero, b=h&&h.bounty; let rdy=false; // CAS-2273: botón del TABLÓN (present only when BOUNTY_BOARD.enabled Y en la SAFEZONE ⇒ undefined fuera/OFF ⇒ byte-id)
       if(b){ const cur=(b.target==="any")?(h.kills|0):(((h.killsByType||{})[b.target])|0); rdy=(Math.max(0,Math.min(b.count|0,cur-(b.base|0)))>=(b.count|0))&&(b.count|0)>0; } // progreso DERIVADO puro (mismo cálculo que renderBountyBadge; 0 sim, 0 RNG)
       btn(tb.bounty, rdy?COL.textGold:"#c8a24a"); } // se ilumina en oro cuando el contrato está LISTO para reclamar
+    if(tb.quartermaster){ const h=G.hero; let ready=false; // CAS-2278: botón del INTENDENTE (present only when SANCTUARY_REWARDS.enabled Y en la SAFEZONE ⇒ undefined fuera/OFF ⇒ byte-id)
+      if(h){ const defs=SANCTUARY_REWARDS.rewards||[], ranks=SANCTUARY_REP.ranks||[]; const rep=Math.max(0,h.sanctuaryRep|0);
+        let repIdx=0; for(let i=0;i<ranks.length;i++){ if(rep>=(ranks[i].at|0)) repIdx=i; }
+        const rankIdxOf=id=>{ for(let i=0;i<ranks.length;i++){ if(ranks[i].id===id) return i; } return 1e9; };
+        const ca=Array.isArray(h.sanctuaryRewards)?h.sanctuaryRewards:null;
+        for(const d of defs){ if(repIdx>=rankIdxOf(d.rank) && !(ca&&ca.indexOf(d.id)>=0)){ ready=true; break; } } } // ¿hay recompensa lista? (progreso DERIVADO puro, 0 sim/RNG)
+      btn(tb.quartermaster, ready?"#e0b0ff":"#8f7ab0"); } // se ilumina en violeta cuando hay una recompensa de renombre LISTA para reclamar
     if(tb.throwable){ const h=G.hero; const noThrow=!h || h.throwCD>0 || h.throwWind>0 || (h[tb.throwable.chargeKey]||0)<=0; btn(tb.throwable, noThrow?"#7a5a3a":"#e0a45a"); // CAS-1920: botón del ARROJADIZO (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA sin cargas / en cooldown / durante el windup; muestra el glyph del tipo activo
       if(h){ ctx.font="bold 9px "+FF; ctx.textAlign="center"; const cn=""+(h[tb.throwable.chargeKey]||0); ctx.fillStyle=COL.out; ctx.fillText(cn,tb.throwable.x+1,tb.throwable.y+tb.throwable.r+10); ctx.fillStyle=noThrow?"#caa27a":"#ffd9a0"; ctx.fillText(cn,tb.throwable.x,tb.throwable.y+tb.throwable.r+9); } } // conteo de cargas bajo el botón
     if(tb.throwcycle) btn(tb.throwcycle, "#c79a55"); // CAS-1920: botón de CICLAR el tipo de arrojadizo (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id)

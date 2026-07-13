@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1989,6 +1989,10 @@ export function serializeSave(){
     // a HEAD (allowlist anti-CAS-2220: 0 campos nuevos con la feature off). Additive cuando ON: saves viejos carecen de la clave →
     // loadSave rehidrata a 0 → sin SAVE_VERSION bump.
     ...(SANCTUARY_REP.enabled ? { sanctuaryRep:Math.max(0,h.sanctuaryRep|0) } : {}),
+    // CAS-2278: persist los REWARDS del Intendente reclamados (h.sanctuaryRewards) SÓLO con la feature ON y ≥1 reclamado (spread
+    // condicional; orden canónico de config vía sanctuaryRewardsSave). enabled:false ⇒ la clave NO se emite ⇒ save.v1 byte-idéntico
+    // a HEAD (allowlist anti-CAS-2220). Additive cuando ON: saves viejos carecen de la clave → loadSave rehidrata a sin-rewards.
+    ...(SANCTUARY_REWARDS.enabled && h.sanctuaryRewards && h.sanctuaryRewards.length ? { sanctuaryRewards:sanctuaryRewardsSave(h) } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2059,7 +2063,15 @@ export function loadSave(d){
     if(THROWABLES.enabled){ refillThrowables(h); h.throwSel=THROWABLES.order[0]; h.throwCD=0; h.throwWind=0; h.throwZone=null; }   // CAS-1920: arrojadizos a tope al arrancar run (gated ⇒ OFF byte-id)
     if(WEAPON_BUFFS.enabled){ refillBuffs(h); h.buffSel=WEAPON_BUFFS.order[0]; h._wbuff=null; h.wbuffT=0; h.applyBuffT=0; h.buffZone=null; }   // CAS-1926: resinas a tope + sin buff activo al arrancar run (gated ⇒ OFF byte-id)
     if(SUMMON.enabled){ h.summonCharges=SUMMON.charges; h.summonZone=null; G._spirit=null; }   // CAS-1954: cargas de invocación a tope + sin espíritu activo al reanudar run (gated ⇒ OFF byte-id)
-    if(RESTED_XP.enabled){ h.restedPool=Math.max(0,Math.min(RESTED_XP.poolCap,num(d.restedPool,0))); }   // CAS-2255: rehidrata el pool de Descanso (clamp 0..cap; saves viejos → 0; gated ⇒ OFF la clave NUNCA se crea ⇒ byte-id)
+    // CAS-2278: rehidrata los REWARDS del Intendente reclamados ANTES del pool de Descanso (para que restedCapFor vea el bono de
+    // +cap y no trunque un pool guardado por encima del cap base). Sólo ids VÁLIDOS y ÚNICOS; el campo se crea SÓLO si hay ≥1
+    // reclamado ⇒ OFF / sin rewards ⇒ h.sanctuaryRewards NUNCA existe ⇒ byte-id. Saves viejos carecen de la clave → sin-rewards.
+    if(SANCTUARY_REWARDS.enabled && Array.isArray(d.sanctuaryRewards)){
+      const valid={}; for(const r of (SANCTUARY_REWARDS.rewards||[])) valid[r.id]=1;
+      const seen={}, out=[];
+      for(const id of d.sanctuaryRewards){ if(typeof id==="string" && valid[id] && !seen[id]){ seen[id]=1; out.push(id); } }
+      if(out.length) h.sanctuaryRewards=out; }
+    if(RESTED_XP.enabled){ h.restedPool=Math.max(0,Math.min(restedCapFor(h),num(d.restedPool,0))); }   // CAS-2255: rehidrata el pool de Descanso (clamp 0..cap; saves viejos → 0; gated ⇒ OFF la clave NUNCA se crea ⇒ byte-id). CAS-2278: cap incluye el reward del Intendente (gated ⇒ OFF = poolCap exacto)
     // CAS-2266: rehidrata el VÍNCULO del Recall + cooldown (validados; saves viejos carecen de la clave → sin-vínculo / CD 0;
     // gated ⇒ OFF la clave bindPoint NUNCA se crea ⇒ byte-id). El bindPoint sólo se acepta si es un par de coords finitas.
     if(RECALL.enabled){ const bp=d.bindPoint;
@@ -2616,6 +2628,7 @@ function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
   const g=safeZoneGeom();
   if(g && g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
     if(dx*dx+dy*dy <= tr*tr) rate*=SAFEZONE.templeMul; }   // santuario del Templo = regen acelerado
+  rate*=(1 + sanctuaryRewardMul(h,"safeRegen"));            // CAS-2278: reward Intendente acelera el regen (gated ⇒ OFF ×1 exacto)
   h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
 }
 
@@ -2627,7 +2640,7 @@ function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
 // que el regen/banner/minimap). Escala a N jugadores sin contención (estado per-hero).
 function tickRestedXP(h,dt){ if(!RESTED_XP.enabled||!h||h.dead) return;
   if(!inSafeZone(h.x,h.y)) return;                                  // sólo acumula descansando en la ciudad
-  const cap=RESTED_XP.poolCap, cur=h.restedPool||0;
+  const cap=restedCapFor(h), cur=h.restedPool||0;                   // CAS-2278: reward Intendente sube el tope (gated ⇒ OFF = RESTED_XP.poolCap exacto)
   if(cur>=cap) return;                                              // pool lleno ⇒ nada que acumular
   h.restedPool=Math.min(cap, cur + RESTED_XP.accrualPerSec*dt);
 }
@@ -2661,7 +2674,7 @@ function tickRecall(h,dt){ if(!RECALL.enabled||!h||h.dead) return;
 function executeRecall(h){
   const pt=h.bindPoint || recallBindPoint(); if(!pt) return;
   h.x=pt.x; h.y=pt.y; h.vx=h.vy=0; h.rolling=false; h.iframe=Math.max(h.iframe||0, 0.5);
-  h.recallChannelT=0; h.recallCD=RECALL.cooldownSec;              // vuelve a enfriar (anti-spam; persiste en el save)
+  h.recallChannelT=0; h.recallCD=recallCooldownSec(h);           // vuelve a enfriar (anti-spam; persiste en el save). CAS-2278: reward Intendente reduce el CD (gated ⇒ OFF = RECALL.cooldownSec exacto)
   floater(h.x, h.y-30, "Vínculo", "#8fd6ff"); audio.sfx.rune();   // reusa el chime de runa (teleport mágico), $0 audio
 }
 // CAS-2266: INTENTO de Recall — el chokepoint que dispara la habilidad (input tecla Home + __dev.recall({cast})). Valida el
@@ -2701,6 +2714,52 @@ function sanctuaryRank(rep){ const R=SANCTUARY_REP.ranks||[]; rep=Math.max(0,rep
 }
 function sanctuaryPerkXP(h,xp){ if(!SANCTUARY_REP.enabled||!h) return xp;
   const m=+(sanctuaryRank(h.sanctuaryRep||0).cur.xpMult)||1; return Math.max(xp|0, Math.round((xp|0)*m)); }
+
+// CAS-2278: INTENDENTE DEL SANTUARIO / SANCTUARY QUARTERMASTER — funciones PURAS (0 RNG, 0 side-effect salvo el claim explícito).
+// sanctuaryRewardMul(h,kind) = Σ de los `value` de los rewards RECLAMADOS (h.sanctuaryRewards) de ese kind ⇒ el bono agregado que
+// modula un knob YA vivo (recallCd/restedCap/safeRegen/restedMult). GATED: feature OFF o 0 rewards ⇒ devuelve 0 ⇒ el knob queda
+// byte-idéntico a HEAD (recallCd×(1-0), restedCap×(1+0), etc.). sanctuaryRewardsUnlocked(h,def) = ¿el rango de rep alcanzado
+// (sanctuaryRank) llega al rango que pide el reward? sanctuaryRewardClaimed = ¿ya está en el array reclamado? Sólo se invocan
+// bajo SANCTUARY_REWARDS.enabled (los hooks de knob llaman a Mul, que corta en el gate).
+function sanctuaryRewardMul(h,kind){ if(!SANCTUARY_REWARDS.enabled||!h||!h.sanctuaryRewards||!h.sanctuaryRewards.length) return 0;
+  const defs=SANCTUARY_REWARDS.rewards||[]; let sum=0;
+  for(let i=0;i<defs.length;i++){ const d=defs[i]; if(d.kind===kind && h.sanctuaryRewards.indexOf(d.id)>=0) sum+=(+d.value||0); }
+  return sum; }
+function sanctuaryRankIdxOf(rankId){ const R=SANCTUARY_REP.ranks||[]; for(let i=0;i<R.length;i++){ if(R[i].id===rankId) return i; } return 1e9; }
+function sanctuaryRewardClaimed(h,id){ return !!(h && h.sanctuaryRewards && h.sanctuaryRewards.indexOf(id)>=0); }
+function sanctuaryRewardUnlocked(h,def){ if(!h||!def) return false; return sanctuaryRank(h.sanctuaryRep||0).idx >= sanctuaryRankIdxOf(def.rank); }
+// Título de Renombre = el `title` del reward RECLAMADO de mayor rango (o "" si ninguno). Puro read, orden canónico de config.
+function sanctuaryRewardTitle(h){ if(!SANCTUARY_REWARDS.enabled||!h||!h.sanctuaryRewards||!h.sanctuaryRewards.length) return "";
+  const defs=SANCTUARY_REWARDS.rewards||[]; let best=-1, title="";
+  for(let i=0;i<defs.length;i++){ const d=defs[i]; if(h.sanctuaryRewards.indexOf(d.id)>=0){ const ri=sanctuaryRankIdxOf(d.rank); if(ri>=best){ best=ri; title=d.title||d.name||""; } } }
+  return title; }
+// Serialización canónica (orden de config, sólo ids válidos reclamados) del array de rewards reclamados.
+function sanctuaryRewardsSave(h){ const defs=SANCTUARY_REWARDS.rewards||[], out=[];
+  for(let i=0;i<defs.length;i++){ if(sanctuaryRewardClaimed(h,defs[i].id)) out.push(defs[i].id); } return out; }
+// CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
+function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd")); }
+function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap")); }
+// CAS-2278: INTENTO de reclamar en el Intendente — chokepoint del jugador (tecla Supr + móvil + __dev.quartermaster({claim})).
+// Contextual: reclama el reward DESBLOQUEADO (rango de rep alcanzado) de MENOR índice aún NO reclamado (presiones repetidas
+// reclaman en orden). Gate: feature ON, escena play, héroe vivo, y (si requireSafeZone) dentro de la SAFEZONE = en el Santuario.
+// OFF ⇒ return "off" sin tocar nada ⇒ byte-idéntico (la tecla es inerte río arriba en input.js; h.sanctuaryRewards nunca se crea).
+export function tryQuartermaster(){
+  const h=G.hero; if(!SANCTUARY_REWARDS.enabled) return "off";
+  if(!h || h.dead || G.scene!=="play") return "unavailable";
+  if(SANCTUARY_REWARDS.requireSafeZone && !inSafeZone(h.x,h.y)) return "away";   // hay que estar en el Santuario (Intendente)
+  const defs=SANCTUARY_REWARDS.rewards||[]; let anyUnlocked=false;
+  for(let i=0;i<defs.length;i++){ const d=defs[i];
+    if(!sanctuaryRewardUnlocked(h,d)) continue;
+    anyUnlocked=true;
+    if(sanctuaryRewardClaimed(h,d.id)) continue;
+    if(!h.sanctuaryRewards) h.sanctuaryRewards=[];      // el campo SÓLO se crea al reclamar con la feature ON ⇒ byte-id OFF
+    h.sanctuaryRewards.push(d.id);
+    floater(h.x, h.y-34, "Renombre: "+(d.name||d.id), "#c9a6ff");
+    audio.sfx.rune&&audio.sfx.rune();                   // reusa el chime de runa (favor de facción), $0 audio
+    return "claimed:"+d.id;
+  }
+  return anyUnlocked ? "done" : "locked";               // done = todo lo desbloqueado ya reclamado; locked = ningún rango alcanzado aún
+}
 
 // CAS-2269: INTENTO de Tablón — el ÚNICO chokepoint de jugador (input tecla BOUNTY_BOARD.key + __dev.bounty({act})). Contextual:
 // sin contrato ⇒ ACEPTA el destacado (snapshot base); con contrato completo ⇒ RECLAMA (oro+XP por los chokepoints reales,
@@ -3657,7 +3716,8 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const bonus=Math.min(h.restedPool, Math.round(n*(RESTED_XP.xpMult-1)));
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult");   // CAS-2278: reward Intendente sube el multiplicador de Descanso (gated ⇒ OFF = RESTED_XP.xpMult exacto)
+    const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
   h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
@@ -6105,7 +6165,8 @@ export const dev = {
     if(h){ inZone=inSafeZone(h.x,h.y);
       if(inZone){ rate=SAFEZONE.regenPct;
         if(g&&g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
-          if(dx*dx+dy*dy<=tr*tr){ nearTemple=true; rate*=SAFEZONE.templeMul; } } } }
+          if(dx*dx+dy*dy<=tr*tr){ nearTemple=true; rate*=SAFEZONE.templeMul; } }
+        rate*=(1 + sanctuaryRewardMul(h,"safeRegen")); } }   // CAS-2278: refleja el reward del Intendente (gated ⇒ OFF ×1)
     return { enabled:SAFEZONE.enabled, inZone, nearTemple,
       ratePctPerSec:+(rate*100).toFixed(3), regenHpPerSec:h?+(heroMaxHp(h)*rate).toFixed(2):0,
       hp:h?+(+h.hp).toFixed(2):0, maxHp:h?heroMaxHp(h):0, pauseT:h?+(h._safeRegenPauseT||0).toFixed(2):0,
@@ -6156,11 +6217,11 @@ export const dev = {
   rested(p){
     if(p && typeof p==="object"){
       if("enabled" in p) RESTED_XP.enabled=!!p.enabled;
-      if("setPool" in p && G.hero && RESTED_XP.enabled) G.hero.restedPool=Math.max(0,Math.min(RESTED_XP.poolCap,+p.setPool||0));   // sólo crea el campo con la feature ON (byte-id OFF)
+      if("setPool" in p && G.hero && RESTED_XP.enabled) G.hero.restedPool=Math.max(0,Math.min(restedCapFor(G.hero),+p.setPool||0));   // sólo crea el campo con la feature ON (byte-id OFF). CAS-2278: cap incluye reward Intendente
       if("addXp" in p) gainXP(+p.addXp||0);   // pasa por el ÚNICO chokepoint de ganancia de XP (meta+rested reales)
     }
     const h=G.hero; const inZone=h?inSafeZone(h.x,h.y):false;
-    const pool=h?+(h.restedPool||0):0, cap=RESTED_XP.poolCap;
+    const pool=h?+(h.restedPool||0):0, cap=h?restedCapFor(h):RESTED_XP.poolCap;   // CAS-2278: cap efectivo incluye el reward del Intendente (gated ⇒ OFF = poolCap)
     return { enabled:RESTED_XP.enabled, inZone,
       pool:+pool.toFixed(3), cap, pct:cap>0?+((pool/cap)*100).toFixed(2):0,
       xpMult:RESTED_XP.xpMult, accrualPerSec:RESTED_XP.accrualPerSec,
@@ -6179,7 +6240,7 @@ export const dev = {
     if(p && typeof p==="object"){
       if("enabled" in p) RECALL.enabled=!!p.enabled;
       if(p.bind && G.hero && RECALL.enabled){ const pt=recallBindPoint(); if(pt) G.hero.bindPoint={x:pt.x,y:pt.y}; }   // sólo crea el campo con la feature ON (byte-id OFF)
-      if("setCd" in p && G.hero && RECALL.enabled) G.hero.recallCD=Math.max(0,Math.min(RECALL.cooldownSec,+p.setCd||0));
+      if("setCd" in p && G.hero && RECALL.enabled) G.hero.recallCD=Math.max(0,Math.min(recallCooldownSec(G.hero),+p.setCd||0));   // CAS-2278: cap efectivo incluye reward Intendente
       if(p.cast) result=tryRecall();                                 // pasa por el ÚNICO chokepoint del recall (validación real)
     }
     const h=G.hero, sp=recallBindPoint();
@@ -6188,7 +6249,7 @@ export const dev = {
       inZone:h?inSafeZone(h.x,h.y):false,
       bound:!!bp, bindPoint:bp?{x:+(+bp.x).toFixed(2),y:+(+bp.y).toFixed(2)}:null,
       sanctuary:sp?{x:+(+sp.x).toFixed(2),y:+(+sp.y).toFixed(2)}:null,
-      cooldownSec:RECALL.cooldownSec, recallCD:h?+(+(h.recallCD||0)).toFixed(3):0,
+      cooldownSec:h?+recallCooldownSec(h).toFixed(3):RECALL.cooldownSec, recallCD:h?+(+(h.recallCD||0)).toFixed(3):0,   // CAS-2278: CD efectivo (reward Intendente); gated ⇒ OFF = RECALL.cooldownSec
       ready: RECALL.enabled && !!bp && (h?(h.recallCD||0)<=0:false) && (h?(h.recallChannelT||0)<=0:false),
       channelSec:RECALL.channelSec, channelT:h?+(+(h.recallChannelT||0)).toFixed(3):0,
       hasField: h ? ("bindPoint" in h) : false,                      // prueba byte-id: OFF ⇒ el campo NUNCA se crea
@@ -6248,6 +6309,34 @@ export const dev = {
       into:info.into, span:info.span, toNext:info.toNext, xpMult:info.cur?info.cur.xpMult:1,
       hasField: h ? ("sanctuaryRep" in h) : false,                          // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       lvl:h?(h.lvl|0):0, xp:h?(h.xp|0):0,
+      hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
+  // CAS-2278: INTENDENTE DEL SANTUARIO / SANCTUARY QUARTERMASTER OBSERVABLE hook (DARK). Snapshot autoritativo (sim) de los rewards
+  // por rango (desbloqueado/reclamado), el título de renombre + los EFECTOS agregados sobre los knobs reutilizados + flip/drivers
+  // IN-MEMORY para OBSERVAR en DARK (disco sigue false, patrón __dev.sanctuary). Formas:
+  //   quartermaster()                → {enabled,inZone,rankIdx,rewards:[{id,rank,name,kind,value,unlocked,claimed}],claimedIds,title,effects,recallCdSec,restedCap,hasField,hero}
+  //   quartermaster({enabled:true})  → flip runtime IN-MEMORY de SANCTUARY_REWARDS.enabled (reclamar/efectos sin tocar el disco)
+  //   quartermaster({claim:true})    → dispara tryQuartermaster() por el chokepoint REAL (reclama el reward desbloqueado de menor índice)
+  //   quartermaster({grantRep:n})    → suma rep (SANCTUARY_REP) para observar el DESBLOQUEO de rangos superiores (requiere SANCTUARY_REP.enabled)
+  quartermaster(p){
+    let result=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) SANCTUARY_REWARDS.enabled=!!p.enabled;
+      if("grantRep" in p && G.hero && SANCTUARY_REP.enabled) G.hero.sanctuaryRep=Math.max(0,(G.hero.sanctuaryRep||0)+Math.floor(+p.grantRep||0));
+      if(p.claim) result=tryQuartermaster();                             // pasa por el ÚNICO chokepoint del Intendente (validación real)
+    }
+    const h=G.hero, defs=SANCTUARY_REWARDS.rewards||[];
+    return { enabled:SANCTUARY_REWARDS.enabled, result,
+      inZone:h?inSafeZone(h.x,h.y):false,
+      rankIdx: h?sanctuaryRank(h.sanctuaryRep||0).idx:0,
+      rewards: defs.map(d=>({ id:d.id, rank:d.rank, name:d.name, kind:d.kind, value:d.value,
+        unlocked:sanctuaryRewardUnlocked(h,d), claimed:sanctuaryRewardClaimed(h,d.id) })),
+      claimedIds: h?sanctuaryRewardsSave(h):[],
+      title: sanctuaryRewardTitle(h),
+      effects: { recallCd:sanctuaryRewardMul(h,"recallCd"), restedCap:sanctuaryRewardMul(h,"restedCap"),
+        safeRegen:sanctuaryRewardMul(h,"safeRegen"), restedMult:sanctuaryRewardMul(h,"restedMult") },
+      recallCdSec: h?+recallCooldownSec(h).toFixed(3):RECALL.cooldownSec,   // knob efectivo (prueba del reward recallCd)
+      restedCap: h?+restedCapFor(h).toFixed(2):RESTED_XP.poolCap,           // knob efectivo (prueba del reward restedCap)
+      hasField: h ? ("sanctuaryRewards" in h) : false,                     // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset

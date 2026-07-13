@@ -276,6 +276,11 @@ export function createGame(canvas, ctx, getView){
       // config); sanctuary({setRep:n})/{addRep:n} fijan/suman rep para observar cruces de rango; sanctuary({perkXp:n}) devuelve la
       // XP de bounty con el perk del rango actual aplicado.
       sanctuary:(p)=>simDev.sanctuary(p),
+      // CAS-2278: INTENDENTE DEL SANTUARIO / SANCTUARY QUARTERMASTER OBSERVABLE hook (DARK). quartermaster() lee {enabled,inZone,
+      // rankIdx,rewards:[{id,rank,name,kind,value,unlocked,claimed}],claimedIds,title,effects,recallCdSec,restedCap,hasField,hero};
+      // quartermaster({enabled:true}) flip runtime IN-MEMORY; quartermaster({grantRep:n}) suma rep para observar desbloqueos;
+      // quartermaster({claim:true}) reclama por el chokepoint REAL (tryQuartermaster).
+      quartermaster:(p)=>simDev.quartermaster(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
