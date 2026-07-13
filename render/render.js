@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -302,10 +302,15 @@ export function createRenderer(ctx){
     // CAS-2230: ciclo día/noche + farolas (render-only, DARK). Con DAYNIGHT.enabled:false este bloque nunca
     // corre ⇒ salida byte-idéntica. ON: tinte ambiental a pantalla completa (oscurece la escena) y luego un
     // segundo pase transformado dibuja el halo de las farolas ENCIMA de esa oscuridad (perfora la noche).
-    if(DAYNIGHT.enabled){ const _dn=dayNightState(worldPhase());
-      renderAmbientTint(_dn);
-      if(_dn.glow>0.02 && DAYNIGHT.lampGlow){ ctx.save(); ctx.scale(Z,Z); ctx.translate(-camX,-camY);
-        renderLampGlow(_dn.glow, camX, camY, Z); ctx.restore(); } }
+    // CAS-2230 día/noche + CAS-2231 clima (render-only, DARK). Orden: tinte ambiental día/noche → velo de
+    // clima (lluvia/niebla) ENCIMA de esa oscuridad (noche+lluvia = más oscuro) → halo de farolas AL FINAL,
+    // así perfora tanto la noche como la niebla/lluvia (sigue visible). Con ambos flags OFF nada corre ⇒
+    // salida byte-idéntica; `_dn` sólo se calcula si DAYNIGHT.enabled (equivalente al bloque anterior).
+    let _dn=null;
+    if(DAYNIGHT.enabled){ _dn=dayNightState(worldPhase()); renderAmbientTint(_dn); }
+    if(WEATHER.enabled){ renderWeather(weatherState(worldWeatherPhase())); }
+    if(_dn && _dn.glow>0.02 && DAYNIGHT.lampGlow){ ctx.save(); ctx.scale(Z,Z); ctx.translate(-camX,-camY);
+      renderLampGlow(_dn.glow, camX, camY, Z); ctx.restore(); }
     renderHUD();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
@@ -2698,6 +2703,114 @@ export function createRenderer(ctx){
       lamps:lg.length, lamp0:lg[0]?{x:Math.round(lg[0].x),y:Math.round(lg[0].y),tx:Math.round(lg[0].x/TS),ty:Math.round((lg[0].y+20)/TS)}:null };
   }
 
+  // CAS-2231: SISTEMA DE CLIMA (lluvia / niebla, render-only, DARK — gated por WEATHER.enabled en render()).
+  // worldWeatherPhase() 0..1 desde el reloj COMPARTIDO/determinista (UTC Date.now − epoch, mod cycleSeconds),
+  // idéntico en todo cliente por construcción (mismo patrón que DÍA/NOCHE; 0 RNG, 0 toque de sim/save). El
+  // ciclo recorre clear→rain→fog→clear por interpolación de keyframes. phaseOverride (config o _wPhaseOverride
+  // runtime de QA) fija una fase para screenshots deterministas. Las gotas son un POOL FIJO memoizado (cap
+  // WEATHER.maxDrops) animado sólo por el reloj ⇒ sin allocs por-frame en el hot loop; screen-space (windshield).
+  let _wPhaseOverride=null;   // override de fase para dev/QA — NO toca config ni sim
+  function worldWeatherPhase(){
+    const cfgOv=WEATHER.phaseOverride;
+    const ov=(_wPhaseOverride!=null)?_wPhaseOverride:((typeof cfgOv==="number")?cfgOv:null);
+    if(ov!=null) return ((ov%1)+1)%1;
+    const cyc=Math.max(1, WEATHER.cycleSeconds||900);
+    const t=(Date.now()/1000 - (WEATHER.epochMs||0)/1000)/cyc;
+    return ((t%1)+1)%1;   // 0..1
+  }
+  // Keyframes fase → intensidad de lluvia + niebla (0..1). Interpolación lineal entre stops adyacentes ⇒
+  // transición suave clear→rain→fog→clear (secuencia determinista, byte-idéntica entre clientes).
+  const _W_STOPS=[
+    {p:0.00, rain:0.0, fog:0.0},   // clear
+    {p:0.15, rain:0.0, fog:0.0},   // clear (hold)
+    {p:0.28, rain:1.0, fog:0.0},   // lluvia plena
+    {p:0.45, rain:1.0, fog:0.06},  // lluvia (hold, la niebla empieza a asomar)
+    {p:0.55, rain:0.15,fog:0.55},  // transición lluvia→niebla
+    {p:0.70, rain:0.0, fog:1.0},   // niebla plena
+    {p:0.82, rain:0.0, fog:1.0},   // niebla (hold)
+    {p:0.93, rain:0.0, fog:0.0},   // vuelta a clear
+    {p:1.00, rain:0.0, fog:0.0},   // clear
+  ];
+  function weatherState(phase){
+    const S=_W_STOPS; let a=S[0], b=S[S.length-1];
+    for(let i=0;i<S.length-1;i++){ if(phase>=S[i].p && phase<=S[i+1].p){ a=S[i]; b=S[i+1]; break; } }
+    const span=(b.p-a.p)||1, k=clamp((phase-a.p)/span,0,1);
+    return { rain:a.rain+(b.rain-a.rain)*k, fog:a.fog+(b.fog-a.fog)*k };
+  }
+  // Hex → [r,g,b] (misma idea que _lampRgb del día/noche).
+  const _wHexRgb=(hex,df)=>{ const h=(hex||df).replace("#",""); return [parseInt(h.slice(0,2),16)||0, parseInt(h.slice(2,4),16)||0, parseInt(h.slice(4,6),16)||0]; };
+  const _rainTintRgb=_wHexRgb(WEATHER.rainTint,"#3a4a6a");
+  const _fogRgb=_wHexRgb(WEATHER.fogColor,"#c8ccd4");
+  // Pool FIJO de gotas (posiciones normalizadas 0..1 ⇒ independiente de VW/VH, sin rebuild en resize).
+  // Deriva pura de un hash del índice (0 RNG, determinista). Memoizado ⇒ 0 allocs por-frame.
+  let _rainDrops=null;
+  function _wHash(i){ let h=(i*2654435761)>>>0; h^=h>>>15; h=(h*2246822519)>>>0; h^=h>>>13; return h>>>0; }
+  function rainDrops(){
+    if(_rainDrops) return _rainDrops;
+    const n=Math.max(0, WEATHER.maxDrops|0), out=new Array(n);
+    for(let i=0;i<n;i++){ const h=_wHash(i);
+      out[i]={ xn:(h&0xffff)/0xffff,                 // 0..1 horizontal
+               sp:0.9+((h>>>16)&0xff)/255*0.9,       // multiplicador de caída 0.9..1.8
+               ln:0.6+((h>>>8)&0x7f)/127*0.9,        // multiplicador de longitud
+               off:((h>>>4)&0xfff)/0xfff };          // offset de fase 0..1
+    }
+    _rainDrops=out; return out;
+  }
+  // Velo azulado-gris + rayas de lluvia animadas (screen-space). intensity 0..1 escala nº de gotas activas y alpha.
+  function renderRain(intensity){
+    const drops=rainDrops(); if(!drops.length) return;
+    const dk=WEATHER.rainDarken*intensity;
+    if(dk>0.002){ const c=_rainTintRgb; ctx.fillStyle="rgba("+c[0]+","+c[1]+","+c[2]+","+dk.toFixed(3)+")"; ctx.fillRect(0,0,VW,VH); }
+    const t=Date.now()/1000, fall=VH+40, span=VW+40, slant=6;
+    const nActive=Math.round(drops.length*intensity);
+    ctx.save(); ctx.strokeStyle="rgba(200,214,235,"+(0.5*intensity).toFixed(3)+")"; ctx.lineWidth=1.4; ctx.lineCap="round";
+    ctx.beginPath();
+    for(let i=0;i<nActive;i++){ const d=drops[i];
+      const prog=(d.off + t*d.sp*0.55)%1;             // 0..1 bajando la pantalla
+      const y=prog*fall-20, x=d.xn*span-20, ln=10*d.ln;
+      ctx.moveTo(x,y); ctx.lineTo(x-slant*0.3, y+ln); }
+    ctx.stroke(); ctx.restore();
+  }
+  // Niebla: velo RADIAL (centro más claro = combate legible, bordes más densos = visibilidad ambiental reducida).
+  // Gradiente memoizado por (VW,VH,alpha) ⇒ se reconstruye sólo cuando cambia (durante hold es estable).
+  let _fogGrd=null, _fogKey="";
+  function fogGradient(a){
+    const key=VW+"x"+VH+":"+a.toFixed(3);
+    if(key===_fogKey && _fogGrd) return _fogGrd;
+    const c=_fogRgb, cx=VW/2, cy=VH/2, R=Math.hypot(VW,VH)/2;
+    const grd=ctx.createRadialGradient(cx,cy,R*0.2, cx,cy,R);
+    grd.addColorStop(0,"rgba("+c[0]+","+c[1]+","+c[2]+","+(a*0.45).toFixed(3)+")");
+    grd.addColorStop(1,"rgba("+c[0]+","+c[1]+","+c[2]+","+a.toFixed(3)+")");
+    _fogKey=key; _fogGrd=grd; return grd;
+  }
+  function renderFog(intensity){
+    const a=WEATHER.fogMax*intensity; if(a<=0.002) return;
+    ctx.fillStyle=fogGradient(a); ctx.fillRect(0,0,VW,VH);
+  }
+  // Composición: niebla (velo detrás) primero, luego las rayas de lluvia por encima. Se llama en render()
+  // DESPUÉS del tinte día/noche y ANTES del halo de farolas ⇒ noche+lluvia = más oscuro, farolas perforan el clima.
+  function renderWeather(st){
+    if(!st) return;
+    if(st.fog>0.002) renderFog(st.fog);
+    if(st.rain>0.002) renderRain(st.rain);
+  }
+  // Dev/QA hook (expuesto vía __dev.weather): weather() lee estado. Formas de escritura (patrón __dev.daynight):
+  //   weather(0.3)                     → fija override de fase 0..1 (null → vuelve al reloj compartido).
+  //   weather({enabled:true, phase:0.3})→ flip runtime IN-MEMORY para OBSERVAR en DARK (disco sigue false).
+  function weather(p){
+    if(p!==undefined){
+      if(p&&typeof p==="object"){
+        if("enabled" in p) WEATHER.enabled=!!p.enabled;
+        if("phase" in p) _wPhaseOverride=(p.phase==null)?null:((((+p.phase)%1)+1)%1);
+      } else _wPhaseOverride=(p===null)?null:((((+p)%1)+1)%1);
+    }
+    const ph=worldWeatherPhase(), st=weatherState(ph);
+    const state=st.rain>0.5?"rain":(st.fog>0.5?"fog":((st.rain>0.05||st.fog>0.05)?"mixed":"clear"));
+    return { enabled:WEATHER.enabled, phase:+ph.toFixed(4), override:_wPhaseOverride,
+      rain:+st.rain.toFixed(3), fog:+st.fog.toFixed(3), state:state,
+      drops:rainDrops().length, maxDrops:WEATHER.maxDrops };
+  }
+
   function renderMiniMap(){ if(isTouch) return;
     const sidebar=view.sbw>0;
     let mw=120, mh=120, x, y;
@@ -4651,5 +4764,5 @@ export function createRenderer(ctx){
     ctx.strokeStyle="#cdd4dc"; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(-18,-18); ctx.lineTo(18,18); ctx.moveTo(18,-18); ctx.lineTo(-18,18); ctx.stroke();
     ctx.strokeStyle=COL.out; ctx.lineWidth=1.5; ctx.stroke(); ctx.restore(); }
 
-  return { render, customImgReady, daynight };
+  return { render, customImgReady, daynight, weather };
 }
