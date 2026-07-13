@@ -1875,7 +1875,7 @@ export const SANCTUARY_OATH = {
 // héroe (sin juramento ⇒ el héroe no contribuye ni recibe pasivo, pero el marcador colectivo existe igual). Los NÚMEROS
 // (periodSec/goal/baselineFrac/pesos/values) = decisión de BALANCE del CEO (retune = edición de knob barata y reversible).
 export const SANCTUARY_LEDGER = {
-  enabled: false,          // DARK. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  enabled: true,           // CAS-2301 LIVE. Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
   periodSec: 604800,       // ventana SEMANAL (7 días) del objetivo colectivo (bucket determinista del epoch compartido). CEO knob.
   epochMs: 0,              // ancla del epoch compartido (0 = epoch Unix). period = floor((Date.now()-epochMs)/(periodSec*1000)).
   goal: 1000,              // UMBRAL colectivo por orden y semana (pts). Cruzarlo ⇒ pasivo de orden temporal. CEO balance knob.
