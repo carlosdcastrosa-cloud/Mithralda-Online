@@ -1974,7 +1974,7 @@ export const ORDER_TERRITORY = {
 // existen, 0 hotkey — anti-CAS-2273). Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render).
 // Depende de ORDER_TERRITORY (LIVE) + ORDER_STANDINGS (LIVE) + SANCTUARY_LEDGER (LIVE). Los NÚMEROS = decisión de BALANCE del CEO (retune barato).
 export const ORDER_CONTEST = {
-  enabled: false,            // DARK. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  enabled: true,             // LIVE (CAS-2314). Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
   windowFrac: 0.25,          // fracción FINAL del ciclo semanal que es la VENTANA DE ASALTO (0.25 = último cuarto de la semana). Derivada del reloj compartido.
   gain: 0.40,                // escala del SURGE de asalto del retador (fracción de su baseline colectivo que puede sumar al final de la ventana, ×fuerza-de-semana). CEO balance knob.
   holdMargin: 0.25,          // VENTAJA DEL DEFENSOR (incumbencia): el retador debe superar controllerTotal×(1+holdMargin) para arrebatar el control ⇒ territorio REALMENTE disputado (~50% de semanas flipean, varía por fuerza-de-semana). CEO balance knob.
