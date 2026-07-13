@@ -2945,26 +2945,45 @@ export function createRenderer(ctx){
     ctx.restore();
   }
 
-  // CAS-2255: indicador "Descanso" (Rested XP). Barra discreta bajo el pip de Zona Segura que refleja h.restedPool/poolCap
-  // (autoridad en sim). Sólo dibuja con pool>0 (el bono existe). Cosmético puro: no lee/escribe sim ni RNG. Gated arriba en
-  // RESTED_XP.enabled ⇒ OFF nunca se invoca ⇒ salida byte-idéntica.
+  // CAS-2255/CAS-2259: indicador "Descanso" (Rested XP). Barra discreta bajo el pip de Zona Segura que refleja
+  // h.restedPool/poolCap (autoridad en sim). Sólo dibuja con pool>0 (el bono existe). Cosmético puro: no lee/escribe
+  // sim ni RNG. Gated arriba en RESTED_XP.enabled ⇒ OFF nunca se invoca ⇒ salida byte-idéntica.
+  //   · DENTRO de la Zona Segura → el pool ACUMULA: barra dorada + micro-hint "acumulando".
+  //   · FUERA de la Zona Segura con pool>0 → willSpend: el próximo gainXP GASTA descanso (bonus ×xpMult). Afordancia
+  //     tipo "rested" de WoW: tag pulsante "zZ ×N" (alineado al borde de la barra) para que salir a cazar con bono se sienta.
+  //   La condición willSpend refleja EXACTAMENTE la autoridad de sim: !inSafeZone (mismo bbox POI+cityMargin que inCitySafe).
   function renderRestedBadge(){
     const h=G.hero; if(!h) return;
     const pool=+(h.restedPool||0), cap=RESTED_XP.poolCap||1;
     if(pool<=0) return;                                   // sin bono acumulado ⇒ sin indicador (0 draws)
     const pct=Math.max(0,Math.min(1,pool/cap));
+    const willSpend=!inCitySafe(h.x,h.y);                 // fuera de la Zona Segura ⇒ el bono se está gastando (WoW rested)
     const GCX=view.gcx ? view.gcx() : VW/2;
     const gx=(GCX*2>VW)?VW:GCX*2;
     const bw=104, bh=6, bx=gx-118, by=VH*0.055+22;        // justo bajo el pip "Zona segura"
     ctx.save();
-    // micro-label
+    // fila de etiqueta: "Descanso" a la izquierda + afordancia de estado ALINEADA A LA DERECHA del borde de la barra
+    // (todo dentro de [bx, bx+bw] ⇒ nunca se sale del borde derecho del área de juego).
+    const ly=by-2;
     ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="alphabetic";
-    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText("Descanso",bx,by-2);
-    ctx.fillStyle=COL.textGold; ctx.fillText("Descanso",bx,by-2);
-    // barra: marco + relleno dorado proporcional al pool + brillo suave
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText("Descanso",bx,ly);
+    ctx.fillStyle=COL.textGold; ctx.fillText("Descanso",bx,ly);
+    if(willSpend){
+      // burbuja "rested" (WoW): consumiendo bono ×xpMult mientras cazas fuera del santuario. Parpadeo suave + tag legible.
+      const bp=0.72+0.28*Math.sin(G.t*4.5);
+      const mtx="zZ ×"+(+RESTED_XP.xpMult).toFixed(RESTED_XP.xpMult%1?1:0);
+      ctx.globalAlpha=bp; ctx.font="bold 10px "+FF; ctx.textAlign="right";
+      ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(mtx,bx+bw,ly);
+      ctx.fillStyle=COL.textGold; ctx.fillText(mtx,bx+bw,ly); ctx.globalAlpha=1;
+    } else {
+      // dentro del santuario: el pool ACUMULA (sutil, gris cálido, sin robar atención)
+      ctx.globalAlpha=0.65; ctx.font="9px "+FF; ctx.textAlign="right"; ctx.fillStyle="#c9b98a";
+      ctx.fillText("acumulando",bx+bw,ly); ctx.globalAlpha=1;
+    }
+    // barra: marco + relleno dorado proporcional al pool + brillo suave (pulso más vivo cuando se gasta el bono)
     ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(bx-1,by,bw+2,bh+2);
     ctx.fillStyle="rgba(60,44,16,0.85)"; ctx.fillRect(bx,by+1,bw,bh);
-    const pulse=0.78+0.12*Math.sin(G.t*3);
+    const pulse=(willSpend?0.82:0.78)+(willSpend?0.16:0.12)*Math.sin(G.t*(willSpend?4.5:3));
     ctx.globalAlpha=pulse; ctx.fillStyle=COL.textGold; ctx.fillRect(bx,by+1,Math.round(bw*pct),bh);
     ctx.globalAlpha=1; ctx.lineWidth=1; ctx.strokeStyle="rgba(0,0,0,0.6)"; ctx.strokeRect(bx+0.5,by+0.5,bw,bh+1);
     ctx.restore();
