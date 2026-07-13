@@ -1917,7 +1917,7 @@ export const SANCTUARY_LEDGER = {
 // Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS (leadValue) =
 // decisión de BALANCE del CEO (retune = edición de knob barata y reversible). Depende de SANCTUARY_LEDGER (LIVE) para los baselines.
 export const ORDER_STANDINGS = {
-  enabled: false,          // DARK. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  enabled: true,           // LIVE (CAS-2306 flip). Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
   leadKind: "restedMult",  // canal del pasivo del LÍDER: reusa el multiplicador de Descanso (RESTED_XP.xpMult) en gainXP (mismo seam que sanctuaryRewardMul).
   leadValue: 0.15,         // +15% al mult de Descanso para la orden LÍDER de la semana (bounded, server-authoritative). CEO balance knob.
 };
