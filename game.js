@@ -261,6 +261,11 @@ export function createGame(canvas, ctx, getView){
       // accrualPerSec,willSpend,hasField,xp,lvl}; rested({enabled:true}) flip runtime IN-MEMORY (sim, mismo módulo config);
       // rested({setPool:n}) fija el pool; rested({addXp:n}) aplica gainXP vía el ÚNICO chokepoint (observa bonus + drenado).
       rested:(p)=>simDev.rested(p),
+      // CAS-2266: RECALL / PIEDRA DE VÍNCULO OBSERVABLE hook (DARK). recall() lee {enabled,inZone,bound,bindPoint,sanctuary,
+      // cooldownSec,recallCD,ready,channelSec,channelT,hasField,dist,hero}; recall({enabled:true}) flip runtime IN-MEMORY (sim,
+      // mismo módulo config); recall({bind:true}) fuerza el vínculo al Santuario; recall({setCd:n}) fija el CD; recall({cast:true})
+      // dispara tryRecall() por el chokepoint real (teleport a bindPoint + arranque del cooldown).
+      recall:(p)=>simDev.recall(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

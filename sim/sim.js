@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1972,6 +1972,12 @@ export function serializeSave(){
     // a HEAD (allowlist anti-CAS-2220: 0 campos nuevos en el save con la feature off / pool 0). Additive cuando ON: saves
     // viejos carecen de la clave → loadSave rehidrata a 0 → sin SAVE_VERSION bump.
     ...(RESTED_XP.enabled ? { restedPool:+(h.restedPool||0).toFixed(3) } : {}),
+    // CAS-2266: persist el VÍNCULO del Recall (bindPoint) + el cooldown restante SÓLO cuando la feature está ON (spread
+    // condicional). El vínculo per-hero sobrevive al reload (canon MMORPG: tu piedra recuerda el hogar); el cooldown también
+    // (anti-cheese: recargar no salta el CD). enabled:false ⇒ las claves NO se emiten ⇒ save.v1 byte-idéntico a HEAD
+    // (allowlist anti-CAS-2220: 0 campos nuevos con la feature off). Additive cuando ON: saves viejos carecen de la clave →
+    // loadSave rehidrata a sin-vínculo / CD 0 → sin SAVE_VERSION bump.
+    ...(RECALL.enabled && h.bindPoint ? { bindPoint:{x:+(+h.bindPoint.x).toFixed(2), y:+(+h.bindPoint.y).toFixed(2)}, recallCD:+(h.recallCD||0).toFixed(3) } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2043,6 +2049,11 @@ export function loadSave(d){
     if(WEAPON_BUFFS.enabled){ refillBuffs(h); h.buffSel=WEAPON_BUFFS.order[0]; h._wbuff=null; h.wbuffT=0; h.applyBuffT=0; h.buffZone=null; }   // CAS-1926: resinas a tope + sin buff activo al arrancar run (gated ⇒ OFF byte-id)
     if(SUMMON.enabled){ h.summonCharges=SUMMON.charges; h.summonZone=null; G._spirit=null; }   // CAS-1954: cargas de invocación a tope + sin espíritu activo al reanudar run (gated ⇒ OFF byte-id)
     if(RESTED_XP.enabled){ h.restedPool=Math.max(0,Math.min(RESTED_XP.poolCap,num(d.restedPool,0))); }   // CAS-2255: rehidrata el pool de Descanso (clamp 0..cap; saves viejos → 0; gated ⇒ OFF la clave NUNCA se crea ⇒ byte-id)
+    // CAS-2266: rehidrata el VÍNCULO del Recall + cooldown (validados; saves viejos carecen de la clave → sin-vínculo / CD 0;
+    // gated ⇒ OFF la clave bindPoint NUNCA se crea ⇒ byte-id). El bindPoint sólo se acepta si es un par de coords finitas.
+    if(RECALL.enabled){ const bp=d.bindPoint;
+      if(bp && typeof bp==="object" && isFinite(+bp.x) && isFinite(+bp.y)) h.bindPoint={x:+bp.x, y:+bp.y};
+      h.recallCD=Math.max(0, Math.min(RECALL.cooldownSec, num(d.recallCD,0))); }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2598,6 +2609,52 @@ function tickRestedXP(h,dt){ if(!RESTED_XP.enabled||!h||h.dead) return;
   const cap=RESTED_XP.poolCap, cur=h.restedPool||0;
   if(cur>=cap) return;                                              // pool lleno ⇒ nada que acumular
   h.restedPool=Math.min(cap, cur + RESTED_XP.accrualPerSec*dt);
+}
+
+// CAS-2266: punto de VÍNCULO del Recall — el destino "casa" al que devuelve la Piedra de Vínculo. DERIVADO del mismo POI
+// Templo de la ciudad (homeTemplePoint ⇒ safeZoneGeom().temple + offsetY) que ya usan MINIMAP/ZONE_BANNER/SAFEZONE/
+// TEMPLE_RESPAWN ⇒ 0 RNG, puro-geometría, server-authoritative-ready (el server calcula el MISMO punto para todos) y
+// COHESIVO con el respawn (recall te deja en la misma entrada del santuario donde reapareces al morir ⇒ engancha el regen
+// ×2.5). Devuelve null si el mundo no tiene ciudad (0 POIs Templo) ⇒ no se puede vincular (guardrail no-op: audita antes de
+// cablear). Sólo se invoca con RECALL.enabled ⇒ DARK byte-idéntico a HEAD.
+function recallBindPoint(){ return homeTemplePoint(); }
+// CAS-2266: tick del Recall / Piedra de Vínculo (transitorio, 0 RNG, determinista por dt). Hace tres cosas, TODAS gated:
+//   1. BIND (Tibia): mientras el héroe está DENTRO de la SAFEZONE, fija h.bindPoint al Santuario actual (recallBindPoint).
+//      El vínculo es per-hero y persiste (serializeSave) ⇒ el recall funciona tras salir a cazar / recargar.
+//   2. COOLDOWN: h.recallCD baja por dt (patrón spellCD/atkCD) hasta 0 = listo (determinista, sin wall-clock local).
+//   3. CANAL (dormido con channelSec=0): si hay un canal activo (h.recallChannelT>0) baja por dt; al llegar a 0 ejecuta el
+//      teleport (executeRecall). channelSec=0 ⇒ el canal nunca arranca ⇒ esta rama es inerte (recall instantáneo Stage-1).
+// El campo h.bindPoint/h.recallCD/h.recallChannelT SÓLO se crea con la feature ON; OFF ⇒ return inmediato ⇒ nunca existen ⇒
+// serializeSave los omite ⇒ save.v1 byte-idéntico a HEAD (allowlist anti-CAS-2220). Escala a N jugadores (estado per-hero).
+function tickRecall(h,dt){ if(!RECALL.enabled||!h||h.dead) return;
+  if(inSafeZone(h.x,h.y)){ const pt=recallBindPoint(); if(pt){ if(!h.bindPoint) h.bindPoint={x:pt.x,y:pt.y}; else { h.bindPoint.x=pt.x; h.bindPoint.y=pt.y; } } }  // vincula al Santuario actual (determinista)
+  if((h.recallCD||0)>0) h.recallCD=Math.max(0, h.recallCD-dt);     // enfría el cooldown determinista
+  if((h.recallChannelT||0)>0){                                     // canal (dormido con channelSec=0)
+    h.recallChannelT=Math.max(0, h.recallChannelT-dt);
+    if(h.recallChannelT<=0) executeRecall(h);                      // canal completado ⇒ viaje al hub
+  }
+}
+// CAS-2266: TELEPORT del Recall al punto de vínculo (viaje-al-hub). Mueve al héroe a h.bindPoint, para el momento, arma unos
+// i-frames breves (mirror respawn) y arranca el cooldown determinista. Feedback cosmético ($0 arte): floater + sfx reusado.
+// Sólo se invoca bajo RECALL.enabled (vía tryRecall / canal). NO toca RNG ni el save salvo el cooldown (persistido, gated).
+function executeRecall(h){
+  const pt=h.bindPoint || recallBindPoint(); if(!pt) return;
+  h.x=pt.x; h.y=pt.y; h.vx=h.vy=0; h.rolling=false; h.iframe=Math.max(h.iframe||0, 0.5);
+  h.recallChannelT=0; h.recallCD=RECALL.cooldownSec;              // vuelve a enfriar (anti-spam; persiste en el save)
+  floater(h.x, h.y-30, "Vínculo", "#8fd6ff"); audio.sfx.rune();   // reusa el chime de runa (teleport mágico), $0 audio
+}
+// CAS-2266: INTENTO de Recall — el chokepoint que dispara la habilidad (input tecla Home + __dev.recall({cast})). Valida el
+// gate (feature ON, escena play, héroe vivo, vinculado, cooldown listo, sin canal en curso). channelSec>0 ⇒ arranca el canal
+// cancelable-por-daño; channelSec=0 (Stage-1) ⇒ teleport INSTANTÁNEO. Devuelve un motivo de fallo/éxito para el HUD/QA. OFF
+// ⇒ RECALL.enabled false ⇒ return "off" sin tocar nada ⇒ byte-idéntico (la tecla es inerte río arriba en input.js).
+export function tryRecall(){
+  const h=G.hero; if(!RECALL.enabled) return "off";
+  if(!h || h.dead || G.scene!=="play") return "unavailable";
+  if(!h.bindPoint) return "unbound";                               // nunca visitó un Santuario ⇒ sin vínculo
+  if((h.recallCD||0)>0) return "cooldown";
+  if((h.recallChannelT||0)>0) return "channeling";
+  if((RECALL.channelSec||0)>0){ h.recallChannelT=RECALL.channelSec; return "channel"; }  // canal (dormido con channelSec=0)
+  executeRecall(h); return "recalled";                            // instantáneo (Stage-1)
 }
 
 // CAS-1841: regen tick (transient, 0 RNG). Winds down the deny-flash, then — after a brief post-spend pause — regens
@@ -4884,6 +4941,7 @@ export function update(dtMs){
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickSafeZone(h,dt);// CAS-2242: regen de HP en la Zona Segura de la Ciudad + pausa post-daño (aritmética/geometría, no RNG, gated on SAFEZONE.enabled)
   tickRestedXP(h,dt);// CAS-2255: acumulación del pool de Descanso mientras el héroe está en la SAFEZONE (aritmética, no RNG, gated on RESTED_XP.enabled ⇒ OFF byte-id)
+  tickRecall(h,dt); // CAS-2266: bind al Santuario en zona + enfriar cooldown del Recall + canal (dormido) (aritmética/geometría, no RNG, gated on RECALL.enabled ⇒ OFF byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -5775,6 +5833,8 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   if(CHARGED_ATTACK.enabled && h.charging){ const cap=CHARGED_ATTACK.incomingDmgCapFracMaxHp*(heroMaxHp(h)||h.hp); if(real>cap) real=cap; }
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   if(SAFEZONE.enabled) h._safeRegenPauseT=SAFEZONE.regenDelay;   // CAS-2242: recibir daño pausa el regen de la Zona Segura (feel). Gated ⇒ OFF nunca crea el campo ⇒ byte-id HEAD
+  if(RECALL.enabled && RECALL.cancelOnDamage && (h.recallChannelT||0)>0){ h.recallChannelT=0; floater(h.x,h.y-30,"Recall cancelado","#ffb060"); }   // CAS-2266: el daño cancela el canal del Recall (Tibia/WoW). INERTE con channelSec=0 (recall instantáneo Stage-1). Gated ⇒ OFF byte-id
+
   // CAS-2163: SEGUNDO ALIENTO / SECOND_WIND (mec #41) — negado-letal automático 1-uso/descanso. Corre DESPUÉS de
   // h.hp-=real (el daño se "recibió") pero ANTES del death-check del tick (heroDie se llama en update: `if(h.hp<=0)
   // heroDie()`, SEPARADO de damageHero) ⇒ niega la muerte sin nueva ruta: si el golpe dejó hp<=0 y hay carga, clampa
@@ -6026,6 +6086,33 @@ export const dev = {
       willSpend: RESTED_XP.enabled && pool>0 && !inZone,   // ¿el próximo gainXP fuera de zona gastaría descanso?
       hasField: h ? ("restedPool" in h) : false,           // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       xp:h?+(+h.xp).toFixed(2):0, lvl:h?h.lvl|0:0 }; },
+  // CAS-2266: QA/dev hook del RECALL / PIEDRA DE VÍNCULO (b5c10283). Snapshot autoritativo (sim) del vínculo + cooldown +
+  // flip/drivers IN-MEMORY para OBSERVAR en DARK (disco sigue enabled:false, patrón __dev.rested/templeRespawn). Formas:
+  //   recall()                    → {enabled,inZone,bound,bindPoint,sanctuary,cooldownSec,recallCD,ready,channelSec,channelT,hasField,dist,hero}
+  //   recall({enabled:true})      → flip runtime in-memory de RECALL.enabled (vincular/recall sin tocar el disco)
+  //   recall({bind:true})         → fuerza el bind al Santuario actual VÍA recallBindPoint (sólo si hay ciudad alcanzable)
+  //   recall({setCd:n})           → fija el cooldown restante (clamp 0..cooldownSec) para observar el gate del recall
+  //   recall({cast:true})         → dispara tryRecall() por el chokepoint REAL (observa el teleport a bindPoint + arranque del CD)
+  recall(p){
+    let result=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) RECALL.enabled=!!p.enabled;
+      if(p.bind && G.hero && RECALL.enabled){ const pt=recallBindPoint(); if(pt) G.hero.bindPoint={x:pt.x,y:pt.y}; }   // sólo crea el campo con la feature ON (byte-id OFF)
+      if("setCd" in p && G.hero && RECALL.enabled) G.hero.recallCD=Math.max(0,Math.min(RECALL.cooldownSec,+p.setCd||0));
+      if(p.cast) result=tryRecall();                                 // pasa por el ÚNICO chokepoint del recall (validación real)
+    }
+    const h=G.hero, sp=recallBindPoint();
+    const bp=h&&h.bindPoint?h.bindPoint:null;
+    return { enabled:RECALL.enabled, result,
+      inZone:h?inSafeZone(h.x,h.y):false,
+      bound:!!bp, bindPoint:bp?{x:+(+bp.x).toFixed(2),y:+(+bp.y).toFixed(2)}:null,
+      sanctuary:sp?{x:+(+sp.x).toFixed(2),y:+(+sp.y).toFixed(2)}:null,
+      cooldownSec:RECALL.cooldownSec, recallCD:h?+(+(h.recallCD||0)).toFixed(3):0,
+      ready: RECALL.enabled && !!bp && (h?(h.recallCD||0)<=0:false) && (h?(h.recallChannelT||0)<=0:false),
+      channelSec:RECALL.channelSec, channelT:h?+(+(h.recallChannelT||0)).toFixed(3):0,
+      hasField: h ? ("bindPoint" in h) : false,                      // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      dist: (h&&bp)?+Math.hypot(h.x-bp.x,h.y-bp.y).toFixed(2):null,
+      hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset
   // cell — not the whole sheet — reached world.deco in vivo. Pure read, no mutation.

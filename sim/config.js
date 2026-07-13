@@ -1609,6 +1609,30 @@ export const RESTED_XP = {
   epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER/SAFEZONE), MMORPG-safe.
 };
 
+// CAS-2266: PIEDRA DE VÍNCULO / RECALL AL SANTUARIO (DARK, RECALL) — el loop de VIAJE-AL-HUB que corona el arco Santuario
+// (SAFEZONE regen + noAggro + TEMPLE_RESPAWN + Rested/Descanso, TODOS LIVE). Canon MMORPG: WoW Hearthstone / Tibia temple
+// recall. Trae al jugador de vuelta al hub social COMPARTIDO (el Santuario) donde los jugadores convergen — NO es un teleport
+// single-player suelto, es viaje-al-hub para un mundo persistente. Dos piezas, ambas per-hero y server-authority-ready:
+//   · BIND (vínculo): estar DENTRO de una SAFEZONE fija el punto de vínculo del héroe (h.bindPoint) al Santuario actual —
+//     DETERMINISTA = mismo POI Templo que alimenta MINIMAP/ZONE_BANNER/SAFEZONE/TEMPLE_RESPAWN (0 RNG, el server calcula el
+//     mismo punto para todos). Modelo Tibia (vincularse = visitar el templo). Sin SAFEZONE alcanzable ⇒ no hay vínculo.
+//   · RECALL: habilidad con cooldown DETERMINISTA (tick de sim, dt — patrón DAYNIGHT/WEATHER/SAFEZONE, 0 wall-clock local,
+//     0 RNG) que devuelve al héroe a h.bindPoint. Decisión Stage-1: INSTANTÁNEO (channelSec:0) — el andamiaje de canal
+//     cancelable-por-daño queda cableado pero DORMIDO (channelSec>0 lo activa; reservado para PvP/netcode). Cooldown persiste
+//     en el save (anti-cheese: recargar no lo salta). Trigger de jugador: tecla dedicada RECALL.key (gated).
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tickRecall/tryRecall/bind RETURN inmediato, h.bindPoint/h.recallCD/h.recallChannelT
+// NUNCA se crean, serializeSave OMITE las claves ⇒ save.v1 + comportamiento + worldFingerprint BYTE-IDÉNTICOS a HEAD (la tecla
+// Home es inerte, el badge nunca se dibuja). Reversible: enabled:true→false + redeploy overlay CONSISTENTE-HEAD (config+sim+
+// game[+dev hook]+render[+badge]+input[+tecla gated]). Escala a N jugadores sin contención (estado 100% per-hero).
+export const RECALL = {
+  enabled: false,          // DARK (CAS-2266). Reversible: false→true + redeploy overlay consistente-HEAD.
+  key: "Home",             // tecla dedicada del Recall ("volver a casa"); no rebindable (mirror SUMMON/parry). Gated ⇒ OFF inerte.
+  cooldownSec: 480,        // cooldown determinista del Recall (8 min, canon Hearthstone). Tick de sim (dt), 0 RNG.
+  channelSec: 0,           // 0 = INSTANTÁNEO (decisión Stage-1). >0 = canalizado cancelable por daño (reservado PvP/netcode).
+  cancelOnDamage: true,    // si channelSec>0, recibir daño cancela el canal (Tibia/WoW). INERTE cuando channelSec=0.
+  epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER/SAFEZONE), MMORPG-safe.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
