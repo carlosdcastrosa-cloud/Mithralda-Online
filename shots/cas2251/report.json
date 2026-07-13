@@ -1,0 +1,264 @@
+{
+  "build": "ebe58686c12f",
+  "desk": {
+    "respawn": {
+      "enabled": true,
+      "point": {
+        "x": 5088,
+        "y": 23504
+      },
+      "nearTemple": true,
+      "inSafeZone": true,
+      "distToTemple": 48,
+      "land1": {
+        "hero": {
+          "x": 5088,
+          "y": 23504,
+          "dead": false,
+          "hp": 135
+        },
+        "point": {
+          "x": 5088,
+          "y": 23504
+        }
+      },
+      "cohesive": {
+        "hp0": 90,
+        "hp1": 109.74,
+        "nearTemple": true,
+        "templeMul": 2.5,
+        "ratePctPerSec": 11.25
+      }
+    },
+    "safezone": {
+      "geom": {
+        "bbox": [
+          4788,
+          23156,
+          6124,
+          23980
+        ],
+        "temple": {
+          "x": 5088,
+          "y": 23456
+        },
+        "enabled": true,
+        "cityMargin": 300,
+        "templeRadius": 220
+      },
+      "outside": {
+        "inZone": false,
+        "o0": 30,
+        "o1": 30
+      },
+      "inside": {
+        "inZone": true,
+        "ratePctPerSec": 4.5,
+        "i0": 30,
+        "i1": 39.72
+      },
+      "temple": {
+        "nearTemple": true,
+        "ratePctPerSec": 11.25,
+        "t0": 30,
+        "t1": 54.55
+      },
+      "pause": {
+        "p0": 30,
+        "p1": 30,
+        "p2": 34.86
+      }
+    },
+    "zone": {
+      "enabled": true,
+      "forced": {
+        "name": "Templo",
+        "sub": null,
+        "alpha": 1,
+        "t": 0.65
+      },
+      "gBefore": {
+        "top": 4,
+        "centre": 352
+      },
+      "gAfter": {
+        "top": 417,
+        "centre": 350
+      }
+    },
+    "weather": {
+      "clear": {
+        "enabled": true,
+        "phase": 0,
+        "override": 0,
+        "rain": 0,
+        "fog": 0,
+        "state": "clear",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "rain": {
+        "enabled": true,
+        "phase": 0.28,
+        "override": 0.28,
+        "rain": 1,
+        "fog": 0,
+        "state": "rain",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "fog": {
+        "enabled": true,
+        "phase": 0.7,
+        "override": 0.7,
+        "rain": 0,
+        "fog": 1,
+        "state": "fog",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "pClear": {
+        "lum": 54.27,
+        "centreLum": 68.5,
+        "blueLift": -19.1
+      },
+      "pRain": {
+        "lum": 52.08,
+        "centreLum": 68.06,
+        "blueLift": -10.32
+      },
+      "pFog": {
+        "lum": 71.38,
+        "centreLum": 93.12,
+        "blueLift": -12
+      }
+    },
+    "daynight": {
+      "noon": {
+        "enabled": true,
+        "phase": 0.5,
+        "override": 0.5,
+        "tint": {
+          "r": 0,
+          "g": 0,
+          "b": 0,
+          "a": 0
+        },
+        "glow": 0,
+        "lamps": 11,
+        "lamp0": {
+          "x": 5056,
+          "y": 23564,
+          "tx": 158,
+          "ty": 737
+        }
+      },
+      "night": {
+        "enabled": true,
+        "phase": 0,
+        "override": 0,
+        "tint": {
+          "r": 8,
+          "g": 14,
+          "b": 42,
+          "a": 0.55
+        },
+        "glow": 1,
+        "lamps": 11,
+        "lamp0": {
+          "x": 5056,
+          "y": 23564,
+          "tx": 158,
+          "ty": 737
+        }
+      },
+      "pNoon": {
+        "lum": 54.29,
+        "centreLum": 68.65,
+        "blueLift": -19.13
+      },
+      "pNight": {
+        "lum": 43.11,
+        "centreLum": 78.8,
+        "blueLift": -5.36
+      }
+    },
+    "combined": {
+      "nightAlone": {
+        "lum": 43.1,
+        "centreLum": 78.72,
+        "blueLift": -5.36
+      },
+      "nightRain": {
+        "lum": 45.24,
+        "centreLum": 83.76,
+        "blueLift": -0.62
+      },
+      "safeZoneStillOn": true,
+      "respawnLandOk": true
+    },
+    "map": {
+      "bigProbe": {
+        "templo": 19,
+        "deposito": 1,
+        "taberna": 15,
+        "parque": 19
+      }
+    },
+    "doorCount": 0,
+    "fps": {
+      "samples": [
+        60.3,
+        58.6,
+        60.3,
+        60.2
+      ],
+      "min": 58.6,
+      "max": 60.3,
+      "median": 60.3,
+      "heapBefore": 200258293,
+      "heapAfter": 43726648
+    },
+    "errors": [],
+    "req404": [
+      "favicon.ico"
+    ]
+  },
+  "mobile": {
+    "fps": 60.3,
+    "scene": "play",
+    "errs": [],
+    "sanctuaryGain": 9
+  },
+  "flags": {
+    "TEMPLE_RESPAWN": {
+      "enabled": true,
+      "offsetY": 48
+    },
+    "SAFEZONE": {
+      "enabled": true,
+      "regenPct": 0.045,
+      "templeMul": 2.5,
+      "templeRadius": 220,
+      "regenDelay": 2,
+      "cityMargin": 300
+    },
+    "ZONE_BANNER": {
+      "enabled": true,
+      "anchorY": 0.17,
+      "cityLabel": "Ciudad"
+    },
+    "WEATHER": {
+      "enabled": true
+    },
+    "DAYNIGHT": {
+      "enabled": true
+    },
+    "MINIMAP": {
+      "enabled": true
+    },
+    "DOORS_INTERIORS": {
+      "enabled": false
+    }
+  }
+}
