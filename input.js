@@ -525,8 +525,12 @@ export function tbtns(){ // returns button rects for current scene
     // CAS-2278: botón táctil del INTENDENTE — SÓLO cuando SANCTUARY_REWARDS.enabled Y el héroe está en la SAFEZONE (contextual:
     // acción de hub, no de combate ⇒ con el knob OFF NO hay botón ⇒ layout byte-idéntico a HEAD, mirror tb.bounty). Es un TAP:
     // handleUITap llama `act` ⇒ sim.tryQuartermaster() reclama la recompensa de renombre desbloqueada (mismo chokepoint que Supr en
-    // desktop). Bajo el botón del Tablón en la columna izquierda aislada (sobre el cluster de combate). $0 arte (glifo ✦).
-    ...((SANCTUARY_REWARDS.enabled && sim.heroInSafeZone()) ? { quartermaster:{x:m+bs*0.5, y:VH-m-bs*4.45, r:bs*0.46, label:"✦", act:()=>sim.tryQuartermaster()} } : {}),
+    // desktop). CAS-2278 fix-forward (QA blocker 18b): el slot 4.45 CHOCA con `tb.ult` (input.js:471, mismo x=m+bs*0.5, y=VH-m-bs*4.45,
+    // r>0 con ultId drafteado) — handleUITap itera en orden de inserción y ult va PRIMERO ⇒ ult.r>0 se traga el tap y el Intendente
+    // es inalcanzable por touch con un ult. Movido a `VH-m-bs*6.65` = un slot LIBRE encima del Tablón (5.55) en la columna hub
+    // izquierda aislada (stack: ab1/ab2 3.35, ult 4.45, bounty 5.55, quartermaster 6.65; 1.1·bs de gap > Σradios 0.92·bs ⇒ sin
+    // solape). $0 arte (glifo ✦). El render (renderTouch btn()) sigue tb.quartermaster.x/y ⇒ se reubica solo.
+    ...((SANCTUARY_REWARDS.enabled && sim.heroInSafeZone()) ? { quartermaster:{x:m+bs*0.5, y:VH-m-bs*6.65, r:bs*0.46, label:"✦", act:()=>sim.tryQuartermaster()} } : {}),
     bs
   };
 }
