@@ -2118,6 +2118,35 @@ export const SOUL_RECOVERY = {
   respawnKills: 20,          // el buff de respawn del caído se desvanece tras estos kills (contador monótono, determinista, pin-independiente). CEO balance knob.
 };
 
+// CAS-2329: PULSO DEL MUNDO / WORLD PULSE (DARK, WORLD_PULSE) — EVO #50, el PRIMER sistema de estado-de-mundo dinámico y AMBIENTAL (living-world).
+// Pivote FUERA del arco social (Fellowship/Mentor #47/#48) y del arco Orden/territorio (#43–46): no es otro VÍNCULO, es una capa AMBIENTAL que hace
+// que el mundo COMPARTIDO se sienta VIVO y perfectamente sincronizado entre todos los clientes. Diseño Stage-1, 100% DETERMINISTA (0 RNG) y
+// server-authority-ready, reloj PROPIO (no acopla a ningún otro reloj):
+//   · RELOJ COMPARTIDO ⇒ CONVERGENCIA (razón de existir): el reloj de pared COMPARTIDO (epochMs+periodSec, mismo patrón que SOUL_RECOVERY/CONTEST)
+//     divide el tiempo en PULSOS. Cada pulso, un hash determinista (Knuth, mismo helper que el roster de Vestigio) designa 1 zona "en Pulso" de la
+//     rotación de `zones` ⇒ TODO cliente con el mismo reloj ve EXACTAMENTE la misma zona-en-Pulso en el mismo instante (byte-idéntico, 0 desync). Un
+//     desync de fase = sev-1.
+//   · FASE VIVA + DECAIMIENTO DETERMINISTA: el pulso está VIVO sólo la 1ª fracción `liveFrac` del period; luego DECAE (limpieza determinista, sin
+//     estado local). Ambos clientes lo ven APARECER al inicio del period y DESAPARECER al decaer (convergente).
+//   · PASSIVE COMPARTIDO (concurrencia): N jugadores presentes en la zona-en-Pulso mientras VIVA reciben el MISMO Δ pequeño (REUSA el canal
+//     RESTED_XP `restedMult`, +boost). NO es per-hero: se deriva puramente de (reloj⇒zona) × (el héroe está físicamente en esa zona) ⇒ 0 estado nuevo,
+//     0 clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (más fuerte que Vestigio, que sí creaba h.soulAt/soulGot/soulFell).
+//   · INDICADOR $0-arte: banner de texto "◈ Pulso del Mundo: <zona>" (reusa la fila de badges, como Toque de Guerra/Emisario), 0 arte nuevo.
+//   · PRECEDENCIA NO-stack: el passive del Pulso es la MÁS BAJA del canal restedMult ⇒ CEDE (return 0) a STANDINGS(colectivo) > MENTOR(personal) >
+//     SOUL(recuperación) ⇒ se aplica el MAYOR (0 doble-conteo). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) canales ⊥ ⇒ COEXISTEN. Guard explícito (ver pulseMul).
+// HARD-GATED: enabled:false ⇒ tickPulse jamás corre (Date.now nunca se llama), G.pulse NUNCA se crea, pulseMul RETURN 0, pulseTag "" ⇒ sim + save.v1 +
+// worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave nueva, 0 serialización). SIN tocar input.js (passive AMBIENTAL, 0 hotkey nuevo).
+// Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO.
+export const WORLD_PULSE = {
+  enabled: true,             // CAS-2330 LIVE FLIP (Gate CEO APROBADO, QA 12/12 ×2 build c4a549ae2fa1). false→true (config-only 1-línea, reversible, mirror SOUL_RECOVERY/CONTEST).
+  periodSec: 240,            // ciclo del PULSO (4 min — corto y OBSERVABLE, desacoplado de todos los demás relojes). Reloj de pared COMPARTIDO ⇒ MISMA zona-en-Pulso en N clientes (0 desync).
+  epochMs: 0,                // ancla del reloj (0 = epoch Unix). Compartida ⇒ period idéntico en todo cliente.
+  liveFrac: 0.5,             // el pulso está VIVO sólo esta fracción inicial del period; luego DECAE (limpieza determinista, "tras N ticks"). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden entrar en Pulso (la del period se elige determinista por hash de Knuth; reusa la lista de zonas de caza, mirror SOUL_RECOVERY.zones).
+  channel: "restedMult",     // canal del passive — REUSA RESTED_XP. Precedencia: cede a STANDINGS/MENTOR/SOUL (mismo canal, ver pulseMul). CEO balance knob.
+  boost: 0.10,               // +10% restedMult a los presentes en la zona-en-Pulso mientras VIVA (compartido, mismo Δ para todos). CEO balance knob.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

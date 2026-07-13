@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3293,6 +3293,58 @@ export function fallenVestige(h){ h=h||G.hero; const s=G.soul||null, v=soulVesti
     role, dwellMs:dwellMs|0, dwellNeed, dwellFrac:dwellNeed>0?Math.min(1,dwellMs/dwellNeed):0,
     recovered, respawnActive:h?soulRespawnActive(h):false, nextInSec:s?(s.nextInSec|0):0 }; }
 
+// CAS-2329: PULSO DEL MUNDO / WORLD PULSE — el PRIMER sistema de estado-de-mundo dinámico y AMBIENTAL (living-world). Todo DERIVADO (0 RNG,
+// server-authority-ready), reloj PROPIO. pulseScheduleAt(nowMs) = ventana del reloj de pared COMPARTIDO (mirror soul/mentorScheduleAt con
+// periodSec/epochMs PROPIOS de WORLD_PULSE) ⇒ TODO cliente con el mismo reloj deriva el MISMO period ⇒ MISMA zona-en-Pulso (convergente, 0 desync).
+export function pulseScheduleAt(nowMs){
+  const out={ enabled:!!WORLD_PULSE.enabled, period:0, into:0, frac:0, nextInSec:0 };
+  if(!Number.isFinite(nowMs) || nowMs<=0) return out;
+  const periodMs=Math.max(1000,(WORLD_PULSE.periodSec|0)*1000);
+  const elapsed=nowMs-(WORLD_PULSE.epochMs||0); if(elapsed<0) return out;
+  const period=Math.floor(elapsed/periodMs), into=elapsed-period*periodMs;
+  out.period=period>>>0; out.into=into; out.frac=into/periodMs; out.nextInSec=(periodMs-into)/1000;
+  return out;
+}
+// hash de Knuth por period (mismo mezclador determinista del Libro/Fellowship/Mentor/Vestigio; salt PROPIO) ⇒ 0 RNG, elección estable.
+function pulseHash(period, salt){ let s=((period>>>0)*2654435761)>>>0; const t=String(salt||"");
+  for(let i=0;i<t.length;i++){ s=(((s^t.charCodeAt(i))>>>0)*16777619)>>>0; } return s>>>0; }
+// La zona EN PULSO de este period = 1 de WORLD_PULSE.zones elegida por hash (rotación determinista). Determinista ⇒ TODO cliente con el mismo period
+// ve la MISMA zona (convergente). Espeja soulZone/mentorPartner. null si no hay zonas.
+function pulseZone(period){ const Z=WORLD_PULSE.zones||[]; if(!Z.length) return null; return Z[pulseHash(period>>>0,"zone")%Z.length]; }
+// ¿el pulso del schedule está VIVO? ⇒ dentro de la fracción inicial liveFrac del period (luego DECAE — limpieza determinista). Gated ⇒ OFF ⇒ false.
+function pulseLive(s){ if(!WORLD_PULSE.enabled || !s || !s.enabled) return false; return s.frac < Math.max(0,Math.min(1,+WORLD_PULSE.liveFrac||0)); }
+// La zona-en-Pulso VIVA derivada del schedule (o null si decayó / OFF / sin zonas). PURA (0 sim/RNG/side-effect). Exportada para render (banner) y el harness.
+export function pulseZoneNow(s){ s=s||G.pulse; if(!pulseLive(s)) return null; return pulseZone(s.period); }
+// pulseMul(h,kind) = el passive AMBIENTAL de los presentes en la zona-en-Pulso VIVA, en el canal restedMult (REUSA RESTED_XP), con PRECEDENCIA
+// EXPLÍCITA anti-stacking (PULSE es la MÁS BAJA del canal): CEDE (return 0) a STANDINGS, MENTOR y SOUL ⇒ se aplica el MAYOR (0 doble-conteo).
+// FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function pulseMul(h,kind){ if(!WORLD_PULSE.enabled||!h) return 0;
+  if(kind!==(WORLD_PULSE.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ PULSE cede
+  if(mentorMul(h,kind)>0) return 0;      // precedencia MISMO-CANAL: MENTOR (personal) gana ⇒ PULSE cede
+  if(soulMul(h,kind)>0) return 0;        // precedencia MISMO-CANAL: SOUL (recuperación) gana ⇒ PULSE cede (es la MÁS BAJA del canal)
+  const z=pulseZoneNow(G.pulse); if(!z) return 0;              // no hay pulso VIVO ⇒ 0
+  if(zoneOf(world,h.x,h.y)!==z) return 0;                      // el héroe NO está físicamente en la zona-en-Pulso ⇒ 0
+  return +WORLD_PULSE.boost||0;
+}
+// tick del PULSO (mirror tickMentor/tickSoul): deriva+cachea el schedule del reloj COMPARTIDO (Date.now, leído SÓLO aquí y SÓLO bajo el gate) en
+// G.pulse (transitorio, fuera del allowlist de serializeSave). SIN estado per-hero, SIN dwell, SIN clave serializada. OFF ⇒ NUNCA se invoca ⇒
+// Date.now nunca se llama, G.pulse NUNCA se crea ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real.
+function tickPulse(nowArg){ if(!WORLD_PULSE.enabled) return; const now=(nowArg!=null?+nowArg:Date.now());
+  G.pulse=pulseScheduleAt(now); }
+// glifo del PULSO para el banner: ◈ (rombo de energía ambiental) si hay pulso VIVO. Puro, 0 sim/RNG. "" si OFF / decayó.
+export function pulseTag(s){ return pulseZoneNow(s||G.pulse) ? "◈" : ""; }
+// tile deterministic dentro de una zona (centro del 1er spawner zone-consistente, mirror soulPos/bonfireSites) — conveniencia de PRUEBA del harness. null si no hay.
+function pulseSpot(zone){ for(const s of (world.spawners||[])){ if(!s||!s.rect||s.zone!==zone) continue;
+  const x=(s.rect.x+s.rect.w*0.5)*TS, y=(s.rect.y+s.rect.h*0.5)*TS; if(zoneOf(world,x,y)===zone) return { x, y }; } return null; }
+// View-model PURO para el HUD/panel: la zona-en-Pulso ambiental, si el héroe está en ella y su passive efectivo. 0 sim/RNG/side-effect.
+export function worldPulse(h){ h=h||G.hero; const s=G.pulse||null; const zone=pulseZoneNow(s);
+  const heroZone=h?zoneOf(world,h.x,h.y):null, inZone=!!(zone && heroZone===zone);
+  return { enabled:!!WORLD_PULSE.enabled, periodSec:WORLD_PULSE.periodSec|0, liveFrac:+WORLD_PULSE.liveFrac,
+    zone, live:(zone!=null), inZone, heroZone,
+    frac: s?+(+s.frac).toFixed(4):0, nextInSec: s?(s.nextInSec|0):0,
+    boostKind:WORLD_PULSE.channel||"restedMult", boost: h?pulseMul(h,WORLD_PULSE.channel||"restedMult"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4331,7 +4383,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult");   // CAS-2278/2305/2322/2325: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; soulMul CEDE a standings/mentor ⇒ 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; pulseMul CEDE a standings/mentor/soul ⇒ 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -5709,6 +5761,7 @@ export function update(dtMs){
   if(FELLOWSHIP_BOND.enabled) tickFellowship(); // CAS-2316: Compañeros de Ruta — banda semanal compartida (reloj propio) + snapshot h.fellowAt del vínculo (transitorio en G.fellowship, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(MENTOR_BOND.enabled) tickMentor(); // CAS-2322: Vínculo de Mentor — compañero semanal asignado (reloj propio) + snapshot h.mentorAt del dwell (transitorio en G.mentor, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(SOUL_RECOVERY.enabled) tickSoul(); // CAS-2325: Vestigio del Caído — vestigio ambiental del reloj COMPARTIDO + dwell de co-presencia del recuperador en radio + auto-recuperación (transitorio en G.soul/h.soulAt, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(WORLD_PULSE.enabled) tickPulse(); // CAS-2329: Pulso del Mundo — zona-en-Pulso ambiental del reloj COMPARTIDO (transitorio en G.pulse, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -7210,6 +7263,34 @@ export const dev = {
       gExists:(G.soul!=null),                                               // prueba byte-id: OFF ⇒ G.soul NUNCA se crea
       hasAt: h?("soulAt" in h):false, hasGot: h?("soulGot" in h):false, hasFell: h?("soulFell" in h):false,   // prueba byte-id: OFF ⇒ los campos NUNCA se crean
       hero:h?{ cls:h.cls, kills:h.kills|0, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2329: PULSO DEL MUNDO / WORLD PULSE OBSERVABLE hook (DARK, WORLD_PULSE). Snapshot AUTORITATIVO (sim) del estado ambiental derivado del reloj
+  // de pared COMPARTIDO + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false, patrón __dev.soul/warhorn). El
+  // nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ misma zona-en-Pulso" (convergencia byte-idéntica, misma fase viva/decaída en N clientes).
+  //   pulse()                   → {enabled,periodSec,liveFrac,zones,schedule,zone,live,inZone,heroZone,boostKind,boost,pulseMulRested,restedXpMult,standingsMulRested,mentorMulRested,soulMulRested,tag,precedence,gExists,hero}
+  //   pulse({enabled:true})     → flip runtime IN-MEMORY de WORLD_PULSE.enabled (zona-en-Pulso/passive sin tocar el disco)
+  //   pulse({nowMs})            → deriva+cachea la zona-en-Pulso en G.pulse PARA ese reloj (viva/decaída) — 0 espera real (convergencia)
+  //   pulse({toZone:true})      → teleporta el héroe a una tile de la zona-en-Pulso VIVA (observa el passive compartido) — conveniencia de PRUEBA (0 hotkey)
+  //   pulse({leave:true})       → aleja el héroe de toda zona (el passive cae a 0)
+  pulse(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) WORLD_PULSE.enabled=!!p.enabled;
+      if("nowMs" in p) tickPulse(+p.nowMs);                                   // inyecta el reloj compartido: deriva la zona-en-Pulso de ese momento
+      if(p.toZone && G.hero){ const z=pulseZoneNow(G.pulse), spot=z?pulseSpot(z):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }   // proximidad de prueba (dentro de la zona-en-Pulso)
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }                  // fuera de toda zona ⇒ passive 0
+    }
+    const h=G.hero, s=G.pulse||null, vm=worldPulse(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0) + (h?pulseMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: PULSE cede a STANDINGS/MENTOR/SOUL)
+    return { enabled:WORLD_PULSE.enabled, periodSec:WORLD_PULSE.periodSec|0, liveFrac:+WORLD_PULSE.liveFrac, zones:(WORLD_PULSE.zones||[]).slice(),
+      schedule: s?{ period:s.period, frac:+(+s.frac).toFixed(4), nextInSec:s.nextInSec|0 }:null,
+      zone:vm.zone, live:vm.live, inZone:vm.inZone, heroZone:vm.heroZone, frac:vm.frac, nextInSec:vm.nextInSec,
+      boostKind:vm.boostKind, boost:vm.boost,
+      pulseMulRested: h?pulseMul(h,"restedMult"):0,                           // knob efectivo del passive (prueba: OFF/no-en-zona/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                        // mult efectivo (prueba precedencia: PULSE cede si standings/mentor/soul aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0, soulMulRested: h?soulMul(h,"restedMult"):0,
+      tag: pulseTag(s),                                                       // glifo del pulso SERVIDO (prueba: OFF/decayó ⇒ "" / vivo ⇒ ◈)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental) ⇒ PULSE cede a STANDINGS/MENTOR/SOUL (mismo canal, 0 doble-conteo); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      gExists:(G.pulse!=null),                                               // prueba byte-id: OFF ⇒ G.pulse NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).

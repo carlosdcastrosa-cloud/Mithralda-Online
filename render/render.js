@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -349,6 +349,11 @@ export function createRenderer(ctx){
     // con emisario aceptado = nombre + progreso n/N (verde "listo"); en el Santuario sin aceptar = pista del emisario activo (invita a
     // aceptar). Progreso DERIVADO de los mismos contadores monótonos que sim (h.killsByType); cosmético puro (no lee/escribe RNG ni save).
     if(SANCTUARY_EMISSARY.enabled) renderEmissaryBadge();
+    // CAS-2329: indicador "Pulso del Mundo" (World Pulse, render-only, $0 arte, DARK). Con WORLD_PULSE.enabled:false NUNCA corre ⇒ salida byte-idéntica
+    // (0 refs render fuera de este gate). ON: rombo ◈ procedural + "Pulso del Mundo: <zona>" — el estado AMBIENTAL COMPARTIDO derivado del reloj de
+    // pared (sim.worldPulse, autoridad en sim) ⇒ MISMA zona-en-Pulso para todos los clientes en el shard. Resalta si el héroe está EN la zona (recibe
+    // el passive). Cuenta atrás al próximo pulso cuando decae. Cosmético puro (no lee/escribe RNG ni save).
+    if(WORLD_PULSE.enabled) renderWorldPulseBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3383,6 +3388,43 @@ export function createRenderer(ctx){
       ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(bx,byy,barW,barH);
       ctx.fillStyle=(done||claimed)?"#8fe07a":"#5aa0e0"; ctx.fillRect(bx,byy,Math.round(barW*fr),barH);
     }
+    ctx.restore();
+  }
+
+  // CAS-2329: indicador "Pulso del Mundo" (World Pulse). Rombo ◈ procedural (canvas, $0 arte) + micro-label "Pulso del Mundo: <zona>" con la zona-en-Pulso
+  // AMBIENTAL COMPARTIDA del turno + cuenta atrás al próximo pulso, ANCLADO bajo toda la fila de badges (gap anti-solape con el Emisario @+142). El estado
+  // se DERIVA del reloj de pared compartido (sim.worldPulse ⇒ MISMA zona-en-Pulso para todos en el shard, 0 duplicación de lógica); cosmético puro: NO
+  // lee/escribe sim ni RNG. Gated arriba en WORLD_PULSE.enabled ⇒ OFF nunca se invoca ⇒ salida byte-idéntica.
+  //   · Con pulso VIVO → rombo brillante + nombre de la zona + "aquí" (verde, si el héroe está EN la zona ⇒ recibe el passive) / "activo" (ámbar, en otra zona).
+  //   · Decaído (entre pulsos) → rombo atenuado + "próx mm:ss" (cuenta atrás al siguiente pulso).
+  function renderWorldPulseBadge(){
+    const w=sim.worldPulse&&sim.worldPulse(); if(!w) return;              // autoridad en sim; pre-primer-tick (G.pulse null) ⇒ zona null ⇒ decaído
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+164, sw=14, sh=14;                            // bajo el Emisario (@+142); gap anti-solape (CAS-2263)
+    const live=!!w.live, here=!!w.inZone;
+    const secs=+w.nextInSec||0, mm=(secs/60)|0, ss=Math.max(0,Math.ceil(secs))%60, tstr=mm+":"+String(ss).padStart(2,"0");
+    const pulse=live?(0.74+0.22*Math.sin(G.t*(here?4.6:3.4))):0.55;
+    const glyph=live?(here?"#8fe0a0":"#7ad0ff"):"#8a9bb0";               // en zona=verde (buff), en otra=azul-cian, decaído=gris
+    const zn=w.zone?STR.zoneName(w.zone):"—";
+    ctx.save(); ctx.globalAlpha=pulse;
+    // rombo ◈ de energía ambiental ($0 arte): diamante con núcleo pulsante
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, by+sh*0.06); ctx.lineTo(bx+sw*0.94, cy); ctx.lineTo(cx, by+sh*0.94); ctx.lineTo(bx+sw*0.06, cy); ctx.closePath();
+    ctx.fillStyle=live?(here?"rgba(70,150,90,0.6)":"rgba(50,110,160,0.58)"):"rgba(74,84,100,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.78)"; ctx.stroke();
+    if(live){ const pr=1.4+Math.sin(G.t*(here?5:3.6))*1.1; ctx.fillStyle=glyph; ctx.globalAlpha=pulse*0.9;
+      ctx.beginPath(); ctx.arc(cx,cy,2+Math.max(0,pr),0,6.28); ctx.fill(); ctx.globalAlpha=pulse; }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Pulso del Mundo: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=live?"#dff0ff":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104])
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=live?(here?"aquí":"activo"):("próx "+tstr);
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();
   }
 
