@@ -1,0 +1,53 @@
+{
+  "build": "c4a549ae2fa1",
+  "desk": {
+    "accrual": {
+      "p0": 0.9,
+      "p1": 8.1,
+      "rate": 6,
+      "inZone": true
+    },
+    "spend": {
+      "mult": 1.5,
+      "willSpend": true,
+      "before": 300,
+      "after": 250,
+      "expDrain": 50,
+      "drain8": 50
+    },
+    "regression": {
+      "hp0": 40,
+      "hp1": 83.03,
+      "na": {
+        "noAggro": true,
+        "heroInZone": true,
+        "states": [
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle",
+          "idle"
+        ]
+      },
+      "tr": {
+        "inSafeZone": true,
+        "nearTemple": true,
+        "dist": 48
+      }
+    },
+    "fps": 60,
+    "errors": []
+  },
+  "mobile": {
+    "moveDelta": 49.2,
+    "accrual": {
+      "p0": 0.9,
+      "p1": 8.1,
+      "inZone": true
+    },
+    "fps": 60,
+    "errs": []
+  }
+}
