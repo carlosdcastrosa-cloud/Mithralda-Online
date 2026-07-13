@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -660,6 +660,23 @@ export function createRenderer(ctx){
       ctx.fillStyle="#ffe08a"; ctx.beginPath(); ctx.moveTo(f.x-2*fl,f.y+1);                       // núcleo claro
       ctx.quadraticCurveTo(f.x-1.4*fl,f.y-fh*0.34,f.x,f.y-fh*0.6); ctx.quadraticCurveTo(f.x+1.4*fl,f.y-fh*0.34,f.x+2*fl,f.y+1); ctx.closePath(); ctx.fill();
     }
+    // CAS-2325: VESTIGIO DEL CAÍDO — glifo ⚱ + halo pulsante sobre la TILE del vestigio ambiental VIVO (estado del MUNDO COMPARTIDO derivado del
+    // reloj vía sim.soulVestige ⇒ MISMO vestigio para todos los clientes en zona, 0 duplicación de lógica). $0 arte (canvas procedural, reusa la
+    // ruta de glifo/halo). Gated on convergent facts (patrón anti-CAS-2310): SÓLO dibuja cuando SOUL_RECOVERY.enabled Y el sim autoritativo
+    // devuelve un vestigio VIVO ⇒ OFF / caducó ⇒ nada dibuja ⇒ byte-idéntico a HEAD. View-culled. Tiempo de sim ⇒ 0 render RNG.
+    if(SOUL_RECOVERY.enabled){ const sv=sim.soulVestige&&sim.soulVestige();
+      if(sv && !(sv.x>camX+VW/Z+48 || sv.x<camX-48 || sv.y>camY+VH/Z+48 || sv.y<camY-48)){
+        const vx=sv.x, vy=sv.y, pl=0.5+Math.sin(G.t*3)*0.5;                                        // pulso lento (renace/caduca)
+        ctx.save();
+        const g=ctx.createRadialGradient(vx,vy-2,1,vx,vy-2,sv.radius); g.addColorStop(0,"rgba(150,120,220,"+(0.10+pl*0.10).toFixed(3)+")"); g.addColorStop(1,"rgba(120,90,200,0)");
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(vx,vy-2,sv.radius,0,6.28); ctx.fill();            // halo del radio de recuperación
+        ctx.fillStyle="rgba(0,0,0,0.28)"; ctx.beginPath(); ctx.ellipse(vx,vy+6,7,3,0,0,6.28); ctx.fill();
+        ctx.globalAlpha=0.72+pl*0.24; ctx.font="bold 18px "+FF; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+        ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.85)"; ctx.strokeText("⚱",vx,vy);
+        ctx.fillStyle="#b79ce8"; ctx.fillText("⚱",vx,vy);
+        ctx.globalAlpha=0.9; ctx.font="10px "+FF; ctx.fillStyle="#cbb8ee"; ctx.strokeText(sv.fallen.name,vx,vy-20); ctx.fillText(sv.fallen.name,vx,vy-20);
+        ctx.restore();
+      } }
     // CAS-114 — warp portals (town↔abyss). The town→abyss gate reads LOCKED (dim red,
     // a barred glyph) until the hero's power clears the gate, then OPEN (violet swirl);
     // the return gate is always open. Animated from sim time only (no render RNG).
@@ -4114,7 +4131,7 @@ export function createRenderer(ctx){
   function renderBounty(){ const b=daily.board(); ui.bountyRects=[];
     // CAS-2295: con SANCTUARY_OATH.enabled el panel crece 76px para alojar la fila de Órdenes bajo los contratos (gated ⇒ OFF el alto
     // y todo el layout quedan byte-idénticos a HEAD).
-    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0)+(SANCTUARY_LEDGER.enabled?46:0)+(ORDER_STANDINGS.enabled?58:0)+(FELLOWSHIP_BOND.enabled?56:0)+(MENTOR_BOND.enabled?58:0), x=(VW-bw)/2, y=(VH-bh)/2;
+    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0)+(SANCTUARY_LEDGER.enabled?46:0)+(ORDER_STANDINGS.enabled?58:0)+(FELLOWSHIP_BOND.enabled?56:0)+(MENTOR_BOND.enabled?58:0)+(SOUL_RECOVERY.enabled?58:0), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.bountyTitle,VW/2,y+28);
     if(!b){ ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("—",VW/2,y+60); return; }
@@ -4177,6 +4194,9 @@ export function createRenderer(ctx){
     // CAS-2322: VÍNCULO DE MENTOR — fila de la relación veterano↔novato del héroe (SOLO lectura: compañero asignado + rol + barra de dwell/tier +
     // boost del protégé; sin hotkey, sin tap-rect nuevo). Se sitúa SOBRE la fila de la Hermandad. Gated ⇒ OFF nada se dibuja (el bh no creció) ⇒ escena byte-id.
     if(MENTOR_BOND.enabled) renderMentorRow(x,y,bw,bh);
+    // CAS-2325: VESTIGIO DEL CAÍDO — fila del vestigio ambiental + rol/dwell/pasivo del héroe (SOLO lectura: caído + zona + barra de dwell +
+    // estado recuperado/buff; sin hotkey, sin tap-rect nuevo). Se sitúa SOBRE la fila del Vínculo de Mentor. Gated ⇒ OFF nada se dibuja (el bh no creció) ⇒ escena byte-id.
+    if(SOUL_RECOVERY.enabled) renderSoulRow(x,y,bw,bh);
     // close
     const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
     ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Cerrar (E)",VW/2,ccy+17);
@@ -4302,6 +4322,32 @@ export function createRenderer(ctx){
     ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(pbx+0.5,pby+0.5,pbw,pbh);
     ctx.fillStyle=COL.cream; ctx.font="10px "+FF; ctx.textAlign="center";
     const tail=(v.nextTierName!=null)?("co-presencia "+v.dwell+" / "+v.nextAt+" → "+v.nextTierName):("co-presencia "+v.dwell+"  ·  "+v.tierName+" (máx)");
+    ctx.fillText(tail, x+bw/2, pby+pbh+12);
+    ctx.textAlign="left";
+  }
+  // CAS-2325: VESTIGIO DEL CAÍDO / FALLEN WAYFARER'S VESTIGE — dibuja el loop de muerte/recuperación del mundo COMPARTIDO: el vestigio ambiental
+  // VIVO (caído + zona, capa social COMPARTIDA — mismo vestigio para todo cliente con el mismo reloj) + el ROL del héroe (Recuperador/Caído por
+  // identidad) + barra de DWELL de proximidad hacia la recuperación + el estado recuperado/buff. Estado AUTORITATIVO del sim (sim.fallenVestige;
+  // 0 duplicación de lógica, 0 sim/RNG desde render). SOLO lectura (no empuja tap-rects, no hotkey). Se sitúa SOBRE la fila del Mentor. Sólo se
+  // invoca bajo SOUL_RECOVERY.enabled ⇒ OFF byte-id.
+  function renderSoulRow(x,y,bw,bh){
+    const v=sim.fallenVestige(G.hero); if(!v) return;
+    const my=y+bh-30-(SANCTUARY_OATH.enabled?76:0)-(SANCTUARY_LEDGER.enabled?46:0)-(ORDER_STANDINGS.enabled?58:0)-(FELLOWSHIP_BOND.enabled?56:0)-(MENTOR_BOND.enabled?58:0)-50;   // franja sobre la fila del Mentor
+    const isFallen=v.role==="fallen", isRec=v.role==="recoverer", roleCol=isFallen?"#e88a8a":(isRec?"#b79ce8":COL.textDim);
+    ctx.textAlign="left"; ctx.font="11px "+FF; ctx.fillStyle=v.vestige?roleCol:COL.textDim;
+    const vLbl=v.vestige?("⚱ "+v.vestige.fallen.name+"  ·  "+v.vestige.zone):"(sin vestigio activo)";
+    ctx.fillText("Vestigio del Caído  ·  "+vLbl, x+20, my);
+    ctx.textAlign="right"; ctx.font="bold 11px "+FF; ctx.fillStyle=roleCol;
+    const roleTxt=v.recovered?"✓ Recuperado":(v.respawnActive?"✦ Buff de recuperación":(isFallen?"Caído (tu vestigio)":(isRec?"Recuperador":"·")));
+    ctx.fillText(roleTxt, x+bw-20, my);
+    ctx.textAlign="left";
+    // barra de DWELL (proximidad hacia la recuperación; llena = umbral alcanzado)
+    const pbx=x+20, pbw=bw-40, pby=my+8, pbh=12, f=Math.max(0,Math.min(1,v.dwellFrac||0));
+    ctx.fillStyle="#14181f"; ctx.fillRect(pbx,pby,pbw,pbh);
+    ctx.fillStyle=v.recovered?"#5a8f5a":(isRec&&v.vestige?"#7d63c0":"#3a4150"); ctx.fillRect(pbx,pby,pbw*f,pbh);
+    ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(pbx+0.5,pby+0.5,pbw,pbh);
+    ctx.fillStyle=COL.cream; ctx.font="10px "+FF; ctx.textAlign="center";
+    const tail=v.recovered?("vestigio recuperado  ·  +"+Math.round((SOUL_RECOVERY.recovererBoost||0)*100)+"% Descanso"):(v.vestige&&isRec?("permanencia "+Math.round(v.dwellMs/100)/10+" / "+v.dwellSec+"s → recuperar"):(isFallen?"no puedes recuperar tu propio vestigio":"acércate a un vestigio para recuperarlo"));
     ctx.fillText(tail, x+bw/2, pby+pbh+12);
     ctx.textAlign="left";
   }

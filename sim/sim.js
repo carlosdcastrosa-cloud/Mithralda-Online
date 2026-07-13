@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2011,6 +2011,10 @@ export function serializeSave(){
     ...(FELLOWSHIP_BOND.enabled && h.fellowAt ? { fellowAt:{ period:(h.fellowAt.period>>>0), killBase:h.fellowAt.killBase|0 } } : {}),
     // CAS-2322: persist el snapshot per-semana del VÍNCULO de mentor (h.mentorAt = {period, killBase}) SÓLO con la feature ON y presente (OFF la clave mentorAt NUNCA se crea ⇒ byte-id). killBase es un snapshot del contador monótono de kills al asignarse el par.
     ...(MENTOR_BOND.enabled && h.mentorAt ? { mentorAt:{ period:(h.mentorAt.period>>>0), killBase:h.mentorAt.killBase|0 } } : {}),
+    // CAS-2325: persist el VESTIGIO recuperado este period (h.soulGot) y el buff de respawn del CAÍDO (h.soulFell) SÓLO con la feature ON y
+    // presentes (OFF las claves NUNCA se crean ⇒ byte-id). soulAt (dwell transitorio de co-presencia) NO se persiste (mirror G.soul, se re-deriva).
+    ...(SOUL_RECOVERY.enabled && h.soulGot ? { soulGot:{ period:(h.soulGot.period>>>0), vestigeId:(h.soulGot.vestigeId>>>0) } } : {}),
+    ...(SOUL_RECOVERY.enabled && h.soulFell ? { soulFell:{ period:(h.soulFell.period>>>0), killBase:h.soulFell.killBase|0 } } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2126,6 +2130,11 @@ export function loadSave(d){
     // CAS-2322: rehidrata el snapshot per-semana del VÍNCULO de mentor (validado; saves viejos carecen de la clave → sin snapshot, tickMentor re-snapshotará al primer tick; gated ⇒ OFF la clave mentorAt NUNCA se crea ⇒ byte-id). Si el period no coincide al reanudar, tickMentor re-snapshotará (dwell vuelve a 0 la nueva semana).
     if(MENTOR_BOND.enabled){ const g=d.mentorAt;
       if(g && typeof g==="object"){ h.mentorAt={ period:(g.period>>>0), killBase:Math.max(0,Math.floor(num(g.killBase,0))) }; } }
+    // CAS-2325: rehidrata el VESTIGIO recuperado (h.soulGot) y el buff de respawn del CAÍDO (h.soulFell) (validado; saves viejos carecen de las
+    // claves → sin estado; gated ⇒ OFF NUNCA se crean ⇒ byte-id). soulAt (dwell transitorio) NO se rehidrata (se re-acumula en radio).
+    if(SOUL_RECOVERY.enabled){ const gg=d.soulGot, gf=d.soulFell;
+      if(gg && typeof gg==="object"){ h.soulGot={ period:(gg.period>>>0), vestigeId:(num(gg.vestigeId,0)>>>0) }; }
+      if(gf && typeof gf==="object"){ h.soulFell={ period:(gf.period>>>0), killBase:Math.max(0,Math.floor(num(gf.killBase,0))) }; } }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -3169,6 +3178,121 @@ export function mentorshipBond(h){ h=h||G.hero; const s=G.mentor||null, p=s?ment
     mentorTitle:MENTOR_BOND.mentorTitle||"Mentor", protegeTitle:MENTOR_BOND.protegeTitle||"Protégé",
     nextInSec:s?(s.nextInSec|0):0 }; }
 
+// CAS-2325: VESTIGIO DEL CAÍDO / FALLEN WAYFARER'S VESTIGE — el loop de MUERTE Y RECUPERACIÓN del mundo COMPARTIDO. Todo DERIVADO (0 RNG,
+// server-authority-ready), reloj PROPIO. soulScheduleAt(nowMs) = ventana del reloj de pared COMPARTIDO (mirror mentor/fellowScheduleAt con
+// periodSec/epochMs PROPIOS de SOUL_RECOVERY) ⇒ TODO cliente con el mismo reloj deriva el MISMO period ⇒ MISMO vestigio (convergente, 0 desync).
+export function soulScheduleAt(nowMs){
+  const out={ enabled:!!SOUL_RECOVERY.enabled, period:0, into:0, frac:0, nextInSec:0 };
+  if(!Number.isFinite(nowMs) || nowMs<=0) return out;
+  const periodMs=Math.max(1000,(SOUL_RECOVERY.periodSec|0)*1000);
+  const elapsed=nowMs-(SOUL_RECOVERY.epochMs||0); if(elapsed<0) return out;
+  const period=Math.floor(elapsed/periodMs), into=elapsed-period*periodMs;
+  out.period=period>>>0; out.into=into; out.frac=into/periodMs; out.nextInSec=(periodMs-into)/1000;
+  return out;
+}
+// hash de Knuth por period (mismo mezclador determinista del Libro/Fellowship/Mentor; salt PROPIO) ⇒ 0 RNG, elección estable.
+function soulHash(period, salt){ let s=((period>>>0)*2654435761)>>>0; const t=String(salt||"");
+  for(let i=0;i<t.length;i++){ s=(((s^t.charCodeAt(i))>>>0)*16777619)>>>0; } return s>>>0; }
+// El CAÍDO de este period = 1 miembro del roster fijo elegido por el reloj COMPARTIDO (hash(period)%N). Determinista ⇒ TODO cliente con el mismo
+// period ve el MISMO caído (convergente). Devuelve {idx,id,name}. Espeja mentorPartner/fellowRoster.
+function soulFallen(period){
+  const R=SOUL_RECOVERY.roster||[]; const N=R.length; if(N<=0) return null;
+  const idx=soulHash(period>>>0,"fallen")%N, m=R[idx];
+  return { idx, id:String(m.id||""), name:String(m.name||m.id||"") };
+}
+// La ZONA del vestigio de este period = 1 de SOUL_RECOVERY.zones elegida por hash. La TILE (posición mundo) se DERIVA del rect del PRIMER
+// spawner de esa zona (0-draw, mirror bonfireSites) desplazada por una fracción hash-derivada ⇒ determinista, dentro de la zona de caza.
+function soulZone(period){ const Z=SOUL_RECOVERY.zones||[]; if(!Z.length) return null; return Z[soulHash(period>>>0,"zone")%Z.length]; }
+function soulPos(period, zone){
+  const fx=(soulHash(period>>>0,"px")%1000)/1000, fy=(soulHash(period>>>0,"py")%1000)/1000;   // fracción determinista dentro del rect (0 RNG)
+  // CAS-2326: elige el spawner de la zona cuya tile DERIVADA cae REALMENTE dentro de la zona (guard zoneOf, mirror bonfireSites/CAS-1886) —
+  // los huntZones del continente (forest/ruins/caves) viven en `field`, así que el 1º s.zone===zone resolvía a `field` ⇒ soulInRadius (zone-gate)
+  // nunca pasaba ⇒ vestigio IRRECUPERABLE. Determinista (0 RNG), orden de world.spawners. Sin spawner zone-consistente ⇒ null (ese period no tiene vestigio).
+  for(const s of (world.spawners||[])){
+    if(!s || !s.rect || s.zone!==zone) continue;
+    const x=(s.rect.x+s.rect.w*(0.2+0.6*fx))*TS, y=(s.rect.y+s.rect.h*(0.2+0.6*fy))*TS;
+    if(zoneOf(world,x,y)===zone) return { x, y, zone };
+  }
+  return null;
+}
+// ¿el vestigio del schedule está VIVO? ⇒ dentro de la fracción inicial liveFrac del period (luego CADUCA — limpieza determinista). Gated ⇒ OFF ⇒ false.
+function soulLive(s){ if(!SOUL_RECOVERY.enabled || !s || !s.enabled) return false; return s.frac < Math.max(0,Math.min(1,+SOUL_RECOVERY.liveFrac||0)); }
+// El VESTIGIO ambiental VIVO derivado del schedule (o null si caducó / OFF / sin posición). id = hash(period, fallen.id, zone) — espeja
+// hash(playerId, deathTick, zoneId) del diseño. PURO (0 sim/RNG/side-effect). Exportado para render (glifo en la tile) y el harness.
+export function soulVestige(s){ s=s||G.soul; if(!soulLive(s)) return null;
+  const f=soulFallen(s.period), z=soulZone(s.period); if(!f||!z) return null; const pos=soulPos(s.period,z); if(!pos) return null;
+  const id=soulHash(s.period>>>0, f.id+"|"+z)>>>0;
+  return { id, period:s.period>>>0, fallen:f, zone:z, x:pos.x, y:pos.y, radius:Math.max(1,SOUL_RECOVERY.radius|0) }; }
+// Identidad de WAYFARER del héroe LOCAL (mapea a un slot del roster de caídos). Por defecto DERIVADA de la clase (estable, 0 estado nuevo, 0 save);
+// el harness puede fijar G.soulHeroIdx (transitorio) para observar ambos ROLES sin depender de la clase. Espeja el gap inyectable de mentor.
+function soulHeroIdx(h){ const N=(SOUL_RECOVERY.roster||[]).length||1;
+  if(G.soulHeroIdx!=null) return ((G.soulHeroIdx|0)%N+N)%N;
+  return soulHash(0, String((h&&h.cls)||"warrior"))%N; }
+// ROL determinista: si la identidad del héroe MAPEA al caído del period ⇒ "fallen" (es SU vestigio ⇒ no puede recuperar; buff de respawn). Si no
+// ⇒ "recoverer". Gated ⇒ OFF / sin schedule ⇒ "none". Espeja mentorRole (rol por comparación local vs entidad compartida del reloj).
+function soulRole(h){ if(!SOUL_RECOVERY.enabled||!h||!G.soul) return "none";
+  const f=soulFallen(G.soul.period); if(!f) return "none";
+  return soulHeroIdx(h)===f.idx ? "fallen" : "recoverer"; }
+// ¿el héroe está en el radio del vestigio? dist² pura (0 RNG). El vestigio debe estar VIVO (soulVestige no-null) y en la zona del héroe.
+function soulInRadius(h,v){ if(!h||!v) return false;
+  if(zoneOf(world,h.x,h.y)!==v.zone) return false;
+  return dist2(h.x,h.y,v.x,v.y) <= v.radius*v.radius; }
+// DWELL de co-presencia acumulado (ms) para el vestigio v (0 si no está en radio con este id). Transitorio en h.soulAt (creado SÓLO ON ⇒ byte-id).
+function soulDwellMs(h,v){ return (h&&h.soulAt&&v&&h.soulAt.vestigeId===v.id) ? Math.max(0,h.soulAt.dwellMs|0) : 0; }
+// ¿el buff de respawn del CAÍDO sigue activo? ⇒ dentro de los primeros respawnKills kills tras dejar su vestigio (contador monótono, determinista,
+// pin-independiente — mirror la técnica snapshot-kills de mentor/ledger). Gated ⇒ OFF ⇒ false.
+function soulRespawnActive(h){ if(!SOUL_RECOVERY.enabled||!h||!h.soulFell) return false;
+  return ((h.kills|0)-(h.soulFell.killBase|0)) < Math.max(0,SOUL_RECOVERY.respawnKills|0); }
+// soulMul(h,kind) = el pasivo del RECUPERADOR (porta un vestigio recuperado este period) O del CAÍDO (buff de respawn), en el canal restedMult
+// (REUSA RESTED_XP), con PRECEDENCIA EXPLÍCITA anti-stacking (SOUL es la MÁS BAJA del canal): CEDE (return 0) a STANDINGS y a MENTOR ⇒ se aplica
+// el MAYOR (0 doble-conteo; standings 0.15 / mentor 0.15 ≥ soul 0.10/0.15). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro. OFF ⇒ 0.
+function soulMul(h,kind){ if(!SOUL_RECOVERY.enabled||!h) return 0;
+  if(kind!==(SOUL_RECOVERY.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ SOUL cede
+  if(mentorMul(h,kind)>0) return 0;      // precedencia MISMO-CANAL: MENTOR (personal) gana ⇒ SOUL cede
+  const r=soulRole(h);
+  if(r==="recoverer" && h.soulGot && G.soul && (h.soulGot.period>>>0)===(G.soul.period>>>0)) return +SOUL_RECOVERY.recovererBoost||0;   // porta el vestigio recuperado este period
+  if(soulRespawnActive(h)) return +SOUL_RECOVERY.respawnBoost||0;   // caído: buff de recuperación en respawn (fade por kills)
+  return 0;
+}
+// tryRecoverVestige() = el ÚNICO chokepoint de recuperación (mirror tryEmissary/tryPledgeOath). Valida rol≠fallen (no tu propio vestigio),
+// vestigio VIVO, no-ya-recuperado este period, EN RADIO y DWELL≥umbral ⇒ elimina el vestigio ATÓMICAMENTE (server-auth first-come) y marca
+// h.soulGot (⇒ activa el pasivo del recuperador). Devuelve {ok,reason,...}. Gated ⇒ OFF ⇒ {ok:false}.
+function tryRecoverVestige(){
+  if(!SOUL_RECOVERY.enabled) return { ok:false, reason:"disabled" };
+  const h=G.hero, s=G.soul; if(!h||h.dead||!s) return { ok:false, reason:"nohero" };
+  const v=soulVestige(s); if(!v) return { ok:false, reason:"expired" };
+  if(soulRole(h)==="fallen") return { ok:false, reason:"own" };                                  // no puedes recuperar tu PROPIO vestigio
+  if(h.soulGot && (h.soulGot.period>>>0)===(s.period>>>0)) return { ok:false, reason:"already" };
+  if(!soulInRadius(h,v)) return { ok:false, reason:"far" };
+  if(soulDwellMs(h,v) < Math.max(0,SOUL_RECOVERY.dwellSec|0)*1000) return { ok:false, reason:"dwell" };
+  h.soulGot={ period:s.period>>>0, vestigeId:v.id>>>0 }; h.soulAt=null;                            // recupera ATÓMICAMENTE (el vestigio desaparece para este cliente)
+  return { ok:true, vestigeId:v.id, fallen:v.fallen, zone:v.zone };
+}
+// tick del VESTIGIO (mirror tickMentor): deriva+cachea el schedule del reloj COMPARTIDO (Date.now, leído SÓLO aquí y SÓLO bajo el gate) en G.soul
+// (transitorio, fuera del allowlist de serializeSave), acumula el DWELL de co-presencia del recuperador en radio (delta nowMs, frame-rate-indep) y
+// auto-recupera al alcanzar el umbral (SIN hotkey). OFF ⇒ NUNCA se invoca ⇒ Date.now nunca se llama, G.soul/h.soulAt NUNCA se crean ⇒ byte-id.
+// nowArg permite al harness inyectar el reloj (advance del dwell) sin tocar Date.now real.
+function tickSoul(nowArg){ if(!SOUL_RECOVERY.enabled) return; const now=(nowArg!=null?+nowArg:Date.now());
+  const s=soulScheduleAt(now); G.soul=s; const h=G.hero; if(!h||h.dead) return;
+  const v=soulVestige(s);
+  if(!v || soulRole(h)!=="recoverer" || (h.soulGot && (h.soulGot.period>>>0)===(s.period>>>0))){ if(h.soulAt) h.soulAt=null; return; }
+  if(!soulInRadius(h,v)){ if(h.soulAt) h.soulAt=null; return; }                                   // salió del radio ⇒ resetea el dwell (sin fugas)
+  if(!h.soulAt || h.soulAt.vestigeId!==v.id){ h.soulAt={ vestigeId:v.id>>>0, dwellMs:0, lastMs:now }; }   // entró: snapshot (SÓLO ON ⇒ byte-id)
+  else { h.soulAt.dwellMs=(h.soulAt.dwellMs|0)+Math.max(0, now-(h.soulAt.lastMs|0)); h.soulAt.lastMs=now; }
+  if(soulDwellMs(h,v) >= Math.max(0,SOUL_RECOVERY.dwellSec|0)*1000) tryRecoverVestige();          // auto-recupera al alcanzar el umbral (0 hotkey)
+}
+// glifo del VESTIGIO para el render sobre la tile: ⚱ (urna del caído) si hay vestigio VIVO. Puro, 0 sim/RNG. "" si OFF / caducó.
+export function soulTag(s){ return soulVestige(s||G.soul) ? "⚱" : ""; }
+// View-model PURO para el panel del Tablón: el vestigio ambiental, el rol del héroe, el dwell/umbral y el estado de recuperación/buff.
+export function fallenVestige(h){ h=h||G.hero; const s=G.soul||null, v=soulVestige(s);
+  const role=h?soulRole(h):"none", dwellMs=(h&&v)?soulDwellMs(h,v):0, dwellNeed=Math.max(0,SOUL_RECOVERY.dwellSec|0)*1000;
+  const recovered=!!(h&&h.soulGot&&s&&(h.soulGot.period>>>0)===(s.period>>>0));
+  return { enabled:!!SOUL_RECOVERY.enabled, periodSec:SOUL_RECOVERY.periodSec|0, radius:SOUL_RECOVERY.radius|0, dwellSec:SOUL_RECOVERY.dwellSec|0,
+    vestige:v?{ id:v.id, fallen:v.fallen, zone:v.zone, x:+v.x.toFixed(2), y:+v.y.toFixed(2) }:null,
+    role, dwellMs:dwellMs|0, dwellNeed, dwellFrac:dwellNeed>0?Math.min(1,dwellMs/dwellNeed):0,
+    recovered, respawnActive:h?soulRespawnActive(h):false, nextInSec:s?(s.nextInSec|0):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4207,7 +4331,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult");   // CAS-2278/2305/2322: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Vínculo de Mentor) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; mentorMul CEDE a standings/fellowship ⇒ 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult");   // CAS-2278/2305/2322/2325: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; soulMul CEDE a standings/mentor ⇒ 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -4855,6 +4979,10 @@ function heroDie(){
   const loss=Math.floor(h.xpNext*frac); h.xp=Math.max(0,h.xp-loss);
   if(red){ if(h.potHP>0) h.potHP--; h.blessings=0; }
   else if(h.blessings>0){ h.blessings--; }
+  // CAS-2325: VESTIGIO DEL CAÍDO — al morir el héroe deja un vestigio (server-auth registraría el artefacto en la tile de muerte); en Stage-1
+  // esto arma el buff de RECUPERACIÓN del CAÍDO para su próximo respawn (snapshot de kills monótono ⇒ el buff se desvanece tras respawnKills).
+  // Gated ⇒ OFF ⇒ h.soulFell NUNCA se crea ⇒ byte-id. (El vestigio AMBIENTAL que ven otros clientes es el derivado del reloj — soulVestige.)
+  if(SOUL_RECOVERY.enabled){ h.soulFell={ period:(G.soul?G.soul.period>>>0:0), killBase:h.kills|0 }; }
 }
 export function respawn(){
   const h=G.hero;
@@ -5580,6 +5708,7 @@ export function update(dtMs){
   if(ORDER_STANDINGS.enabled) tickStandings(); // CAS-2305: Clasificación de Órdenes — ranking semanal compartido derivado del baseline del Libro (transitorio en G.standings, gated ⇒ OFF nunca se crea ⇒ byte-id). Tras tickLedger (reusa G.ledger.period/frac).
   if(FELLOWSHIP_BOND.enabled) tickFellowship(); // CAS-2316: Compañeros de Ruta — banda semanal compartida (reloj propio) + snapshot h.fellowAt del vínculo (transitorio en G.fellowship, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(MENTOR_BOND.enabled) tickMentor(); // CAS-2322: Vínculo de Mentor — compañero semanal asignado (reloj propio) + snapshot h.mentorAt del dwell (transitorio en G.mentor, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(SOUL_RECOVERY.enabled) tickSoul(); // CAS-2325: Vestigio del Caído — vestigio ambiental del reloj COMPARTIDO + dwell de co-presencia del recuperador en radio + auto-recuperación (transitorio en G.soul/h.soulAt, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -7040,6 +7169,47 @@ export const dev = {
       gExists:(G.mentor!=null),                                            // prueba byte-id: OFF ⇒ G.mentor NUNCA se crea
       hasField: h ? ("mentorAt" in h) : false,                            // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       hero:h?{ lvl:h.lvl|0, kills:h.kills|0, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead }:null }; },
+  // CAS-2325: VESTIGIO DEL CAÍDO / FALLEN WAYFARER'S VESTIGE OBSERVABLE hook (DARK, SOUL_RECOVERY). Snapshot autoritativo (sim) del VESTIGIO
+  // ambiental (elección pura del reloj propio: caído+zona+tile+id) + el ROL derivado de la identidad + el DWELL de co-presencia + el pasivo del
+  // recuperador/caído (con PRECEDENCIA) + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false, patrón
+  // __dev.mentor/fellowship). El nowMs INYECTADO prueba "mismo reloj ⇒ MISMO vestigio" (convergencia N-clientes, 0 desync) y avanza el DWELL sin
+  // tocar Date.now real. heroIdx prueba ambos ROLES (fallen/recoverer) sin depender de la clase. Formas:
+  //   soul()                    → {enabled,periodSec,liveFrac,radius,dwellSec,schedule,vestige,live,role,heroIdx,dwellMs,dwellNeed,dwellFrac,recovered,respawnActive,soulMulRested,restedXpMult,standingsMulRested,mentorMulRested,tag,precedence,gExists,hasAt,hasGot,hasFell,hero}
+  //   soul({enabled:true})      → flip runtime IN-MEMORY de SOUL_RECOVERY.enabled (vestigio/rol/pasivo sin tocar el disco)
+  //   soul({nowMs})             → deriva+cachea el vestigio en G.soul PARA ese reloj (+ acumula el dwell si en radio) — 0 espera real (convergencia)
+  //   soul({heroIdx:n})         → fija la identidad de wayfarer del héroe (transitorio) ⇒ OBSERVA el rol fallen(=caído del period)/recoverer(≠)
+  //   soul({toVestige:true})    → teleporta el héroe a la tile del vestigio VIVO (radio ok) — conveniencia de PRUEBA de proximidad (0 hotkey)
+  //   soul({leave:true})        → aleja el héroe del vestigio (resetea el dwell)
+  //   soul({recover:true})      → dispara tryRecoverVestige() por el chokepoint REAL (valida rol≠fallen + radio + dwell; observa la recuperación)
+  //   soul({die:true})          → dispara heroDie()+respawn() por los seams REALES (observa el buff de recuperación del CAÍDO en respawn)
+  //   soul({kill:{n}})          → bump h.kills (contador monótono) ⇒ desvanece el buff de respawn (mirror killEnemy)
+  soul(p){
+    let result=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) SOUL_RECOVERY.enabled=!!p.enabled;
+      if("heroIdx" in p) G.soulHeroIdx=Math.floor(+p.heroIdx||0);            // identidad de wayfarer inyectada (transitoria) para OBSERVAR el rol
+      if("nowMs" in p) tickSoul(+p.nowMs);                                   // inyecta el reloj compartido: deriva el vestigio + acumula dwell si en radio
+      if(p.toVestige && G.hero){ const v=soulVestige(G.soul); if(v){ G.hero.x=v.x; G.hero.y=v.y; if("nowMs" in p) tickSoul(+p.nowMs); } }   // proximidad de prueba + re-tick para snapshot del dwell
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; if(G.hero.soulAt) G.hero.soulAt=null; }
+      if(p.recover) result=tryRecoverVestige();                              // chokepoint REAL de recuperación (validación completa)
+      if(p.die && G.hero){ heroDie(); respawn(); }                           // seams REALES: deja vestigio + revive (observa buff del caído)
+      if(p.kill && G.hero) G.hero.kills=(G.hero.kills|0)+Math.max(0,Math.floor(+p.kill.n||0));   // mirror killEnemy: desvanece el buff de respawn
+    }
+    const h=G.hero, s=G.soul||null, v=fallenVestige(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: SOUL cede a STANDINGS/MENTOR)
+    return { enabled:SOUL_RECOVERY.enabled, periodSec:SOUL_RECOVERY.periodSec|0, liveFrac:+SOUL_RECOVERY.liveFrac, radius:SOUL_RECOVERY.radius|0, dwellSec:SOUL_RECOVERY.dwellSec|0,
+      schedule: s?{ period:s.period, frac:+(+s.frac).toFixed(4), nextInSec:s.nextInSec|0 }:null,
+      vestige:v.vestige, live:(soulVestige(s)!=null), role:v.role, heroIdx:h?soulHeroIdx(h):0,
+      dwellMs:v.dwellMs, dwellNeed:v.dwellNeed, dwellFrac:+v.dwellFrac.toFixed(4), recovered:v.recovered, respawnActive:v.respawnActive,
+      result,
+      soulMulRested: h?soulMul(h,"restedMult"):0,                            // knob efectivo del pasivo (prueba: OFF/no-recuperado/no-caído/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                        // mult efectivo (prueba precedencia: SOUL cede si standings/mentor aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0,
+      tag: soulTag(s),                                                       // glifo del vestigio SERVIDO (prueba: OFF/caducó ⇒ "" / vivo ⇒ ⚱)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion) ⇒ SOUL cede a STANDINGS y MENTOR (mismo canal, 0 doble-conteo); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      gExists:(G.soul!=null),                                               // prueba byte-id: OFF ⇒ G.soul NUNCA se crea
+      hasAt: h?("soulAt" in h):false, hasGot: h?("soulGot" in h):false, hasFell: h?("soulFell" in h):false,   // prueba byte-id: OFF ⇒ los campos NUNCA se crean
+      hero:h?{ cls:h.cls, kills:h.kills|0, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).

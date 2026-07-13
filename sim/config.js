@@ -2066,6 +2066,58 @@ export const MENTOR_BOND = {
   protegeTitle: "Protégé",   // etiqueta del NOVATO (panel/nameplate). CEO balance knob.
 };
 
+// CAS-2325: VESTIGIO DEL CAÍDO / FALLEN WAYFARER'S VESTIGE (DARK, SOUL_RECOVERY) — EVO #49, el PIVOTE de arco: abre la lane FRESCA del
+// LOOP DE MUERTE Y RECUPERACIÓN del mundo COMPARTIDO (tras el arco social Órdenes+Vínculos #43–48). Hoy morir es un evento single-player
+// PRIVADO; lo reencuadramos como MMORPG: tu muerte deja un ARTEFACTO persistente y VISIBLE que OTROS jugadores del mundo pueden interactuar
+// — interdependencia social sobre el combate souls-like que YA existe (dodge/poise/stamina/flasks/Mancha de Sangre). Diseño Stage-1, 100%
+// DETERMINISTA (0 RNG) y server-authority-ready, reloj PROPIO (no acopla al arco de Órdenes ni a Fellowship/Mentor):
+//   · VESTIGIO AMBIENTAL COMPARTIDO (ancla de CONVERGENCIA, espeja el compañero semanal de Mentor/Fellowship): cada ciclo (`periodSec`), el
+//     reloj de pared COMPARTIDO registra UN vestigio de un CAÍDO del `roster` fijo (hash de Knuth, 0 RNG) en una TILE determinista de una zona
+//     determinista ⇒ TODO cliente con el mismo reloj deriva el MISMO vestigio (id/caído/tile) en el MISMO tick (convergente, 0 desync). En
+//     Stage-1 el `roster` de caídos hace de stand-in de otros jugadores (mismo patrón que la banda de Fellowship / el compañero de Mentor)
+//     hasta que Stage-2 lo alimente del server. `vestigeId = hash(period, fallen.id, zone)` — espeja el `hash(playerId, deathTick, zoneId)`
+//     del diseño (playerId↔fallen.id, deathTick↔period, zoneId↔zone). 0 RNG, server-authority-ready.
+//   · CADUCIDAD DETERMINISTA: el vestigio está VIVO sólo la 1ª fracción `liveFrac` del period; luego CADUCA (limpieza, "tras N ticks si nadie
+//     recupera" — sin fugas de estado). Ambos clientes lo ven APARECER al inicio del period y DESAPARECER al caducar (convergente).
+//   · ROL por IDENTIDAD (asimétrico, espeja mentorRole/gap): el ROL lo decide la identidad del héroe LOCAL vs el CAÍDO del period — si la
+//     identidad del héroe MAPEA al caído de este period ⇒ el héroe ES el CAÍDO (es SU vestigio ⇒ NO puede recuperarlo; recibe el buff de
+//     respawn). Si no ⇒ el héroe es un RECUPERADOR potencial. Server-authority-ready (el client renderiza; el server confirma).
+//   · RECUPERACIÓN por PROXIMIDAD + DWELL (SIN hotkey — anti-CAS-2273): cualquier héroe RECUPERADOR que entre en `radius` y PERMANEZCA
+//     `dwellSec` auto-recupera. Server-auth first-come: elimina el vestigio ATÓMICAMENTE (en Stage-2 lo resuelve el server por primer tick
+//     determinista; sin contención). El dwell se acumula del reloj COMPARTIDO (delta nowMs mientras en radio), frame-rate-independiente.
+//   · BENEFICIO RECUPERADOR: pequeño boost pasivo (reusa el canal RESTED_XP `restedMult`) mientras "porta" el vestigio recuperado (hasta que
+//     ese period caduca) — recompensa por AYUDAR. BENEFICIO CAÍDO: buff de RECUPERACIÓN en su próximo respawn (reusa RESTED_XP `restedMult`),
+//     restaurando una porción durante los primeros `respawnKills` kills tras revivir — NO dinero/loot nuevo, sólo pasivo.
+//   · PRECEDENCIA de pasivos (crítico, 0 stacking) — ESPEJA el patrón de EVOs previos (territory→standings, mentor→standings): se de-stackea
+//     SÓLO en el MISMO canal. STANDINGS(colectivo) > MENTOR(personal) > SOUL(recuperación) comparten restedMult ⇒ NO se suman: SOUL CEDE
+//     (mul 0) cuando STANDINGS o MENTOR aportan ⇒ se aplica el MAYOR (0 doble-conteo). FELLOWSHIP(xpGain) y TERRITORY(safeRegen) canales ⊥ ⇒
+//     COEXISTEN. El recuperador NO puede recuperar su PROPIO vestigio (rol "fallen" ⇒ deny). Documentado.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tickSoul jamás corre (Date.now nunca se llama), G.soul/h.soulAt/h.soulGot/h.soulFell NUNCA se
+// crean, soulMul RETURN 0, save omite las claves, soulTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave
+// nueva). SIN tocar input.js (recuperación por proximidad+dwell + rol observado, 0 hotkey). Reversible en 1 línea (enabled:false→true + redeploy
+// overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO (retune barato).
+export const SOUL_RECOVERY = {
+  enabled: true,             // CAS-2327 LIVE FLIP (EVO#49). ON ⇒ tickSoul corre; vestigio ambiental COMPARTIDO + recuperación proximidad/dwell activos. CEO Gate APPROVED; QA re-QA post-CAS-2326 (soulPos zone-guard) = 15/15 ×2. Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  periodSec: 300,            // ciclo del VESTIGIO (5 min — corto y OBSERVABLE, no acopla a otros relojes). Reloj de pared COMPARTIDO ⇒ MISMO vestigio en N clientes (0 desync).
+  epochMs: 0,                // ancla del reloj (0 = epoch Unix). Compartida ⇒ period idéntico en todo cliente.
+  liveFrac: 0.5,             // el vestigio está VIVO sólo esta fracción inicial del period; luego CADUCA (limpieza determinista, "tras N ticks si nadie recupera"). CEO balance knob.
+  roster: [                  // población de CAÍDOS (stand-in de otros jugadores hasta Stage-2 — nombres en el glifo/panel, arte $0). El caído del period se elige determinista (Knuth hash, 0 RNG).
+    { id:"kael",   name:"Kael el Errante" },
+    { id:"mirr",   name:"Mirr de la Bruma" },
+    { id:"dolan",  name:"Dolan Sin-Tumba" },
+    { id:"esa",    name:"Esa Paso-Perdido" },
+    { id:"veyra",  name:"Veyra la Caída" },
+    { id:"torg",   name:"Torg Yelmo-Hundido" },
+  ],
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde puede caer un vestigio (la del period se elige determinista por hash; la tile se deriva del rect del spawner de esa zona).
+  radius: 96,                // radio de RECUPERACIÓN (px) — proximidad al vestigio. CEO balance knob.
+  dwellSec: 3,               // umbral de PERMANENCIA (dwell) para auto-recuperar SIN hotkey (segundos en radio). CEO balance knob.
+  channel: "restedMult",     // canal ÚNICO de ambos pasivos (recuperador + caído) — REUSA RESTED_XP. Precedencia: cede a STANDINGS y MENTOR (mismo canal, ver soulMul).
+  recovererBoost: 0.10,      // +10% restedMult mientras el recuperador PORTA el vestigio recuperado (hasta que ese period caduca). CEO balance knob.
+  respawnBoost: 0.15,        // buff de RECUPERACIÓN del caído en su próximo respawn (+15% restedMult) — porción restaurada. CEO balance knob.
+  respawnKills: 20,          // el buff de respawn del caído se desvanece tras estos kills (contador monótono, determinista, pin-independiente). CEO balance knob.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
