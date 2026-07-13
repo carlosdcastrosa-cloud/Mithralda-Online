@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1967,6 +1967,11 @@ export function serializeSave(){
     // absent in old saves → no tutorial, no SAVE_VERSION bump.
     tut:(G.tut&&G.tut.active)?{i:G.tut.i}:null,
     equip:{weapon:h.equip.weapon, body:h.equip.body, shield:h.equip.shield}, bag:h.bag,
+    // CAS-2255: persist el pool de Descanso (Rested XP) SÓLO cuando la feature está ON (spread condicional). El descanso
+    // acumulado sobrevive al reload (canon WoW). enabled:false ⇒ la clave `restedPool` NO se emite ⇒ save.v1 byte-idéntico
+    // a HEAD (allowlist anti-CAS-2220: 0 campos nuevos en el save con la feature off / pool 0). Additive cuando ON: saves
+    // viejos carecen de la clave → loadSave rehidrata a 0 → sin SAVE_VERSION bump.
+    ...(RESTED_XP.enabled ? { restedPool:+(h.restedPool||0).toFixed(3) } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2037,6 +2042,7 @@ export function loadSave(d){
     if(THROWABLES.enabled){ refillThrowables(h); h.throwSel=THROWABLES.order[0]; h.throwCD=0; h.throwWind=0; h.throwZone=null; }   // CAS-1920: arrojadizos a tope al arrancar run (gated ⇒ OFF byte-id)
     if(WEAPON_BUFFS.enabled){ refillBuffs(h); h.buffSel=WEAPON_BUFFS.order[0]; h._wbuff=null; h.wbuffT=0; h.applyBuffT=0; h.buffZone=null; }   // CAS-1926: resinas a tope + sin buff activo al arrancar run (gated ⇒ OFF byte-id)
     if(SUMMON.enabled){ h.summonCharges=SUMMON.charges; h.summonZone=null; G._spirit=null; }   // CAS-1954: cargas de invocación a tope + sin espíritu activo al reanudar run (gated ⇒ OFF byte-id)
+    if(RESTED_XP.enabled){ h.restedPool=Math.max(0,Math.min(RESTED_XP.poolCap,num(d.restedPool,0))); }   // CAS-2255: rehidrata el pool de Descanso (clamp 0..cap; saves viejos → 0; gated ⇒ OFF la clave NUNCA se crea ⇒ byte-id)
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2579,6 +2585,19 @@ function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
   if(g && g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
     if(dx*dx+dy*dy <= tr*tr) rate*=SAFEZONE.templeMul; }   // santuario del Templo = regen acelerado
   h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
+}
+
+// CAS-2255: tick de ACUMULACIÓN del pool de Descanso (Rested XP). Mientras el héroe está DENTRO de la SAFEZONE, el
+// pool crece a RESTED_XP.accrualPerSec×dt hasta el tope poolCap (unidades de XP bonus). El GASTO vive en el chokepoint
+// gainXP (fuera de la zona). 100% aritmética determinista, 0 RNG, sin wall-clock local (usa dt de sim ⇒ MMORPG/server-
+// authority-ready). El campo h.restedPool sólo se CREA con la feature ON; OFF ⇒ return inmediato ⇒ h.restedPool nunca
+// existe ⇒ serializeSave lo omite ⇒ save.v1 byte-idéntico a HEAD (allowlist anti-CAS-2220). Reusa inSafeZone (mismo bbox
+// que el regen/banner/minimap). Escala a N jugadores sin contención (estado per-hero).
+function tickRestedXP(h,dt){ if(!RESTED_XP.enabled||!h||h.dead) return;
+  if(!inSafeZone(h.x,h.y)) return;                                  // sólo acumula descansando en la ciudad
+  const cap=RESTED_XP.poolCap, cur=h.restedPool||0;
+  if(cur>=cap) return;                                              // pool lleno ⇒ nada que acumular
+  h.restedPool=Math.min(cap, cur + RESTED_XP.accrualPerSec*dt);
 }
 
 // CAS-1841: regen tick (transient, 0 RNG). Winds down the deny-flash, then — after a brief post-spend pause — regens
@@ -3495,6 +3514,14 @@ export function dismissVictory(){ if(G.scene!=="victory") return; G.victory=null
   if(h){ h.dead=false; h.vx=h.vy=0; h.iframe=0.6; } G.scene="play"; beginRun(); }
 function gainXP(n){ const h=G.hero; if(n<=0) return;
   n=Math.round(n*(1+metaLvl("t2_xpGain")*T2_MAP.t2_xpGain.per)); // CAS-1565: Erudición meta XP boost (read-live at the single XP chokepoint)
+  // CAS-2255: GASTO del pool de Descanso (Rested XP). El bono se consume proporcional a la XP ganada FUERA del santuario:
+  // por cada `n` de XP base ganada cazando, se otorga hasta base×(xpMult-1) de bonus, acotado por el pool restante, y el
+  // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
+  // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
+  if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
+    const bonus=Math.min(h.restedPool, Math.round(n*(RESTED_XP.xpMult-1)));
+    if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
+  }
   h.xp+=n; floater(h.x,h.y-30,"+"+n+" XP","#9fe6a0");
   while(h.xp>=h.xpNext){ h.xp-=h.xpNext; h.lvl++; // CAS-100: per-class growth → archetypes diverge as you climb
     h.maxHp+=(h.hpGain||18); h.maxMp+=(h.mpGain||8); h.baseDmg+=(h.dmgGain||3); h.hp=heroMaxHp(h); h.mp=h.maxMp;
@@ -4856,6 +4883,7 @@ export function update(dtMs){
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickSafeZone(h,dt);// CAS-2242: regen de HP en la Zona Segura de la Ciudad + pausa post-daño (aritmética/geometría, no RNG, gated on SAFEZONE.enabled)
+  tickRestedXP(h,dt);// CAS-2255: acumulación del pool de Descanso mientras el héroe está en la SAFEZONE (aritmética, no RNG, gated on RESTED_XP.enabled ⇒ OFF byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -5978,6 +6006,26 @@ export const dev = {
       point:pt?{x:pt.x,y:pt.y}:null, temple:g&&g.temple?{x:g.temple.x,y:g.temple.y}:null,
       inSafeZone:inZone, nearTemple, distToTemple:dist, templeRadius:SAFEZONE.templeRadius,
       hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead,hp:+(+h.hp).toFixed(2)}:null }; },
+  // CAS-2255: QA/dev hook del RESTED XP / BONO DE DESCANSO (b5c10283). Snapshot autoritativo (sim) del pool + flip
+  // IN-MEMORY + setter para OBSERVAR en DARK (disco sigue enabled:false, patrón __dev.safeZone/templeRespawn). Formas:
+  //   rested()                    → {enabled,inZone,pool,cap,pct,xpMult,accrualPerSec,willSpend,...}
+  //   rested({enabled:true})      → flip runtime in-memory de RESTED_XP.enabled (acumular/gastar sin tocar el disco)
+  //   rested({setPool:n})         → fija el pool (clamp 0..cap) para observar el gasto determinista en el próximo kill
+  //   rested({addXp:n})           → aplica gainXP(n) VÍA el chokepoint real (observa bonus + drenado del pool)
+  rested(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) RESTED_XP.enabled=!!p.enabled;
+      if("setPool" in p && G.hero && RESTED_XP.enabled) G.hero.restedPool=Math.max(0,Math.min(RESTED_XP.poolCap,+p.setPool||0));   // sólo crea el campo con la feature ON (byte-id OFF)
+      if("addXp" in p) gainXP(+p.addXp||0);   // pasa por el ÚNICO chokepoint de ganancia de XP (meta+rested reales)
+    }
+    const h=G.hero; const inZone=h?inSafeZone(h.x,h.y):false;
+    const pool=h?+(h.restedPool||0):0, cap=RESTED_XP.poolCap;
+    return { enabled:RESTED_XP.enabled, inZone,
+      pool:+pool.toFixed(3), cap, pct:cap>0?+((pool/cap)*100).toFixed(2):0,
+      xpMult:RESTED_XP.xpMult, accrualPerSec:RESTED_XP.accrualPerSec,
+      willSpend: RESTED_XP.enabled && pool>0 && !inZone,   // ¿el próximo gainXP fuera de zona gastaría descanso?
+      hasField: h ? ("restedPool" in h) : false,           // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      xp:h?+(+h.xp).toFixed(2):0, lvl:h?h.lvl|0:0 }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset
   // cell — not the whole sheet — reached world.deco in vivo. Pure read, no mutation.

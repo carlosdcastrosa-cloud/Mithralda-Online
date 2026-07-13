@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -321,6 +321,10 @@ export function createRenderer(ctx){
     // ⇒ salida byte-idéntica. ON: un pip discreto de escudo + "Zona segura" mientras el héroe está dentro del bbox de
     // la Ciudad (misma derivación de POIs que el minimapa; la AUTORIDAD del regen vive en sim). Cosmético, 0 sim/save.
     if(SAFEZONE.enabled) renderSafeZoneBadge();
+    // CAS-2255: indicador "Descanso" (Rested XP, render-only, $0 arte, DARK). Con RESTED_XP.enabled:false NUNCA corre ⇒
+    // salida byte-idéntica (0 refs render fuera de este gate). ON + pool>0: una barra discreta + "Descanso" que muestra el
+    // bono de XP disponible. La AUTORIDAD del pool vive en sim (h.restedPool); esto sólo LO LEE. Cosmético, 0 sim/save/RNG.
+    if(RESTED_XP.enabled) renderRestedBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -2938,6 +2942,31 @@ export function createRenderer(ctx){
     const ty=by+sh/2, tx=bx+sw+5;
     ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText("Zona segura",tx,ty);
     ctx.fillStyle=COL.cream; ctx.fillText("Zona segura",tx,ty);
+    ctx.restore();
+  }
+
+  // CAS-2255: indicador "Descanso" (Rested XP). Barra discreta bajo el pip de Zona Segura que refleja h.restedPool/poolCap
+  // (autoridad en sim). Sólo dibuja con pool>0 (el bono existe). Cosmético puro: no lee/escribe sim ni RNG. Gated arriba en
+  // RESTED_XP.enabled ⇒ OFF nunca se invoca ⇒ salida byte-idéntica.
+  function renderRestedBadge(){
+    const h=G.hero; if(!h) return;
+    const pool=+(h.restedPool||0), cap=RESTED_XP.poolCap||1;
+    if(pool<=0) return;                                   // sin bono acumulado ⇒ sin indicador (0 draws)
+    const pct=Math.max(0,Math.min(1,pool/cap));
+    const GCX=view.gcx ? view.gcx() : VW/2;
+    const gx=(GCX*2>VW)?VW:GCX*2;
+    const bw=104, bh=6, bx=gx-118, by=VH*0.055+22;        // justo bajo el pip "Zona segura"
+    ctx.save();
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText("Descanso",bx,by-2);
+    ctx.fillStyle=COL.textGold; ctx.fillText("Descanso",bx,by-2);
+    // barra: marco + relleno dorado proporcional al pool + brillo suave
+    ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(bx-1,by,bw+2,bh+2);
+    ctx.fillStyle="rgba(60,44,16,0.85)"; ctx.fillRect(bx,by+1,bw,bh);
+    const pulse=0.78+0.12*Math.sin(G.t*3);
+    ctx.globalAlpha=pulse; ctx.fillStyle=COL.textGold; ctx.fillRect(bx,by+1,Math.round(bw*pct),bh);
+    ctx.globalAlpha=1; ctx.lineWidth=1; ctx.strokeStyle="rgba(0,0,0,0.6)"; ctx.strokeRect(bx+0.5,by+0.5,bw,bh+1);
     ctx.restore();
   }
 
