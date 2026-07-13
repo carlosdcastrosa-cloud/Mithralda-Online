@@ -333,6 +333,14 @@ export function createGame(canvas, ctx, getView){
       // para observar el COMPAÑERO asignado de esa semana (convergencia, mismo compañero en N clientes); mentor({lvl:N}) fija el nivel del héroe para
       // observar el ROL mentor(alto)/protégé(bajo); mentor({kill:{n}}) profundiza el DWELL. SOLO lectura (0 hotkey — rol derivado read-only).
       mentor:(p)=>simDev.mentor(p),
+      // CAS-2325: VESTIGIO DEL CAÍDO / FALLEN WAYFARER'S VESTIGE OBSERVABLE hook (DARK, SOUL_RECOVERY). soul() lee {enabled,periodSec,liveFrac,
+      // radius,dwellSec,schedule,vestige,live,role,heroIdx,dwellMs,dwellNeed,dwellFrac,recovered,respawnActive,soulMulRested,restedXpMult,
+      // standingsMulRested,mentorMulRested,tag,precedence,gExists,hasAt,hasGot,hasFell,hero}; soul({enabled:true}) flip runtime IN-MEMORY;
+      // soul({nowMs}) inyecta el reloj compartido para observar el VESTIGIO ambiental de ese momento (convergencia, mismo vestigio en N clientes)
+      // + acumula el dwell; soul({heroIdx:n}) fija la identidad para observar el ROL fallen/recoverer; soul({toVestige}) proximidad de prueba;
+      // soul({recover}) chokepoint REAL de recuperación; soul({die}) seams de muerte/respawn (buff del caído); soul({kill:{n}}) desvanece el buff.
+      // Recuperación por proximidad+dwell (SIN hotkey — rol/vestigio derivados, read-only salvo drivers de PRUEBA gateados).
+      soul:(p)=>simDev.soul(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
