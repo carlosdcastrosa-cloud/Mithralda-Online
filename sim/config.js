@@ -1810,6 +1810,43 @@ export const SANCTUARY_EMISSARY = {
   ],
 };
 
+// CAS-2295: JURAMENTO DEL SANTUARIO / SANCTUARY OATH (DARK, SANCTUARY_OATH) — identidad LIGERA de ORDEN/gremio para la capa social
+// del mundo compartido (North Star MMORPG). Canon MMORPG: faction/guild identity (WoW Covenants / GW2 orders / Tibia guilds) SIN
+// netcode pesado. El arco Santuario ya da reputación (SANCTUARY_REP), un vendor (SANCTUARY_REWARDS) y world-quests (SANCTUARY_EMISSARY),
+// pero NO permite ELEGIR y MOSTRAR una afiliación — el gancho social "pertenezco a una orden y otros jugadores me reconocen". El
+// Juramento lo aporta. Diseño Stage-1, per-hero, 100% DETERMINISTA (0 RNG) y server-authority-ready:
+//   · 3 ÓRDENES deterministas, cada una con UN pasivo FIJO y ACOTADO que REUTILIZA un knob YA vivo (0 moneda/recurso nuevo): el bono
+//     es un MULTIPLICADOR gateado aplicado en el MISMO chokepoint del knob que el Intendente (oathMul, sumado junto a
+//     sanctuaryRewardMul). Con la feature OFF (o sin juramento) devuelve 0 ⇒ el knob queda BYTE-IDÉNTICO a HEAD (anti-CAS-2220).
+//   · ELECCIÓN desde la UI YA existente del Santuario (el TABLÓN / daily board, escena `bounty`) — CERO hotkey nuevo (anti-CAS-2273):
+//     una fila de chips tappables (desktop click + móvil tap por el MISMO ui.bountyRects, SIN tocar input.js). tryPledgeOath es el
+//     único chokepoint (mismo patrón que tryQuartermaster/tryBounty).
+//   · GATE por rango mínimo de SANCTUARY_REP (reutiliza el arco de reputación): sólo puedes jurar al alcanzar `minRank`.
+//   · CAMBIO de orden con COOLDOWN DETERMINISTA medido en el contador MONÓTONO de kills ya persistido (h.kills): switchCooldownKills
+//     kills entre cambios. El PRIMER juramento es libre; re-jurar la misma orden = no-op. Reversible (cambiar de orden o feature OFF).
+//   · TAG de orden sobre el NAMEPLATE reutilizando la ruta de render de TITLES/renombre (texto puro, $0 arte) ⇒ en Stage-2 otros
+//     jugadores ven la afiliación en el mundo compartido (misma ruta que el título de renombre del Intendente).
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tryPledgeOath return "off", oathMul return 0 (knobs base exactos), h.sanctuaryOath/
+// h.sanctuaryOathAt NUNCA se crean, serializeSave OMITE las claves, el tag del nameplate y la fila de órdenes NUNCA se dibujan ⇒
+// save.v1 + comportamiento + worldFingerprint BYTE-IDÉNTICOS a HEAD. Reversible en 1 línea (enabled:true→false + redeploy overlay
+// CONSISTENTE-HEAD: config+sim+render+game — SIN input.js). Escala a N jugadores sin contención (estado 100% per-hero, elección
+// determinista). Los NÚMEROS (minRank / cooldown / values) = decisión de BALANCE del CEO (retune = edición de knob barata y reversible).
+export const SANCTUARY_OATH = {
+  enabled: false,          // DARK. Reversible: false→true + redeploy overlay consistente-HEAD (config+sim+render+game — SIN input.js).
+  minRank: "recognized",   // rango mínimo de SANCTUARY_REP para poder jurar (reutiliza el arco de reputación). "neutral" = sin gate.
+  switchCooldownKills: 20, // kills (contador monótono h.kills) requeridos entre CAMBIOS de orden. 1er juramento libre; re-jurar = no-op.
+  // 3 Órdenes deterministas. `kind`+`value` = el knob reutilizado y su fracción de bono (oathMul suma el value de la orden jurada de
+  // ese kind, junto a sanctuaryRewardMul). tag = etiqueta corta sobre el nameplate (capa social). $0 arte (texto puro).
+  //   safeRegen  → regen de SAFEZONE   × (1 + value)   (santuario más restaurador)
+  //   restedCap  → RESTED_XP.poolCap   × (1 + value)   (mayor reserva de Descanso)
+  //   recallCd   → RECALL.cooldownSec  × (1 - value)   (retorno más rápido a casa)
+  orders: [
+    { id:"dawn",   name:"Orden del Alba",    tag:"Alba",    kind:"safeRegen", value:0.25, desc:"Zona Segura: +25% regen" },
+    { id:"iron",   name:"Guardia de Hierro", tag:"Hierro",  kind:"restedCap", value:0.30, desc:"Descanso: +30% reserva" },
+    { id:"wander", name:"Círculo Errante",   tag:"Errante", kind:"recallCd",  value:0.15, desc:"Vínculo: -15% enfriam." },
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

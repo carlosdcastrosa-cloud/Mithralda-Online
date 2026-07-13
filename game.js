@@ -292,6 +292,11 @@ export function createGame(canvas, ctx, getView){
       // rotación compartida sin esperar minutos reales; emissary({kill:{type,n}}) bump los contadores monótonos; emissary({act:true})
       // dispara tryEmissary() por el chokepoint real (acepta/entrega/no-op; observa oro+RENOMBRE+rol de period).
       emissary:(p)=>simDev.emissary(p),
+      // CAS-2295: JURAMENTO DEL SANTUARIO / SANCTUARY OATH OBSERVABLE hook (DARK, SANCTUARY_OATH). oath() lee {enabled,order,orderName,
+      // tag,orders,effect,minRank,rankOk,canSwitch,killsToSwitch,recallCdSec,restedCap,hasField,hero}; oath({enabled:true}) flip runtime
+      // IN-MEMORY; oath({grantRep:n}) suma rep para observar el gate de rango; oath({kill:{n}}) bump kills para el cooldown de cambio;
+      // oath({pledge:"dawn"}) jura/cambia por el chokepoint REAL (tryPledgeOath). Elección desde la UI del Tablón (0 hotkey nuevo).
+      oath:(p)=>simDev.oath(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -1084,6 +1084,14 @@ export function createRenderer(ctx){
       if(rt){ ctx.save(); ctx.globalAlpha=0.92; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
         const ty=h.y-52; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.8)"; ctx.strokeText("«"+rt+"»",h.x,ty);
         ctx.fillStyle="#d9b8ff"; ctx.fillText("«"+rt+"»",h.x,ty); ctx.restore(); } }
+    // CAS-2295: TAG DE ORDEN (Sanctuary Oath) sobre el nameplate — reusa la MISMA ruta de render que el título de renombre (capa
+    // social MMO: en Stage-2 otros jugadores lo ven en el mundo compartido; Stage-1 lo lleva el héroe local). Texto puro verde-jade
+    // ($0 arte), anclado SOBRE el título de renombre. Derivado puro de h.sanctuaryOath (oathTagOf; 0 sim/RNG). Gated ⇒ OFF / sin
+    // juramento ⇒ "" ⇒ nada dibuja ⇒ byte-idéntico a HEAD.
+    if(!h.dead && SANCTUARY_OATH.enabled){ const ot=oathTagOf(h);
+      if(ot){ ctx.save(); ctx.globalAlpha=0.92; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+        const ty=h.y-62; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.8)"; ctx.strokeText("⟦"+ot+"⟧",h.x,ty);
+        ctx.fillStyle="#8fe0b0"; ctx.fillText("⟦"+ot+"⟧",h.x,ty); ctx.restore(); } }
   }
   // CAS-92: draw one frame of a hero animation strip. Every frame is HERO_FW×HERO_FH;
   // source column HERO_AX (body centroid) maps to world hx and source row HERO_FOOT
@@ -3177,6 +3185,11 @@ export function createRenderer(ctx){
     let best=-1, title=""; for(const d of defs){ if(arr.indexOf(d.id)>=0){ const ri=rankIdxOf(d.rank); if(ri>=best){ best=ri; title=d.title||d.name||""; } } }
     return title; }
 
+  // CAS-2295: TAG DE ORDEN — el `tag` de la orden jurada (o "" si ninguna). Cálculo PURO idéntico a sim.sanctuaryOathTag (0 sim/RNG);
+  // lo usa el nameplate del héroe. Gated ⇒ OFF / sin juramento ⇒ "" ⇒ nada dibuja ⇒ byte-idéntico a HEAD.
+  function oathTagOf(h){ if(!SANCTUARY_OATH.enabled || !h || !h.sanctuaryOath) return "";
+    const O=SANCTUARY_OATH.orders||[]; for(let i=0;i<O.length;i++){ if(O[i].id===h.sanctuaryOath) return O[i].tag||O[i].name||""; } return ""; }
+
   // CAS-2278: indicador "Intendente" (Sanctuary Quartermaster). Sólo DENTRO del Santuario (inCitySafe) — es un vendor de hub.
   // Muestra la cuenta de recompensas de renombre RECLAMABLES (rango de rep alcanzado + no reclamadas; ámbar-violeta pulsante si
   // ≥1) + el título de renombre actual. Progreso DERIVADO puro (misma aritmética que sim.tryQuartermaster; NO lee/escribe sim ni
@@ -4053,7 +4066,9 @@ export function createRenderer(ctx){
   function fmtCountdown(ms){ const s=Math.max(0,Math.floor(ms/1000)); const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), ss=s%60;
     return (h<10?"0":"")+h+":"+(m<10?"0":"")+m+":"+(ss<10?"0":"")+ss; }
   function renderBounty(){ const b=daily.board(); ui.bountyRects=[];
-    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470), x=(VW-bw)/2, y=(VH-bh)/2;
+    // CAS-2295: con SANCTUARY_OATH.enabled el panel crece 76px para alojar la fila de Órdenes bajo los contratos (gated ⇒ OFF el alto
+    // y todo el layout quedan byte-idénticos a HEAD).
+    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.bountyTitle,VW/2,y+28);
     if(!b){ ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("—",VW/2,y+60); return; }
@@ -4100,10 +4115,43 @@ export function createRenderer(ctx){
       // whole-row select (tap) — claim handled by the chip's own rect (pushed last = wins)
       ui.bountyRects.push({x:x+20,y:ry,w:bw-40,h:ih-10,act:()=>{ G.bountySel=i; }});
     }
+    // CAS-2295: JURAMENTO DEL SANTUARIO — fila de Órdenes (elección desde la UI YA existente del Tablón; 0 hotkey nuevo — desktop
+    // click + móvil tap por el MISMO ui.bountyRects/bountyTap, SIN tocar input.js). Gated ⇒ OFF nada se dibuja/empuja ⇒ escena
+    // `bounty` byte-idéntica a HEAD (el bh ya se amplió arriba bajo el mismo gate).
+    if(SANCTUARY_OATH.enabled) renderOathRow(x,y,bw,bh);
     // close
     const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
     ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Cerrar (E)",VW/2,ccy+17);
     ui.bountyRects.push({x:x+bw/2-60,y:ccy,w:120,h:24,act:()=>{ G.scene="play"; }});
+  }
+  // CAS-2295: JURAMENTO DEL SANTUARIO — dibuja la fila de las 3 Órdenes como chips tappables (elección de afiliación desde la UI ya
+  // existente del Tablón). Cada chip empuja un rect en ui.bountyRects ⇒ el MISMO handler de tap (input.js bountyTap) lo despacha en
+  // desktop (click) y móvil (tap), sin hotkey nuevo ni cambio en input.js. La acción pasa por sim.tryPledgeOath (el ÚNICO chokepoint;
+  // valida gate de rango + cooldown). Gate de rango DERIVADO puro (misma aritmética que sanctuaryRank; 0 sim/RNG). Sólo se invoca
+  // bajo SANCTUARY_OATH.enabled ⇒ OFF nunca corre ⇒ escena byte-idéntica.
+  function renderOathRow(x,y,bw,bh){
+    const h=G.hero; if(!h) return;
+    const oy=y+bh-30-70;                                                   // franja sobre el botón Cerrar (en el alto extra del panel)
+    ctx.textAlign="left"; ctx.fillStyle=COL.textDim; ctx.font="11px "+FF;
+    const sworn0=oathTagOf(h);
+    ctx.fillText("Órdenes del Santuario"+(sworn0?"  ·  Jurado: "+sworn0:""), x+20, oy);
+    const O=SANCTUARY_OATH.orders||[]; const n=Math.max(1,O.length);
+    const gap=8, cw=(bw-40-gap*(n-1))/n, ch=52, cyy=oy+8;
+    // gate de rango (reusa SANCTUARY_REP): índice del rango actual vs el índice del minRank exigido
+    const ranks=SANCTUARY_REP.ranks||[]; const rankIdxOf=id=>{ for(let i=0;i<ranks.length;i++){ if(ranks[i].id===id) return i; } return 1e9; };
+    const rep=Math.max(0,h.sanctuaryRep|0); let curIdx=0; for(let i=0;i<ranks.length;i++){ if(rep>=(ranks[i].at|0)) curIdx=i; }
+    const rankOk = !SANCTUARY_REP.enabled || curIdx>=rankIdxOf(SANCTUARY_OATH.minRank||"neutral");
+    for(let i=0;i<O.length;i++){ const o=O[i]; const cx=x+20+i*(cw+gap); const sworn=h.sanctuaryOath===o.id;
+      ctx.fillStyle=sworn?"#233a30":"#20262f"; ctx.fillRect(cx,cyy,cw,ch);
+      ctx.strokeStyle=sworn?"#8fe0b0":(rankOk?"#3a4150":"#2a2f38"); ctx.lineWidth=sworn?2:1; ctx.strokeRect(cx+0.5,cyy+0.5,cw,ch);
+      ctx.textAlign="center";
+      ctx.fillStyle=rankOk||sworn?COL.cream:COL.textDim; ctx.font="bold 12px "+FF; ctx.fillText(o.name, cx+cw/2, cyy+17);
+      ctx.fillStyle=rankOk||sworn?"#9fd0c0":COL.textDim; ctx.font="10px "+FF; ctx.fillText(o.desc, cx+cw/2, cyy+33);
+      ctx.fillStyle=sworn?"#8fe0b0":(rankOk?COL.textGold:COL.textDim); ctx.font="bold 10px "+FF;
+      ctx.fillText(sworn?"✓ Jurado":(rankOk?"Jurar":("Req. "+((ranks[rankIdxOf(SANCTUARY_OATH.minRank||"neutral")]||{}).name||"—"))), cx+cw/2, cyy+48);
+      if(rankOk && !sworn) ui.bountyRects.push({x:cx,y:cyy,w:cw,h:ch,act:()=>{ sim.tryPledgeOath(o.id); }});   // sólo tappable si desbloqueada y no jurada
+    }
+    ctx.textAlign="left";
   }
   // a small CLAIM / CLAIMED chip; `on` = active (gold), `done` = already claimed (dim).
   function drawClaimChip(cx,cy,cw,ch,on,done,act,label){
