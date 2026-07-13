@@ -1625,7 +1625,7 @@ export const RESTED_XP = {
 // Home es inerte, el badge nunca se dibuja). Reversible: enabled:true→false + redeploy overlay CONSISTENTE-HEAD (config+sim+
 // game[+dev hook]+render[+badge]+input[+tecla gated]). Escala a N jugadores sin contención (estado 100% per-hero).
 export const RECALL = {
-  enabled: false,          // DARK (CAS-2266). Reversible: false→true + redeploy overlay consistente-HEAD.
+  enabled: true,           // LIVE (CAS-2267 flip; CEO Gate APPROVED on CAS-2266 + QA OBSERVABLE PASS 22/22). Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+game+render+input).
   key: "Home",             // tecla dedicada del Recall ("volver a casa"); no rebindable (mirror SUMMON/parry). Gated ⇒ OFF inerte.
   cooldownSec: 480,        // cooldown determinista del Recall (8 min, canon Hearthstone). Tick de sim (dt), 0 RNG.
   channelSec: 0,           // 0 = INSTANTÁNEO (decisión Stage-1). >0 = canalizado cancelable por daño (reservado PvP/netcode).
