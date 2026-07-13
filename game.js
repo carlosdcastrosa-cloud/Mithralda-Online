@@ -309,6 +309,13 @@ export function createGame(canvas, ctx, getView){
       // reloj compartido para observar qué orden LIDERA la semana (convergencia, mismo ranking en N clientes) sin esperar días;
       // standings({pledge:"dawn"}) fija la orden del héroe (tryPledgeOath) para observar el pasivo de la orden líder. SOLO lectura (0 hotkey).
       standings:(p)=>simDev.standings(p),
+      // CAS-2310: DOMINIO DE ÓRDENES / ORDER TERRITORY OBSERVABLE hook (DARK, ORDER_TERRITORY). territory() lee {enabled,controlKind,
+      // controlValue,standingsEnabled,leadKind,controller,banner:{order,name,tag},heroOrder,mineControls,inZone,territoryMulSafeRegen,
+      // safeRegenMul,precedenceInert,gStandingsExists,hero}; territory({enabled:true}) flip runtime IN-MEMORY; territory({standings:true})
+      // flip de ORDER_STANDINGS (territory DEPENDE del liderazgo server-auth); territory({nowMs}) inyecta el reloj compartido para observar
+      // qué orden CONTROLA la semana (convergencia, mismo controlador en N clientes); territory({pledge:"dawn"}) fija la orden del héroe
+      // (tryPledgeOath) para observar su pasivo de DOMINIO (gateado a inSafeZone). SOLO lectura (0 hotkey — control derivado read-only).
+      territory:(p)=>simDev.territory(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

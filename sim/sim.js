@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2657,7 +2657,7 @@ function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
   const g=safeZoneGeom();
   if(g && g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
     if(dx*dx+dy*dy <= tr*tr) rate*=SAFEZONE.templeMul; }   // santuario del Templo = regen acelerado
-  rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen") + ledgerMul(h,"safeRegen"));            // CAS-2278/2295/2300: reward Intendente + pasivo Juramento + pasivo Libro aceleran el regen (gated ⇒ OFF ×1 exacto)
+  rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen") + ledgerMul(h,"safeRegen") + territoryMul(h,"safeRegen"));            // CAS-2278/2295/2300/2310: reward Intendente + pasivo Juramento + pasivo Libro + pasivo de DOMINIO de la orden controladora aceleran el regen (todos gated ⇒ OFF ×1 exacto)
   h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
 }
 
@@ -2944,6 +2944,31 @@ export function orderStandings(h){ h=h||G.hero; const s=G.standings||null, mine=
     mineLeading:!!(mine && s && s.leader===mine), leadKind:ORDER_STANDINGS.leadKind||"restedMult", leadValue:+ORDER_STANDINGS.leadValue||0,
     order:s?s.order.map(o=>{ const def=oathOrderOf({sanctuaryOath:o.id}); return { id:o.id, rank:o.rank, total:o.total,
       name:def?(def.name||def.tag||o.id):o.id, tag:def?(def.tag||""):"", isLeader:s.leader===o.id, isMine:mine===o.id }; }):[] }; }
+
+// CAS-2310: DOMINIO DE ÓRDENES / ORDER TERRITORY — control VISIBLE del Santuario por la orden LÍDER de la Clasificación. Todo DERIVADO
+// (0 RNG, 0 estado nuevo, server-authority-ready). El CONTROLADOR = standingsLeader() (la orden líder ya cacheada en G.standings por
+// tickStandings, DERIVADA del reloj COMPARTIDO) ⇒ TODO cliente con el mismo reloj converge al MISMO controlador (0 desync). OFF ⇒ null.
+function territoryController(){ if(!ORDER_TERRITORY.enabled) return null; return standingsLeader(); }
+// territoryMul(h,kind) = +controlValue SÓLO si: feature ON, kind coincide con controlKind, la orden del héroe (Juramento) ES la
+// CONTROLADORA, Y el héroe está DENTRO de la Zona Segura (dominio ⇒ SÓLO en el territorio controlado). Guard de PRECEDENCIA: si controlKind
+// coincide con el canal de ORDER_STANDINGS (leadKind), RETURN 0 (STANDINGS tiene precedencia ⇒ nunca se dobla el valor). Puro (0 RNG, 0
+// side-effect) ⇒ OFF / fuera-de-zona / no-controlador ⇒ 0 ⇒ el knob safeRegen queda byte-idéntico a HEAD (mismo patrón que ledgerMul/standingsMul).
+function territoryMul(h,kind){ if(!ORDER_TERRITORY.enabled||!h) return 0;
+  if(kind!==(ORDER_TERRITORY.controlKind||"safeRegen")) return 0;
+  if((ORDER_TERRITORY.controlKind||"safeRegen")===(ORDER_STANDINGS.leadKind||"restedMult")) return 0;   // precedencia: STANDINGS gana ⇒ no doblar
+  const oid=ledgerHeroOrder(h); if(!oid) return 0;
+  if(territoryController()!==oid) return 0;                        // sólo la orden CONTROLADORA
+  return inSafeZone(h.x,h.y) ? (+ORDER_TERRITORY.controlValue||0) : 0; }   // SÓLO dentro de la zona controlada
+// Estandarte de la orden CONTROLADORA para el badge de Zona Segura (capa social MMO — estado del MUNDO, mismo para todos en zona). Devuelve
+// {order,name,tag} de la orden controladora (o null). Puro, 0 sim/RNG. OFF / sin controlador ⇒ null ⇒ nada se dibuja ⇒ byte-id.
+export function territoryBanner(){ if(!ORDER_TERRITORY.enabled) return null; const oid=territoryController(); if(!oid) return null;
+  const def=oathOrderOf({sanctuaryOath:oid}); return { order:oid, name:def?(def.name||def.tag||oid):oid, tag:def?(def.tag||""):"" }; }
+// View-model PURO (panel/hook): el controlador del Santuario esta semana + si MI orden domina + el pasivo de zona (gateado a inSafeZone).
+export function orderTerritory(h){ h=h||G.hero; const ctrl=territoryController(), mine=ledgerHeroOrder(h);
+  return { enabled:!!ORDER_TERRITORY.enabled, controller:ctrl, mineOrder:mine, mineControls:!!(mine && ctrl && ctrl===mine),
+    controlKind:ORDER_TERRITORY.controlKind||"safeRegen", controlValue:+ORDER_TERRITORY.controlValue||0,
+    banner:territoryBanner(), inZone:h?inSafeZone(h.x,h.y):false,
+    territoryMulSafeRegen:h?territoryMul(h,ORDER_TERRITORY.controlKind||"safeRegen"):0 }; }
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -6435,7 +6460,7 @@ export const dev = {
       if(inZone){ rate=SAFEZONE.regenPct;
         if(g&&g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
           if(dx*dx+dy*dy<=tr*tr){ nearTemple=true; rate*=SAFEZONE.templeMul; } }
-        rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen") + ledgerMul(h,"safeRegen")); } }   // CAS-2278/2295/2300: reward Intendente + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×1)
+        rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen") + ledgerMul(h,"safeRegen") + territoryMul(h,"safeRegen")); } }   // CAS-2278/2295/2300/2310: reward Intendente + pasivo Juramento + pasivo Libro + pasivo de DOMINIO (gated ⇒ OFF ×1)
     return { enabled:SAFEZONE.enabled, inZone, nearTemple,
       ratePctPerSec:+(rate*100).toFixed(3), regenHpPerSec:h?+(heroMaxHp(h)*rate).toFixed(2):0,
       hp:h?+(+h.hp).toFixed(2):0, maxHp:h?heroMaxHp(h):0, pauseT:h?+(h._safeRegenPauseT||0).toFixed(2):0,
@@ -6697,6 +6722,34 @@ export const dev = {
       restedXpMult:+rMult.toFixed(4),                                      // knob efectivo (prueba: OFF ⇒ == RESTED_XP.xpMult + reward)
       gExists:(G.standings!=null),                                         // prueba byte-id: OFF ⇒ G.standings NUNCA se crea
       hero:h?{ order:mine, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead }:null }; },
+  // CAS-2310: DOMINIO DE ÓRDENES / ORDER TERRITORY OBSERVABLE hook (DARK, ORDER_TERRITORY). Snapshot autoritativo (sim) del CONTROLADOR del
+  // Santuario (DERIVADO de la Clasificación server-auth: standingsLeader) + el pasivo de zona + flip/drivers IN-MEMORY para OBSERVAR en DARK
+  // sin esperar semanas reales (disco sigue false, patrón __dev.standings/ledger). El nowMs INYECTADO prueba "mismo reloj ⇒ MISMO controlador"
+  // (convergencia N-clientes). El pasivo se gatea a inSafeZone ⇒ para observarlo TP a la zona (safeZone().temple) y jura la orden controladora.
+  //   territory()                 → {enabled,controlKind,controlValue,standingsEnabled,leadKind,controller,banner,heroOrder,mineControls,inZone,territoryMulSafeRegen,safeRegenMul,precedenceInert,gStandingsExists,hero}
+  //   territory({enabled:true})   → flip runtime IN-MEMORY de ORDER_TERRITORY.enabled (control/pasivo sin tocar el disco)
+  //   territory({standings:true}) → flip runtime IN-MEMORY de ORDER_STANDINGS.enabled (territory DEPENDE del liderazgo server-auth)
+  //   territory({nowMs})          → deriva+cachea el ranking en G.standings PARA ese reloj (observa qué orden CONTROLA esa semana) — 0 espera real
+  //   territory({pledge:"dawn"})  → fija la orden del héroe por el chokepoint REAL del Juramento (tryPledgeOath) para observar su pasivo de dominio
+  territory(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) ORDER_TERRITORY.enabled=!!p.enabled;
+      if("standings" in p) ORDER_STANDINGS.enabled=!!p.standings;         // territory se DERIVA del liderazgo de la Clasificación
+      if("nowMs" in p){ const s=ledgerScheduleAt(+p.nowMs); G.ledger=s; G.standings=standingsRank(s.period, s.frac);   // inyecta el reloj compartido (Libro+Clasificación+Dominio consistentes)
+        const hh=G.hero; if(SANCTUARY_LEDGER.enabled && hh && (!hh.ledgerAt || (hh.ledgerAt.period>>>0)!==(s.period>>>0))) hh.ledgerAt={ period:s.period>>>0, killBase:hh.kills|0, repBase:hh.sanctuaryRep|0 }; }
+      if("pledge" in p) tryPledgeOath(p.pledge);                          // fija la orden por el chokepoint REAL del Juramento
+    }
+    const h=G.hero, ctrl=territoryController(), mine=ledgerHeroOrder(h);
+    const sRegen=1 + (h?sanctuaryRewardMul(h,"safeRegen"):0) + (h?oathMul(h,"safeRegen"):0) + (h?ledgerMul(h,"safeRegen"):0) + (h?territoryMul(h,"safeRegen"):0);   // regen efectivo (prueba del pasivo de dominio)
+    return { enabled:ORDER_TERRITORY.enabled, controlKind:ORDER_TERRITORY.controlKind, controlValue:+ORDER_TERRITORY.controlValue||0,
+      standingsEnabled:ORDER_STANDINGS.enabled, leadKind:ORDER_STANDINGS.leadKind,
+      controller:ctrl, banner:territoryBanner(), heroOrder:mine, mineControls:!!(mine && ctrl && ctrl===mine),
+      inZone:h?inSafeZone(h.x,h.y):false,
+      territoryMulSafeRegen: h?territoryMul(h,"safeRegen"):0,
+      safeRegenMul:+sRegen.toFixed(4),                                    // knob efectivo (prueba: OFF/fuera-de-zona/no-controlador ⇒ == base+reward+oath+ledger)
+      precedenceInert:((ORDER_TERRITORY.controlKind||"safeRegen")===(ORDER_STANDINGS.leadKind||"restedMult")),   // true ⇒ territory cede a standings (canal idéntico ⇒ no doblar)
+      gStandingsExists:(G.standings!=null),                              // territory NO crea estado nuevo (deriva de G.standings de tickStandings)
+      hero:h?{ order:mine, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, inZone:inSafeZone(h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).
