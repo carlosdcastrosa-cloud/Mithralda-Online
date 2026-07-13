@@ -1847,6 +1847,52 @@ export const SANCTUARY_OATH = {
   ],
 };
 
+// CAS-2300: LIBRO DE LA ORDEN / ORDER LEDGER (DARK, SANCTUARY_LEDGER) — el ÚLTIMO paso del arco social del Santuario: PROGRESIÓN
+// COLECTIVA de la orden. El arco ya da reputación (SANCTUARY_REP), un vendor (SANCTUARY_REWARDS), un evento (WORLD_EVENT), un
+// emisario rotativo (SANCTUARY_EMISSARY) y afiliación de ORDEN (SANCTUARY_OATH). Lo que falta — y es NATIVO de MMORPG — es un
+// OBJETIVO SEMANAL COMPARTIDO por TODOS los miembros de una misma orden (las 3 órdenes deterministas del Juramento) al que
+// contribuyen con actividad YA existente, y que al cruzar un umbral desbloquea un PASIVO DE ORDEN temporal para toda la orden.
+// Canon MMORPG: la barra de progreso de facción/hermandad (WoW Renown weekly / GW2 world-boss meta / FFXIV FC). Diseño Stage-1,
+// 100% DETERMINISTA (0 RNG) y server-authority-ready:
+//   · MARCADOR COLECTIVO = ESTADO DEL MUNDO, no per-hero. Se modela como función PURA del reloj de pared (mirror WORLD_EVENT/
+//     Emissary): baseline(period, orderId) = la contribución AGREGADA del RESTO de los miembros de esa orden esa semana, derivada
+//     deterministamente (hash de Knuth de period⊕orderId, 0 RNG) y RAMPADA por la fracción de semana transcurrida ⇒ la barra se
+//     llena a lo largo de la semana (convergencia social). Idéntico en todo cliente con el reloj correcto ⇒ consistente bajo N
+//     jugadores concurrentes (en Stage-2 el baseline se sustituye por la SUMA real server-authoritative de contribuciones; el
+//     seam es el mismo). El jugador SUMA a SU orden vía contadores MONÓTONOS ya vivos (h.kills captura bounties + participación en
+//     WORLD_EVENT; h.sanctuaryRep captura las ganancias de RENOMBRE) MENOS un snapshot `base` por-semana (h.ledgerAt) ⇒ 0 hook
+//     nuevo, 0 tracking por-frame (misma técnica que BOUNTY_BOARD/Emissary). total(orden) = baseline + (mi orden? mi contribución).
+//   · CONVERGENCIA: al cruzar `goal` esa semana, la orden del héroe obtiene un PASIVO FIJO que REUTILIZA un knob YA vivo (0 balance
+//     nuevo): un multiplicador gateado en el MISMO chokepoint que el Juramento/Intendente (ledgerMul, sumado junto a oathMul +
+//     sanctuaryRewardMul). Es TEMPORAL: gateado al period actual ⇒ al rolar la semana se re-evalúa. Visible como ★ sobre el TAG de
+//     orden del nameplate (reusa la ruta de TITLES/Juramento; en Stage-2 otros ven la orden "en racha").
+//   · RITMO SEMANAL por reloj (fn PURA ledgerScheduleAt, misma familia que warhornScheduleAt/emissaryScheduleAt) ⇒ 0 RNG.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tickLedger RETURN inmediato (Date.now NUNCA se llama), ledgerMul RETURN 0 (los knobs
+// quedan byte-idénticos a HEAD), G.ledger / h.ledgerAt NUNCA se crean, serializeSave OMITE la clave, el ★ del nameplate y la fila
+// del Libro NUNCA se dibujan (el panel del Tablón no crece) ⇒ save.v1 + comportamiento + worldFingerprint BYTE-IDÉNTICOS a HEAD.
+// Reversible en 1 línea (enabled:true→false + redeploy overlay CONSISTENTE-HEAD: config+sim+game+render — SIN input.js: 0 hotkey
+// nuevo, la superficie es SOLO lectura en el panel del Tablón + el nameplate). Requiere SANCTUARY_OATH para saber la orden del
+// héroe (sin juramento ⇒ el héroe no contribuye ni recibe pasivo, pero el marcador colectivo existe igual). Los NÚMEROS
+// (periodSec/goal/baselineFrac/pesos/values) = decisión de BALANCE del CEO (retune = edición de knob barata y reversible).
+export const SANCTUARY_LEDGER = {
+  enabled: false,          // DARK. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  periodSec: 604800,       // ventana SEMANAL (7 días) del objetivo colectivo (bucket determinista del epoch compartido). CEO knob.
+  epochMs: 0,              // ancla del epoch compartido (0 = epoch Unix). period = floor((Date.now()-epochMs)/(periodSec*1000)).
+  goal: 1000,              // UMBRAL colectivo por orden y semana (pts). Cruzarlo ⇒ pasivo de orden temporal. CEO balance knob.
+  baselineFrac: 0.72,      // fracción del `goal` que el RESTO de la orden aporta AL FINAL de la semana (el jugador pone el resto). Rampa 0→esto.
+  baselineJitter: 0.14,    // spread determinista ± por orden (hash de Knuth de period⊕orderId, 0 RNG) ⇒ cada orden llena a ritmo distinto.
+  wKill: 5,                // pts por kill (h.kills — captura bounties + participación en WORLD_EVENT; contador monótono ya vivo).
+  wRep: 1,                 // pts por punto de RENOMBRE ganado (h.sanctuaryRep — captura las ganancias de rep; contador monótono ya vivo).
+  // Pasivo SEMANAL por orden (order-wide, temporal): reutiliza un knob YA vivo (0 balance nuevo), gateado a que la orden CRUCE el
+  // umbral esta semana. `id` = id de la orden del Juramento (SANCTUARY_OATH.orders). kind∈{safeRegen,restedCap,recallCd} (mismos
+  // seams que oathMul/sanctuaryRewardMul). value = fracción del bono. ledgerMul suma el value SÓLO si la orden está "en racha".
+  orders: [
+    { id:"dawn",   kind:"safeRegen", value:0.20 },   // Alba en racha  → Zona Segura: +20% regen extra
+    { id:"iron",   kind:"restedCap", value:0.25 },   // Hierro en racha → Descanso: +25% reserva extra
+    { id:"wander", kind:"recallCd",  value:0.12 },   // Errante en racha→ Vínculo: -12% enfriamiento extra
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2003,6 +2003,10 @@ export function serializeSave(){
     // SÓLO con la feature ON y una orden jurada (spread condicional). La afiliación sobrevive al reload (canon MMORPG). enabled:false /
     // sin juramento ⇒ las claves NO se emiten ⇒ save.v1 byte-idéntico a HEAD (allowlist anti-CAS-2220). Additive cuando ON.
     ...(SANCTUARY_OATH.enabled && h.sanctuaryOath ? { sanctuaryOath:String(h.sanctuaryOath), sanctuaryOathAt:Math.max(0,h.sanctuaryOathAt|0) } : {}),
+    // CAS-2300: persist el snapshot per-semana del LIBRO (h.ledgerAt = {period, killBase, repBase}) SÓLO con la feature ON y presente
+    // (spread condicional). La contribución semanal (derivada del base) sobrevive al reload dentro del period. enabled:false / sin
+    // snapshot ⇒ la clave NO se emite ⇒ save.v1 byte-idéntico a HEAD (allowlist anti-CAS-2220). Additive cuando ON (sin SAVE_VERSION bump).
+    ...(SANCTUARY_LEDGER.enabled && h.ledgerAt ? { ledgerAt:{ period:(h.ledgerAt.period>>>0), killBase:h.ledgerAt.killBase|0, repBase:h.ledgerAt.repBase|0 } } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2107,6 +2111,11 @@ export function loadSave(d){
     // OFF las claves sanctuaryOath/sanctuaryOathAt NUNCA se crean ⇒ byte-id). h.sanctuaryOathAt es un snapshot del contador monótono de kills.
     if(SANCTUARY_OATH.enabled && typeof d.sanctuaryOath==="string" && (SANCTUARY_OATH.orders||[]).some(o=>o.id===d.sanctuaryOath)){
       h.sanctuaryOath=d.sanctuaryOath; h.sanctuaryOathAt=Math.max(0,Math.floor(num(d.sanctuaryOathAt,0))); }
+    // CAS-2300: rehidrata el snapshot per-semana del LIBRO (validado; saves viejos carecen de la clave → sin snapshot, tickLedger
+    // re-snapshotará al primer tick; gated ⇒ OFF la clave ledgerAt NUNCA se crea ⇒ byte-id). Si el period guardado no coincide con la
+    // semana al reanudar, tickLedger re-snapshotará (contribución vuelve a 0 en la nueva semana).
+    if(SANCTUARY_LEDGER.enabled){ const g=d.ledgerAt;
+      if(g && typeof g==="object"){ h.ledgerAt={ period:(g.period>>>0), killBase:Math.max(0,Math.floor(num(g.killBase,0))), repBase:Math.max(0,Math.floor(num(g.repBase,0))) }; } }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2648,7 +2657,7 @@ function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
   const g=safeZoneGeom();
   if(g && g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
     if(dx*dx+dy*dy <= tr*tr) rate*=SAFEZONE.templeMul; }   // santuario del Templo = regen acelerado
-  rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen"));            // CAS-2278/2295: reward Intendente + pasivo Juramento aceleran el regen (gated ⇒ OFF ×1 exacto)
+  rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen") + ledgerMul(h,"safeRegen"));            // CAS-2278/2295/2300: reward Intendente + pasivo Juramento + pasivo Libro aceleran el regen (gated ⇒ OFF ×1 exacto)
   h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
 }
 
@@ -2839,9 +2848,70 @@ function oathOrderOf(h){ if(!SANCTUARY_OATH.enabled||!h||!h.sanctuaryOath) retur
 function oathMul(h,kind){ const o=oathOrderOf(h); return (o && o.kind===kind) ? (+o.value||0) : 0; }
 // tag corto de la orden jurada (o "") para el nameplate (capa social; reusa la ruta de TITLES). Puro, 0 sim/RNG.
 export function sanctuaryOathTag(h){ const o=oathOrderOf(h||G.hero); return o?(o.tag||o.name||""):""; }
+// CAS-2300: LIBRO DE LA ORDEN / ORDER LEDGER — progresión COLECTIVA semanal de la orden. Todo PURO (0 RNG, server-authority-ready).
+// ledgerScheduleAt(nowMs) = ventana semanal derivada del reloj de pared (mirror emissaryScheduleAt): {period, into, frac, nextInSec}.
+// Idéntica en todo cliente con el reloj correcto ⇒ marcador CONSISTENTE bajo N jugadores. Exportada para el harness de QA (prueba
+// "mismo nowMs ⇒ mismo period/frac en N clientes"). Sólo tiene efecto observable bajo SANCTUARY_LEDGER.enabled.
+export function ledgerScheduleAt(nowMs){
+  const out={ enabled:!!SANCTUARY_LEDGER.enabled, period:0, into:0, frac:0, nextInSec:0 };
+  if(!Number.isFinite(nowMs) || nowMs<=0) return out;             // sin reloj (harness sin nowMs) ⇒ inactivo, nada que derivar
+  const periodMs=Math.max(1000,(SANCTUARY_LEDGER.periodSec|0)*1000);
+  const elapsed=nowMs-(SANCTUARY_LEDGER.epochMs||0); if(elapsed<0) return out;
+  const period=Math.floor(elapsed/periodMs), into=elapsed-period*periodMs;
+  out.period=period>>>0; out.into=into; out.frac=into/periodMs; out.nextInSec=(periodMs-into)/1000;
+  return out;
+}
+// baseline(period, orderId, frac) = contribución AGREGADA determinista del RESTO de la orden esa semana (0 RNG, hash de Knuth ⇒
+// spread por orden), RAMPADA por `frac` (fracción de semana transcurrida) ⇒ la barra colectiva se llena a lo largo de la semana.
+// En Stage-2 este baseline se sustituye por la SUMA real server-authoritative; el seam (total = baseline + mi contribución) no cambia.
+function ledgerHash(period, orderId){ let s=((period>>>0)*2654435761)>>>0; const t=String(orderId||"");
+  for(let i=0;i<t.length;i++){ s=(((s^t.charCodeAt(i))>>>0)*16777619)>>>0; } return s>>>0; }
+function ledgerBaseline(period, orderId, frac){
+  const g=Math.max(0,+SANCTUARY_LEDGER.goal||0);
+  const jit=(+SANCTUARY_LEDGER.baselineJitter||0)*(((ledgerHash(period,orderId)%2001)/1000)-1);   // ±jitter determinista, 0 RNG
+  const target=g*Math.max(0,(+SANCTUARY_LEDGER.baselineFrac||0)+jit);
+  return Math.round(target*Math.max(0,Math.min(1,+frac||0)));      // rampa 0→target sobre la semana
+}
+// Contribución del jugador esta semana = DERIVADA de contadores MONÓTONOS ya vivos (h.kills + h.sanctuaryRep) MENOS el snapshot
+// `base` tomado al rolar el period (h.ledgerAt). 0 tracking nuevo por-frame, 0 hook (misma técnica que Emissary/BOUNTY_BOARD).
+function ledgerContribution(h){ if(!h||!h.ledgerAt) return 0;
+  const dk=Math.max(0,(h.kills|0)-(h.ledgerAt.killBase|0));
+  const dr=Math.max(0,(h.sanctuaryRep|0)-(h.ledgerAt.repBase|0));
+  return Math.max(0, Math.round(dk*(+SANCTUARY_LEDGER.wKill||0) + dr*(+SANCTUARY_LEDGER.wRep||0))); }
+// La orden del héroe la aporta el JURAMENTO (SANCTUARY_OATH). Sin juramento ⇒ null ⇒ no contribuye ni recibe pasivo.
+function ledgerHeroOrder(h){ return (SANCTUARY_OATH.enabled && h && h.sanctuaryOath) ? String(h.sanctuaryOath) : null; }
+function ledgerOrderDef(orderId){ const L=SANCTUARY_LEDGER.orders||[]; for(let i=0;i<L.length;i++){ if(L[i].id===orderId) return L[i]; } return null; }
+// total(orden) = baseline(comunidad) + (¿es mi orden? mi contribución). Lee el schedule ya cacheado en G.ledger (reloj compartido).
+function ledgerTotalFor(h, orderId){ const s=G.ledger; if(!s||!s.enabled) return 0;
+  const base=ledgerBaseline(s.period, orderId, s.frac);
+  const mine=(ledgerHeroOrder(h)===orderId) ? ledgerContribution(h) : 0;
+  return base+mine; }
+// ¿La orden del héroe CRUZÓ el umbral esta semana? ⇒ pasivo de orden activo. Gated ⇒ OFF / sin orden ⇒ false.
+function ledgerUnlocked(h){ if(!SANCTUARY_LEDGER.enabled||!h) return false;
+  const oid=ledgerHeroOrder(h); if(!oid) return false;
+  return ledgerTotalFor(h,oid) >= Math.max(1,+SANCTUARY_LEDGER.goal||1); }
+// ledgerMul(h,kind) = el `value` del pasivo de la orden del héroe si su kind coincide Y la orden está en racha, si no 0 ⇒ el knob
+// reutilizado queda byte-idéntico a HEAD (mismo patrón que oathMul/sanctuaryRewardMul). Puro (0 RNG, 0 estado, 0 side-effect).
+function ledgerMul(h,kind){ if(!ledgerUnlocked(h)) return 0; const d=ledgerOrderDef(ledgerHeroOrder(h)); return (d&&d.kind===kind)?(+d.value||0):0; }
+// tick del LIBRO (mirror tickEmissary): deriva+cachea el schedule semanal del reloj COMPARTIDO (Date.now, leído SÓLO aquí y SÓLO
+// bajo el gate) en G.ledger (transitorio, fuera del allowlist de serializeSave) y SNAPSHOTa el base per-semana en h.ledgerAt al rolar
+// el period. OFF ⇒ NUNCA se invoca ⇒ Date.now nunca se llama, G.ledger/h.ledgerAt NUNCA se crean ⇒ byte-idéntico a HEAD.
+function tickLedger(){ if(!SANCTUARY_LEDGER.enabled) return; const s=ledgerScheduleAt(Date.now()); G.ledger=s;
+  const h=G.hero; if(!h||h.dead) return;
+  if(!h.ledgerAt || (h.ledgerAt.period>>>0)!==(s.period>>>0)){    // period nuevo (o primera vez) ⇒ re-snapshot ⇒ contribución vuelve a 0
+    h.ledgerAt={ period:s.period>>>0, killBase:h.kills|0, repBase:h.sanctuaryRep|0 }; } }        // el campo SÓLO se crea con la feature ON ⇒ byte-id OFF
+// tag ★ (o "") de la orden EN RACHA para el nameplate (capa social; reusa la ruta de TITLES/Juramento). Puro, 0 sim/RNG.
+export function sanctuaryLedgerTag(h){ h=h||G.hero; return ledgerUnlocked(h) ? "★" : ""; }
+// View-model PURO para el panel del Tablón (el Libro de la Orden): la orden del héroe, su marcador colectivo, el umbral y el pasivo.
+export function sanctuaryLedger(h){ h=h||G.hero; const s=G.ledger||null, oid=ledgerHeroOrder(h), o=oathOrderOf(h);
+  const goal=Math.max(1,+SANCTUARY_LEDGER.goal||1), total=(s&&oid)?ledgerTotalFor(h,oid):0, def=ledgerOrderDef(oid);
+  return { enabled:!!SANCTUARY_LEDGER.enabled, order:oid, orderName:o?(o.name||o.tag||oid):null, tag:o?(o.tag||""):"",
+    goal, total, baseline:(s&&oid)?ledgerBaseline(s.period,oid,s.frac):0, contribution:h?ledgerContribution(h):0,
+    frac:Math.max(0,Math.min(1,total/goal)), unlocked:ledgerUnlocked(h),
+    passive:def?{ kind:def.kind, value:def.value }:null, nextInSec:s?(s.nextInSec|0):0 }; }
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
-function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd")); }   // CAS-2295: + pasivo del Juramento (gated ⇒ OFF ×base exacto)
-function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap")); }         // CAS-2295: idem
+function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
+function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
 // CAS-2278: INTENTO de reclamar en el Intendente — chokepoint del jugador (tecla Supr + móvil + __dev.quartermaster({claim})).
 // Contextual: reclama el reward DESBLOQUEADO (rango de rep alcanzado) de MENOR índice aún NO reclamado (presiones repetidas
 // reclaman en orden). Gate: feature ON, escena play, héroe vivo, y (si requireSafeZone) dentro de la SAFEZONE = en el Santuario.
@@ -5245,6 +5315,7 @@ export function update(dtMs){
   tickRecall(h,dt); // CAS-2266: bind al Santuario en zona + enfriar cooldown del Recall + canal (dormido) (aritmética/geometría, no RNG, gated on RECALL.enabled ⇒ OFF byte-id)
   if(WORLD_EVENT.enabled) tickWorldEvent(); // CAS-2284: Toque de Guerra — horario compartido derivado del reloj de pared (transitorio en G.warhorn, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(SANCTUARY_EMISSARY.enabled) tickEmissary(); // CAS-2292: Emisario — rotación compartida derivada del reloj (transitorio en G.emissary, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(SANCTUARY_LEDGER.enabled) tickLedger(); // CAS-2300: Libro de la Orden — marcador semanal colectivo derivado del reloj (transitorio en G.ledger + snapshot h.ledgerAt, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -6328,7 +6399,7 @@ export const dev = {
       if(inZone){ rate=SAFEZONE.regenPct;
         if(g&&g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
           if(dx*dx+dy*dy<=tr*tr){ nearTemple=true; rate*=SAFEZONE.templeMul; } }
-        rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen")); } }   // CAS-2278/2295: reward Intendente + pasivo Juramento (gated ⇒ OFF ×1)
+        rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen") + ledgerMul(h,"safeRegen")); } }   // CAS-2278/2295/2300: reward Intendente + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×1)
     return { enabled:SAFEZONE.enabled, inZone, nearTemple,
       ratePctPerSec:+(rate*100).toFixed(3), regenHpPerSec:h?+(heroMaxHp(h)*rate).toFixed(2):0,
       hp:h?+(+h.hp).toFixed(2):0, maxHp:h?heroMaxHp(h):0, pauseT:h?+(h._safeRegenPauseT||0).toFixed(2):0,
@@ -6532,6 +6603,38 @@ export const dev = {
       restedCap: h?+restedCapFor(h).toFixed(2):RESTED_XP.poolCap,           // knob efectivo (prueba del pasivo restedCap)
       hasField: h ? ("sanctuaryOath" in h) : false,                        // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
+  // CAS-2300: LIBRO DE LA ORDEN / ORDER LEDGER OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del marcador COLECTIVO semanal
+  // derivado del reloj + la contribución del jugador + el pasivo de orden + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar
+  // días reales (disco sigue false, patrón __dev.emissary/warhorn). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo
+  // period/baseline" (convergencia). Formas:
+  //   ledger()                    → {enabled,periodSec,goal,schedule,heroOrder,contribution,total,unlocked,orders:[{id,kind,value,baseline,total,unlocked}],ledgerMul*,recallCdSec,restedCap,hasField,hero}
+  //   ledger({enabled:true})      → flip runtime IN-MEMORY de SANCTUARY_LEDGER.enabled (marcador/pasivo sin tocar el disco)
+  //   ledger({nowMs})             → deriva+cachea el schedule semanal en G.ledger PARA ese reloj (+ snapshot base) — 0 espera real
+  //   ledger({pledge:"dawn"})     → fija la orden del héroe por el chokepoint REAL del Juramento (tryPledgeOath) para observar su libro
+  //   ledger({grantRep:n})        → suma RENOMBRE (contribuye al marcador vía h.sanctuaryRep, gated a SANCTUARY_REP.enabled)
+  //   ledger({kill:{n}})          → bump h.kills (contador monótono) ⇒ contribuye al marcador (captura bounty/WORLD_EVENT)
+  ledger(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) SANCTUARY_LEDGER.enabled=!!p.enabled;
+      if("nowMs" in p){ G.ledger=ledgerScheduleAt(+p.nowMs);                // inyecta el reloj compartido para OBSERVAR la semana
+        const hh=G.hero; if(hh && (!hh.ledgerAt || (hh.ledgerAt.period>>>0)!==(G.ledger.period>>>0))) hh.ledgerAt={ period:G.ledger.period>>>0, killBase:hh.kills|0, repBase:hh.sanctuaryRep|0 }; }
+      if("pledge" in p) tryPledgeOath(p.pledge);                           // fija la orden por el chokepoint REAL del Juramento
+      if("grantRep" in p && G.hero && SANCTUARY_REP.enabled) G.hero.sanctuaryRep=Math.max(0,(G.hero.sanctuaryRep||0)+Math.floor(+p.grantRep||0));
+      if(p.kill && G.hero) G.hero.kills=(G.hero.kills|0)+Math.max(0,Math.floor(+p.kill.n||0));   // mirror killEnemy: bump el contador monótono
+    }
+    const h=G.hero, s=G.ledger||null, oid=ledgerHeroOrder(h), goal=Math.max(1,+SANCTUARY_LEDGER.goal||1);
+    return { enabled:SANCTUARY_LEDGER.enabled, periodSec:SANCTUARY_LEDGER.periodSec|0, goal:SANCTUARY_LEDGER.goal|0,
+      schedule: s?{ period:s.period, frac:+(+s.frac).toFixed(4), nextInSec:s.nextInSec|0 }:null,
+      heroOrder:oid, contribution: h?ledgerContribution(h):0,
+      total:(s&&oid)?ledgerTotalFor(h,oid):0, unlocked:ledgerUnlocked(h),
+      orders:(SANCTUARY_LEDGER.orders||[]).map(o=>({ id:o.id, kind:o.kind, value:o.value,
+        baseline: s?ledgerBaseline(s.period,o.id,s.frac):0, total: s?ledgerTotalFor(h,o.id):0,
+        unlocked: s?(ledgerTotalFor(h,o.id)>=goal):false })),
+      ledgerMulSafeRegen: h?ledgerMul(h,"safeRegen"):0, ledgerMulRestedCap: h?ledgerMul(h,"restedCap"):0, ledgerMulRecallCd: h?ledgerMul(h,"recallCd"):0,
+      recallCdSec: h?+recallCooldownSec(h).toFixed(3):RECALL.cooldownSec,   // knob efectivo (prueba del pasivo recallCd)
+      restedCap: h?+restedCapFor(h).toFixed(2):RESTED_XP.poolCap,           // knob efectivo (prueba del pasivo restedCap)
+      hasField: h ? ("ledgerAt" in h) : false,                             // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      hero:h?{ kills:h.kills|0, rep:(h.sanctuaryRep|0), x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).

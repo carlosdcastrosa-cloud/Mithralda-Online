@@ -297,6 +297,12 @@ export function createGame(canvas, ctx, getView){
       // IN-MEMORY; oath({grantRep:n}) suma rep para observar el gate de rango; oath({kill:{n}}) bump kills para el cooldown de cambio;
       // oath({pledge:"dawn"}) jura/cambia por el chokepoint REAL (tryPledgeOath). Elección desde la UI del Tablón (0 hotkey nuevo).
       oath:(p)=>simDev.oath(p),
+      // CAS-2300: LIBRO DE LA ORDEN / ORDER LEDGER OBSERVABLE hook (DARK, SANCTUARY_LEDGER). ledger() lee {enabled,periodSec,goal,
+      // schedule:<ventana semanal del reloj compartido: period/frac/nextInSec>,heroOrder,contribution,total,unlocked,orders:[{id,kind,
+      // value,baseline,total,unlocked}],ledgerMul*,recallCdSec,restedCap,hasField,hero}; ledger({enabled:true}) flip runtime IN-MEMORY;
+      // ledger({nowMs}) inyecta el reloj compartido para observar el marcador semanal sin esperar días; ledger({pledge:"dawn"}) fija la
+      // orden del héroe (tryPledgeOath); ledger({grantRep:n})/{kill:{n}} contribuyen al marcador colectivo por los contadores monótonos.
+      ledger:(p)=>simDev.ledger(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
