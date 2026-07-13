@@ -1,0 +1,320 @@
+{
+  "build": "817c87faa83e",
+  "desk": {
+    "deflect": {
+      "on": {
+        "enabled": true,
+        "ownerFlipped": true,
+        "velReversedAtFlip": true,
+        "vx0": -220,
+        "parryTAfter": 0,
+        "stamSpent": 12,
+        "heroHpLoss": 0,
+        "shooterHpLoss": 40,
+        "reflectedRaw": 40,
+        "capValue": 75,
+        "capHit": false,
+        "frames": 20,
+        "projAlive": false
+      },
+      "off": {
+        "enabled": false,
+        "ownerFlipped": false,
+        "velReversedAtFlip": false,
+        "vx0": -220,
+        "parryTAfter": 0.15,
+        "stamSpent": 0,
+        "heroHpLoss": 36,
+        "shooterHpLoss": 0,
+        "reflectedRaw": 40,
+        "capValue": 75,
+        "capHit": false,
+        "frames": 1,
+        "projAlive": false
+      },
+      "cap": {
+        "enabled": true,
+        "ownerFlipped": true,
+        "velReversedAtFlip": true,
+        "vx0": -220,
+        "parryTAfter": 0,
+        "stamSpent": 12,
+        "heroHpLoss": 0,
+        "shooterHpLoss": 45,
+        "reflectedRaw": 45,
+        "capValue": 45,
+        "capHit": true,
+        "frames": 20,
+        "projAlive": false
+      }
+    },
+    "zone": {
+      "state": {
+        "enabled": true,
+        "current": null,
+        "banner": null,
+        "regions": [
+          {
+            "name": "Templo",
+            "x": 5088,
+            "y": 23456,
+            "r": 200
+          },
+          {
+            "name": "Depósito",
+            "x": 5440,
+            "y": 23456,
+            "r": 200
+          },
+          {
+            "name": "Taberna",
+            "x": 5664,
+            "y": 23616,
+            "r": 200
+          },
+          {
+            "name": "Parque",
+            "x": 5824,
+            "y": 23680,
+            "r": 200
+          },
+          {
+            "name": "Ciudad",
+            "container": true,
+            "bbox": [
+              4788,
+              23156,
+              6124,
+              23980
+            ]
+          }
+        ]
+      },
+      "forced": {
+        "enabled": true,
+        "current": null,
+        "banner": {
+          "name": "Templo",
+          "sub": null,
+          "alpha": 1,
+          "t": 0.65
+        },
+        "regions": [
+          {
+            "name": "Templo",
+            "x": 5088,
+            "y": 23456,
+            "r": 200
+          },
+          {
+            "name": "Depósito",
+            "x": 5440,
+            "y": 23456,
+            "r": 200
+          },
+          {
+            "name": "Taberna",
+            "x": 5664,
+            "y": 23616,
+            "r": 200
+          },
+          {
+            "name": "Parque",
+            "x": 5824,
+            "y": 23680,
+            "r": 200
+          },
+          {
+            "name": "Ciudad",
+            "container": true,
+            "bbox": [
+              4788,
+              23156,
+              6124,
+              23980
+            ]
+          }
+        ]
+      },
+      "gOccluded": {
+        "top": 878,
+        "centre": 112
+      },
+      "gBefore": {
+        "top": 770,
+        "centre": 110
+      },
+      "gAfter": {
+        "top": 1119,
+        "centre": 111
+      },
+      "coachmarkOverlaps": true
+    },
+    "weather": {
+      "clear": {
+        "enabled": true,
+        "phase": 0,
+        "override": 0,
+        "rain": 0,
+        "fog": 0,
+        "state": "clear",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "rain": {
+        "enabled": true,
+        "phase": 0.28,
+        "override": 0.28,
+        "rain": 1,
+        "fog": 0,
+        "state": "rain",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "fog": {
+        "enabled": true,
+        "phase": 0.7,
+        "override": 0.7,
+        "rain": 0,
+        "fog": 1,
+        "state": "fog",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "pClear": {
+        "lum": 95.52,
+        "centreLum": 148.02,
+        "blueLift": -34.7
+      },
+      "pRain": {
+        "lum": 86.08,
+        "centreLum": 133.55,
+        "blueLift": -22.97
+      },
+      "pFog": {
+        "lum": 102.03,
+        "centreLum": 157.17,
+        "blueLift": -23.66
+      }
+    },
+    "daynight": {
+      "noon": {
+        "enabled": true,
+        "phase": 0.5,
+        "override": 0.5,
+        "tint": {
+          "r": 0,
+          "g": 0,
+          "b": 0,
+          "a": 0
+        },
+        "glow": 0,
+        "lamps": 11,
+        "lamp0": {
+          "x": 5056,
+          "y": 23564,
+          "tx": 158,
+          "ty": 737
+        }
+      },
+      "night": {
+        "enabled": true,
+        "phase": 0,
+        "override": 0,
+        "tint": {
+          "r": 8,
+          "g": 14,
+          "b": 42,
+          "a": 0.55
+        },
+        "glow": 1,
+        "lamps": 11,
+        "lamp0": {
+          "x": 5056,
+          "y": 23564,
+          "tx": 158,
+          "ty": 737
+        }
+      },
+      "pNoon": {
+        "lum": 95.54,
+        "centreLum": 147.59,
+        "blueLift": -34.69
+      },
+      "pNight": {
+        "lum": 49.46,
+        "centreLum": 76.64,
+        "blueLift": -4.47
+      }
+    },
+    "combined": {
+      "nightAlone": {
+        "lum": 49.23,
+        "centreLum": 74.48,
+        "blueLift": -4.47
+      },
+      "nightRain": {
+        "lum": 48.17,
+        "centreLum": 74.48,
+        "blueLift": 1.72
+      }
+    },
+    "map": {
+      "bigProbe": {
+        "templo": 19,
+        "deposito": 16,
+        "taberna": 18,
+        "parque": 19
+      }
+    },
+    "doorCount": 0,
+    "coachmarkNote": "onboarding coachmark (~VH*0.15) can visually graze the zone banner (anchorY 0.17) on first run — non-blocking cosmetic, flagged to CEO per CAS-2234.",
+    "fps": {
+      "samples": [
+        60.3,
+        60.1,
+        58.7,
+        49.6
+      ],
+      "min": 49.6,
+      "max": 60.3,
+      "median": 59.4,
+      "heapBefore": 92926247,
+      "heapAfter": 39489113
+    },
+    "errors": [],
+    "req404": [
+      "favicon.ico",
+      "favicon.ico"
+    ]
+  },
+  "mobile": {
+    "fps": 55.1,
+    "scene": "play",
+    "errs": []
+  },
+  "flags": {
+    "ZONE_BANNER": {
+      "enabled": true,
+      "anchorY": 0.17,
+      "cityLabel": "Ciudad"
+    },
+    "DEFLECT": {
+      "enabled": true,
+      "dmgFracCap": 0.15,
+      "oncePerWindow": true
+    },
+    "WEATHER": {
+      "enabled": true
+    },
+    "DAYNIGHT": {
+      "enabled": true
+    },
+    "MINIMAP": {
+      "enabled": true
+    },
+    "DOORS_INTERIORS": {
+      "enabled": false
+    }
+  }
+}
