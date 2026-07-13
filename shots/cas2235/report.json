@@ -1,0 +1,176 @@
+{
+  "build": "3a6a2d6ab964",
+  "desk": {
+    "weather": {
+      "clear": {
+        "enabled": true,
+        "phase": 0,
+        "override": 0,
+        "rain": 0,
+        "fog": 0,
+        "state": "clear",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "rain": {
+        "enabled": true,
+        "phase": 0.28,
+        "override": 0.28,
+        "rain": 1,
+        "fog": 0,
+        "state": "rain",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "fog": {
+        "enabled": true,
+        "phase": 0.7,
+        "override": 0.7,
+        "rain": 0,
+        "fog": 1,
+        "state": "fog",
+        "drops": 140,
+        "maxDrops": 140
+      },
+      "pClear": {
+        "lum": 92.1,
+        "centreLum": 151.31,
+        "blueLift": -33.63
+      },
+      "pRain": {
+        "lum": 83.01,
+        "centreLum": 136.04,
+        "blueLift": -22.4
+      },
+      "pFog": {
+        "lum": 98.21,
+        "centreLum": 159.78,
+        "blueLift": -22.99
+      }
+    },
+    "daynight": {
+      "noon": {
+        "enabled": true,
+        "phase": 0.5,
+        "override": 0.5,
+        "tint": {
+          "r": 0,
+          "g": 0,
+          "b": 0,
+          "a": 0
+        },
+        "glow": 0,
+        "lamps": 11,
+        "lamp0": {
+          "x": 5056,
+          "y": 23564,
+          "tx": 158,
+          "ty": 737
+        }
+      },
+      "night": {
+        "enabled": true,
+        "phase": 0,
+        "override": 0,
+        "tint": {
+          "r": 8,
+          "g": 14,
+          "b": 42,
+          "a": 0.55
+        },
+        "glow": 1,
+        "lamps": 11,
+        "lamp0": {
+          "x": 5056,
+          "y": 23564,
+          "tx": 158,
+          "ty": 737
+        }
+      },
+      "dusk": {
+        "enabled": true,
+        "phase": 0.78,
+        "override": 0.78,
+        "tint": {
+          "r": 167,
+          "g": 86,
+          "b": 57,
+          "a": 0.332
+        },
+        "glow": 0.628,
+        "lamps": 11,
+        "lamp0": {
+          "x": 5056,
+          "y": 23564,
+          "tx": 158,
+          "ty": 737
+        }
+      },
+      "pNoon": {
+        "lum": 92.1,
+        "centreLum": 151.14,
+        "blueLift": -33.61
+      },
+      "pNight": {
+        "lum": 47.92,
+        "centreLum": 76.27,
+        "blueLift": -4.73
+      },
+      "pDusk": {
+        "lum": 82,
+        "centreLum": 134.93,
+        "blueLift": -42.76
+      }
+    },
+    "combined": {
+      "nightAlone": {
+        "lum": 47.86,
+        "centreLum": 76.25,
+        "blueLift": -4.67
+      },
+      "nightRain": {
+        "lum": 46.64,
+        "centreLum": 74.58,
+        "blueLift": 1.33
+      }
+    },
+    "map": {
+      "miniProbe": {
+        "templo": 215,
+        "deposito": 39,
+        "taberna": 51,
+        "parque": 0
+      },
+      "bigProbe": {
+        "templo": 19,
+        "deposito": 54,
+        "taberna": 18,
+        "parque": 19
+      }
+    },
+    "doorCount": 0,
+    "fps": {
+      "samples": [
+        55,
+        60.1,
+        60.2,
+        59.3
+      ],
+      "min": 55,
+      "max": 60.2,
+      "median": 59.7,
+      "heapBefore": 180109105,
+      "heapAfter": 47052675
+    },
+    "errors": [],
+    "req404": [
+      "favicon.ico",
+      "favicon.ico"
+    ]
+  },
+  "mobile": {
+    "fps": 60.2,
+    "scene": "play",
+    "errs": []
+  }
+}
