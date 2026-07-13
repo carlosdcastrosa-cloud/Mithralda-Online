@@ -1794,7 +1794,7 @@ export const WORLD_EVENT = {
 // compartida; el progreso/pago es per-hero por los contadores/chokepoints ya vivos). Los NÚMEROS (period/count/oro/rep) = decisión
 // de BALANCE del CEO (retune = edición de knob barata y reversible). target debe ser una clave de ETPL o "any".
 export const SANCTUARY_EMISSARY = {
-  enabled: false,          // DARK. Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+game+render+input).
+  enabled: true,           // LIVE (CAS-2293 flip; CEO gate CAS-2292 8/8). Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+game+render+input).
   key: "Insert",           // tecla dedicada — ACEPTA / ENTREGA en el Santuario. code LIBRE (grep-verificado: 26 letras + Home/End/
                            //   Delete/Backslash/Semicolon/Quote/Backquote ocupadas; Insert libre — sibling nav de Home/End/Delete).
                            //   NO rebindable (nunca toca REBINDS/settings.binds). Móvil = botón HUD tb.emissary (contextual, hub).
