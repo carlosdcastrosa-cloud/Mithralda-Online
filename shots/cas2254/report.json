@@ -1,0 +1,178 @@
+{
+  "build": "fe7a817c2335",
+  "served": {
+    "config": "b90efdfe900e53beeb93b8e78915e58f",
+    "render": "7065be9d054bdeb5c7b0123b0cdd08b7",
+    "game": "73534ac363ee43b53f63df6bdffb41bd",
+    "headConfig": "b90efdfe900e53beeb93b8e78915e58f",
+    "headRender": "7065be9d054bdeb5c7b0123b0cdd08b7",
+    "headGame": "73534ac363ee43b53f63df6bdffb41bd"
+  },
+  "desk": {
+    "acquireGate": {
+      "noAggro": true,
+      "heroInZone": true,
+      "states": [
+        "idle",
+        "idle",
+        "idle",
+        "idle"
+      ],
+      "n": 4
+    },
+    "leash": {
+      "preState": [
+        "chase"
+      ],
+      "postState": [
+        "idle",
+        "idle",
+        "idle",
+        "idle"
+      ]
+    },
+    "hostileLeash": {
+      "preHostile": true,
+      "states": [
+        {
+          "state": "idle",
+          "hostile": true
+        },
+        {
+          "state": "idle",
+          "hostile": false
+        },
+        {
+          "state": "idle",
+          "hostile": false
+        },
+        {
+          "state": "idle",
+          "hostile": false
+        },
+        {
+          "state": "idle",
+          "hostile": false
+        },
+        {
+          "state": "idle",
+          "hostile": false
+        },
+        {
+          "state": "idle",
+          "hostile": false
+        },
+        {
+          "state": "idle",
+          "hostile": false
+        },
+        {
+          "state": "idle",
+          "hostile": false
+        }
+      ]
+    },
+    "offHead": {
+      "noAggro": false,
+      "heroInZone": true,
+      "states": [
+        "windup",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle"
+      ],
+      "n": 10
+    },
+    "outside": {
+      "scene": "play",
+      "heroInZone": false,
+      "states": [
+        "strike",
+        "idle",
+        "idle",
+        "idle"
+      ]
+    },
+    "flags": {
+      "SAFEZONE": true,
+      "noAggro": true,
+      "TEMPLE_RESPAWN": true,
+      "ZONE_BANNER": true,
+      "WEATHER": true,
+      "DAYNIGHT": true,
+      "MINIMAP": true
+    },
+    "respawn": {
+      "hero": {
+        "x": 5088,
+        "y": 23504,
+        "dead": false,
+        "hp": 135
+      },
+      "point": {
+        "x": 5088,
+        "y": 23504
+      },
+      "near": true,
+      "inZone": true
+    },
+    "regen": {
+      "hp0": 60,
+      "hp1": 81.26,
+      "near": true,
+      "mul": 2.5
+    },
+    "stackNoAggro": {
+      "noAggro": true,
+      "heroInZone": true,
+      "states": [
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle"
+      ]
+    },
+    "fps": {
+      "samples": [
+        60.2,
+        60.1,
+        60.1,
+        60.1
+      ],
+      "median": 60.1,
+      "min": 60.1,
+      "max": 60.2
+    },
+    "errors": [],
+    "req404": [
+      "favicon.ico",
+      "favicon.ico"
+    ]
+  },
+  "mobile": {
+    "acquireGate": {
+      "noAggro": true,
+      "heroInZone": true,
+      "states": [
+        "idle",
+        "idle",
+        "idle",
+        "idle"
+      ]
+    },
+    "fps": 60.2,
+    "errs": [],
+    "scene": "play"
+  }
+}
