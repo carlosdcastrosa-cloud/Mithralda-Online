@@ -257,6 +257,10 @@ export function createGame(canvas, ctx, getView){
       // eInZone,hostile}]}; noAggro({noAggro:true}) flip runtime IN-MEMORY (sim, mismo módulo config); noAggro({spawn,dx,dy})
       // spawnea un mob YA en persecución cerca del héroe para observar el leash al entrar éste a la Zona Segura.
       noAggro:(p)=>simDev.noAggro(p),
+      // CAS-2255: RESTED XP / BONO DE DESCANSO OBSERVABLE hook (DARK). rested() lee {enabled,inZone,pool,cap,pct,xpMult,
+      // accrualPerSec,willSpend,hasField,xp,lvl}; rested({enabled:true}) flip runtime IN-MEMORY (sim, mismo módulo config);
+      // rested({setPool:n}) fija el pool; rested({addXp:n}) aplica gainXP vía el ÚNICO chokepoint (observa bonus + drenado).
+      rested:(p)=>simDev.rested(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

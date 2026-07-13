@@ -1591,6 +1591,24 @@ export const TEMPLE_RESPAWN = {
   offsetY: 48,             // px al SUR del POI Templo donde aterriza el héroe (entrada del templo; dentro de templeRadius y del bbox seguro).
 };
 
+// CAS-2255: RESTED XP / BONO DE DESCANSO DEL SANTUARIO (DARK) — el capstone hub-reward que corona el arco Santuario
+// (SAFEZONE regen + TEMPLE_RESPAWN + noAggro). Responde "¿qué GANA el jugador por descansar en la ciudad?": el tiempo
+// dentro de SAFEZONE ACUMULA un pool de Descanso (accrualPerSec×dt, tope poolCap) que, al salir a cazar, se GASTA
+// otorgando XP bonus (×xpMult, drenado proporcional a la XP ganada FUERA del santuario) hasta agotarse. Canon MMORPG
+// (WoW rested XP). Per-jugador, DETERMINISTA, 0 RNG, server-authority-ready (acumulación=inSafeZone+tick de sim, gasto=
+// único chokepoint gainXP; NADA de wall-clock local — usa dt de sim). Escala a N jugadores en la misma SAFEZONE sin
+// contención (estado 100% per-hero: h.restedPool). HARD-GATED: enabled:false ⇒ tickRestedXP/gainXP-bonus RETURN inmediato,
+// h.restedPool NUNCA se crea, y serializeSave OMITE la clave restedPool ⇒ save.v1 + comportamiento BYTE-IDÉNTICOS a HEAD
+// (respeta el allowlist anti-CAS-2220: la clave sólo existe en el save cuando enabled). Reversible: enabled:true→false +
+// redeploy overlay CONSISTENTE-HEAD (config+sim, +render por el badge "Descanso" gated).
+export const RESTED_XP = {
+  enabled: true,           // LIVE (CAS-2256 flip; CEO Gate PASS + QA CAS-2255 OBSERVABLE 19/19). Reversible: true→false + redeploy.
+  accrualPerSec: 6,        // unidades de XP de Descanso acumuladas por segundo DENTRO de la SAFEZONE (~100s ocioso para llenar el pool).
+  poolCap: 600,            // tope del pool de Descanso (unidades de XP bonus disponibles; ~1 nivel de bonus a niveles bajos).
+  xpMult: 1.5,             // multiplicador de XP mientras hay pool (WoW-like ×1.5): el bonus por ganancia = base×(xpMult-1), acotado por el pool.
+  epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER/SAFEZONE), MMORPG-safe.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
