@@ -303,6 +303,10 @@ try {
   await page.evaluate(() => { if (window.__t13) { Date.now = window.__t13; delete window.__t13; } if (window.__dev.daynight) window.__dev.daynight(null); });
   const arc = await page.evaluate(() => {
     const sz = window.__dev.safeZone(); window.__dev.tp(sz.temple.x / 32, sz.temple.y / 32);
+    // CAS-2326: el vestigio ahora cae DENTRO de la zona de caza real (fix soulPos), así que aparcar el héroe en la tile para el screenshot ⚱ puede
+    // abrir el modal de MODIFICADOR de zona (G.scene="curse") ⇒ tryBounty devuelve "unavailable" (scene!="play"). Normaliza la escena a 'play'
+    // antes de la comprobación de arco/bounty (descarta el offer de curse; no altera ninguna aserción de arco). Robusto a que no haya modal.
+    if (window.__dev.skipCurse) window.__dev.skipCurse();
     window.__dev.soul({ enabled: true }); window.__dev.mentor({ enabled: true }); window.__dev.fellowship({ enabled: true });
     window.__dev.contest({ enabled: true, standings: true, territory: true }); window.__dev.ledger({ enabled: true }); window.__dev.oath({ enabled: true }); window.__dev.bounty({ enabled: true }); window.__dev.sanctuary({ enabled: true });
     window.__dev.quartermaster({ enabled: true }); window.__dev.warhorn({ enabled: true }); window.__dev.emissary({ enabled: true }); window.__dev.recall({ enabled: true });
@@ -336,11 +340,16 @@ try {
   await pageA.evaluate((nm) => { window.__nsA = Date.now; Date.now = () => nm; }, T_NS);
   await pageB.evaluate((nm) => { window.__nsB = Date.now; Date.now = () => nm; }, T_NS);
   // A = el CAÍDO (identidad == fallenIdx ⇒ fallen); B = RECUPERADOR (identidad ≠ fallenIdx ⇒ recoverer); mismo vestigio (puro del reloj)
+  // CAS-2326: AÍSLA el canal restedMult del SOUL de los arcos DEFAULT-ON del MISMO canal (STANDINGS/MENTOR) — mirror checks 6b/7/9/11. Sin esto,
+  // en periods donde A ADEMÁS califica para el bono colectivo/personal, soulMul CEDE por precedencia (0 doble-conteo, correcto) ⇒ respawnMul=0 y la
+  // aserción soul-específica (buff del caído 0.15) fallaría por CONTAMINACIÓN de canal, no por defecto de SOUL. Desactivarlos mide SÓLO el buff de SOUL.
   const a0 = await pageA.evaluate((o) => {
+    window.__dev.standings({ enabled: false }); window.__dev.mentor({ enabled: false });
     window.__dev.soul({ enabled: true }); window.__dev.soul({ heroIdx: o.FID }); const s = window.__dev.soul({ nowMs: o.T });
     return { vestige: JSON.stringify(s.vestige), role: s.role, recovered: s.recovered, mul: s.soulMulRested };
   }, { T: T_NS, FID });
   const b0 = await pageB.evaluate((o) => {
+    window.__dev.standings({ enabled: false }); window.__dev.mentor({ enabled: false });
     window.__dev.soul({ enabled: true }); window.__dev.soul({ heroIdx: o.RID }); const s = window.__dev.soul({ nowMs: o.T });
     return { vestige: JSON.stringify(s.vestige), role: s.role, recovered: s.recovered, mul: s.soulMulRested };
   }, { T: T_NS, RID });

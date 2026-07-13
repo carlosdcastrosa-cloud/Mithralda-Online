@@ -3204,9 +3204,16 @@ function soulFallen(period){
 // spawner de esa zona (0-draw, mirror bonfireSites) desplazada por una fracción hash-derivada ⇒ determinista, dentro de la zona de caza.
 function soulZone(period){ const Z=SOUL_RECOVERY.zones||[]; if(!Z.length) return null; return Z[soulHash(period>>>0,"zone")%Z.length]; }
 function soulPos(period, zone){
-  const sp=(world.spawners||[]).find(s=>s && s.rect && s.zone===zone); if(!sp) return null;
   const fx=(soulHash(period>>>0,"px")%1000)/1000, fy=(soulHash(period>>>0,"py")%1000)/1000;   // fracción determinista dentro del rect (0 RNG)
-  return { x:(sp.rect.x+sp.rect.w*(0.2+0.6*fx))*TS, y:(sp.rect.y+sp.rect.h*(0.2+0.6*fy))*TS, zone };
+  // CAS-2326: elige el spawner de la zona cuya tile DERIVADA cae REALMENTE dentro de la zona (guard zoneOf, mirror bonfireSites/CAS-1886) —
+  // los huntZones del continente (forest/ruins/caves) viven en `field`, así que el 1º s.zone===zone resolvía a `field` ⇒ soulInRadius (zone-gate)
+  // nunca pasaba ⇒ vestigio IRRECUPERABLE. Determinista (0 RNG), orden de world.spawners. Sin spawner zone-consistente ⇒ null (ese period no tiene vestigio).
+  for(const s of (world.spawners||[])){
+    if(!s || !s.rect || s.zone!==zone) continue;
+    const x=(s.rect.x+s.rect.w*(0.2+0.6*fx))*TS, y=(s.rect.y+s.rect.h*(0.2+0.6*fy))*TS;
+    if(zoneOf(world,x,y)===zone) return { x, y, zone };
+  }
+  return null;
 }
 // ¿el vestigio del schedule está VIVO? ⇒ dentro de la fracción inicial liveFrac del period (luego CADUCA — limpieza determinista). Gated ⇒ OFF ⇒ false.
 function soulLive(s){ if(!SOUL_RECOVERY.enabled || !s || !s.enabled) return false; return s.frac < Math.max(0,Math.min(1,+SOUL_RECOVERY.liveFrac||0)); }
