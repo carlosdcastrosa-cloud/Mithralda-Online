@@ -1569,7 +1569,7 @@ export const ZONE_BANNER = {
 // noAggro: sub-flag reservado (mobs no persiguen dentro de la ciudad) — NO se prende en Batch 1 (roza netcode/IA);
 // sólo el regen va LIVE primero. epochMs reservado (config compartible como DAYNIGHT/WEATHER, MMORPG-safe).
 export const SAFEZONE = {
-  enabled: false,          // DARK. Reversible: true→false + redeploy (overlay consistente-HEAD config+sim+render).
+  enabled: true,           // LIVE (CAS-2243, CEO Gate APPROVED). Reversible: true→false + redeploy (overlay consistente-HEAD config+sim+render).
   regenPct: 0.045,         // fracción de HP máx regenerada por segundo dentro de la ciudad (~22s de 1→100% ocioso).
   regenDelay: 2.0,         // pausa de regen (s) tras recibir daño — no te curas mientras te pegan (feel Tibia/Souls).
   templeMul: 2.5,          // multiplicador de la tasa de regen dentro del radio del Templo (santuario de curación).
