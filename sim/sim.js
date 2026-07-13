@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2539,6 +2539,41 @@ function spendStam(h, cost){
     return false; }
   h.stam -= cost; h._stamRegenPauseT = STAMINA.regenDelay; return true;
 }
+// CAS-2242: ZONA SEGURA — geometría sim-autoritativa (server-validatable). Deriva el bbox de la región "Ciudad" de los
+// MISMOS POIs de world.deco que usan minimapa (CAS-2226) y banner de zona (CAS-2234); render la refleja read-only. 0 RNG,
+// memoizado por world build (deco es estático por world). Devuelve {bbox:[x0,y0,x1,y1], temple:{x,y}|null} o null si no
+// hay ciudad (0 POIs). Sólo se invoca con SAFEZONE.enabled ⇒ DARK byte-idéntico (nunca corre con la feature OFF).
+const _SZ_POI_KINDS = { prop_city_temple:1, prop_city_depot:1, prop_city_tavern:1, prop_city_well:1 };
+let _szGeom=null, _szWorld=null, _szBuilt=false;
+function safeZoneGeom(){
+  if(_szWorld===world && _szBuilt) return _szGeom;
+  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity, temple=null, n=0;
+  for(const d of (world&&world.deco||[])){ if(!_SZ_POI_KINDS[d.kind]) continue; n++;
+    if(d.x<minx)minx=d.x; if(d.y<miny)miny=d.y; if(d.x>maxx)maxx=d.x; if(d.y>maxy)maxy=d.y;
+    if(d.kind==="prop_city_temple") temple={x:d.x, y:d.y}; }
+  const m=SAFEZONE.cityMargin|0;
+  _szGeom = n ? { bbox:[minx-m, miny-m, maxx+m, maxy+m], temple } : null;
+  _szWorld=world; _szBuilt=true; return _szGeom;
+}
+// ¿(x,y) dentro de la zona segura de la ciudad? Pura comparación de bbox (0 RNG). false si no hay ciudad.
+function inSafeZone(x,y){ const g=safeZoneGeom(); if(!g) return false; const b=g.bbox;
+  return x>=b[0] && x<=b[2] && y>=b[1] && y<=b[3]; }
+// CAS-2242: tick de regen de la ZONA SEGURA (transitorio, 0 RNG). Tras una pausa post-daño (SAFEZONE.regenDelay, mirror
+// STAMINA), si el héroe está dentro del bbox de la Ciudad regenera HP a SAFEZONE.regenPct×HPmax/s (acelerado ×templeMul
+// dentro del radio del Templo). Ruta por pactHeal (respeta el healCut del Pacto Frágil, ×1.0 sin pacto). El campo
+// _safeRegenPauseT es transitorio (fuera del allowlist de serializeSave, sólo se escribe con la feature ON ⇒ no existe
+// en DARK). OFF ⇒ return inmediato ⇒ byte-idéntico a HEAD (0 draws, save/srand/HP intactos).
+function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
+  if((h._safeRegenPauseT||0)>0){ h._safeRegenPauseT=Math.max(0,h._safeRegenPauseT-dt); return; }  // no te curas mientras te pegan
+  if(!inSafeZone(h.x,h.y)) return;
+  const mhp=heroMaxHp(h); if(h.hp<=0 || h.hp>=mhp) return;   // muerto o a tope ⇒ nada que regenerar
+  let rate=SAFEZONE.regenPct;
+  const g=safeZoneGeom();
+  if(g && g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
+    if(dx*dx+dy*dy <= tr*tr) rate*=SAFEZONE.templeMul; }   // santuario del Templo = regen acelerado
+  h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
+}
+
 // CAS-1841: regen tick (transient, 0 RNG). Winds down the deny-flash, then — after a brief post-spend pause — regens
 // stam toward max at STAMINA.regen/s. OFF ⇒ return immediately ⇒ byte-identical.
 function tickStamina(h,dt){ if(!STAMINA.enabled||!h) return;
@@ -4807,6 +4842,7 @@ export function update(dtMs){
   tickRally(h,dt);  // CAS-2114: rally/regain pool decay + window expiry (arithmetic, no RNG, gated on RALLY.enabled)
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
+  tickSafeZone(h,dt);// CAS-2242: regen de HP en la Zona Segura de la Ciudad + pausa post-daño (aritmética/geometría, no RNG, gated on SAFEZONE.enabled)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -5688,6 +5724,7 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // Corre POST-armadura (sobre `real`) ⇒ la armadura sigue mitigando. Gated ⇒ OFF / no cargando ⇒ real intacto ⇒ byte-id.
   if(CHARGED_ATTACK.enabled && h.charging){ const cap=CHARGED_ATTACK.incomingDmgCapFracMaxHp*(heroMaxHp(h)||h.hp); if(real>cap) real=cap; }
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
+  if(SAFEZONE.enabled) h._safeRegenPauseT=SAFEZONE.regenDelay;   // CAS-2242: recibir daño pausa el regen de la Zona Segura (feel). Gated ⇒ OFF nunca crea el campo ⇒ byte-id HEAD
   // CAS-2163: SEGUNDO ALIENTO / SECOND_WIND (mec #41) — negado-letal automático 1-uso/descanso. Corre DESPUÉS de
   // h.hp-=real (el daño se "recibió") pero ANTES del death-check del tick (heroDie se llama en update: `if(h.hp<=0)
   // heroDie()`, SEPARADO de damageHero) ⇒ niega la muerte sin nueva ruta: si el golpe dejó hp<=0 y hay carga, clampa
@@ -5860,6 +5897,28 @@ export const dev = {
       zones, spawners:world.spawners.map(s=>({zone:s.zone,types:s.types.slice()})),
       heroZone: G.hero?zoneOf(world,G.hero.x,G.hero.y):null,
       tcx:world.tcx, tcy:world.tcy }; },
+  // CAS-2242: QA/dev hook de la ZONA SEGURA (b5c10283). Snapshot autoritativo (sim) del estado observable + flip
+  // IN-MEMORY para OBSERVAR en DARK (disco sigue false, patrón __dev.weather/zone). Formas:
+  //   safeZone()                 → estado {enabled,inZone,nearTemple,ratePctPerSec,regenHpPerSec,hp,maxHp,pauseT,bbox,temple,...}
+  //   safeZone({enabled:true})   → flip runtime in-memory (observar el regen sin tocar el disco)
+  //   safeZone({pause:1.5})      → fuerza la pausa post-daño (probar el gate sin recibir un golpe real)
+  safeZone(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) SAFEZONE.enabled=!!p.enabled;
+      if("pause" in p && G.hero) G.hero._safeRegenPauseT=+p.pause||0;
+      if("setHp" in p && G.hero){ const mhp=heroMaxHp(G.hero); G.hero.hp=Math.max(0,Math.min(mhp,+p.setHp||0)); }  // QA: fija HP para observar el regen determinista
+    }
+    const h=G.hero, g=safeZoneGeom();
+    let inZone=false, nearTemple=false, rate=0;
+    if(h){ inZone=inSafeZone(h.x,h.y);
+      if(inZone){ rate=SAFEZONE.regenPct;
+        if(g&&g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
+          if(dx*dx+dy*dy<=tr*tr){ nearTemple=true; rate*=SAFEZONE.templeMul; } } } }
+    return { enabled:SAFEZONE.enabled, inZone, nearTemple,
+      ratePctPerSec:+(rate*100).toFixed(3), regenHpPerSec:h?+(heroMaxHp(h)*rate).toFixed(2):0,
+      hp:h?+(+h.hp).toFixed(2):0, maxHp:h?heroMaxHp(h):0, pauseT:h?+(h._safeRegenPauseT||0).toFixed(2):0,
+      bbox:g?g.bbox.slice():null, temple:g&&g.temple?{x:g.temple.x,y:g.temple.y}:null,
+      cityMargin:SAFEZONE.cityMargin, templeRadius:SAFEZONE.templeRadius, regenDelay:SAFEZONE.regenDelay, templeMul:SAFEZONE.templeMul }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset
   // cell — not the whole sheet — reached world.deco in vivo. Pure read, no mutation.
