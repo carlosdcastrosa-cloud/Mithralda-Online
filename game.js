@@ -341,6 +341,12 @@ export function createGame(canvas, ctx, getView){
       // soul({recover}) chokepoint REAL de recuperación; soul({die}) seams de muerte/respawn (buff del caído); soul({kill:{n}}) desvanece el buff.
       // Recuperación por proximidad+dwell (SIN hotkey — rol/vestigio derivados, read-only salvo drivers de PRUEBA gateados).
       soul:(p)=>simDev.soul(p),
+      // CAS-2329: PULSO DEL MUNDO / WORLD PULSE OBSERVABLE hook (DARK, WORLD_PULSE). pulse() lee {enabled,periodSec,liveFrac,zones,schedule,zone,live,
+      // inZone,heroZone,boostKind,boost,pulseMulRested,restedXpMult,standingsMulRested,mentorMulRested,soulMulRested,tag,precedence,gExists,hero};
+      // pulse({enabled:true}) flip runtime IN-MEMORY; pulse({nowMs}) inyecta el reloj compartido para observar la zona-en-Pulso de ese momento
+      // (convergencia, MISMA zona/fase en N clientes); pulse({toZone}) teleporta a la zona-en-Pulso VIVA (observa el passive compartido); pulse({leave})
+      // aleja de toda zona. SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL derivado del reloj, sin input.js).
+      pulse:(p)=>simDev.pulse(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
