@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2007,6 +2007,8 @@ export function serializeSave(){
     // (spread condicional). La contribución semanal (derivada del base) sobrevive al reload dentro del period. enabled:false / sin
     // snapshot ⇒ la clave NO se emite ⇒ save.v1 byte-idéntico a HEAD (allowlist anti-CAS-2220). Additive cuando ON (sin SAVE_VERSION bump).
     ...(SANCTUARY_LEDGER.enabled && h.ledgerAt ? { ledgerAt:{ period:(h.ledgerAt.period>>>0), killBase:h.ledgerAt.killBase|0, repBase:h.ledgerAt.repBase|0 } } : {}),
+    // CAS-2316: persist el snapshot per-semana de la HERMANDAD (h.fellowAt = {period, killBase}) SÓLO con la feature ON y presente (OFF la clave fellowAt NUNCA se crea ⇒ byte-id). killBase es un snapshot del contador monótono de kills al formarse la banda.
+    ...(FELLOWSHIP_BOND.enabled && h.fellowAt ? { fellowAt:{ period:(h.fellowAt.period>>>0), killBase:h.fellowAt.killBase|0 } } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2116,6 +2118,9 @@ export function loadSave(d){
     // semana al reanudar, tickLedger re-snapshotará (contribución vuelve a 0 en la nueva semana).
     if(SANCTUARY_LEDGER.enabled){ const g=d.ledgerAt;
       if(g && typeof g==="object"){ h.ledgerAt={ period:(g.period>>>0), killBase:Math.max(0,Math.floor(num(g.killBase,0))), repBase:Math.max(0,Math.floor(num(g.repBase,0))) }; } }
+    // CAS-2316: rehidrata el snapshot per-semana de la HERMANDAD (validado; saves viejos carecen de la clave → sin snapshot, tickFellowship re-snapshotará al primer tick; gated ⇒ OFF la clave fellowAt NUNCA se crea ⇒ byte-id). Si el period no coincide al reanudar, tickFellowship re-snapshotará (vínculo vuelve a 0 la nueva semana).
+    if(FELLOWSHIP_BOND.enabled){ const g=d.fellowAt;
+      if(g && typeof g==="object"){ h.fellowAt={ period:(g.period>>>0), killBase:Math.max(0,Math.floor(num(g.killBase,0))) }; } }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -3022,6 +3027,67 @@ export function orderContest(h){ h=h||G.hero; const c=contestState(), mine=ledge
     controller:c.controller, challenger:c.challenger, effective:c.effective, flipped:c.flipped,
     controllerTotal:c.controllerTotal, challengerTotal:c.challengerTotal, surge:+c.surge.toFixed(2), progress:+c.progress.toFixed(4),
     mineOrder:mine, mineChallenging:!!(mine && c.active && mine===c.challenger), mineControls:!!(mine && c.effective && mine===c.effective) }; }
+
+// CAS-2316: COMPAÑEROS DE RUTA / WAYFARERS' FELLOWSHIP — capa social PERSONAL. Todo DERIVADO (0 RNG, server-authority-ready) e INDEPENDIENTE
+// del arco de Órdenes (reloj + roster propios). fellowScheduleAt(nowMs) = ventana semanal derivada del reloj de pared COMPARTIDO (mirror
+// ledgerScheduleAt, pero con periodSec/epochMs PROPIOS de FELLOWSHIP_BOND) ⇒ TODO cliente con el mismo reloj deriva el MISMO period/frac (banda
+// CONSISTENTE bajo N jugadores, 0 desync). Exportada para el harness. Sólo tiene efecto observable bajo FELLOWSHIP_BOND.enabled.
+export function fellowScheduleAt(nowMs){
+  const out={ enabled:!!FELLOWSHIP_BOND.enabled, period:0, into:0, frac:0, nextInSec:0 };
+  if(!Number.isFinite(nowMs) || nowMs<=0) return out;              // sin reloj (harness sin nowMs) ⇒ inactivo, nada que derivar
+  const periodMs=Math.max(1000,(FELLOWSHIP_BOND.periodSec|0)*1000);
+  const elapsed=nowMs-(FELLOWSHIP_BOND.epochMs||0); if(elapsed<0) return out;
+  const period=Math.floor(elapsed/periodMs), into=elapsed-period*periodMs;
+  out.period=period>>>0; out.into=into; out.frac=into/periodMs; out.nextInSec=(periodMs-into)/1000;
+  return out;
+}
+// hash de Knuth por period (mismo mezclador determinista del Libro; salt para banda/rotación) ⇒ 0 RNG, spread estable.
+function fellowHash(period, salt){ let s=((period>>>0)*2654435761)>>>0; const t=String(salt||"");
+  for(let i=0;i<t.length;i++){ s=(((s^t.charCodeAt(i))>>>0)*16777619)>>>0; } return s>>>0; }
+// La BANDA de esta semana = `size` compañeros ROTADOS del roster fijo por el reloj COMPARTIDO (start = hash(period)%N, consecutivos con wrap).
+// Determinista (0 RNG) ⇒ TODO cliente con el mismo period ve la MISMA banda (convergente). Distintos por semana (rota) ⇒ identidad social viva.
+function fellowRoster(period){
+  const R=FELLOWSHIP_BOND.roster||[]; const N=R.length; if(N<=0) return [];
+  const size=Math.max(0,Math.min(N,FELLOWSHIP_BOND.size|0)); if(size<=0) return [];
+  const start=fellowHash(period>>>0,"fellow")%N; const out=[];
+  for(let i=0;i<size;i++){ const m=R[(start+i)%N]; out.push({ id:String(m.id||""), name:String(m.name||m.id||"") }); }
+  return out;
+}
+// Vínculo del héroe esta semana = DERIVADO del contador MONÓTONO `h.kills` MENOS el snapshot `base` tomado al rolar el period (h.fellowAt).
+// 0 tracking nuevo por-frame, 0 hook (misma técnica que el Libro/Emisario). Sin snapshot (OFF / aún sin tick) ⇒ 0.
+function fellowBond(h){ if(!h||!h.fellowAt) return 0;
+  const dk=Math.max(0,(h.kills|0)-(h.fellowAt.killBase|0));
+  return Math.max(0, Math.round(dk*(+FELLOWSHIP_BOND.bondPerKill||0))); }
+// índice del TIER alcanzado por un bond dado (el tier más alto cuyo `at` ≤ bond). tiers ascendentes; el primero (at:0) es el base ⇒ siempre ≥0.
+function fellowTierIdx(bond){ const T=FELLOWSHIP_BOND.tiers||[]; let idx=0;
+  for(let i=0;i<T.length;i++){ if((bond|0)>=(+T[i].at||0)) idx=i; } return idx; }
+// ¿La Hermandad está FORJADA? ⇒ el tier del bond alcanza forgeTier. Gated ⇒ OFF ⇒ false.
+function fellowForged(h){ if(!FELLOWSHIP_BOND.enabled||!h) return false;
+  return fellowTierIdx(fellowBond(h)) >= (FELLOWSHIP_BOND.forgeTier|0); }
+// fellowMul(h,kind) = el `bondValue` del pasivo SÓLO si la Hermandad está FORJADA Y el kind coincide con bondKind, si no 0 ⇒ el seam reutilizado
+// queda byte-idéntico a HEAD (mismo patrón que ledgerMul/standingsMul). Puro (0 RNG, 0 estado, 0 side-effect). kind ÚNICO ⇒ 0 doble-conteo.
+function fellowMul(h,kind){ if(!fellowForged(h)) return 0;
+  return (kind===(FELLOWSHIP_BOND.bondKind||"xpGain")) ? (+FELLOWSHIP_BOND.bondValue||0) : 0; }
+// tick de la HERMANDAD (mirror tickLedger): deriva+cachea el schedule semanal del reloj COMPARTIDO (Date.now, leído SÓLO aquí y SÓLO bajo el
+// gate) en G.fellowship (transitorio, fuera del allowlist de serializeSave) y SNAPSHOTa el base per-semana en h.fellowAt al rolar el period.
+// OFF ⇒ NUNCA se invoca ⇒ Date.now nunca se llama, G.fellowship/h.fellowAt NUNCA se crean ⇒ byte-idéntico a HEAD.
+function tickFellowship(){ if(!FELLOWSHIP_BOND.enabled) return; const s=fellowScheduleAt(Date.now()); G.fellowship=s;
+  const h=G.hero; if(!h||h.dead) return;
+  if(!h.fellowAt || (h.fellowAt.period>>>0)!==(s.period>>>0)){     // period nuevo (o primera vez) ⇒ re-snapshot ⇒ vínculo vuelve a 0
+    h.fellowAt={ period:s.period>>>0, killBase:h.kills|0 }; } }    // el campo SÓLO se crea con la feature ON ⇒ byte-id OFF
+// glifo ∞ (o "") para el nameplate cuando la Hermandad está FORJADA (capa social; reusa la ruta de Juramento/Libro/Clasificación). Puro, 0 sim/RNG.
+export function fellowshipTag(h){ h=h||G.hero; return fellowForged(h) ? "∞" : ""; }
+// View-model PURO para el panel del Tablón (los Compañeros de Ruta): la banda de esta semana, el vínculo, el tier alcanzado y el pasivo.
+export function wayfarerFellowship(h){ h=h||G.hero; const s=G.fellowship||null;
+  const bond=h?fellowBond(h):0, ti=fellowTierIdx(bond), T=FELLOWSHIP_BOND.tiers||[], forgeIdx=FELLOWSHIP_BOND.forgeTier|0;
+  const nextTier=(ti+1<T.length)?T[ti+1]:null;
+  return { enabled:!!FELLOWSHIP_BOND.enabled, periodSec:FELLOWSHIP_BOND.periodSec|0,
+    band:s?fellowRoster(s.period):[], bond, tierIdx:ti, tierName:(T[ti]?T[ti].name:""),
+    forged:h?fellowForged(h):false, forgeTierName:(T[forgeIdx]?T[forgeIdx].name:""),
+    nextTierName:nextTier?nextTier.name:null, nextAt:nextTier?(+nextTier.at||0):null,
+    bondKind:FELLOWSHIP_BOND.bondKind||"xpGain", bondValue:+FELLOWSHIP_BOND.bondValue||0,
+    nextInSec:s?(s.nextInSec|0):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4054,6 +4120,7 @@ export function dismissVictory(){ if(G.scene!=="victory") return; G.victory=null
   if(h){ h.dead=false; h.vx=h.vy=0; h.iframe=0.6; } G.scene="play"; beginRun(); }
 function gainXP(n){ const h=G.hero; if(n<=0) return;
   n=Math.round(n*(1+metaLvl("t2_xpGain")*T2_MAP.t2_xpGain.per)); // CAS-1565: Erudición meta XP boost (read-live at the single XP chokepoint)
+  n=Math.round(n*(1+fellowMul(h,"xpGain")));                      // CAS-2316: pasivo de HERMANDAD forjada (Compañeros de Ruta) — canal xpGain NUEVO, gated ⇒ OFF/sin forjar ⇒ ×1 exacto (byte-id)
   // CAS-2255: GASTO del pool de Descanso (Rested XP). El bono se consume proporcional a la XP ganada FUERA del santuario:
   // por cada `n` de XP base ganada cazando, se otorga hasta base×(xpMult-1) de bonus, acotado por el pool restante, y el
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
@@ -5430,6 +5497,7 @@ export function update(dtMs){
   if(SANCTUARY_EMISSARY.enabled) tickEmissary(); // CAS-2292: Emisario — rotación compartida derivada del reloj (transitorio en G.emissary, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(SANCTUARY_LEDGER.enabled) tickLedger(); // CAS-2300: Libro de la Orden — marcador semanal colectivo derivado del reloj (transitorio en G.ledger + snapshot h.ledgerAt, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(ORDER_STANDINGS.enabled) tickStandings(); // CAS-2305: Clasificación de Órdenes — ranking semanal compartido derivado del baseline del Libro (transitorio en G.standings, gated ⇒ OFF nunca se crea ⇒ byte-id). Tras tickLedger (reusa G.ledger.period/frac).
+  if(FELLOWSHIP_BOND.enabled) tickFellowship(); // CAS-2316: Compañeros de Ruta — banda semanal compartida (reloj propio) + snapshot h.fellowAt del vínculo (transitorio en G.fellowship, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -6832,6 +6900,33 @@ export const dev = {
       gStandings:(G.standings!=null), gLedger:(G.ledger!=null),          // el asalto NO crea estado nuevo (deriva de caches existentes)
       mineOrder:mine, mineChallenging:!!(mine && c.active && mine===c.challenger), mineControls:!!(mine && c.effective && mine===c.effective),
       hero:h?{ order:mine, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, inZone:inSafeZone(h.x,h.y) }:null }; },
+  // CAS-2316: COMPAÑEROS DE RUTA / WAYFARERS' FELLOWSHIP OBSERVABLE hook (DARK, FELLOWSHIP_BOND). Snapshot autoritativo (sim) de la BANDA
+  // semanal COMPARTIDA (rotación pura del reloj propio) + el VÍNCULO personal (kills desde que se formó la banda) + el tier/pasivo + flip/
+  // drivers IN-MEMORY para OBSERVAR en DARK sin esperar semanas reales (disco sigue false, patrón __dev.ledger/standings). El nowMs INYECTADO
+  // prueba "mismo reloj ⇒ MISMA banda" (convergencia N-clientes, 0 desync). Formas:
+  //   fellowship()                 → {enabled,periodSec,size,schedule,band,bond,tierIdx,tierName,forged,forgeTierName,nextTierName,nextAt,bondKind,bondValue,fellowMulXp,xpGainMul,gExists,hasField,hero}
+  //   fellowship({enabled:true})   → flip runtime IN-MEMORY de FELLOWSHIP_BOND.enabled (banda/vínculo/pasivo sin tocar el disco)
+  //   fellowship({nowMs})          → deriva+cachea la banda semanal en G.fellowship PARA ese reloj (+ snapshot base) — 0 espera real
+  //   fellowship({kill:{n}})       → bump h.kills (contador monótono) ⇒ profundiza el vínculo (mirror killEnemy; captura kills de caza/bounty)
+  fellowship(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) FELLOWSHIP_BOND.enabled=!!p.enabled;
+      if("nowMs" in p){ G.fellowship=fellowScheduleAt(+p.nowMs);            // inyecta el reloj compartido para OBSERVAR la semana
+        const hh=G.hero; if(FELLOWSHIP_BOND.enabled && hh && (!hh.fellowAt || (hh.fellowAt.period>>>0)!==(G.fellowship.period>>>0))) hh.fellowAt={ period:G.fellowship.period>>>0, killBase:hh.kills|0 }; }
+      if(p.kill && G.hero) G.hero.kills=(G.hero.kills|0)+Math.max(0,Math.floor(+p.kill.n||0));   // mirror killEnemy: bump el contador monótono
+    }
+    const h=G.hero, s=G.fellowship||null, v=wayfarerFellowship(h);
+    const xpMul=(1+metaLvl("t2_xpGain")*T2_MAP.t2_xpGain.per) * (1+(h?fellowMul(h,"xpGain"):0));   // mult XP efectivo (mirror gainXP: meta × Hermandad). Prueba: OFF/sin forjar ⇒ == meta exacto
+    return { enabled:FELLOWSHIP_BOND.enabled, periodSec:FELLOWSHIP_BOND.periodSec|0, size:FELLOWSHIP_BOND.size|0,
+      schedule: s?{ period:s.period, frac:+(+s.frac).toFixed(4), nextInSec:s.nextInSec|0 }:null,
+      band:v.band, bond:v.bond, tierIdx:v.tierIdx, tierName:v.tierName, forged:v.forged, forgeTierName:v.forgeTierName,
+      nextTierName:v.nextTierName, nextAt:v.nextAt, bondKind:v.bondKind, bondValue:v.bondValue,
+      fellowMulXp: h?fellowMul(h,"xpGain"):0,                              // knob efectivo del pasivo (prueba: OFF/sin forjar ⇒ 0 ⇒ byte-id)
+      tag: h?fellowshipTag(h):"",                                          // glifo del nameplate SERVIDO (prueba: OFF/sin forjar ⇒ "" / forjado ⇒ "∞")
+      xpGainMul:+xpMul.toFixed(4),
+      gExists:(G.fellowship!=null),                                        // prueba byte-id: OFF ⇒ G.fellowship NUNCA se crea
+      hasField: h ? ("fellowAt" in h) : false,                            // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      hero:h?{ kills:h.kills|0, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).

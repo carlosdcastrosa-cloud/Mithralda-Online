@@ -1980,6 +1980,47 @@ export const ORDER_CONTEST = {
   holdMargin: 0.25,          // VENTAJA DEL DEFENSOR (incumbencia): el retador debe superar controllerTotal×(1+holdMargin) para arrebatar el control ⇒ territorio REALMENTE disputado (~50% de semanas flipean, varía por fuerza-de-semana). CEO balance knob.
 };
 
+// CAS-2316: COMPAÑEROS DE RUTA / WAYFARERS' FELLOWSHIP (DARK, FELLOWSHIP_BOND) — la capa social PERSONAL que le faltaba al mundo. El arco
+// del Santuario/Órdenes (Juramento→Libro→Clasificación→Dominio→Asalto, LIVE) da estado COLECTIVO y COMPETITIVO de facción; lo que aún falta
+// —y es NATIVO de un MMORPG— es el vínculo ÍNTIMO del jugador con COMPAÑEROS con nombre que recorren el mismo mundo. Diseño Stage-1, 100%
+// DETERMINISTA (0 RNG) y server-authority-ready, INDEPENDIENTE del arco de Órdenes (reloj + roster propios ⇒ no acopla su balance):
+//   · HERMANDAD SEMANAL COMPARTIDA: cada ciclo (`periodSec`), una BANDA de `size` compañeros se ROTA de un `roster` fijo por el reloj de pared
+//     COMPARTIDO (mismo hash de Knuth del Libro, 0 RNG) ⇒ TODO cliente con el mismo reloj ve la MISMA banda esta semana (convergente, 0 desync).
+//     Es el estado social OBSERVABLE (fila SOLO-lectura en el panel del Tablón + glifo ∞ en el nameplate) — en Stage-2 la banda la fija el server.
+//   · VÍNCULO PERSONAL (bond): profundiza con las MISMAS gestas que ya cuentan (kills desde que se formó la banda — contador monótono `h.kills`
+//     menos el snapshot per-semana `h.fellowAt`, misma técnica que el Libro/Emisario ⇒ 0 tracking nuevo por-frame, 0 hook, SIN hotkey/input.js).
+//     El bond escala TIERS con nombre (Desconocido→Compañero→Jurado). En Stage-2 el bond lo agrega el server desde la actividad COMPARTIDA.
+//   · PASIVO al FORJAR: cuando el bond alcanza `forgeTier`, la Hermandad está FORJADA ⇒ pasivo `bondValue` en el canal NUEVO `bondKind` (xpGain
+//     — "la camaradería del camino hace más dulce cada victoria"). Canal DISTINTO a oath/ledger/standings/territory (safeRegen/restedCap/recallCd/
+//     restedMult) ⇒ 0 doble-conteo por construcción (kind único). Gateado a FORJADA ⇒ sin forjar / OFF ⇒ 0.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tickFellowship jamás corre (Date.now nunca se llama), G.fellowship/h.fellowAt NUNCA se crean,
+// fellowMul RETURN 0, save omite `fellowAt`, fellowshipTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave
+// nueva). SIN tocar input.js (vínculo observado + alimentado por acciones que YA existen, 0 hotkey — anti-CAS-2273). Reversible en 1 línea
+// (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO (retune barato).
+export const FELLOWSHIP_BOND = {
+  enabled: true,             // LIVE (CAS-2317 flip de CAS-2316). Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  periodSec: 604800,         // ciclo de la HERMANDAD (1 semana). Reloj de pared COMPARTIDO ⇒ MISMA banda de compañeros en N clientes (0 desync). Propio (no acopla al Libro).
+  epochMs: 0,                // ancla del reloj (0 = epoch Unix). Compartida ⇒ period idéntico en todo cliente.
+  size: 3,                   // nº de compañeros en la banda rotativa esta semana (subconjunto del roster).
+  roster: [                  // roster FIJO de compañeros de ruta (arte $0 — nombres en el panel/nameplate). La banda semanal se ROTA determinista (Knuth hash, 0 RNG).
+    { id:"vela",   name:"Vela la Vigía" },
+    { id:"corvin", name:"Corvin Pie-Firme" },
+    { id:"sela",   name:"Sela de los Páramos" },
+    { id:"borin",  name:"Borin Yelmo-Roto" },
+    { id:"nym",    name:"Nym Sombra-Larga" },
+    { id:"tavish", name:"Tavish el Trovador" },
+  ],
+  bondPerKill: 1,            // cada gesta (kill desde que se formó la banda) profundiza el vínculo en esta cantidad. CEO balance knob.
+  tiers: [                   // hitos del vínculo (nombre para HUD/panel). `at` = bond mínimo del tier (ascendente). El primero (at:0) es el estado base.
+    { at:0,  name:"Desconocido" },
+    { at:6,  name:"Compañero" },
+    { at:16, name:"Jurado" },
+  ],
+  forgeTier: 1,              // índice del tier a partir del cual la Hermandad está FORJADA ⇒ pasivo activo (1 = "Compañero"). CEO balance knob.
+  bondKind: "xpGain",        // canal del pasivo — seam NUEVO (0 colisión con oath/ledger/standings/territory ⇒ 0 doble-conteo por construcción).
+  bondValue: 0.10,           // +10% XP mientras la Hermandad está FORJADA. CEO balance knob.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

@@ -322,6 +322,11 @@ export function createGame(canvas, ctx, getView){
       // observar la VENTANA de asalto y el flip de esa semana (convergencia, misma ventana/flip en N clientes); contest({pledge:"iron"})
       // fija la orden del héroe (tryPledgeOath) para observar mineChallenging/mineControls. SOLO lectura (0 hotkey — asalto derivado read-only).
       contest:(p)=>simDev.contest(p),
+      // CAS-2316: COMPAÑEROS DE RUTA / WAYFARERS' FELLOWSHIP OBSERVABLE hook (DARK, FELLOWSHIP_BOND). fellowship() lee {enabled,periodSec,size,
+      // schedule,band,bond,tierIdx,tierName,forged,forgeTierName,nextTierName,nextAt,bondKind,bondValue,fellowMulXp,xpGainMul,gExists,hasField,
+      // hero}; fellowship({enabled:true}) flip runtime IN-MEMORY; fellowship({nowMs}) inyecta el reloj compartido para observar la BANDA de esa
+      // semana (convergencia, misma banda en N clientes); fellowship({kill:{n}}) profundiza el vínculo. SOLO lectura (0 hotkey — vínculo derivado).
+      fellowship:(p)=>simDev.fellowship(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
