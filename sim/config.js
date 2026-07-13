@@ -1587,7 +1587,7 @@ export const SAFEZONE = {
 // checkpoint normal (h.respawn) EXACTAMENTE como HEAD ⇒ save + worldFingerprint byte-idénticos (feature inerte,
 // 0 campos transitorios nuevos). Reversible: enabled:true→false + redeploy overlay CONSISTENTE-HEAD (config+sim).
 export const TEMPLE_RESPAWN = {
-  enabled: false,          // DARK. Reversible: true→false + redeploy (overlay consistente-HEAD config+sim).
+  enabled: true,           // LIVE (CAS-2247 flip). Reversible: true→false + redeploy (overlay consistente-HEAD config+sim).
   offsetY: 48,             // px al SUR del POI Templo donde aterriza el héroe (entrada del templo; dentro de templeRadius y del bbox seguro).
 };
 
