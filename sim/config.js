@@ -1998,7 +1998,7 @@ export const ORDER_CONTEST = {
 // nueva). SIN tocar input.js (vínculo observado + alimentado por acciones que YA existen, 0 hotkey — anti-CAS-2273). Reversible en 1 línea
 // (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO (retune barato).
 export const FELLOWSHIP_BOND = {
-  enabled: false,            // DARK (CAS-2316). byte-id OFF. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  enabled: true,             // LIVE (CAS-2317 flip de CAS-2316). Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
   periodSec: 604800,         // ciclo de la HERMANDAD (1 semana). Reloj de pared COMPARTIDO ⇒ MISMA banda de compañeros en N clientes (0 desync). Propio (no acopla al Libro).
   epochMs: 0,                // ancla del reloj (0 = epoch Unix). Compartida ⇒ period idéntico en todo cliente.
   size: 3,                   // nº de compañeros en la banda rotativa esta semana (subconjunto del roster).
