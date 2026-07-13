@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1978,6 +1978,12 @@ export function serializeSave(){
     // (allowlist anti-CAS-2220: 0 campos nuevos con la feature off). Additive cuando ON: saves viejos carecen de la clave →
     // loadSave rehidrata a sin-vínculo / CD 0 → sin SAVE_VERSION bump.
     ...(RECALL.enabled && h.bindPoint ? { bindPoint:{x:+(+h.bindPoint.x).toFixed(2), y:+(+h.bindPoint.y).toFixed(2)}, recallCD:+(h.recallCD||0).toFixed(3) } : {}),
+    // CAS-2269: persist el contrato de Recompensa ACTIVO (h.bounty) + el índice de rotación (h.bountyIdx) SÓLO cuando la feature
+    // está ON (spread condicional). El contrato aceptado y su progreso (derivado del `base` snapshot) sobreviven al reload
+    // (canon MMORPG: la tarea persiste). enabled:false ⇒ las claves NO se emiten ⇒ save.v1 byte-idéntico a HEAD (allowlist
+    // anti-CAS-2220: 0 campos nuevos con la feature off). Additive cuando ON: saves viejos carecen de la clave → loadSave
+    // rehidrata a sin-contrato / idx 0 → sin SAVE_VERSION bump.
+    ...(BOUNTY_BOARD.enabled ? { bountyIdx:(h.bountyIdx|0), ...(h.bounty ? { bounty:{ id:String(h.bounty.id), target:String(h.bounty.target), count:h.bounty.count|0, gold:h.bounty.gold|0, xp:h.bounty.xp|0, base:h.bounty.base|0 } } : {}) } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2054,6 +2060,13 @@ export function loadSave(d){
     if(RECALL.enabled){ const bp=d.bindPoint;
       if(bp && typeof bp==="object" && isFinite(+bp.x) && isFinite(+bp.y)) h.bindPoint={x:+bp.x, y:+bp.y};
       h.recallCD=Math.max(0, Math.min(RECALL.cooldownSec, num(d.recallCD,0))); }
+    // CAS-2269: rehidrata el índice de rotación + el contrato de Recompensa activo (validados; saves viejos carecen de la clave
+    // → idx 0 / sin-contrato; gated ⇒ OFF las claves bounty/bountyIdx NUNCA se crean ⇒ byte-id). El contrato sólo se acepta si
+    // referencia un target/count válidos; `base` se clamp-ea a ≥0 (snapshot de un contador monótono).
+    if(BOUNTY_BOARD.enabled){ h.bountyIdx=Math.max(0,Math.floor(num(d.bountyIdx,0)));
+      const b=d.bounty;
+      if(b && typeof b==="object" && b.target && (b.count|0)>0){
+        h.bounty={ id:String(b.id||""), target:String(b.target), count:b.count|0, gold:Math.max(0,b.gold|0), xp:Math.max(0,b.xp|0), base:Math.max(0,b.base|0) }; } }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2655,6 +2668,39 @@ export function tryRecall(){
   if((h.recallChannelT||0)>0) return "channeling";
   if((RECALL.channelSec||0)>0){ h.recallChannelT=RECALL.channelSec; return "channel"; }  // canal (dormido con channelSec=0)
   executeRecall(h); return "recalled";                            // instantáneo (Stage-1)
+}
+
+// CAS-2269: TABLÓN DE RECOMPENSAS — helpers deterministas. El PROGRESO no se rastrea: se DERIVA de un contador MONÓTONO ya
+// vivo y ya persistido (h.kills para "any", h.killsByType[target] para un tipo, poblado en killEnemy) MENOS el snapshot `base`
+// tomado al aceptar. 0 RNG, 0 estado nuevo por-frame, 0 hook en killEnemy. Sólo se invoca bajo BOUNTY_BOARD.enabled.
+function bountyCount(h,target){ if(!h) return 0; return target==="any" ? (h.kills|0) : (((h.killsByType||{})[target])|0); }
+function bountyDef(idx){ const L=BOUNTY_BOARD.bounties||[]; if(!L.length) return null; const n=L.length; return L[(((idx|0)%n)+n)%n]; }
+function bountyProgress(h){ if(!h||!h.bounty) return 0; const b=h.bounty; return Math.max(0, Math.min(b.count|0, bountyCount(h,b.target)-(b.base|0))); }
+function bountyReady(h){ return !!(h&&h.bounty) && bountyProgress(h) >= (h.bounty.count|0); }
+
+// CAS-2269: INTENTO de Tablón — el ÚNICO chokepoint de jugador (input tecla BOUNTY_BOARD.key + __dev.bounty({act})). Contextual:
+// sin contrato ⇒ ACEPTA el destacado (snapshot base); con contrato completo ⇒ RECLAMA (oro+XP por los chokepoints reales,
+// avanza la rotación, limpia); con contrato en progreso ⇒ no-op. Gate: feature ON, escena play, héroe vivo, y (si requireSafeZone)
+// dentro de la SAFEZONE = en el Santuario. Devuelve un motivo para el HUD/QA. OFF ⇒ return "off" sin tocar nada ⇒ byte-idéntico
+// (la tecla es inerte río arriba en input.js; h.bounty/h.bountyIdx nunca se crean).
+export function tryBounty(){
+  const h=G.hero; if(!BOUNTY_BOARD.enabled) return "off";
+  if(!h || h.dead || G.scene!=="play") return "unavailable";
+  if(BOUNTY_BOARD.requireSafeZone && !inSafeZone(h.x,h.y)) return "away";   // hay que estar en el Tablón (Santuario)
+  if(h.bounty){
+    if(!bountyReady(h)) return "inprogress";                                // aún cazando ⇒ no-op
+    const b=h.bounty, gold=Math.max(0,b.gold|0), xp=Math.max(0,b.xp|0);     // RECLAMAR
+    if(gold>0){ h.gold=(h.gold|0)+gold; audio.sfx.coin&&audio.sfx.coin(); }
+    if(xp>0) gainXP(xp);                                                    // XP por el ÚNICO chokepoint (compone con Rested/meta)
+    h.bountyIdx=(h.bountyIdx|0)+1;                                          // rota el destacado (variedad determinista)
+    h.bounty=null;
+    floater(h.x, h.y-34, "Recompensa +"+gold+" oro", C_GOLD);
+    return "claimed";
+  }
+  const def=bountyDef(h.bountyIdx|0); if(!def) return "none";               // ACEPTAR el destacado
+  h.bounty={ id:def.id, target:def.target, count:def.count|0, gold:def.gold|0, xp:def.xp|0, base:bountyCount(h,def.target) };
+  floater(h.x, h.y-34, "Contrato: "+def.name, "#ffd479");
+  return "accepted";
 }
 
 // CAS-1841: regen tick (transient, 0 RNG). Winds down the deny-flash, then — after a brief post-spend pause — regens
@@ -6112,6 +6158,37 @@ export const dev = {
       channelSec:RECALL.channelSec, channelT:h?+(+(h.recallChannelT||0)).toFixed(3):0,
       hasField: h ? ("bindPoint" in h) : false,                      // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       dist: (h&&bp)?+Math.hypot(h.x-bp.x,h.y-bp.y).toFixed(2):null,
+      hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
+  // CAS-2269: QA/dev hook del TABLÓN DE RECOMPENSAS (Bounty Board). Snapshot autoritativo (sim) del contrato activo + progreso
+  // DERIVADO + destacado + flip/drivers IN-MEMORY para OBSERVAR en DARK (disco sigue enabled:false, patrón __dev.recall/rested).
+  // Formas:
+  //   bounty()                 → {enabled,inZone,active,progress,complete,featured,bountyIdx,hasField,kills,gold,lvl,hero}
+  //   bounty({enabled:true})   → flip runtime in-memory de BOUNTY_BOARD.enabled (aceptar/reclamar sin tocar el disco)
+  //   bounty({act:true})       → dispara tryBounty() por el chokepoint REAL (acepta / reclama / no-op; observa oro+XP+rotación)
+  //   bounty({setIdx:n})       → fija el índice de rotación (destacado) para observar contratos concretos
+  //   bounty({clear:true})     → limpia el contrato activo (sólo crea/borra el campo con la feature ON ⇒ byte-id OFF)
+  //   bounty({kill:{type,n}})  → driver de PRUEBA: incrementa los MISMOS contadores monótonos que killEnemy (h.kills +
+  //                              h.killsByType[type]) para observar el progreso DERIVADO sin depender de combate headless
+  bounty(p){
+    let result=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) BOUNTY_BOARD.enabled=!!p.enabled;
+      if("setIdx" in p && G.hero && BOUNTY_BOARD.enabled) G.hero.bountyIdx=Math.max(0,Math.floor(+p.setIdx||0));
+      if(p.clear && G.hero && BOUNTY_BOARD.enabled) G.hero.bounty=null;
+      if(p.kill && G.hero){ const t=p.kill.type||"any", n=Math.max(0,Math.floor(+p.kill.n||0));   // mirror killEnemy: bump los contadores monótonos
+        const h=G.hero; h.kills=(h.kills|0)+n; if(t!=="any"){ const kt=h.killsByType||(h.killsByType={}); kt[t]=(kt[t]|0)+n; } }
+      if(p.act) result=tryBounty();                                        // pasa por el ÚNICO chokepoint del tablón (validación real)
+    }
+    const h=G.hero, b=h&&h.bounty?h.bounty:null, feat=bountyDef(h?(h.bountyIdx|0):0);
+    return { enabled:BOUNTY_BOARD.enabled, result,
+      inZone:h?inSafeZone(h.x,h.y):false,
+      active: b?{ id:b.id, target:b.target, count:b.count|0, gold:b.gold|0, xp:b.xp|0, base:b.base|0 }:null,
+      progress: h?bountyProgress(h):0, complete: h?bountyReady(h):false,
+      featured: feat?{ id:feat.id, name:feat.name, target:feat.target, count:feat.count|0, gold:feat.gold|0, xp:feat.xp|0 }:null,
+      bountyIdx: h?(h.bountyIdx|0):0,
+      hasField: h ? ("bounty" in h) : false,                              // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      kills: h?(h.kills|0):0,
+      gold: h?(h.gold|0):0, lvl: h?(h.lvl|0):0,
       hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset

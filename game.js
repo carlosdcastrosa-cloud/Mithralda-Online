@@ -266,6 +266,11 @@ export function createGame(canvas, ctx, getView){
       // mismo módulo config); recall({bind:true}) fuerza el vínculo al Santuario; recall({setCd:n}) fija el CD; recall({cast:true})
       // dispara tryRecall() por el chokepoint real (teleport a bindPoint + arranque del cooldown).
       recall:(p)=>simDev.recall(p),
+      // CAS-2269: TABLÓN DE RECOMPENSAS / BOUNTY BOARD OBSERVABLE hook (DARK). bounty() lee {enabled,inZone,active,progress,
+      // complete,featured,bountyIdx,hasField,kills,gold,lvl,hero}; bounty({enabled:true}) flip runtime IN-MEMORY (sim, mismo
+      // módulo config); bounty({act:true}) dispara tryBounty() por el chokepoint real (acepta/reclama/no-op); bounty({setIdx:n})
+      // fija el destacado; bounty({clear:true}) limpia el contrato activo.
+      bounty:(p)=>simDev.bounty(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -329,6 +329,11 @@ export function createRenderer(ctx){
     // corre ⇒ salida byte-idéntica (0 refs render fuera de este gate). ON + vinculado: runa de vínculo + estado del recall
     // (LISTO / cooldown mm:ss). Refleja la autoridad de sim (h.bindPoint / h.recallCD), cosmético puro (no lee/escribe RNG).
     if(RECALL.enabled) renderRecallBadge();
+    // CAS-2269: indicador "Tablón/Recompensa" (Bounty Board, render-only, $0 arte, DARK). Con BOUNTY_BOARD.enabled:false NUNCA
+    // corre ⇒ salida byte-idéntica (0 refs render fuera de este gate). ON: con contrato activo = pergamino + nombre + progreso
+    // n/N + barra (rastreable mientras cazas); en el Santuario sin contrato = pista del destacado. Refleja la autoridad de sim
+    // (h.bounty + progreso derivado de h.kills/killsByType); cosmético puro (no lee/escribe RNG ni save).
+    if(BOUNTY_BOARD.enabled) renderBountyBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3056,6 +3061,61 @@ export function createRenderer(ctx){
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=stc; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2269: indicador "Tablón/Recompensa" (Bounty Board). Pergamino de contrato procedural (canvas, $0 arte) + micro-label
+  // con el nombre del contrato + progreso n/N + barra discreta, ANCLADO en la fila de badges (bajo el pip Zona segura + Descanso
+  // + Recall). El progreso se DERIVA de los mismos contadores monótonos que usa sim (h.kills / h.killsByType), cosmético puro:
+  // NO lee/escribe sim ni RNG. Gated arriba en BOUNTY_BOARD.enabled ⇒ OFF nunca se invoca ⇒ salida byte-idéntica.
+  //   · Con contrato activo → pergamino ámbar + "nombre" + "n/N" (verde "listo" cuando n≥N; rastreable mientras cazas fuera).
+  //   · En el Santuario sin contrato → pergamino atenuado + pista "Tablón" + nombre del destacado (invita a aceptar).
+  function renderBountyBadge(){
+    const h=G.hero; if(!h) return;
+    const b=h.bounty||null;
+    const inZone=inCitySafe(h.x,h.y);
+    if(!b && !inZone) return;                                        // sin contrato y fuera del Santuario ⇒ sin indicador
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+58, sw=13, sh=16;                        // bajo la fila del Recall (fila anclada al minimapa)
+    // progreso derivado (mismo cálculo que sim; lectura pura)
+    let prog=0, count=0, done=false, label="";
+    if(b){ count=b.count|0;
+      const cur=(b.target==="any") ? (h.kills|0) : (((h.killsByType||{})[b.target])|0);
+      prog=Math.max(0, Math.min(count, cur-(b.base|0))); done=prog>=count && count>0;
+      const def=(BOUNTY_BOARD.bounties||[]).find(x=>x.id===b.id); label=(def&&def.name)||"Contrato"; }
+    else { const L=BOUNTY_BOARD.bounties||[]; const n=L.length; const feat=n?L[(((h.bountyIdx|0)%n)+n)%n]:null;
+      label=feat?feat.name:"—"; }
+    const pulse=b?(done?(0.78+0.16*Math.sin(G.t*3)):0.74):0.55;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // pergamino: rectángulo con contorno oscuro + relleno pergamino (ámbar si activo, atenuado como pista) + dos líneas de texto
+    ctx.beginPath();
+    ctx.moveTo(bx, by+sh*0.16); ctx.lineTo(bx+sw, by+sh*0.16); ctx.lineTo(bx+sw, by+sh*0.84); ctx.lineTo(bx, by+sh*0.84); ctx.closePath();
+    ctx.fillStyle=b?(done?"rgba(90,150,70,0.6)":"rgba(150,110,50,0.58)"):"rgba(90,84,70,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.75)"; ctx.stroke();
+    ctx.beginPath(); ctx.lineWidth=1.5; ctx.strokeStyle=b?(done?"#c9f0a8":"#e9cf94"):"#b7ad97"; ctx.lineJoin="round";
+    ctx.moveTo(bx+sw*0.24, by+sh*0.4); ctx.lineTo(bx+sw*0.76, by+sh*0.4);
+    ctx.moveTo(bx+sw*0.24, by+sh*0.6); ctx.lineTo(bx+sw*0.62, by+sh*0.6); ctx.stroke();
+    // micro-label (nombre del contrato / destacado)
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=by+sh/2, tx=bx+sw+5;
+    const lbl=(b?label:("Tablón: "+label));
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=b?COL.cream:"#c9b98a"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha de la fila (dentro de [bx, bx+104]): progreso n/N o "listo"
+    if(b){
+      let st, stc;
+      if(done){ st="listo"; stc="#a8e08a"; }
+      else { st=prog+"/"+count; stc="#e9cf94"; }
+      ctx.font="bold 10px "+FF; ctx.textAlign="right";
+      ctx.globalAlpha=done?pulse:0.85;
+      ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(st,bx+104,ty);
+      ctx.fillStyle=stc; ctx.fillText(st,bx+104,ty);
+      // barra de progreso discreta bajo la fila
+      const barW=104, barH=3, byy=by+sh+2, fr=count>0?prog/count:0;
+      ctx.globalAlpha=0.7;
+      ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(bx,byy,barW,barH);
+      ctx.fillStyle=done?"#8fe07a":"#d9a94e"; ctx.fillRect(bx,byy,Math.round(barW*fr),barH);
+    }
     ctx.restore();
   }
 
