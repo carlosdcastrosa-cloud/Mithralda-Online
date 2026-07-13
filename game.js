@@ -249,6 +249,10 @@ export function createGame(canvas, ctx, getView){
       // safeZone({enabled:true}) flip runtime IN-MEMORY (afecta sim tick + afordancia render, mismo módulo config);
       // safeZone({pause:s}) fuerza la pausa post-daño; safeZone({setHp:n}) fija HP para observar el regen determinista.
       safeZone:(p)=>simDev.safeZone(p),
+      // CAS-2245: HOME-TEMPLE RESPAWN OBSERVABLE hook (DARK). templeRespawn() lee {enabled,point,temple,offsetY,
+      // inSafeZone,nearTemple,distToTemple,hero}; templeRespawn({enabled:true}) flip runtime IN-MEMORY (sim, mismo
+      // módulo config); templeRespawn({respawn:true}) mata (si vivo) + ejecuta respawn() ⇒ aterriza en el Templo.
+      templeRespawn:(p)=>simDev.templeRespawn(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

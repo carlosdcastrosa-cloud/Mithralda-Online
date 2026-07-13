@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2558,6 +2558,13 @@ function safeZoneGeom(){
 // ¿(x,y) dentro de la zona segura de la ciudad? Pura comparación de bbox (0 RNG). false si no hay ciudad.
 function inSafeZone(x,y){ const g=safeZoneGeom(); if(!g) return false; const b=g.bbox;
   return x>=b[0] && x<=b[2] && y>=b[1] && y<=b[3]; }
+// CAS-2245: punto de reaparición "casa" (Home-Temple Respawn) DERIVADO del POI Templo de la ciudad — el MISMO
+// `prop_city_temple` de world.deco que alimenta safeZoneGeom (⇒ MINIMAP/ZONE_BANNER/SAFEZONE). 0 RNG, puro-geometría,
+// server-authoritative-ready. Aterriza `offsetY` px al sur de la entrada del Templo ⇒ dentro del templeRadius de SAFEZONE
+// (regen ×2.5) y del bbox de la Zona Segura. Devuelve null si el mundo no tiene ciudad (0 POIs Templo — p.ej. ?world=classic
+// / mapdoc) ⇒ respawn cae al checkpoint normal. Sólo se invoca con TEMPLE_RESPAWN.enabled ⇒ DARK byte-idéntico a HEAD.
+function homeTemplePoint(){ const g=safeZoneGeom(); if(!g||!g.temple) return null;
+  return { x:g.temple.x, y:g.temple.y + (TEMPLE_RESPAWN.offsetY|0) }; }
 // CAS-2242: tick de regen de la ZONA SEGURA (transitorio, 0 RNG). Tras una pausa post-daño (SAFEZONE.regenDelay, mirror
 // STAMINA), si el héroe está dentro del bbox de la Ciudad regenera HP a SAFEZONE.regenPct×HPmax/s (acelerado ×templeMul
 // dentro del radio del Templo). Ruta por pactHeal (respeta el healCut del Pacto Frágil, ×1.0 sin pacto). El campo
@@ -4144,7 +4151,13 @@ export function respawn(){
   // applyMetaReroll re-adds the reroll charges ON TOP of the rerollLeft:1 just reset above — the
   // CRÍTICO seam, since respawn wiped the meta reroll along with the per-run budget. HP fills below.
   reconcileMeta(h); applyMetaReroll(h); applyMetaStartBoons(h); // CAS-1565: Vanguardia start-boons re-granted after the death boon-wipe (per-run)
-  h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max; h.x=h.respawn.x; h.y=h.respawn.y; h.bld=null;   // CAS-1841: vigor a tope al reaparecer · CAS-1931: medidor buildup limpio (OFF ⇒ ya null ⇒ byte-id)
+  h.dead=false; h.hp=heroMaxHp(h); h.mp=h.maxMp; h.stam=STAMINA.max;   // CAS-1841: vigor a tope al reaparecer
+  // CAS-2245: HOME-TEMPLE RESPAWN — al morir "vuelves a casa" al Templo de la Ciudad (dentro de SAFEZONE). El punto se
+  // deriva del POI Templo (0 RNG). OFF (DARK) ⇒ ternario false ⇒ rama else IDÉNTICA a HEAD (h.x/h.y = h.respawn) ⇒ byte-id.
+  // NO reescribe h.respawn (checkpoint persistido intacto): el destino se DERIVA cada muerte ⇒ nada nuevo que serializar.
+  const _home = TEMPLE_RESPAWN.enabled ? homeTemplePoint() : null;
+  if(_home){ h.x=_home.x; h.y=_home.y; } else { h.x=h.respawn.x; h.y=h.respawn.y; }
+  h.bld=null;   // CAS-1931: medidor buildup limpio (OFF ⇒ ya null ⇒ byte-id)
   h.vx=h.vy=0; h.rolling=false; h.iframe=0.5; G.scene="play"; G.skull.level=0; G.skull.kills=0;
   G.arenaMode=false; // CAS-1664: leaving the death screen exits Arena de Oleadas → back to the normal world (no-op in a normal run)
   G.bossRushMode=false; G.pendingBossRush=false; G.seededChallengeMode=false; G.seededCode=null; // CAS-1988/2090: leaving the death screen exits Boss Rush / Seeded Challenge too (no-op in a normal run)
@@ -5919,6 +5932,25 @@ export const dev = {
       hp:h?+(+h.hp).toFixed(2):0, maxHp:h?heroMaxHp(h):0, pauseT:h?+(h._safeRegenPauseT||0).toFixed(2):0,
       bbox:g?g.bbox.slice():null, temple:g&&g.temple?{x:g.temple.x,y:g.temple.y}:null,
       cityMargin:SAFEZONE.cityMargin, templeRadius:SAFEZONE.templeRadius, regenDelay:SAFEZONE.regenDelay, templeMul:SAFEZONE.templeMul }; },
+  // CAS-2245: QA/dev hook del HOME-TEMPLE RESPAWN (b5c10283). Snapshot del punto de reaparición "casa" + flip IN-MEMORY
+  // para OBSERVAR en DARK (disco sigue false, patrón __dev.safeZone). Formas:
+  //   templeRespawn()               → {enabled,point:{x,y}|null,temple,offsetY,inSafeZone,nearTemple,distToTemple}
+  //   templeRespawn({enabled:true}) → flip runtime in-memory (mata al héroe y observa que reaparece en el Templo)
+  //   templeRespawn({respawn:true}) → mata (si no está muerto) y ejecuta respawn() ⇒ deja al héroe en el punto de reaparición
+  templeRespawn(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) TEMPLE_RESPAWN.enabled=!!p.enabled;
+      if(p.respawn){ if(G.hero && !G.hero.dead) heroDie(); respawn(); }
+    }
+    const pt=homeTemplePoint(), g=safeZoneGeom(), h=G.hero;
+    let inZone=false, nearTemple=false, dist=null;
+    if(pt && g){ inZone=inSafeZone(pt.x,pt.y);
+      if(g.temple){ const dx=pt.x-g.temple.x, dy=pt.y-g.temple.y, tr=SAFEZONE.templeRadius;
+        dist=+Math.sqrt(dx*dx+dy*dy).toFixed(2); nearTemple=dist<=tr; } }
+    return { enabled:TEMPLE_RESPAWN.enabled, offsetY:TEMPLE_RESPAWN.offsetY,
+      point:pt?{x:pt.x,y:pt.y}:null, temple:g&&g.temple?{x:g.temple.x,y:g.temple.y}:null,
+      inSafeZone:inZone, nearTemple, distToTemple:dist, templeRadius:SAFEZONE.templeRadius,
+      hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead,hp:+(+h.hp).toFixed(2)}:null }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset
   // cell — not the whole sheet — reached world.deco in vivo. Pure read, no mutation.
