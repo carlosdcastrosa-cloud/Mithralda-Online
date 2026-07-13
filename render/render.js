@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -312,6 +312,11 @@ export function createRenderer(ctx){
     if(_dn && _dn.glow>0.02 && DAYNIGHT.lampGlow){ ctx.save(); ctx.scale(Z,Z); ctx.translate(-camX,-camY);
       renderLampGlow(_dn.glow, camX, camY, Z); ctx.restore(); }
     renderHUD();
+    // CAS-2234: banner de zona/región al entrar (render+code, DARK). Con ZONE_BANNER.enabled:false ni el
+    // update (edge-detection de zona) ni el render se llaman ⇒ salida byte-idéntica. ON: detecta el cruce a
+    // una región con nombre (deriva pura de los POIs de world.deco = minimapa CAS-2226) y dibuja un título de
+    // texto top-third que hace fade-in/hold/fade-out. Screen-space, encima del HUD, no tapa el centro de acción.
+    if(ZONE_BANNER.enabled){ updateZoneBanner(); renderZoneBanner(); }
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -2811,6 +2816,93 @@ export function createRenderer(ctx){
       drops:rainDrops().length, maxDrops:WEATHER.maxDrops };
   }
 
+  // CAS-2234: BANNER DE ZONA/REGIÓN (render+code, DARK). Las regiones DERIVAN PURAMENTE de los MISMOS POIs de
+  // world.deco que usa el minimapa (mapBlips → Templo/Depósito/Taberna/Parque), más una región contenedora
+  // "Ciudad" = bbox de esos POIs. 0 RNG, deriva determinista de world (memoizado como mapBlips) ⇒ idéntico en
+  // TODO cliente por construcción. La "zona actual" = posición del héroe vs regiones estáticas (cosmético,
+  // per-cliente, 0 escritura a sim/save).
+  let _zbRegions=null, _zbWorld=null;
+  function zoneRegions(){
+    if(_zbWorld===world && _zbRegions) return _zbRegions;
+    const out=[], blips=mapBlips();
+    // Región circular por POI (radio ZONE_BANNER.radius). El label es el mismo del minimapa (CAS-2226).
+    for(const b of blips) out.push({name:b.label, x:b.x, y:b.y, r:ZONE_BANNER.radius|0, sub:null, container:false});
+    // Región contenedora "Ciudad" = bbox de los POIs expandido por cityMargin. Sólo si hay POIs (0 = sin ciudad).
+    if(blips.length){
+      let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+      for(const b of blips){ if(b.x<minx)minx=b.x; if(b.y<miny)miny=b.y; if(b.x>maxx)maxx=b.x; if(b.y>maxy)maxy=b.y; }
+      const m=ZONE_BANNER.cityMargin|0;
+      out.push({name:ZONE_BANNER.cityLabel, sub:ZONE_BANNER.citySubtitle||null, container:true,
+        bbox:[minx-m, miny-m, maxx+m, maxy+m]});
+    }
+    _zbWorld=world; _zbRegions=out; return out;
+  }
+  // Resuelve la región que contiene (x,y): POI circular más cercano gana; si ninguno, la región contenedora
+  // (Ciudad) si el punto cae en su bbox; si no, null (descampado = sin banner). Determinista, 0 RNG.
+  function zoneAt(x,y){
+    const R=zoneRegions(); let best=null, bestD=Infinity;
+    for(const z of R){ if(z.container) continue; const dx=x-z.x, dy=y-z.y, d2=dx*dx+dy*dy, r=z.r;
+      if(d2<=r*r && d2<bestD){ best=z; bestD=d2; } }
+    if(best) return best;
+    for(const z of R){ if(z.container && z.bbox){ const b=z.bbox;
+      if(x>=b[0] && x<=b[2] && y>=b[1] && y<=b[3]) return z; } }
+    return null;
+  }
+  // Estado del banner (render-local, NO sim/save): edge-detection del nombre de zona actual + tiempo de inicio.
+  let _zbCur=null;      // nombre de la zona actual (para detectar cruces — no re-dispara si te quedas dentro)
+  let _zbBanner=null;   // {name, sub, start} banner activo (start=Date.now ms; sólo cosmético/render, 0 sim)
+  // Sobre-actualiza cada frame (barato: ~5 regiones). Sólo se llama con ZONE_BANNER.enabled ⇒ DARK byte-idéntico.
+  function updateZoneBanner(){
+    const h=G.hero; if(!h) return;
+    const z=zoneAt(h.x,h.y), name=z?z.name:null;
+    if(name!==_zbCur){ _zbCur=name; if(name) _zbBanner={name:name, sub:z.sub||null, start:Date.now()}; }
+  }
+  // Envolvente de opacidad: fade-in [0,fade] → hold [fade, fade+hold] → fade-out → 0. Deriva de tiempo real
+  // (cosmético; NO toca sim/determinismo). el = segundos desde el disparo.
+  function zbAlpha(el){
+    const fi=ZONE_BANNER.fadeSeconds||0.6, hold=ZONE_BANNER.holdSeconds||2.5;
+    if(el<0) return 0;
+    if(el<fi) return el/fi;
+    if(el<fi+hold) return 1;
+    if(el<fi+hold+fi) return 1-(el-fi-hold)/fi;
+    return 0;
+  }
+  // Dibuja el título de zona (screen-space, top-third). Fuente/estilo de HUD ya existente (FF, COL) — sin arte
+  // nuevo. Contorno oscuro para legibilidad sobre cualquier terreno. No aloca por-frame. Al terminar el fade se
+  // limpia _zbBanner (nada que dibujar).
+  function renderZoneBanner(){
+    const b=_zbBanner; if(!b) return;
+    const el=(Date.now()-b.start)/1000, a=zbAlpha(el);
+    if(a<=0.003){ if(el>0) _zbBanner=null; return; }
+    ctx.save();
+    ctx.globalAlpha=a; ctx.textAlign="center"; ctx.textBaseline="middle";
+    const cx=VW/2, cy=Math.round(VH*(ZONE_BANNER.anchorY||0.17));
+    ctx.font="bold 30px "+FF;
+    ctx.lineWidth=4; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.85)"; ctx.strokeText(b.name,cx,cy);
+    ctx.fillStyle=COL.textGold; ctx.fillText(b.name,cx,cy);
+    if(b.sub){ ctx.font="bold 14px "+FF; ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.8)";
+      ctx.strokeText(b.sub,cx,cy+24); ctx.fillStyle=COL.cream; ctx.fillText(b.sub,cx,cy+24); }
+    ctx.restore();
+  }
+  // Dev/QA hook (expuesto vía __dev.zone): zone() lee estado. Formas de escritura (patrón __dev.weather):
+  //   zone("Templo")            → fuerza un banner con ese texto (screenshots QA deterministas).
+  //   zone(null)                → limpia el banner activo.
+  //   zone({enabled:true})      → flip runtime IN-MEMORY para OBSERVAR en DARK (disco sigue false).
+  //   zone({name:"Ciudad", sub:"Zona segura"}) → fuerza banner con sub-título.
+  function zone(p){
+    if(p!==undefined){
+      if(p===null){ _zbBanner=null; }
+      else if(typeof p==="object"){
+        if("enabled" in p) ZONE_BANNER.enabled=!!p.enabled;
+        if("name" in p) _zbBanner=(p.name==null)?null:{name:String(p.name), sub:(p.sub!=null?String(p.sub):null), start:Date.now()};
+      } else { _zbBanner={name:String(p), sub:null, start:Date.now()}; }
+    }
+    const h=G.hero, z=h?zoneAt(h.x,h.y):null, b=_zbBanner, el=b?(Date.now()-b.start)/1000:0;
+    return { enabled:ZONE_BANNER.enabled, current:z?z.name:null,
+      banner:b?{name:b.name, sub:b.sub, alpha:+zbAlpha(el).toFixed(3), t:+el.toFixed(2)}:null,
+      regions:zoneRegions().map(r=>r.container?{name:r.name, container:true, bbox:r.bbox}:{name:r.name, x:Math.round(r.x), y:Math.round(r.y), r:r.r}) };
+  }
+
   function renderMiniMap(){ if(isTouch) return;
     const sidebar=view.sbw>0;
     let mw=120, mh=120, x, y;
@@ -4764,5 +4856,5 @@ export function createRenderer(ctx){
     ctx.strokeStyle="#cdd4dc"; ctx.lineWidth=5; ctx.beginPath(); ctx.moveTo(-18,-18); ctx.lineTo(18,18); ctx.moveTo(18,-18); ctx.lineTo(-18,18); ctx.stroke();
     ctx.strokeStyle=COL.out; ctx.lineWidth=1.5; ctx.stroke(); ctx.restore(); }
 
-  return { render, customImgReady, daynight, weather };
+  return { render, customImgReady, daynight, weather, zone };
 }

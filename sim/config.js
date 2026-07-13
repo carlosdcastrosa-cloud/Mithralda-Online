@@ -1534,6 +1534,27 @@ export const WEATHER = {
   fogMax: 0.42,          // alpha máx. del velo radial de niebla (reduce visibilidad ambiental; centro más claro = combate legible).
 };
 
+// CAS-2234: BANNER DE ZONA / REGIÓN (EVO mundo-abierto tipo Tibia, render+code-only, $0 arte, DARK). North Star
+// MMORPG: las zonas con nombre son la unidad de navegación/presencia (y a futuro spawns/PvP/instancing). Las
+// regiones DERIVAN PURAMENTE de los MISMOS POIs de `world.deco` que ya usa el minimapa (CAS-2226: Templo/Depósito/
+// Taberna/Parque) + una región contenedora "Ciudad" (bbox de esos POIs) ⇒ 0 RNG, derivación determinista ⇒ idéntico
+// en TODO cliente por construcción (server-authoritative-ready sin desync). La "zona actual" = posición del héroe vs
+// regiones estáticas; al cruzar a una zona con nombre distinto ⇒ fade-in de un título de texto (fuente/estilo de HUD
+// YA existente, NO fuente/arte nuevo) top-third, hold ~2.5s, fade-out. Puramente COSMÉTICO/render: 0 escritura a
+// sim/save/RNG, per-cliente ⇒ no afecta estado compartido (en mundo autoritativo a futuro el banner es local). DARK/
+// reversible: `enabled:false` ⇒ el update+render del banner NUNCA se llama ⇒ BYTE-IDÉNTICO al build actual (srand
+// ON==OFF, worldFingerprint sin drift). Flip config-only/overlay (Gate CEO tras QA OBSERVABLE), patrón WEATHER/DAYNIGHT.
+export const ZONE_BANNER = {
+  enabled: false,         // DARK (default). true = dibuja el banner al entrar a una zona con nombre. Reversible true→false.
+  radius: 200,            // radio (px de mundo) alrededor del centro de cada POI que cuenta como "dentro" de esa zona.
+  cityMargin: 300,        // margen (px) que expande el bbox de los POIs para la región contenedora "Ciudad".
+  holdSeconds: 2.5,       // tiempo que el banner queda a plena opacidad antes del fade-out.
+  fadeSeconds: 0.6,       // duración del fade-in y del fade-out (cada uno).
+  anchorY: 0.17,          // fracción vertical del título (0.17 = top-third; NO tapa el centro de acción = combate legible).
+  cityLabel: "Ciudad",    // etiqueta de la región contenedora de la ciudad.
+  citySubtitle: "Zona segura",  // sub-título opcional de la ciudad (estilo Tibia).
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
