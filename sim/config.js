@@ -1688,7 +1688,7 @@ export const BOUNTY_BOARD = {
 // (config+sim+game[+dev hook]+render[+indicador]). Escala a N jugadores sin contención (estado 100% per-hero). Los NÚMEROS
 // (repPerBounty / umbrales / xpMult) = decisión de BALANCE del CEO (retune = edición de knob barata y reversible).
 export const SANCTUARY_REP = {
-  enabled: false,          // DARK (CAS-2272). Reversible: false→true + redeploy overlay consistente-HEAD (config+sim+game+render).
+  enabled: true,           // LIVE (CAS-2274, CEO Gate PASS). Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+game+render).
   repPerBounty: 25,        // Renombre ganado por bounty COMPLETADO (flat, determinista, 0 RNG). CEO balance knob.
   ranks: [                 // umbrales ACUMULADOS de rep → rango + perk (xpMult de bounty). Función pura del total; `at` ascendente.
     { id:"neutral",    name:"Neutral",    at:0,    xpMult:1.00 },   // sin perk (byte-id de la ruta gainXP hasta subir de rango)
