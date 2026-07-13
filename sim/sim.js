@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2009,6 +2009,8 @@ export function serializeSave(){
     ...(SANCTUARY_LEDGER.enabled && h.ledgerAt ? { ledgerAt:{ period:(h.ledgerAt.period>>>0), killBase:h.ledgerAt.killBase|0, repBase:h.ledgerAt.repBase|0 } } : {}),
     // CAS-2316: persist el snapshot per-semana de la HERMANDAD (h.fellowAt = {period, killBase}) SÓLO con la feature ON y presente (OFF la clave fellowAt NUNCA se crea ⇒ byte-id). killBase es un snapshot del contador monótono de kills al formarse la banda.
     ...(FELLOWSHIP_BOND.enabled && h.fellowAt ? { fellowAt:{ period:(h.fellowAt.period>>>0), killBase:h.fellowAt.killBase|0 } } : {}),
+    // CAS-2322: persist el snapshot per-semana del VÍNCULO de mentor (h.mentorAt = {period, killBase}) SÓLO con la feature ON y presente (OFF la clave mentorAt NUNCA se crea ⇒ byte-id). killBase es un snapshot del contador monótono de kills al asignarse el par.
+    ...(MENTOR_BOND.enabled && h.mentorAt ? { mentorAt:{ period:(h.mentorAt.period>>>0), killBase:h.mentorAt.killBase|0 } } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2121,6 +2123,9 @@ export function loadSave(d){
     // CAS-2316: rehidrata el snapshot per-semana de la HERMANDAD (validado; saves viejos carecen de la clave → sin snapshot, tickFellowship re-snapshotará al primer tick; gated ⇒ OFF la clave fellowAt NUNCA se crea ⇒ byte-id). Si el period no coincide al reanudar, tickFellowship re-snapshotará (vínculo vuelve a 0 la nueva semana).
     if(FELLOWSHIP_BOND.enabled){ const g=d.fellowAt;
       if(g && typeof g==="object"){ h.fellowAt={ period:(g.period>>>0), killBase:Math.max(0,Math.floor(num(g.killBase,0))) }; } }
+    // CAS-2322: rehidrata el snapshot per-semana del VÍNCULO de mentor (validado; saves viejos carecen de la clave → sin snapshot, tickMentor re-snapshotará al primer tick; gated ⇒ OFF la clave mentorAt NUNCA se crea ⇒ byte-id). Si el period no coincide al reanudar, tickMentor re-snapshotará (dwell vuelve a 0 la nueva semana).
+    if(MENTOR_BOND.enabled){ const g=d.mentorAt;
+      if(g && typeof g==="object"){ h.mentorAt={ period:(g.period>>>0), killBase:Math.max(0,Math.floor(num(g.killBase,0))) }; } }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -3086,6 +3091,82 @@ export function wayfarerFellowship(h){ h=h||G.hero; const s=G.fellowship||null;
     forged:h?fellowForged(h):false, forgeTierName:(T[forgeIdx]?T[forgeIdx].name:""),
     nextTierName:nextTier?nextTier.name:null, nextAt:nextTier?(+nextTier.at||0):null,
     bondKind:FELLOWSHIP_BOND.bondKind||"xpGain", bondValue:+FELLOWSHIP_BOND.bondValue||0,
+    nextInSec:s?(s.nextInSec|0):0 }; }
+
+// CAS-2322: VÍNCULO DE MENTOR / MENTORSHIP BOND — capa social ASIMÉTRICA (veterano↔novato). Todo DERIVADO (0 RNG, server-authority-ready), reloj
+// PROPIO. mentorScheduleAt(nowMs) = ventana semanal del reloj de pared COMPARTIDO (mirror fellowScheduleAt con periodSec/epochMs PROPIOS de
+// MENTOR_BOND) ⇒ TODO cliente con el mismo reloj deriva el MISMO period ⇒ MISMO compañero asignado (convergente, 0 desync). Exportada para el harness.
+export function mentorScheduleAt(nowMs){
+  const out={ enabled:!!MENTOR_BOND.enabled, period:0, into:0, frac:0, nextInSec:0 };
+  if(!Number.isFinite(nowMs) || nowMs<=0) return out;
+  const periodMs=Math.max(1000,(MENTOR_BOND.periodSec|0)*1000);
+  const elapsed=nowMs-(MENTOR_BOND.epochMs||0); if(elapsed<0) return out;
+  const period=Math.floor(elapsed/periodMs), into=elapsed-period*periodMs;
+  out.period=period>>>0; out.into=into; out.frac=into/periodMs; out.nextInSec=(periodMs-into)/1000;
+  return out;
+}
+// hash de Knuth por period (mismo mezclador determinista del Libro/Fellowship; salt PROPIO) ⇒ 0 RNG, asignación estable.
+function mentorHash(period, salt){ let s=((period>>>0)*2654435761)>>>0; const t=String(salt||"");
+  for(let i=0;i<t.length;i++){ s=(((s^t.charCodeAt(i))>>>0)*16777619)>>>0; } return s>>>0; }
+// El COMPAÑERO asignado esta semana = 1 miembro del roster fijo elegido por el reloj COMPARTIDO (hash(period)%N). Determinista ⇒ TODO cliente con
+// el mismo period ve el MISMO compañero (convergente). El ROL (mentor/protégé) lo decide el gap de nivel del héroe LOCAL vs este compañero.
+function mentorPartner(period){
+  const R=MENTOR_BOND.roster||[]; const N=R.length; if(N<=0) return null;
+  const m=R[mentorHash(period>>>0,"mentor")%N];
+  return { id:String(m.id||""), name:String(m.name||m.id||""), lvl:Math.max(1,(+m.lvl||1)) };
+}
+// gap de nivel del héroe vs el compañero asignado (heroLvl − partnerLvl). >0 ⇒ el héroe es el veterano; <0 ⇒ el héroe es el novato. Sin schedule ⇒ 0.
+function mentorGap(h){ const s=G.mentor||null; if(!h||!s) return 0; const p=mentorPartner(s.period); if(!p) return 0;
+  return (h.lvl|0)-(p.lvl|0); }
+// ROL determinista por el gap con el UMBRAL: mentor si gap≥+thr, protégé si gap≤−thr, si no "none". Gated ⇒ OFF ⇒ "none".
+function mentorRole(h){ if(!MENTOR_BOND.enabled||!h||!G.mentor) return "none";
+  const thr=Math.max(1,(MENTOR_BOND.gapThreshold|0)), g=mentorGap(h);
+  if(g>=thr) return "mentor"; if(g<=-thr) return "protege"; return "none"; }
+// DWELL determinista de co-presencia = kills MONÓTONOS desde que se asignó el par (h.mentorAt), misma técnica que fellowBond/Libro (0 hook/frame).
+function mentorDwell(h){ if(!h||!h.mentorAt) return 0;
+  return Math.max(0,(h.kills|0)-(h.mentorAt.killBase|0)); }
+// índice del TIER de dwell (el más alto cuyo `at`≤dwell). tiers ascendentes; el primero (at:0) es base ⇒ siempre ≥0.
+function mentorTierIdx(dwell){ const T=MENTOR_BOND.tiers||[]; let idx=0;
+  for(let i=0;i<T.length;i++){ if((dwell|0)>=(+T[i].at||0)) idx=i; } return idx; }
+// ¿el par está LIGADO? ⇒ hay ROL (|gap|≥umbral) Y el dwell alcanza bindTier. Gated ⇒ OFF ⇒ false.
+function mentorBound(h){ if(!MENTOR_BOND.enabled||!h) return false;
+  if(mentorRole(h)==="none") return false;
+  return mentorTierIdx(mentorDwell(h)) >= (MENTOR_BOND.bindTier|0); }
+// boost de XP ESCALONADO del PROTÉGÉ = boost del tier de dwell alcanzado (sólo si LIGADO y rol protégé). El VETERANO NO recibe boost (sólo el título).
+function mentorBoost(h){ if(!mentorBound(h) || mentorRole(h)!=="protege") return 0;
+  const T=MENTOR_BOND.tiers||[], ti=mentorTierIdx(mentorDwell(h));
+  return (+((T[ti]&&T[ti].boost)||0))||0; }
+// mentorMul(h,kind) = el boost del PROTÉGÉ en el canal restedMult (REUSA RESTED_XP), con PRECEDENCIA EXPLÍCITA anti-stacking que ESPEJA el patrón de
+// EVOs previos (territoryMul→standingsMul): se de-stackea SÓLO en el MISMO canal. STANDINGS(colectivo) y MENTOR(personal) comparten restedMult ⇒ NO se
+// suman: MENTOR CEDE (return 0) cuando STANDINGS ya aporta en ese canal ⇒ se aplica el MAYOR (el colectivo gana; standingsMul 0.15 ≥ mentorBoost máx 0.15).
+// FELLOWSHIP(xpGain) y TERRITORY(safeRegen) son canales ⊥ ⇒ coexisten (igual que hoy fellowship-xpGain + standings-restedMult ya coexisten en gainXP;
+// mismo precedente que territory-safeRegen coexiste con standings-restedMult). Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function mentorMul(h,kind){ if(!MENTOR_BOND.enabled||!h) return 0;
+  if(kind!==(MENTOR_BOND.boostKind||"restedMult")) return 0;
+  if(mentorRole(h)!=="protege" || !mentorBound(h)) return 0;
+  if((MENTOR_BOND.boostKind||"restedMult")===(ORDER_STANDINGS.leadKind||"restedMult") && ORDER_STANDINGS.enabled && standingsMul(h,ORDER_STANDINGS.leadKind||"restedMult")>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana restedMult ⇒ MENTOR cede (aplica el MAYOR, 0 doble-conteo)
+  return mentorBoost(h);
+}
+// tick del VÍNCULO (mirror tickFellowship): deriva+cachea el schedule semanal del reloj COMPARTIDO (Date.now, leído SÓLO aquí y SÓLO bajo el gate) en
+// G.mentor (transitorio, fuera del allowlist de serializeSave) y SNAPSHOTa el base per-semana en h.mentorAt al rolar el period. OFF ⇒ NUNCA se invoca
+// ⇒ Date.now nunca se llama, G.mentor/h.mentorAt NUNCA se crean ⇒ byte-idéntico a HEAD.
+function tickMentor(){ if(!MENTOR_BOND.enabled) return; const s=mentorScheduleAt(Date.now()); G.mentor=s;
+  const h=G.hero; if(!h||h.dead) return;
+  if(!h.mentorAt || (h.mentorAt.period>>>0)!==(s.period>>>0)){     // period nuevo (o primera vez) ⇒ re-snapshot ⇒ dwell vuelve a 0
+    h.mentorAt={ period:s.period>>>0, killBase:h.kills|0 }; } }    // el campo SÓLO se crea con la feature ON ⇒ byte-id OFF
+// glifo del nameplate para el ROL LIGADO: ⚜ (mentor, honor) / ✦ (protégé, aprendiz) / "" si no ligado. Puro, 0 sim/RNG. Reusa la ruta de TITLES.
+export function mentorBondTag(h){ h=h||G.hero; if(!mentorBound(h)) return "";
+  return mentorRole(h)==="mentor" ? "⚜" : "✦"; }
+// View-model PURO para el panel del Tablón: el compañero asignado, el rol, el gap, el dwell/tier y el boost del protégé.
+export function mentorshipBond(h){ h=h||G.hero; const s=G.mentor||null, p=s?mentorPartner(s.period):null;
+  const role=h?mentorRole(h):"none", dwell=h?mentorDwell(h):0, ti=mentorTierIdx(dwell), T=MENTOR_BOND.tiers||[];
+  const nextTier=(ti+1<T.length)?T[ti+1]:null, bindIdx=MENTOR_BOND.bindTier|0;
+  return { enabled:!!MENTOR_BOND.enabled, periodSec:MENTOR_BOND.periodSec|0, gapThreshold:MENTOR_BOND.gapThreshold|0,
+    partner:p, role, gap:h?mentorGap(h):0, bound:h?mentorBound(h):false,
+    dwell, tierIdx:ti, tierName:(T[ti]?T[ti].name:""), bindTierName:(T[bindIdx]?T[bindIdx].name:""),
+    nextTierName:nextTier?nextTier.name:null, nextAt:nextTier?(+nextTier.at||0):null,
+    boostKind:MENTOR_BOND.boostKind||"restedMult", boost:h?mentorBoost(h):0,
+    mentorTitle:MENTOR_BOND.mentorTitle||"Mentor", protegeTitle:MENTOR_BOND.protegeTitle||"Protégé",
     nextInSec:s?(s.nextInSec|0):0 }; }
 
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
@@ -4126,7 +4207,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult");   // CAS-2278/2305: reward Intendente + pasivo de la orden LÍDER (Clasificación) suben el mult de Descanso (gated ⇒ OFF = RESTED_XP.xpMult exacto)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult");   // CAS-2278/2305/2322: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Vínculo de Mentor) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; mentorMul CEDE a standings/fellowship ⇒ 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -5498,6 +5579,7 @@ export function update(dtMs){
   if(SANCTUARY_LEDGER.enabled) tickLedger(); // CAS-2300: Libro de la Orden — marcador semanal colectivo derivado del reloj (transitorio en G.ledger + snapshot h.ledgerAt, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(ORDER_STANDINGS.enabled) tickStandings(); // CAS-2305: Clasificación de Órdenes — ranking semanal compartido derivado del baseline del Libro (transitorio en G.standings, gated ⇒ OFF nunca se crea ⇒ byte-id). Tras tickLedger (reusa G.ledger.period/frac).
   if(FELLOWSHIP_BOND.enabled) tickFellowship(); // CAS-2316: Compañeros de Ruta — banda semanal compartida (reloj propio) + snapshot h.fellowAt del vínculo (transitorio en G.fellowship, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(MENTOR_BOND.enabled) tickMentor(); // CAS-2322: Vínculo de Mentor — compañero semanal asignado (reloj propio) + snapshot h.mentorAt del dwell (transitorio en G.mentor, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -6927,6 +7009,37 @@ export const dev = {
       gExists:(G.fellowship!=null),                                        // prueba byte-id: OFF ⇒ G.fellowship NUNCA se crea
       hasField: h ? ("fellowAt" in h) : false,                            // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       hero:h?{ kills:h.kills|0, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead }:null }; },
+  // CAS-2322: VÍNCULO DE MENTOR / MENTORSHIP BOND OBSERVABLE hook (DARK, MENTOR_BOND). Snapshot autoritativo (sim) del COMPAÑERO semanal asignado
+  // (elección pura del reloj propio) + el ROL derivado del gap de nivel + el DWELL de co-presencia (kills) + el boost del protégé (con PRECEDENCIA)
+  // + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar semanas reales (disco sigue false, patrón __dev.fellowship/standings). El nowMs
+  // INYECTADO prueba "mismo reloj ⇒ MISMO compañero" (convergencia N-clientes, 0 desync). El lvl INYECTADO prueba ambos ROLES sin farmear. Formas:
+  //   mentor()                 → {enabled,periodSec,gapThreshold,schedule,partner,role,gap,bound,dwell,tierIdx,tierName,bindTierName,nextTierName,nextAt,boostKind,boost,mentorMulRested,restedXpMult,standingsMulRested,fellowForged,tag,precedence,gExists,hasField,hero}
+  //   mentor({enabled:true})   → flip runtime IN-MEMORY de MENTOR_BOND.enabled (compañero/rol/pasivo sin tocar el disco)
+  //   mentor({nowMs})          → deriva+cachea el compañero semanal en G.mentor PARA ese reloj (+ snapshot base) — 0 espera real
+  //   mentor({lvl:N})          → fija el nivel del héroe (contador ya existente) ⇒ OBSERVA el rol mentor(alto)/protégé(bajo) vs el compañero asignado
+  //   mentor({kill:{n}})       → bump h.kills (contador monótono) ⇒ profundiza el DWELL de co-presencia (mirror killEnemy)
+  mentor(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) MENTOR_BOND.enabled=!!p.enabled;
+      if("nowMs" in p){ G.mentor=mentorScheduleAt(+p.nowMs);                // inyecta el reloj compartido para OBSERVAR el compañero de la semana
+        const hh=G.hero; if(MENTOR_BOND.enabled && hh && (!hh.mentorAt || (hh.mentorAt.period>>>0)!==(G.mentor.period>>>0))) hh.mentorAt={ period:G.mentor.period>>>0, killBase:hh.kills|0 }; }
+      if(("lvl" in p) && G.hero) G.hero.lvl=Math.max(1,Math.floor(+p.lvl||1));   // inyecta el nivel del héroe para OBSERVAR el rol (mentor/protégé) sin farmear
+      if(p.kill && G.hero) G.hero.kills=(G.hero.kills|0)+Math.max(0,Math.floor(+p.kill.n||0));   // mirror killEnemy: bump el contador monótono ⇒ dwell
+    }
+    const h=G.hero, s=G.mentor||null, v=mentorshipBond(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0);   // mult efectivo de Descanso (mirror gainXP; prueba precedencia: MENTOR cede a STANDINGS/FELLOWSHIP)
+    return { enabled:MENTOR_BOND.enabled, periodSec:MENTOR_BOND.periodSec|0, gapThreshold:MENTOR_BOND.gapThreshold|0,
+      schedule: s?{ period:s.period, frac:+(+s.frac).toFixed(4), nextInSec:s.nextInSec|0 }:null,
+      partner:v.partner, role:v.role, gap:v.gap, bound:v.bound, dwell:v.dwell, tierIdx:v.tierIdx, tierName:v.tierName,
+      bindTierName:v.bindTierName, nextTierName:v.nextTierName, nextAt:v.nextAt, boostKind:v.boostKind, boost:v.boost,
+      mentorMulRested: h?mentorMul(h,"restedMult"):0,                       // knob efectivo del pasivo (prueba: OFF/no-protégé/no-ligado/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                       // mult efectivo (prueba precedencia: MENTOR cede si standings lidera o fellowship forjada)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, fellowForged: h?fellowForged(h):false,
+      tag: h?mentorBondTag(h):"",                                          // glifo del nameplate SERVIDO (prueba: OFF/no ligado ⇒ "" / mentor ⇒ ⚜ / protégé ⇒ ✦)
+      precedence:"restedMult: max(standings_colectivo, mentor_personal) ⇒ MENTOR cede a STANDINGS (mismo canal, 0 doble-conteo); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten (mismo precedente que territory→standings)",
+      gExists:(G.mentor!=null),                                            // prueba byte-id: OFF ⇒ G.mentor NUNCA se crea
+      hasField: h ? ("mentorAt" in h) : false,                            // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      hero:h?{ lvl:h.lvl|0, kills:h.kills|0, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).

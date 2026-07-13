@@ -327,6 +327,12 @@ export function createGame(canvas, ctx, getView){
       // hero}; fellowship({enabled:true}) flip runtime IN-MEMORY; fellowship({nowMs}) inyecta el reloj compartido para observar la BANDA de esa
       // semana (convergencia, misma banda en N clientes); fellowship({kill:{n}}) profundiza el vínculo. SOLO lectura (0 hotkey — vínculo derivado).
       fellowship:(p)=>simDev.fellowship(p),
+      // CAS-2322: VÍNCULO DE MENTOR / MENTORSHIP BOND OBSERVABLE hook (DARK, MENTOR_BOND). mentor() lee {enabled,periodSec,gapThreshold,schedule,
+      // partner,role,gap,bound,dwell,tierIdx,tierName,bindTierName,nextTierName,nextAt,boostKind,boost,mentorMulRested,restedXpMult,standingsMulRested,
+      // fellowForged,tag,precedence,gExists,hasField,hero}; mentor({enabled:true}) flip runtime IN-MEMORY; mentor({nowMs}) inyecta el reloj compartido
+      // para observar el COMPAÑERO asignado de esa semana (convergencia, mismo compañero en N clientes); mentor({lvl:N}) fija el nivel del héroe para
+      // observar el ROL mentor(alto)/protégé(bajo); mentor({kill:{n}}) profundiza el DWELL. SOLO lectura (0 hotkey — rol derivado read-only).
+      mentor:(p)=>simDev.mentor(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

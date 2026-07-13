@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -1111,6 +1111,13 @@ export function createRenderer(ctx){
           const fx=h.x+tw/2+7+((SANCTUARY_LEDGER.enabled&&sim.sanctuaryLedgerTag(h))?12:0)+((ORDER_STANDINGS.enabled&&sim.sanctuaryStandingsTag(h))?12:0);
           ctx.strokeText("∞",fx,ty); ctx.fillStyle="#7fe6d8"; ctx.fillText("∞",fx,ty); }
         ctx.restore(); } }
+    // CAS-2322: VÍNCULO DE MENTOR — glifo ⚜ (mentor, oro) / ✦ (protégé, violeta) sobre el nameplate cuando el par está LIGADO. INDEPENDIENTE de la
+    // Orden (el vínculo veterano↔novato no requiere Juramento) ⇒ bloque PROPIO anclado SOBRE el tag de Orden. Estado AUTORITATIVO del sim
+    // (sim.mentorBondTag; 0 duplicación de lógica, capa social MMO). Gated ⇒ OFF / no ligado ⇒ "" ⇒ nada dibuja ⇒ byte-idéntico a HEAD.
+    if(!h.dead && MENTOR_BOND.enabled){ const mg=sim.mentorBondTag(h);
+      if(mg){ ctx.save(); ctx.globalAlpha=0.92; ctx.font="bold 11px "+FF; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+        const ty=h.y-72; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.8)"; ctx.strokeText(mg,h.x,ty);
+        ctx.fillStyle=(mg==="⚜")?"#e8c877":"#c8b3ff"; ctx.fillText(mg,h.x,ty); ctx.restore(); } }
   }
   // CAS-92: draw one frame of a hero animation strip. Every frame is HERO_FW×HERO_FH;
   // source column HERO_AX (body centroid) maps to world hx and source row HERO_FOOT
@@ -4107,7 +4114,7 @@ export function createRenderer(ctx){
   function renderBounty(){ const b=daily.board(); ui.bountyRects=[];
     // CAS-2295: con SANCTUARY_OATH.enabled el panel crece 76px para alojar la fila de Órdenes bajo los contratos (gated ⇒ OFF el alto
     // y todo el layout quedan byte-idénticos a HEAD).
-    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0)+(SANCTUARY_LEDGER.enabled?46:0)+(ORDER_STANDINGS.enabled?58:0)+(FELLOWSHIP_BOND.enabled?56:0), x=(VW-bw)/2, y=(VH-bh)/2;
+    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0)+(SANCTUARY_LEDGER.enabled?46:0)+(ORDER_STANDINGS.enabled?58:0)+(FELLOWSHIP_BOND.enabled?56:0)+(MENTOR_BOND.enabled?58:0), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.bountyTitle,VW/2,y+28);
     if(!b){ ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("—",VW/2,y+60); return; }
@@ -4167,6 +4174,9 @@ export function createRenderer(ctx){
     // CAS-2316: COMPAÑEROS DE RUTA — fila de la HERMANDAD semanal del héroe (SOLO lectura: banda de compañeros + barra de vínculo/tier + pasivo;
     // sin hotkey, sin tap-rect nuevo). Se sitúa SOBRE la fila de la Clasificación. Gated ⇒ OFF nada se dibuja (el bh no creció) ⇒ escena byte-id.
     if(FELLOWSHIP_BOND.enabled) renderFellowshipRow(x,y,bw,bh);
+    // CAS-2322: VÍNCULO DE MENTOR — fila de la relación veterano↔novato del héroe (SOLO lectura: compañero asignado + rol + barra de dwell/tier +
+    // boost del protégé; sin hotkey, sin tap-rect nuevo). Se sitúa SOBRE la fila de la Hermandad. Gated ⇒ OFF nada se dibuja (el bh no creció) ⇒ escena byte-id.
+    if(MENTOR_BOND.enabled) renderMentorRow(x,y,bw,bh);
     // close
     const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
     ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Cerrar (E)",VW/2,ccy+17);
@@ -4266,6 +4276,32 @@ export function createRenderer(ctx){
     ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(pbx+0.5,pby+0.5,pbw,pbh);
     ctx.fillStyle=COL.cream; ctx.font="10px "+FF; ctx.textAlign="center";
     const tail=(v.nextTierName!=null)?("vínculo "+v.bond+" / "+v.nextAt+" → "+v.nextTierName):("vínculo "+v.bond+"  ·  "+v.tierName+" (máx)");
+    ctx.fillText(tail, x+bw/2, pby+pbh+12);
+    ctx.textAlign="left";
+  }
+  // CAS-2322: VÍNCULO DE MENTOR / MENTORSHIP BOND — dibuja la relación asimétrica del héroe: compañero asignado esta semana (nombre + nivel, capa
+  // social COMPARTIDA — mismo compañero para todo cliente con el mismo reloj) + el ROL (Mentor/Protégé por gap de nivel) + barra de DWELL de co-presencia
+  // hacia el próximo hito + el boost del protégé. Estado AUTORITATIVO del sim (sim.mentorshipBond; 0 duplicación de lógica, 0 sim/RNG desde render).
+  // SOLO lectura (no empuja tap-rects, no hotkey). Se sitúa SOBRE la fila de la Hermandad. Sólo se invoca bajo MENTOR_BOND.enabled ⇒ OFF byte-id.
+  function renderMentorRow(x,y,bw,bh){
+    const v=sim.mentorshipBond(G.hero); if(!v) return;
+    const my=y+bh-30-(SANCTUARY_OATH.enabled?76:0)-(SANCTUARY_LEDGER.enabled?46:0)-(ORDER_STANDINGS.enabled?58:0)-(FELLOWSHIP_BOND.enabled?56:0)-50;   // franja sobre la fila de la Hermandad
+    const isMentor=v.role==="mentor", isProt=v.role==="protege", roleCol=isMentor?"#e8c877":(isProt?"#c8b3ff":COL.textDim);
+    ctx.textAlign="left"; ctx.font="11px "+FF; ctx.fillStyle=v.bound?roleCol:COL.textDim;
+    const pName=v.partner?(v.partner.name+" (Nv."+v.partner.lvl+")"):"(sin compañero)";
+    const roleLbl=isMentor?("⚜ "+v.mentorTitle):(isProt?("✦ "+v.protegeTitle):"·");
+    ctx.fillText("Vínculo de Mentor  ·  "+pName, x+20, my);
+    ctx.textAlign="right"; ctx.font="bold 11px "+FF; ctx.fillStyle=v.bound?roleCol:COL.textDim;
+    ctx.fillText(v.bound?(roleLbl+(isProt&&v.boost>0?("  +"+Math.round(v.boost*100)+"% XP"):"")):(v.role==="none"?"(gap < "+v.gapThreshold+")":roleLbl+" (sin ligar)"), x+bw-20, my);
+    ctx.textAlign="left";
+    // barra de DWELL (co-presencia hacia el próximo hito; si ya es el máximo, llena)
+    const pbx=x+20, pbw=bw-40, pby=my+8, pbh=12;
+    const nextAt=(v.nextAt!=null)?v.nextAt:Math.max(1,v.dwell), f=Math.max(0,Math.min(1,nextAt>0?(v.dwell/nextAt):1));
+    ctx.fillStyle="#14181f"; ctx.fillRect(pbx,pby,pbw,pbh);
+    ctx.fillStyle=v.bound?(isMentor?"#c79a3a":"#7d63c0"):"#3a4150"; ctx.fillRect(pbx,pby,pbw*f,pbh);
+    ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(pbx+0.5,pby+0.5,pbw,pbh);
+    ctx.fillStyle=COL.cream; ctx.font="10px "+FF; ctx.textAlign="center";
+    const tail=(v.nextTierName!=null)?("co-presencia "+v.dwell+" / "+v.nextAt+" → "+v.nextTierName):("co-presencia "+v.dwell+"  ·  "+v.tierName+" (máx)");
     ctx.fillText(tail, x+bw/2, pby+pbh+12);
     ctx.textAlign="left";
   }
