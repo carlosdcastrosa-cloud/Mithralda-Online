@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -325,6 +325,10 @@ export function createRenderer(ctx){
     // salida byte-idéntica (0 refs render fuera de este gate). ON + pool>0: una barra discreta + "Descanso" que muestra el
     // bono de XP disponible. La AUTORIDAD del pool vive en sim (h.restedPool); esto sólo LO LEE. Cosmético, 0 sim/save/RNG.
     if(RESTED_XP.enabled) renderRestedBadge();
+    // CAS-2266: indicador "Vínculo/Recall" (Piedra de Vínculo, render-only, $0 arte, DARK). Con RECALL.enabled:false NUNCA
+    // corre ⇒ salida byte-idéntica (0 refs render fuera de este gate). ON + vinculado: runa de vínculo + estado del recall
+    // (LISTO / cooldown mm:ss). Refleja la autoridad de sim (h.bindPoint / h.recallCD), cosmético puro (no lee/escribe RNG).
+    if(RECALL.enabled) renderRecallBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3011,6 +3015,47 @@ export function createRenderer(ctx){
     const pulse=(willSpend?0.82:0.78)+(willSpend?0.16:0.12)*Math.sin(G.t*(willSpend?4.5:3));
     ctx.globalAlpha=pulse; ctx.fillStyle=COL.textGold; ctx.fillRect(bx,by+1,Math.round(bw*pct),bh);
     ctx.globalAlpha=1; ctx.lineWidth=1; ctx.strokeStyle="rgba(0,0,0,0.6)"; ctx.strokeRect(bx+0.5,by+0.5,bw,bh+1);
+    ctx.restore();
+  }
+
+  // CAS-2266: indicador "Vínculo/Recall" (Piedra de Vínculo). Runa de vínculo procedural (canvas, $0 arte) + micro-label
+  // "Recall" + estado del cooldown, ANCLADO en la fila de badges (bajo el pip Zona segura + la barra Descanso). Refleja la
+  // autoridad de sim (h.bindPoint = vinculado; h.recallCD = cooldown restante; h.recallChannelT = canal). Cosmético puro:
+  // no lee/escribe sim ni RNG. Gated arriba en RECALL.enabled ⇒ OFF nunca se invoca ⇒ salida byte-idéntica.
+  //   · Sin vínculo (nunca visitó un Santuario) → sin indicador (0 draws).
+  //   · Vinculado + listo → runa azul brillante + "Recall" + "listo" (afordancia de que la habilidad está disponible).
+  //   · Vinculado + cooldown → runa atenuada + cuenta atrás "mm:ss" (misma legibilidad que el resto de la fila).
+  //   · Canalizando (channelSec>0, dormido Stage-1) → "canalizando…" pulsante.
+  function renderRecallBadge(){
+    const h=G.hero; if(!h || !h.bindPoint) return;                  // sin vínculo ⇒ sin indicador
+    const cd=Math.max(0,+(h.recallCD||0)), channel=Math.max(0,+(h.recallChannelT||0));
+    const ready=cd<=0 && channel<=0;
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+40, rw=13, rh=16;                        // bajo la barra "Descanso" (fila anclada al minimapa)
+    const pulse=ready?(0.74+0.16*Math.sin(G.t*3)):0.6;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // runa de vínculo: rombo/piedra con contorno oscuro + relleno azul (brillante si listo, atenuado en cooldown) + chispa
+    const cx=bx+rw/2, cy=by+rh/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, by); ctx.lineTo(bx+rw, cy); ctx.lineTo(cx, by+rh); ctx.lineTo(bx, cy); ctx.closePath();
+    ctx.fillStyle=ready?"rgba(60,130,200,0.62)":"rgba(70,80,96,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.75)"; ctx.stroke();
+    ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle=ready?"#bfe4ff":"#9aa4b2"; ctx.lineJoin="round";
+    ctx.moveTo(cx, by+rh*0.28); ctx.lineTo(cx, by+rh*0.72); ctx.moveTo(bx+rw*0.32, cy); ctx.lineTo(bx+rw*0.68, cy); ctx.stroke();
+    // micro-label + estado
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+rw+5;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText("Recall",tx,ty);
+    ctx.fillStyle=COL.cream; ctx.fillText("Recall",tx,ty);
+    // estado a la derecha de la fila (dentro de [bx, bx+118])
+    let st, stc;
+    if(channel>0){ st="canalizando…"; stc="#bfe4ff"; }
+    else if(ready){ st="listo"; stc="#8fd6ff"; }
+    else { const m=Math.floor(cd/60), s=Math.floor(cd%60); st=m+":"+(s<10?"0":"")+s; stc="#c9b98a"; }
+    ctx.globalAlpha=channel>0?(0.72+0.28*Math.sin(G.t*4.5)):(ready?pulse:0.7);
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=stc; ctx.fillText(st,bx+104,ty);
     ctx.restore();
   }
 
