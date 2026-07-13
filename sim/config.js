@@ -2138,7 +2138,7 @@ export const SOUL_RECOVERY = {
 // worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave nueva, 0 serialización). SIN tocar input.js (passive AMBIENTAL, 0 hotkey nuevo).
 // Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO.
 export const WORLD_PULSE = {
-  enabled: false,            // DARK. false ⇒ byte-idéntico a HEAD. El Gate CEO flippea false→true (config-only 1-línea, reversible, mirror SOUL_RECOVERY/CONTEST).
+  enabled: true,             // CAS-2330 LIVE FLIP (Gate CEO APROBADO, QA 12/12 ×2 build c4a549ae2fa1). false→true (config-only 1-línea, reversible, mirror SOUL_RECOVERY/CONTEST).
   periodSec: 240,            // ciclo del PULSO (4 min — corto y OBSERVABLE, desacoplado de todos los demás relojes). Reloj de pared COMPARTIDO ⇒ MISMA zona-en-Pulso en N clientes (0 desync).
   epochMs: 0,                // ancla del reloj (0 = epoch Unix). Compartida ⇒ period idéntico en todo cliente.
   liveFrac: 0.5,             // el pulso está VIVO sólo esta fracción inicial del period; luego DECAE (limpieza determinista, "tras N ticks"). CEO balance knob.
