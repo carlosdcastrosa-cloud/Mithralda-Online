@@ -253,6 +253,10 @@ export function createGame(canvas, ctx, getView){
       // inSafeZone,nearTemple,distToTemple,hero}; templeRespawn({enabled:true}) flip runtime IN-MEMORY (sim, mismo
       // módulo config); templeRespawn({respawn:true}) mata (si vivo) + ejecuta respawn() ⇒ aterriza en el Templo.
       templeRespawn:(p)=>simDev.templeRespawn(p),
+      // CAS-2250: SANTUARIO NO-AGGRO OBSERVABLE hook (DARK). noAggro() lee {enabled,noAggro,heroInZone,enemies:[{state,dist,
+      // eInZone,hostile}]}; noAggro({noAggro:true}) flip runtime IN-MEMORY (sim, mismo módulo config); noAggro({spawn,dx,dy})
+      // spawnea un mob YA en persecución cerca del héroe para observar el leash al entrar éste a la Zona Segura.
+      noAggro:(p)=>simDev.noAggro(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

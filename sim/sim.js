@@ -5035,6 +5035,13 @@ function teleArmWindup(type, heavy){ G.enemies.length=0; G.projectiles.length=0;
   return e;
 }
 function updateEnemies(dt){ const h=G.hero;
+  // CAS-2250: SANTUARIO NO-AGGRO (protection-zone Tibia). Gate PURO-GEOMÉTRICO sobre la posición del JUGADOR: mientras el
+  // héroe está dentro de la Zona Segura (MISMO bbox POIs+cityMargin que regen/banner CAS-2242), los mobs (a) NO adquieren
+  // target y (b) los que perseguían hacen leash/disengage en el borde (→ idle/patrulla; el jugador sigue siendo agredible al
+  // salir). Server-authoritative-ready: la decisión deriva de geometría estática (safeZoneGeom, memoizado), idéntica para N
+  // jugadores del shard, 0 RNG, ningún cliente puede forzar aggro dentro de la zona. HARD-GATED: noAggro:false ⇒ heroSafe
+  // SIEMPRE false por short-circuit (inSafeZone NUNCA se llama, geom nunca se construye) ⇒ ruta de aggro byte-idéntica a HEAD.
+  const heroSafe = SAFEZONE.enabled && SAFEZONE.noAggro && !!h && !h.dead && inSafeZone(h.x, h.y);
   for(const e of G.enemies){
     // CAS-1954 SEAM 1: un enemigo cuya amenaza más cercana es el espíritu lo persigue/encara/ataca a ÉL (h block-scoped SOMBREA al
     // externo ⇒ TODO el retargeting de movimiento/facing/rango de más abajo apunta al target correcto). enabled:false o sin espíritu
@@ -5142,10 +5149,12 @@ function updateEnemies(dt){ const h=G.hero;
       e.wanderT-=dt; if(e.wanderT<=0){ e.wanderT=rr(1.5,3.5); e.wx=rr(-1,1); e.wy=rr(-1,1); const n=norm(e.wx,e.wy); e.wx=n[0]; e.wy=n[1]; }
       moveEnt(e, (e.wx||0)*40*dt, (e.wy||0)*40*dt, e.tpl.size*0.6); continue; }
     if(e.state==="idle"||e.state==="wander"){
-      if(d<aggro){ e.state="chase"; }
+      if(d<aggro && !heroSafe){ e.state="chase"; }   // CAS-2250: no adquiere target mientras el héroe está en el Santuario
       else { e.wanderT-=dt; if(e.wanderT<=0){ e.wanderT=rr(1.5,3.5); const a=rr(0,6.28); e.wx=Math.cos(a); e.wy=Math.sin(a);} moveEnt(e,(e.wx||0)*30*dt,(e.wy||0)*30*dt,e.tpl.size*0.6); }
     } else if(e.state==="chase"){
-      if(d>aggro*1.4 && !e.hostile){ e.state="idle"; }
+      // CAS-2250: leash/disengage en el borde del Santuario — un mob que perseguía al héroe lo suelta al entrar éste a la Zona
+      // Segura (protection-zone anula incluso a los hostiles permanentes) → vuelve a idle/patrulla. Fuera de la zona, semántica HEAD.
+      if(heroSafe || (d>aggro*1.4 && !e.hostile)){ e.state="idle"; }
       else {
         e.facing=Math.atan2(h.y-e.y,h.x-e.x);
         const arch=e.tpl.arch;
@@ -5302,7 +5311,7 @@ function updateEnemies(dt){ const h=G.hero;
           e.state="recover"; e.st=(e.tpl.arch==="punisher")?(e.tpl.punishRecover||e.tpl.recover*1.8):e.tpl.recover; e.specialNow=false;
         }
       }
-    } else if(e.state==="recover"){ e.st-=dt; if(e.st<=0) e.state=d<aggro?"chase":"idle"; }
+    } else if(e.state==="recover"){ e.st-=dt; if(e.st<=0) e.state=(d<aggro && !heroSafe)?"chase":"idle"; }   // CAS-2250: tras un ataque telegrafiado en curso, si el héroe entró al Santuario, desengancha a idle en vez de re-perseguir
     // CAS-121: CARAPACE CHANNEL — the boss holds position and channels the Freeze Nova.
     // A status break is resolved at the top of the loop (shatterCarapace). If the channel
     // runs out unbroken, the nova fires (heavy radial slow+dmg) and the shield drops into
@@ -5918,6 +5927,7 @@ export const dev = {
   safeZone(p){
     if(p && typeof p==="object"){
       if("enabled" in p) SAFEZONE.enabled=!!p.enabled;
+      if("noAggro" in p) SAFEZONE.noAggro=!!p.noAggro;   // CAS-2250: flip runtime del sub-flag Santuario No-Aggro (DARK observable)
       if("pause" in p && G.hero) G.hero._safeRegenPauseT=+p.pause||0;
       if("setHp" in p && G.hero){ const mhp=heroMaxHp(G.hero); G.hero.hp=Math.max(0,Math.min(mhp,+p.setHp||0)); }  // QA: fija HP para observar el regen determinista
     }
@@ -5931,7 +5941,24 @@ export const dev = {
       ratePctPerSec:+(rate*100).toFixed(3), regenHpPerSec:h?+(heroMaxHp(h)*rate).toFixed(2):0,
       hp:h?+(+h.hp).toFixed(2):0, maxHp:h?heroMaxHp(h):0, pauseT:h?+(h._safeRegenPauseT||0).toFixed(2):0,
       bbox:g?g.bbox.slice():null, temple:g&&g.temple?{x:g.temple.x,y:g.temple.y}:null,
-      cityMargin:SAFEZONE.cityMargin, templeRadius:SAFEZONE.templeRadius, regenDelay:SAFEZONE.regenDelay, templeMul:SAFEZONE.templeMul }; },
+      cityMargin:SAFEZONE.cityMargin, templeRadius:SAFEZONE.templeRadius, regenDelay:SAFEZONE.regenDelay, templeMul:SAFEZONE.templeMul,
+      noAggro:SAFEZONE.noAggro }; },
+  // CAS-2250: QA/dev hook del SANTUARIO NO-AGGRO (b5c10283). Snapshot autoritativo (sim) del gate de aggro + flip IN-MEMORY
+  // + spawner de prueba, para OBSERVAR en DARK (disco sigue noAggro:false). Formas:
+  //   noAggro()                     → {enabled,noAggro,heroInZone,enemies:[{type,state,dist,eInZone,hostile}...]}
+  //   noAggro({noAggro:true})       → flip runtime in-memory de SAFEZONE.noAggro (probar acquire-gate + leash sin tocar disco)
+  //   noAggro({spawn:"skeleton",dx,dy}) → spawnEnemy en (heroX+dx,heroY+dy) YA en state="chase" (probar leash cuando el héroe está en zona)
+  noAggro(p){
+    if(p && typeof p==="object"){
+      if(p.clear){ G.enemies.length=0; }   // QA: aísla los mobs de prueba (dev-only, no toca RNG/save)
+      if("enabled" in p) SAFEZONE.enabled=!!p.enabled;
+      if("noAggro" in p) SAFEZONE.noAggro=!!p.noAggro;
+      if("spawn" in p && G.hero){ const e=spawnEnemy(String(p.spawn),G.hero.x+(+p.dx||0),G.hero.y+(+p.dy||0)); if(e){ e.state="chase"; if(p.hostile) makeHostile(e); } }
+    }
+    const h=G.hero; const heroInZone=h?inSafeZone(h.x,h.y):false;
+    const es=G.enemies.filter(e=>!e.dead&&e.hp>0).map(e=>({ type:e.type, state:e.state,
+      dist:h?+Math.hypot(h.x-e.x,h.y-e.y).toFixed(1):null, eInZone:inSafeZone(e.x,e.y), hostile:!!e.hostile }));
+    return { enabled:SAFEZONE.enabled, noAggro:SAFEZONE.noAggro, heroInZone, enemyCount:es.length, enemies:es }; },
   // CAS-2245: QA/dev hook del HOME-TEMPLE RESPAWN (b5c10283). Snapshot del punto de reaparición "casa" + flip IN-MEMORY
   // para OBSERVAR en DARK (disco sigue false, patrón __dev.safeZone). Formas:
   //   templeRespawn()               → {enabled,point:{x,y}|null,temple,offsetY,inSafeZone,nearTemple,distToTemple}
