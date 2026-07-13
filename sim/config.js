@@ -1922,6 +1922,33 @@ export const ORDER_STANDINGS = {
   leadValue: 0.15,         // +15% al mult de Descanso para la orden LÍDER de la semana (bounded, server-authoritative). CEO balance knob.
 };
 
+// CAS-2310: DOMINIO DE ÓRDENES / ORDER TERRITORY (DARK, ORDER_TERRITORY) — convierte la CLASIFICACIÓN abstracta (ORDER_STANDINGS, LIVE)
+// en ESTADO DE MUNDO VISIBLE y COMPARTIDO: la orden LÍDER de la semana CONTROLA el Santuario/Zona Segura (control de territorio, pilar
+// clásico MMORPG — GW2 WvW sovereignty / EVE sov). Diseño Stage-1, 100% DERIVADO (0 estado nuevo) y server-authority-ready:
+//   · CONTROLADOR = la orden LÍDER de la clasificación server-auth ya existente (standingsLeader() ⇒ DERIVADO del reloj de pared + los
+//     baselines colectivos del Libro). El cliente NO decide quién controla — SÓLO renderiza el resultado ⇒ nada explotable/duplicable.
+//     TODO jugador con el mismo reloj ve el MISMO controlador (convergencia N-clientes, 0 desync). Estado READ-ONLY derivado de G.standings
+//     ya cacheado ⇒ 0 contención con N jugadores en la zona, 0 campo per-hero, 0 clave nueva en save, 0 G.* nuevo.
+//   · TRANSFERENCIA de control = DETERMINISTA en el límite semanal wall-clock (la MISMA función de tiempo de WORLD_EVENT/STANDINGS ⇒
+//     ledgerScheduleAt): cambia la clasificación de la semana ⇒ cambia el controlador. 0 RNG. Persiste entre sesiones hasta el recómputo.
+//   · ESTANDARTE: mientras CUALQUIER jugador está DENTRO de la Zona Segura ve el TAG/estandarte de la orden controladora desplegado
+//     (reusa el badge de "Zona segura" + la ruta de nameplate/TITLES — $0 arte, glifo ⚑ + tag). Mismo controlador para todos en la zona.
+//   · PASIVO DE DOMINIO (order-wide, SÓLO en zona): los miembros de la orden CONTROLADORA reciben +controlValue al knob de ZONA ya vivo
+//     (safeRegen — regen de la SAFEZONE), aplicado en el MISMO chokepoint que sanctuaryRewardMul("safeRegen") ⇒ SÓLO surte efecto DENTRO
+//     de la zona controlada (ese regen sólo corre inSafeZone; además territoryMul re-gatea por inSafeZone). Gateado a que la orden del
+//     héroe (su Juramento) SEA la controladora esta semana. Sin juramento ⇒ no recibe pasivo, pero el control existe igual (estado del mundo).
+//   · PRECEDENCIA (anti-doblado con ORDER_STANDINGS): STANDINGS premia al líder por el canal `restedMult` (GLOBAL, en gainXP); TERRITORY
+//     premia al MISMO líder por el canal `safeRegen` (SÓLO en zona) ⇒ CANALES DISTINTOS ⇒ observables por separado, NUNCA se doblan el
+//     valor. Guard DURO: si controlKind === ORDER_STANDINGS.leadKind, territoryMul RETURN 0 (STANDINGS tiene precedencia) ⇒ imposible doblar.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ territoryMul RETURN 0 (el knob safeRegen queda byte-idéntico a HEAD), el estandarte NUNCA se
+// dibuja ⇒ comportamiento + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (pasivo/automático, 0 hotkey — anti-CAS-2273).
+// Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Depende de ORDER_STANDINGS (LIVE).
+export const ORDER_TERRITORY = {
+  enabled: true,             // LIVE (CAS-2311). Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  controlKind: "safeRegen",  // canal del pasivo de DOMINIO: reusa el regen de la SAFEZONE (SÓLO surte efecto en zona). DISTINTO de ORDER_STANDINGS.leadKind ("restedMult") ⇒ no se dobla.
+  controlValue: 0.10,        // +10% al regen de la Zona Segura para los miembros de la orden CONTROLADORA, SÓLO dentro de la zona. CEO balance knob.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
