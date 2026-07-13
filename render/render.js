@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -354,6 +354,10 @@ export function createRenderer(ctx){
     // pared (sim.worldPulse, autoridad en sim) ⇒ MISMA zona-en-Pulso para todos los clientes en el shard. Resalta si el héroe está EN la zona (recibe
     // el passive). Cuenta atrás al próximo pulso cuando decae. Cosmético puro (no lee/escribe RNG ni save).
     if(WORLD_PULSE.enabled) renderWorldPulseBadge();
+    // CAS-2332: indicador "Congregación" (Gathering Density, render-only, $0 arte, DARK). Con CONGREGATION.enabled:false NUNCA corre ⇒ salida byte-idéntica
+    // (0 refs render fuera de este gate). ON: glifo ⛭ procedural (anillo + puntos = tier) + "Congregación: <zona> T<n> ×N" — el headcount LIVE server-
+    // authoritative de la zona del héroe (sim.congregationVM, autoridad en sim) ⇒ MISMO tier/cuenta/buff para todos los clientes en la zona. Cosmético puro.
+    if(CONGREGATION.enabled) renderCongregationBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3423,6 +3427,36 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104])
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=live?(here?"aquí":"activo"):("próx "+tstr);
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2332: badge "Congregación" ($0 arte, render-only, DARK). Autoridad en sim (congregationVM). Glifo ⛭ procedural = anillo + N puntos (tier);
+  // resalta cuando el héroe está en una zona en Congregación (recibe el passive compartido). Muestra tier + headcount LIVE. Cosmético (no lee/escribe RNG ni save).
+  function renderCongregationBadge(){
+    const w=sim.congregationVM&&sim.congregationVM(); if(!w) return;      // pre-primer-tick (G.congregation null) ⇒ count 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+186, sw=14, sh=14;                            // bajo el Pulso del Mundo (@+164); gap anti-solape (CAS-2263)
+    const tier=w.tier|0, here=tier>0, cnt=w.count|0;
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(3.2+tier*0.5))):0.55;
+    const glyph=here?"#f0c67a":"#8a9bb0";                                // congregado=ámbar (buff), inerte=gris
+    const zn=w.zone?STR.zoneName(w.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⛭ energía de multitud: anillo + puntos-de-cabeza (uno por jugador hasta el umbral del tier siguiente) procedural
+    ctx.beginPath(); ctx.arc(cx,cy,sw*0.44,0,6.28);
+    ctx.fillStyle=here?"rgba(150,110,60,0.6)":"rgba(74,84,100,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.78)"; ctx.stroke();
+    if(here){ ctx.fillStyle=glyph; const n=Math.min(3,tier); for(let i=0;i<n;i++){ const ang=-1.5708+i*(6.283/n); ctx.beginPath(); ctx.arc(cx+Math.cos(ang)*3.4,cy+Math.sin(ang)*3.4,1.5,0,6.28); ctx.fill(); } }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Congregación: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#ffe6b8":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + headcount
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" ×"+cnt):(w.congable?("×"+cnt):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();

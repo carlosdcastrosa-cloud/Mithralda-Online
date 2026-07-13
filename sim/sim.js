@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3345,6 +3345,45 @@ export function worldPulse(h){ h=h||G.hero; const s=G.pulse||null; const zone=pu
     frac: s?+(+s.frac).toFixed(4):0, nextInSec: s?(s.nextInSec|0):0,
     boostKind:WORLD_PULSE.channel||"restedMult", boost: h?pulseMul(h,WORLD_PULSE.channel||"restedMult"):0 }; }
 
+// CAS-2332: CONGREGACIÓN / GATHERING DENSITY — la mecánica MÁS multiplayer-native del arco. La dirige el HEADCOUNT REAL de jugadores LIVE por zona
+// (presencia server-authoritative), NO un reloj (World Pulse) NI un vínculo (Fellowship/Mentor/Soul). Todo DERIVADO del snapshot del server (0 RNG,
+// server-authority-ready): el server empuja { zona → cuenta } y el cliente sólo lo REFLEJA (0 confianza; NO añade su propia presencia, el server ya la cuenta).
+// congTier(count) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ count. Determinista, monótono, sin histéresis ⇒ sube/DECAE al cruzar umbral. OFF/sin tiers ⇒ 0.
+function congTier(count){ const T=CONGREGATION.tiers||[]; count=count|0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && count>=(T[i].min|0)) idx=i+1; } return idx; }
+// boost restedMult del tier vigente (0 si Tier 0). Puro. El gate global lo cubre congMul; aquí sólo la TABLA determinista.
+function congBoost(count){ const t=congTier(count); return t>0 ? (+CONGREGATION.tiers[t-1].boost||0) : 0; }
+// cuenta LIVE server-authoritative de una zona (del snapshot reflejado en G.congregation.counts). 0 si sin snapshot / zona ausente. Puro, 0 side-effect.
+export function congCount(zone){ const g=G.congregation; if(!g||!g.counts||!zone) return 0; return g.counts[zone]|0; }
+// congMul(h,kind) = el passive COMPARTIDO de los presentes en una zona en Congregación (tier≥1), en el canal restedMult (REUSA RESTED_XP), con
+// PRECEDENCIA EXPLÍCITA anti-stacking (CONGREGATION es la MÁS BAJA del canal ⇒ MÁXIMO ÚNICO): CEDE (return 0) a STANDINGS, MENTOR, SOUL y PULSE ⇒ se
+// aplica el MAYOR (0 doble-dip). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function congMul(h,kind){ if(!CONGREGATION.enabled||!h) return 0;
+  if(kind!==(CONGREGATION.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ CONGREGATION cede
+  if(mentorMul(h,kind)>0) return 0;      // precedencia MISMO-CANAL: MENTOR (personal) gana ⇒ cede
+  if(soulMul(h,kind)>0) return 0;        // precedencia MISMO-CANAL: SOUL (recuperación) gana ⇒ cede
+  if(pulseMul(h,kind)>0) return 0;       // precedencia MISMO-CANAL: PULSE (ambiental del reloj) gana ⇒ cede (CONGREGATION es la MÁS BAJA del canal)
+  const z=zoneOf(world,h.x,h.y); if(!z || (CONGREGATION.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona congregable ⇒ 0
+  return congBoost(congCount(z));        // el Δ del tier vigente por el headcount server-authoritative de esa zona
+}
+// tick de la CONGREGACIÓN (mirror tickPulse): REFLEJA el snapshot server-authoritative { zona → cuenta } (empujado por el server, cacheado en G.congServer)
+// en G.congregation (transitorio, fuera del allowlist de serializeSave). SIN estado per-hero, SIN dwell, SIN clave serializada. OFF ⇒ NUNCA se invoca ⇒
+// G.congregation/G.congServer NUNCA se crean ⇒ byte-id. En Stage-1 el harness/dev-hook empuja el snapshot (server-feed); en Stage-2 lo empuja el server real.
+function tickCongregation(){ if(!CONGREGATION.enabled) return;
+  const src=G.congServer||{}, counts={};
+  for(const z of (CONGREGATION.zones||[])){ const n=src[z]|0; if(n>0) counts[z]=n; }   // valida a zonas congregables + descarta cuentas ≤0 (cliente sólo refleja)
+  G.congregation={ counts }; }
+// glifo de la Congregación para el badge (mirror pulseTag): ◈-cluster si la zona del héroe está en Congregación (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function congTag(h){ h=h||G.hero; if(!CONGREGATION.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(CONGREGATION.zones||[]).indexOf(z)<0) return ""; return congTier(congCount(z))>0 ? "⛭" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su cuenta LIVE server-authoritative, tier vigente y passive efectivo. 0 sim/RNG/side-effect.
+export function congregationVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const congable=!!(z && (CONGREGATION.zones||[]).indexOf(z)>=0);
+  const count=congable?congCount(z):0, tier=congable?congTier(count):0;
+  return { enabled:!!CONGREGATION.enabled, zone:z, congable, count, tier, tierCount:(CONGREGATION.tiers||[]).length,
+    boostKind:CONGREGATION.channel||"restedMult", boost: h?congMul(h,CONGREGATION.channel||"restedMult"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4383,7 +4422,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; pulseMul CEDE a standings/mentor/soul ⇒ 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; congMul CEDE a standings/mentor/soul/pulse ⇒ MÁXIMO ÚNICO, 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -5762,6 +5801,7 @@ export function update(dtMs){
   if(MENTOR_BOND.enabled) tickMentor(); // CAS-2322: Vínculo de Mentor — compañero semanal asignado (reloj propio) + snapshot h.mentorAt del dwell (transitorio en G.mentor, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(SOUL_RECOVERY.enabled) tickSoul(); // CAS-2325: Vestigio del Caído — vestigio ambiental del reloj COMPARTIDO + dwell de co-presencia del recuperador en radio + auto-recuperación (transitorio en G.soul/h.soulAt, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(WORLD_PULSE.enabled) tickPulse(); // CAS-2329: Pulso del Mundo — zona-en-Pulso ambiental del reloj COMPARTIDO (transitorio en G.pulse, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(CONGREGATION.enabled) tickCongregation(); // CAS-2332: Congregación — refleja el headcount server-authoritative por zona (transitorio en G.congregation/G.congServer, SIN estado per-hero/serializado, gated ⇒ OFF nunca se crea ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -7290,6 +7330,35 @@ export const dev = {
       tag: pulseTag(s),                                                       // glifo del pulso SERVIDO (prueba: OFF/decayó ⇒ "" / vivo ⇒ ◈)
       precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental) ⇒ PULSE cede a STANDINGS/MENTOR/SOUL (mismo canal, 0 doble-conteo); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
       gExists:(G.pulse!=null),                                               // prueba byte-id: OFF ⇒ G.pulse NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2332: CONGREGACIÓN / GATHERING DENSITY OBSERVABLE hook (DARK, CONGREGATION). Snapshot AUTORITATIVO (sim) del headcount server-authoritative por
+  // zona + flip/drivers IN-MEMORY para OBSERVAR en DARK sin server real (disco sigue false, patrón __dev.pulse). El snapshot { zona → cuenta } INYECTADO
+  // (server-feed simulado) prueba el determinismo "mismo snapshot ⇒ mismo tier/cuenta/buff" (convergencia byte-idéntica en N clientes, 0 desync).
+  //   congregation()                     → {enabled,zones,tiers,zone,congable,count,tier,boostKind,boost,congMulRested,restedXpMult,standings/mentor/soul/pulseMulRested,tag,precedence,counts,gExists,hero}
+  //   congregation({enabled:true})       → flip runtime IN-MEMORY de CONGREGATION.enabled (tier/passive sin tocar el disco)
+  //   congregation({counts:{forest:4}})  → el server EMPUJA el snapshot de presencia ⇒ el cliente lo REFLEJA (cruzar umbral arriba/abajo)
+  //   congregation({toZone:"forest"})    → teleporta el héroe a una tile de esa zona (observa el passive compartido) — conveniencia de PRUEBA (0 hotkey)
+  //   congregation({leave:true})         → aleja el héroe de toda zona (el passive cae a 0)
+  congregation(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) CONGREGATION.enabled=!!p.enabled;
+      if("counts" in p){ G.congServer=Object.assign({}, p.counts||{}); tickCongregation(); }   // el server empuja el snapshot de presencia ⇒ refleja
+      if(p.clear){ G.congServer={}; tickCongregation(); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((CONGREGATION.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+    }
+    const h=G.hero, vm=congregationVM(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0) + (h?pulseMul(h,"restedMult"):0) + (h?congMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: CONGREGATION cede a STANDINGS/MENTOR/SOUL/PULSE)
+    return { enabled:CONGREGATION.enabled, zones:(CONGREGATION.zones||[]).slice(), tiers:(CONGREGATION.tiers||[]).map(t=>({min:t.min|0,boost:+t.boost})),
+      zone:vm.zone, congable:vm.congable, count:vm.count, tier:vm.tier, tierCount:vm.tierCount,
+      boostKind:vm.boostKind, boost:vm.boost,
+      congMulRested: h?congMul(h,"restedMult"):0,                             // knob efectivo del passive (prueba: OFF/no-en-zona/tier0/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                        // mult efectivo (prueba precedencia: CONGREGATION cede si standings/mentor/soul/pulse aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0, soulMulRested: h?soulMul(h,"restedMult"):0, pulseMulRested: h?pulseMul(h,"restedMult"):0,
+      tag: congTag(h),                                                       // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / congregado ⇒ ⛭)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental > congregation_headcount) ⇒ CONGREGATION cede a STANDINGS/MENTOR/SOUL/PULSE (mismo canal, MÁXIMO ÚNICO, 0 doble-dip); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      counts: (G.congregation&&G.congregation.counts)?Object.assign({},G.congregation.counts):null,   // snapshot server-authoritative reflejado (convergencia byte-a-byte entre clientes)
+      gExists:(G.congregation!=null),                                        // prueba byte-id: OFF ⇒ G.congregation NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
