@@ -2209,6 +2209,7 @@ export function createRenderer(ctx){
     if(ob && qx-qw < ob.x+ob.w+6 && qy < ob.y+ob.h+4) qy=ob.y+ob.h+8;
     AR("questTracker", qx-qw, qy-2, qw, 20);
     ctx.fillRect(qx-qw,qy-2,qw,20); ctx.fillStyle=G.quest.done?COL.heal:COL.textGold; ctx.fillText(qt,qx-6,qy+13);
+    let rcBot=qy+18;   // CAS-2263: fondo de la columna derecha (quest tracker); crece con el hunt tracker si aparece
     // hunt-contract tracker (under the quest tracker) — only shows inside a hunt zone
     const hz=zoneOf(world,h.x,h.y); const HC=HUNTS[hz]; const HS=G.hunts&&G.hunts[hz];
     if(HC && HS){ let ht, hc; if(HS.cleared){ ht=STR.huntZoneCleared; hc=COL.heal; }
@@ -2216,7 +2217,10 @@ export function createRenderer(ctx){
       else { ht=STR.huntLabel(HS.kills,HC.need); hc=COL.textGold; }
       const hy=qy+22; ctx.fillStyle=COL.out; const hw=ctx.measureText(ht).width+12;
       AR("huntTracker", qx-hw, hy-2, hw, 20);
-      ctx.fillRect(qx-hw,hy-2,hw,20); ctx.fillStyle=hc; ctx.fillText(ht,qx-6,hy+13); }
+      ctx.fillRect(qx-hw,hy-2,hw,20); ctx.fillStyle=hc; ctx.fillText(ht,qx-6,hy+13); rcBot=hy+18; }
+    // CAS-2263: publish the right-column bottom for the safe-zone/rested badge row to dock beneath (only when the
+    // column sits under the top-right minimap; sidebar/touch use the badge fallback anchor ⇒ leave 0).
+    rightColBottom=(!sidebar && !isTouch)?rcBot:0;
     // spell bar
     renderSpellBar();
     renderAbilityBar(); // CAS-1570: the 2 drafted active-ability slots (radial cooldown)
@@ -2610,6 +2614,10 @@ export function createRenderer(ctx){
       ctx.fillText(who, 12, ly); const ww=ctx.measureText(who).width;
       ctx.fillStyle=COL.cream; ctx.fillText(c.text, 12+ww, ly); }
   }
+  // CAS-2263: Y del borde inferior de la columna derecha de trackers (quest+hunt, que ya caen bajo el minimapa).
+  // El tracker block la publica cada frame; badgeRowAnchor() la lee para acoplar la fila de badges DEBAJO de la
+  // columna entera (minimapa + trackers), evitando re-colisión con el texto de los trackers. Lag de 1 frame OK.
+  let rightColBottom=0;
   // CAS-466: silueta del continente para el minimapa (1px = 2 tiles, cacheada)
   let mmTerra=null, mmTerraW=0;
   function mmBuildTerra(){ const sc=2, cw=Math.ceil(MAP_W/sc), ch=Math.ceil(MAP_H/sc);
@@ -2919,14 +2927,32 @@ export function createRenderer(ctx){
     for(const b of blips){ if(b.x<minx)minx=b.x; if(b.y<miny)miny=b.y; if(b.x>maxx)maxx=b.x; if(b.y>maxy)maxy=b.y; }
     const m=SAFEZONE.cityMargin|0;
     return x>=minx-m && x<=maxx+m && y>=miny-m && y<=maxy+m; }
-  // Pip discreto de "Zona segura": escudo procedural (canvas, $0 arte) + micro-label, esquina superior-derecha del área
-  // de juego, alpha bajo con pulso suave. Screen-space, no toca sim/save. Sólo se dibuja dentro de la ciudad.
+  // CAS-2263: ancla compartida de la fila de badges HUD (pip "Zona segura" + barra "Descanso"). En desktop
+  // (no-touch, sin sidebar) el minimapa vive TOP-RIGHT y la fila solía solaparlo ⇒ la acoplamos JUSTO DEBAJO del
+  // rect VIVO del minimapa (mismo patrón que la columna de trackers, render.js ~2210), alineada a su borde
+  // izquierdo y re-leída cada frame vía cx/cy ⇒ sigue al mapa arrastrado/reposicionado (CAS-1612) sin re-colisión.
+  // Fallback (touch / sidebar / minimapa ausente): ancla histórica en la esquina superior-derecha del área de juego.
+  function badgeRowAnchor(){
+    const sidebar=view.sbw>0;
+    if(!isTouch && !sidebar){                             // minimapa top-right visible ⇒ acopla debajo
+      const mmX=uiLayout.cx("minimap", VW-120-12, 120);   // borde izq del minimapa DIBUJADO (mismo clamp que renderMiniMap)
+      const mmY=uiLayout.cy("minimap", 12, 120);
+      // la columna de trackers (quest+hunt) YA cae bajo el minimapa (right-aligned) ⇒ acopla la fila DEBAJO del
+      // punto más bajo entre el marco del minimapa y esa columna, para no re-colisionar con su texto (CAS-2263).
+      const by=Math.max(mmY+120+10, (rightColBottom||0)+10);
+      return { bx:mmX, by };                              // gap ~10px, alineado al borde izq del minimapa
+    }
+    const GCX=view.gcx ? view.gcx() : VW/2;                // centro X del área de juego visible (respeta el sidebar)
+    const gx=(GCX*2>VW)?VW:GCX*2;                          // borde derecho útil del área de juego
+    return { bx:gx-118, by:VH*0.055 };                     // fallback histórico esquina superior-derecha
+  }
+  // Pip discreto de "Zona segura": escudo procedural (canvas, $0 arte) + micro-label. Screen-space, no toca sim/save.
+  // Sólo se dibuja dentro de la ciudad. CAS-2263: anclado vía badgeRowAnchor() (bajo el minimapa vivo o fallback).
   function renderSafeZoneBadge(){
     const h=G.hero; if(!h || !inCitySafe(h.x,h.y)) return;
-    const GCX=view.gcx ? view.gcx() : VW/2;   // centro X del área de juego visible (respeta el sidebar si existe)
-    const gx=(GCX*2>VW)?VW:GCX*2;             // borde derecho útil del área de juego
+    const a=badgeRowAnchor();
     const pulse=0.72+0.14*Math.sin(G.t*3);
-    const bx=gx-118, by=VH*0.055, sw=13, sh=16;  // ancla del escudo
+    const bx=a.bx, by=a.by, sw=13, sh=16;  // ancla del escudo
     ctx.save(); ctx.globalAlpha=pulse;
     // escudo: contorno oscuro + relleno verde suave + tick de check
     ctx.beginPath();
@@ -2958,9 +2984,8 @@ export function createRenderer(ctx){
     if(pool<=0) return;                                   // sin bono acumulado ⇒ sin indicador (0 draws)
     const pct=Math.max(0,Math.min(1,pool/cap));
     const willSpend=!inCitySafe(h.x,h.y);                 // fuera de la Zona Segura ⇒ el bono se está gastando (WoW rested)
-    const GCX=view.gcx ? view.gcx() : VW/2;
-    const gx=(GCX*2>VW)?VW:GCX*2;
-    const bw=104, bh=6, bx=gx-118, by=VH*0.055+22;        // justo bajo el pip "Zona segura"
+    const a=badgeRowAnchor();                              // CAS-2263: misma ancla que el pip "Zona segura"
+    const bw=104, bh=6, bx=a.bx, by=a.by+22;              // justo bajo el pip "Zona segura" (fila anclada al minimapa vivo)
     ctx.save();
     // fila de etiqueta: "Descanso" a la izquierda + afordancia de estado ALINEADA A LA DERECHA del borde de la barra
     // (todo dentro de [bx, bx+bw] ⇒ nunca se sale del borde derecho del área de juego).
