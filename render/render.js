@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -1091,7 +1091,13 @@ export function createRenderer(ctx){
     if(!h.dead && SANCTUARY_OATH.enabled){ const ot=oathTagOf(h);
       if(ot){ ctx.save(); ctx.globalAlpha=0.92; ctx.font="bold 9px "+FF; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
         const ty=h.y-62; ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.8)"; ctx.strokeText("⟦"+ot+"⟧",h.x,ty);
-        ctx.fillStyle="#8fe0b0"; ctx.fillText("⟦"+ot+"⟧",h.x,ty); ctx.restore(); } }
+        ctx.fillStyle="#8fe0b0"; ctx.fillText("⟦"+ot+"⟧",h.x,ty);
+        // CAS-2300: LIBRO DE LA ORDEN — ★ dorada junto al tag de orden cuando la orden CRUZÓ el objetivo colectivo esta semana (pasivo
+        // "en racha"). Estado AUTORITATIVO del sim (sim.sanctuaryLedgerTag; 0 duplicación de lógica, capa social MMO). Gated ⇒ OFF /
+        // sin racha ⇒ "" ⇒ nada dibuja ⇒ byte-idéntico a HEAD. Anclada al ancho del tag para no solaparse.
+        if(SANCTUARY_LEDGER.enabled && sim.sanctuaryLedgerTag(h)){ const tw=ctx.measureText("⟦"+ot+"⟧").width;
+          ctx.strokeText("★",h.x+tw/2+7,ty); ctx.fillStyle="#ffcf5c"; ctx.fillText("★",h.x+tw/2+7,ty); }
+        ctx.restore(); } }
   }
   // CAS-92: draw one frame of a hero animation strip. Every frame is HERO_FW×HERO_FH;
   // source column HERO_AX (body centroid) maps to world hx and source row HERO_FOOT
@@ -4068,7 +4074,7 @@ export function createRenderer(ctx){
   function renderBounty(){ const b=daily.board(); ui.bountyRects=[];
     // CAS-2295: con SANCTUARY_OATH.enabled el panel crece 76px para alojar la fila de Órdenes bajo los contratos (gated ⇒ OFF el alto
     // y todo el layout quedan byte-idénticos a HEAD).
-    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0), x=(VW-bw)/2, y=(VH-bh)/2;
+    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0)+(SANCTUARY_LEDGER.enabled?46:0), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.bountyTitle,VW/2,y+28);
     if(!b){ ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("—",VW/2,y+60); return; }
@@ -4119,6 +4125,9 @@ export function createRenderer(ctx){
     // click + móvil tap por el MISMO ui.bountyRects/bountyTap, SIN tocar input.js). Gated ⇒ OFF nada se dibuja/empuja ⇒ escena
     // `bounty` byte-idéntica a HEAD (el bh ya se amplió arriba bajo el mismo gate).
     if(SANCTUARY_OATH.enabled) renderOathRow(x,y,bw,bh);
+    // CAS-2300: LIBRO DE LA ORDEN — fila del marcador COLECTIVO semanal de la orden del héroe (SOLO lectura: barra de progreso +
+    // estado de racha; sin hotkey, sin tap-rect nuevo). Gated ⇒ OFF nada se dibuja (el bh no creció) ⇒ escena byte-idéntica a HEAD.
+    if(SANCTUARY_LEDGER.enabled) renderLedgerRow(x,y,bw,bh);
     // close
     const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
     ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Cerrar (E)",VW/2,ccy+17);
@@ -4151,6 +4160,27 @@ export function createRenderer(ctx){
       ctx.fillText(sworn?"✓ Jurado":(rankOk?"Jurar":("Req. "+((ranks[rankIdxOf(SANCTUARY_OATH.minRank||"neutral")]||{}).name||"—"))), cx+cw/2, cyy+48);
       if(rankOk && !sworn) ui.bountyRects.push({x:cx,y:cyy,w:cw,h:ch,act:()=>{ sim.tryPledgeOath(o.id); }});   // sólo tappable si desbloqueada y no jurada
     }
+    ctx.textAlign="left";
+  }
+  // CAS-2300: LIBRO DE LA ORDEN — dibuja el marcador COLECTIVO semanal de la orden del héroe: título + barra de progreso (total/goal)
+  // + estado de racha. Estado AUTORITATIVO del sim (sim.sanctuaryLedger; 0 duplicación de lógica, 0 sim/RNG desde render). SOLO lectura
+  // (no empuja tap-rects, no hotkey — la contribución es actividad ya existente). Se sitúa SOBRE la fila de Órdenes (o sobre Cerrar si
+  // el Juramento está OFF). Sólo se invoca bajo SANCTUARY_LEDGER.enabled ⇒ OFF nunca corre ⇒ escena byte-idéntica.
+  function renderLedgerRow(x,y,bw,bh){
+    const v=sim.sanctuaryLedger(G.hero); if(!v) return;
+    const ly=y+bh-30-(SANCTUARY_OATH.enabled?76:0)-40;                     // franja sobre la fila de Órdenes (o sobre Cerrar sin Juramento)
+    ctx.textAlign="left"; ctx.font="11px "+FF;
+    ctx.fillStyle=v.unlocked?"#ffcf5c":COL.textDim;
+    const head="Libro de la Orden"+(v.order?("  ·  "+(v.orderName||v.order)):"  ·  (jura una Orden)");
+    ctx.fillText(head, x+20, ly);
+    if(v.unlocked){ ctx.textAlign="right"; ctx.fillStyle="#ffcf5c"; ctx.font="bold 11px "+FF; ctx.fillText("★ EN RACHA", x+bw-20, ly); ctx.textAlign="left"; }
+    // barra colectiva total/goal
+    const pbx=x+20, pbw=bw-40, pby=ly+8, pbh=12, f=Math.max(0,Math.min(1,v.frac));
+    ctx.fillStyle="#14181f"; ctx.fillRect(pbx,pby,pbw,pbh);
+    ctx.fillStyle=v.unlocked?COL.heal:"#c9a24a"; ctx.fillRect(pbx,pby,pbw*f,pbh);
+    ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(pbx+0.5,pby+0.5,pbw,pbh);
+    ctx.fillStyle=COL.cream; ctx.font="10px "+FF; ctx.textAlign="center";
+    ctx.fillText(v.total+" / "+v.goal+" pts"+(v.contribution>0?("   (tú +"+v.contribution+")"):""), x+bw/2, pby+pbh+12);
     ctx.textAlign="left";
   }
   // a small CLAIM / CLAIMED chip; `on` = active (gold), `done` = already claimed (dim).
