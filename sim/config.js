@@ -2021,6 +2021,51 @@ export const FELLOWSHIP_BOND = {
   bondValue: 0.10,           // +10% XP mientras la Hermandad está FORJADA. CEO balance knob.
 };
 
+// CAS-2322: VÍNCULO DE MENTOR / MENTORSHIP BOND (DARK, MENTOR_BOND) — el pilar social ASIMÉTRICO que le falta al mundo. FELLOWSHIP_BOND (LIVE)
+// une PARES SIMÉTRICOS por proximidad; el siguiente pegamento social NATIVO de un MMORPG es la relación veterano↔novato: retención real. Convierte
+// la co-presencia de niveles DISPARES en un beneficio MUTUO determinista — el veterano acompaña al novato (reconocimiento), el novato progresa más
+// rápido en compañía. Diseño Stage-1, 100% DETERMINISTA (0 RNG) y server-authority-ready, reloj PROPIO (no acopla al arco de Órdenes ni a Fellowship):
+//   · COMPAÑERO SEMANAL COMPARTIDO: cada ciclo (`periodSec`), el reloj de pared COMPARTIDO asigna al héroe UN compañero del `roster` fijo (hash de
+//     Knuth, 0 RNG) ⇒ TODO cliente con el mismo reloj deriva el MISMO compañero esta semana (convergente, 0 desync). El compañero tiene un `lvl` fijo.
+//   · ROL por GAP de NIVEL: el ROL (mentor / protégé) lo decide el gap del héroe LOCAL vs el compañero — gap≥`gapThreshold` ⇒ el héroe es MENTOR
+//     (veterano), gap≤−`gapThreshold` ⇒ el héroe es PROTÉGÉ (novato), |gap|<umbral ⇒ sin relación esta semana. Server-authority-ready (client renderiza).
+//   · DWELL determinista de co-presencia (bind): profundiza con las MISMAS gestas que ya cuentan (kills desde que se asignó el par — contador monótono
+//     `h.kills` menos el snapshot per-semana `h.mentorAt`, misma técnica que el Libro/Fellowship ⇒ 0 tracking nuevo por-frame, 0 hook, SIN input.js).
+//     Al alcanzar `bindTier` el par queda LIGADO ⇒ activa los beneficios. En Stage-2 el bind lo confirma el server desde la co-presencia COMPARTIDA.
+//   · BENEFICIO PROTÉGÉ: boost de XP ESCALONADO por dwell (reusa el canal RESTED_XP `restedMult`), SÓLO mientras ligado. El progreso más rápido en compañía.
+//   · BENEFICIO MENTOR: título "Mentor" en el nameplate (reusa la capa TITLES) — reconocimiento social, SIN ventaja de poder (no rompe balance).
+//   · PRECEDENCIA de pasivos (crítico, 0 stacking) — ESPEJA el patrón de EVOs previos (territoryMul→standingsMul): se de-stackea SÓLO en el MISMO
+//     canal. STANDINGS(colectivo) y MENTOR(personal) comparten restedMult ⇒ NO se suman: MENTOR CEDE (mul 0) cuando STANDINGS aporta ⇒ se aplica el
+//     MAYOR (el colectivo gana; standingsMul 0.15 ≥ mentorBoost máx 0.15). FELLOWSHIP(xpGain) y TERRITORY(safeRegen) son canales ⊥ ⇒ COEXISTEN (igual
+//     que hoy fellowship-xpGain + standings-restedMult ya coexisten en gainXP, y territory-safeRegen coexiste con standings-restedMult). Documentado.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tickMentor jamás corre (Date.now nunca se llama), G.mentor/h.mentorAt NUNCA se crean, mentorMul RETURN 0,
+// save omite `mentorAt`, mentorBondTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave nueva). SIN tocar input.js
+// (rol observado + alimentado por acciones que YA existen, 0 hotkey — anti-CAS-2273). Reversible en 1 línea (enabled:false→true + redeploy overlay
+// consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO (retune barato).
+export const MENTOR_BOND = {
+  enabled: false,            // DARK (CAS-2322). El CEO gatea el flip false→true tras QA PASS. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  periodSec: 604800,         // ciclo del VÍNCULO (1 semana). Reloj de pared COMPARTIDO ⇒ MISMO compañero asignado en N clientes (0 desync). Propio (no acopla a Fellowship/Órdenes).
+  epochMs: 0,                // ancla del reloj (0 = epoch Unix). Compartida ⇒ period idéntico en todo cliente.
+  gapThreshold: 5,           // gap de nivel MÍNIMO para que exista una relación mentor/protégé (|heroLvl − partnerLvl| ≥ umbral). CEO balance knob.
+  roster: [                  // roster FIJO de compañeros (arte $0 — nombres en el panel/nameplate). Cada uno con un `lvl` fijo que decide el rol vs el héroe. La asignación semanal es determinista (Knuth hash, 0 RNG).
+    { id:"pip",    name:"Pip el Aprendiz",     lvl:3  },
+    { id:"wren",   name:"Wren Manos-Torpes",   lvl:8  },
+    { id:"dario",  name:"Darío Paso-Firme",    lvl:16 },
+    { id:"osric",  name:"Osric Escudo-Viejo",  lvl:24 },
+    { id:"maegan", name:"Maegan la Templada",  lvl:33 },
+    { id:"bryn",   name:"Bryn Mil-Batallas",   lvl:47 },
+  ],
+  tiers: [                   // hitos del DWELL de co-presencia (nombre para HUD/panel + `boost` de XP del PROTÉGÉ, escalonado). `at` = dwell mínimo (ascendente). El primero (at:0) es el estado base (encuentro, sin ligar).
+    { at:0,  name:"Encuentro", boost:0    },
+    { at:4,  name:"Aprendiz",  boost:0.10 },
+    { at:12, name:"Discípulo", boost:0.15 },
+  ],
+  bindTier: 1,               // índice del tier de dwell a partir del cual el par está LIGADO ⇒ beneficios activos (1 = "Aprendiz"). CEO balance knob.
+  boostKind: "restedMult",   // canal del boost del PROTÉGÉ — REUSA RESTED_XP (mismo canal que STANDINGS ⇒ precedencia por MAYOR, ver mentorMul). El veterano NO recibe boost (sólo título).
+  mentorTitle: "Mentor",     // título del nameplate del VETERANO (reusa la capa TITLES) — reconocimiento social, SIN ventaja de poder. CEO balance knob.
+  protegeTitle: "Protégé",   // etiqueta del NOVATO (panel/nameplate). CEO balance knob.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
