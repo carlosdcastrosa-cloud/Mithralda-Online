@@ -1602,7 +1602,7 @@ export const TEMPLE_RESPAWN = {
 // (respeta el allowlist anti-CAS-2220: la clave sólo existe en el save cuando enabled). Reversible: enabled:true→false +
 // redeploy overlay CONSISTENTE-HEAD (config+sim, +render por el badge "Descanso" gated).
 export const RESTED_XP = {
-  enabled: false,          // DARK (CAS-2255). Flip = CEO Gate tras QA OBSERVABLE. Reversible: true→false + redeploy.
+  enabled: true,           // LIVE (CAS-2256 flip; CEO Gate PASS + QA CAS-2255 OBSERVABLE 19/19). Reversible: true→false + redeploy.
   accrualPerSec: 6,        // unidades de XP de Descanso acumuladas por segundo DENTRO de la SAFEZONE (~100s ocioso para llenar el pool).
   poolCap: 600,            // tope del pool de Descanso (unidades de XP bonus disponibles; ~1 nivel de bonus a niveles bajos).
   xpMult: 1.5,             // multiplicador de XP mientras hay pool (WoW-like ×1.5): el bonus por ganancia = base×(xpMult-1), acotado por el pool.
