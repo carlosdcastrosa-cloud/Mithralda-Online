@@ -1,13 +1,15 @@
 // CAS-2271 — QA POST-FLIP LIVE full-stack regression for TABLÓN DE RECOMPENSAS / BOUNTY BOARD (BOUNTY_BOARD.enabled:true ON DISK).
-// Independent QA (b5c10283) against the LIVE gh-pages build after the CAS-2270 flip+deploy (build 80fd94fed020).
+// Independent QA (b5c10283) against the LIVE gh-pages build. Originally caught the CAS-2273 KeyB defect on build 80fd94fed020;
+// this revision RE-VERIFIES the fix (key KeyB→End + mobile HUD button) shipped LIVE in 7ab8a04b7f37 and later builds.
 // This is NOT the in-memory DARK observable pass (CAS-2269): here BOUNTY_BOARD is ON BY DEFAULT from the SERVED config — no
 // __dev flip turns it on. __dev is used only to DRIVE the deterministic paths (setIdx / spawnKill real killEnemy / arc hooks)
 // and, for the reversibility proof, as an OFF baseline to isolate the badge and the byte-id save.
 //
 // Delta over the observable pass (why this exists):
-//   · Boots the ACTUAL live URL (cache-bust) and asserts build===EXPECT + 0 JS err + 0 non-favicon 404.
-//   · Proves ON-BY-DEFAULT from the SERVED sim/config.js (BOUNTY_BOARD.enabled:true, key KeyB, requireSafeZone true) — not a flip.
-//   · Drives the REAL 'KeyB' KEY through the LIVE input.js path (sim.tryBounty) to prove the player accept/claim trigger works live.
+//   · Boots the ACTUAL live URL (cache-bust) and asserts __BUILD===served version.json (fresh) + 0 JS err + 0 non-favicon 404.
+//   · Proves ON-BY-DEFAULT from the SERVED sim/config.js (BOUNTY_BOARD.enabled:true, key End [CAS-2273 fix], requireSafeZone true).
+//   · Drives the REAL 'End' KEY through the LIVE input.js path (sim.tryBounty) to prove the player accept/claim trigger works live
+//     (CAS-2273 re-verify: the key moved off KeyB, which was shadowed by the customize/wardrobe bind and left the board unreachable).
 //   · REAL kill path: __dev.spawnKill(type) → real killEnemy bumps h.kills + killsByType[type] ⇒ progress derived from live counters.
 //   · Type isolation: a TYPE contract advances only on the right type (killsByType), a wrong type does NOT advance it.
 //   · Turn-in grants gold + XP via the real gainXP chokepoint (no new currency); rotation (bountyIdx) advances deterministically.
@@ -26,12 +28,17 @@ const exe = findChromium();
 if (!exe) { console.error("no chromium"); process.exit(1); }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const LIVE = (process.argv[2] || "https://carlosdcastrosa-cloud.github.io/Mithralda-Online").replace(/\/$/, "");
-const EXPECT_BUILD = "80fd94fed020";
+// CAS-2273 FIX re-verify: BOUNTY_BOARD.key KeyB→"End" + mobile HUD button, first shipped LIVE build 7ab8a04b7f37.
+// The build id advances with every later flip (e.g. CAS-2274 Sanctuary Rep), so we DON'T hardcode-match it — instead we
+// assert __BUILD === the live version.json build (cache-bust freshness / self-consistency) and that the served config carries
+// the fix. FIX_BUILD is kept only as a provenance label.
+const FIX_BUILD = "7ab8a04b7f37";
+const REAL_KEY = "End";   // the fixed dedicated player key (was KeyB, which collided with customize/wardrobe)
 const OUT = join(ROOT, "shots", "cas2271");
 try { mkdirSync(OUT, { recursive: true }); } catch (e) {}
 
 let PASS = 0, FAIL = 0;
-const report = { live: LIVE, expectBuild: EXPECT_BUILD, build: null, desk: {}, mobile: {} };
+const report = { live: LIVE, expectBuild: FIX_BUILD, build: null, desk: {}, mobile: {} };
 const ok = (name, cond, extra = "") => { (cond ? PASS++ : FAIL++);
   console.log(`${cond ? "PASS" : "FAIL"}  ${name}${extra ? "  — " + extra : ""}`); };
 
@@ -80,19 +87,21 @@ try {
   await page.setViewport({ width: 1000, height: 660, deviceScaleFactor: 1 });
   const errors = [], net404 = [];
   wireErrs(page, errors, net404);
-  await page.goto(`${LIVE}/?dev=1&cb=${EXPECT_BUILD}`, { waitUntil: "networkidle2", timeout: 45000 });
+  const CB = Date.now();
+  await page.goto(`${LIVE}/?dev=1&cb=${CB}`, { waitUntil: "networkidle2", timeout: 45000 });
   await toPlay(page);
   const build = await page.evaluate(() => window.__BUILD || null);
   report.build = build;
+  const servedBuild = await page.evaluate(async (base) => { try { return (await (await fetch(base + "/version.json?cb=" + Date.now())).json()).build; } catch (e) { return null; } }, LIVE);
   const spawn = await page.evaluate(() => { const h = window.__dev.hero(); return { x: h.x, y: h.y }; }); // open hub spawn (walkable) for the movement check
 
-  // 1 boot clean on LIVE
+  // 1 boot clean on LIVE — cache-bust freshness: __BUILD self-consistent with live version.json (build advances per flip; not hardcoded)
   const hooks = await page.evaluate(() => !!(window.__dev && window.__dev.bounty && window.__dev.spawnKill && window.__dev.safeZone &&
     window.__dev.rested && window.__dev.recall && window.__dev.noAggro && window.__dev.saveBlob && window.__dev.worldFingerprint &&
     window.__dev.daynight && window.__dev.hero));
-  ok("1 boots clean on LIVE, build===EXPECT, __dev.bounty+spawnKill+arc hooks+__BUILD, 0 err, 0 404",
-     errors.length === 0 && net404.length === 0 && build === EXPECT_BUILD && hooks,
-     `build=${build} expect=${EXPECT_BUILD} err=${errors.length} 404=${net404.length}`);
+  ok("1 boots clean on LIVE, __BUILD===served version.json (fresh, cache-bust), arc+bounty hooks present, 0 err, 0 404",
+     errors.length === 0 && net404.length === 0 && !!build && build === servedBuild && hooks,
+     `build=${build} servedVersion=${servedBuild} fixShippedIn=${FIX_BUILD} err=${errors.length} 404=${net404.length}`);
 
   // 2 served config: BOUNTY_BOARD.enabled:true + key KeyB + requireSafeZone true (shipped LIVE, not a flip)
   const served = await page.evaluate(async (base) => {
@@ -102,8 +111,8 @@ try {
     const nB = (blk.match(/id:"/g) || []).length;
     return { status: r.status, enabled: g(/enabled:\s*(true|false)/), key: g(/key:\s*"([^"]+)"/), rsz: g(/requireSafeZone:\s*(true|false)/), nB };
   }, LIVE);
-  ok("2 served config LIVE: BOUNTY_BOARD.enabled:true, key KeyB, requireSafeZone:true, 6 contracts",
-     served.status === 200 && served.enabled === "true" && served.key === "KeyB" && served.rsz === "true" && served.nB === 6,
+  ok(`2 served config LIVE: BOUNTY_BOARD.enabled:true, key ${REAL_KEY} (CAS-2273 fix, off KeyB), requireSafeZone:true, 6 contracts`,
+     served.status === 200 && served.enabled === "true" && served.key === REAL_KEY && served.rsz === "true" && served.nB === 6,
      `enabled=${served.enabled} key=${served.key} requireSafeZone=${served.rsz} contracts=${served.nB}`);
 
   // 3 ON BY DEFAULT from disk — bounty().enabled===true out of the box, featured contract resolves deterministically
@@ -141,26 +150,27 @@ try {
   ok("5 byte-id OFF reversibility LIVE: in-mem OFF ⇒ save omits bounty/bountyIdx keys + worldFingerprint byte-stable across toggle",
      rev.leakOff === false && rev.fpStable === true, `leakOff=${rev.leakOff} fpStable=${rev.fpStable}`);
 
-  // 6 REAL 'KeyB' KEY (LIVE input.js path) — the PLAYER trigger. EXPECTED: accept the featured contract in the SAFEZONE.
-  //   DEFECT (CAS-2273): KeyB is the DEFAULT bind for the `customize` (wardrobe) rebindable action (settings.js:49, since
-  //   CAS-1659). input.js:271 `playAction(code)` resolves "customize" and RETURNS before the bounty handler at input.js:363,
-  //   so pressing B opens the wardrobe and the bounty is NEVER accepted. This check FAILS on purpose to document the defect.
+  // 6 REAL '<End>' KEY (LIVE input.js path) — the PLAYER trigger, POST-FIX (CAS-2273). The dedicated key moved off KeyB
+  //   (which collided with the `customize`/wardrobe rebindable bind, settings.js:49) to a free code. Pressing it in the
+  //   SAFEZONE must now ACCEPT the featured contract via the real input path (not __dev). Also assert KeyB is back to wardrobe.
   await page.evaluate(() => { window.__dev.bounty({ enabled: true, clear: true, setIdx: 1 }); }); // idx 1 = "wolves" (target wolf, count 6)
   await toZone(page);
-  const accKey = await page.evaluate(async () => { const s = (ms) => new Promise((r) => setTimeout(r, ms));
+  const accKey = await page.evaluate(async (REAL_KEY) => { const s = (ms) => new Promise((r) => setTimeout(r, ms));
     const before = window.__dev.bounty();
-    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyB", key: "b", bubbles: true })); await s(150);
-    const afterScene = window.__dev.scene();
-    const keyAccepted = window.__dev.bounty().active !== null;
-    // recover: close whatever KeyB opened (wardrobe), return to play, then accept through the REAL tryBounty chokepoint
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: REAL_KEY, key: REAL_KEY, bubbles: true })); await s(140);
+    const after = window.__dev.bounty(); const sceneAfter = window.__dev.scene();
+    return { beforeActive: before.active, result: after.result, active: after.active, progress: after.progress, complete: after.complete, inZone: after.inZone, sceneAfter }; }, REAL_KEY);
+  ok(`6 REAL '${REAL_KEY}' KEY (LIVE input path, CAS-2273 fix) accepts featured contract in SAFEZONE ⇒ active wolf contract, progress 0`,
+     accKey.beforeActive === null && accKey.active && accKey.active.target === "wolf" && accKey.progress === 0 && accKey.complete === false && accKey.inZone === true && accKey.sceneAfter === "play",
+     `active=${accKey.active && accKey.active.target} count=${accKey.active && accKey.active.count} prog=${accKey.progress} scene=${accKey.sceneAfter}`);
+  // 6b KeyB correctly reverts to the wardrobe (no longer the bounty trigger) — proves the fix didn't just move the collision
+  const keyb = await page.evaluate(async () => { const s = (ms) => new Promise((r) => setTimeout(r, ms));
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyB", key: "b", bubbles: true })); await s(120);
+    const sc = window.__dev.scene();
     for (let i = 0; i < 6 && window.__dev.scene() !== "play"; i++) { window.dispatchEvent(new KeyboardEvent("keydown", { code: "Escape", key: "Escape", bubbles: true })); await s(90); }
-    const acc = window.__dev.bounty({ act: true });
-    return { beforeActive: before.active, afterScene, keyAccepted, result: acc.result, active: acc.active, progress: acc.progress, complete: acc.complete, inZone: acc.inZone }; });
-  ok(`6 [DEFECT CAS-2273] REAL 'KeyB' key accepts bounty in SAFEZONE — FAILS: opens '${accKey.afterScene}' (wardrobe), bounty NOT accepted`,
-     accKey.keyAccepted === true, `keyAccepted=${accKey.keyAccepted} keyOpenedScene=${accKey.afterScene} (expected accept, got customize)`);
-  ok("6b accept via REAL tryBounty chokepoint (sim path, __dev.act) works ⇒ active wolf contract, progress 0 (feature LOGIC healthy)",
-     accKey.beforeActive === null && accKey.result === "accepted" && accKey.active && accKey.active.target === "wolf" && accKey.progress === 0 && accKey.complete === false && accKey.inZone === true,
-     `result=${accKey.result} active=${accKey.active && accKey.active.target} count=${accKey.active && accKey.active.count} prog=${accKey.progress}`);
+    return sc; });
+  ok("6b KeyB reverts to wardrobe (customize) — bounty no longer shadowed, collision resolved not relocated",
+     keyb === "customize", `KeyB opened scene=${keyb} (expected customize)`);
   const need = accKey.active.count;
 
   // 7 re-trigger while incomplete via the real chokepoint ⇒ no-op (contract unchanged, no double-accept)
@@ -189,16 +199,17 @@ try {
   ok("9 COMPLETE via real kills ⇒ complete=true, progress clamped to count",
      comp.complete === true && comp.progress === need, `prog=${comp.progress}/${need} complete=${comp.complete}`);
 
-  // 10 + 11 + 12 CLAIM via the REAL tryBounty chokepoint in zone: gold += reward, XP via gainXP (lvl monotonic), cleared, rotates
+  // 10 + 11 + 12 CLAIM via the REAL '<End>' KEY in zone: gold += reward, XP via gainXP (lvl monotonic), cleared, rotates
   await toZone(page);
-  const claim = await page.evaluate(() => {
+  const claim = await page.evaluate(async (REAL_KEY) => { const s = (ms) => new Promise((r) => setTimeout(r, ms));
     const pre = window.__dev.bounty(); const reward = pre.active;
-    const post = window.__dev.bounty({ act: true });
-    return { reward, result: post.result, goldPre: pre.gold, goldPost: post.gold, lvlPre: pre.lvl, lvlPost: post.lvl, idxPre: pre.bountyIdx, idxPost: post.bountyIdx, active: post.active, hasField: post.hasField }; });
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: REAL_KEY, key: REAL_KEY, bubbles: true })); await s(140);
+    const post = window.__dev.bounty();
+    return { reward, result: post.result, goldPre: pre.gold, goldPost: post.gold, lvlPre: pre.lvl, lvlPost: post.lvl, idxPre: pre.bountyIdx, idxPost: post.bountyIdx, active: post.active, hasField: post.hasField }; }, REAL_KEY);
   const goldGain = claim.goldPost - claim.goldPre;
-  ok("10 CLAIM via real chokepoint w/ complete ⇒ 'claimed', gold += reward.gold, contract cleared",
-     claim.result === "claimed" && goldGain === claim.reward.gold && claim.active === null,
-     `result=${claim.result} goldΔ=${goldGain} expected=${claim.reward.gold} active=${claim.active}`);
+  ok(`10 CLAIM via REAL '${REAL_KEY}' key w/ complete ⇒ gold += reward.gold, contract cleared`,
+     goldGain === claim.reward.gold && claim.active === null,
+     `goldΔ=${goldGain} expected=${claim.reward.gold} active=${claim.active}`);
   ok("11 XP granted on claim via real gainXP chokepoint (lvl monotonic ≥ pre; reward.xp=" + claim.reward.xp + ")",
      claim.lvlPost >= claim.lvlPre, `lvl ${claim.lvlPre}→${claim.lvlPost}`);
   ok("12 ROTATION deterministic: bountyIdx advances on claim (0 RNG, featured rotates)",
@@ -326,7 +337,7 @@ try {
   const mErr = [], mNet404 = [];
   wireErrs(mp, mErr, mNet404);
   await mp.evaluateOnNewDocument(() => { try { for (const k of Object.keys(localStorage)) if (/mithralda/i.test(k)) localStorage.removeItem(k); } catch (e) {} });
-  await mp.goto(`${LIVE}/?dev=1&cb=${EXPECT_BUILD}m`, { waitUntil: "networkidle2", timeout: 45000 });
+  await mp.goto(`${LIVE}/?dev=1&cb=${Date.now()}m`, { waitUntil: "networkidle2", timeout: 45000 });
   await toPlay(mp);
   ok("19 MOBILE boots to play on LIVE, 0 err, 0 404", (await mp.evaluate(() => window.__dev.scene() === "play")) && mErr.length === 0 && mNet404.length === 0,
      `err=${mErr.length} 404=${mNet404.length}`);
@@ -344,7 +355,9 @@ try {
   ok("20 MOBILE touch-move drives hero (virtual stick)", moved > 20, `Δ=${moved.toFixed(1)}px`);
 
   // 21 mobile default-ON + accept/complete/claim reachable through the real chokepoint (tryBounty via __dev.act), gold+rotation land
-  //   (NOTE: mobile has NO player-facing bounty trigger at all — no HUD button, and KeyB does not apply on touch; tracked in CAS-2273.)
+  //   (POST-FIX CAS-2273: mobile now HAS a contextual HUD button `tb.bounty` (📜, gated on sim.heroInSafeZone()) wired to
+  //   sim.tryBounty() — input.js:517; the REAL touch-tap of that button is independently verified 7/7 in the CAS-2273 QA net.
+  //   Here we regress the loop LOGIC on mobile via the same chokepoint the button calls.)
   const mFlow = await mp.evaluate(async () => { const s = (ms) => new Promise((r) => setTimeout(r, ms));
     window.__dev.bounty({ clear: true, setIdx: 1 });  // wolves, count 6
     const t = window.__dev.safeZone().temple; window.__dev.tp(t.x / 32, t.y / 32); await s(240);
@@ -373,6 +386,6 @@ try {
 } finally {
   await browser.close();
 }
-console.log(`\nBUILD ${report.build} (expect ${EXPECT_BUILD}) desk=${report.desk.fps}fps mobile=${report.mobile.fps}fps`);
+console.log(`\nBUILD ${report.build} (fix shipped in ${FIX_BUILD}) desk=${report.desk.fps}fps mobile=${report.mobile.fps}fps`);
 console.log(`${PASS}/${PASS + FAIL} checks passed (${FAIL} fail)`);
 process.exit(FAIL ? 1 : 0);
