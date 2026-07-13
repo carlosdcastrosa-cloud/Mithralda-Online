@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2691,6 +2691,58 @@ export function tryRecall(){
   executeRecall(h); return "recalled";                            // instantáneo (Stage-1)
 }
 
+// CAS-2284: TOQUE DE GUERRA DEL SANTUARIO / SANCTUARY WARHORN — helpers PUROS del horario compartido. warhornPointFor(windowIdx)
+// = posición DETERMINISTA del objetivo de reunión (hash puro de windowIdx, 0 RNG) en el borde de la SAFEZONE + rallyOffset;
+// warhornScheduleAt(nowMs) = función PURA del reloj de pared que devuelve el estado derivado del evento (idéntico en todo cliente
+// con el reloj correcto ⇒ convergencia social). NO leen ni escriben save/RNG. Exportadas para el harness de QA (prueba de
+// determinismo "mismo nowMs ⇒ mismo estado en N clientes"). Sólo tienen efecto observable bajo WORLD_EVENT.enabled.
+function warhornPointFor(windowIdx){
+  const g=safeZoneGeom(); if(!g) return null;                     // sin ciudad ⇒ sin punto de reunión
+  const b=g.bbox, cx=(b[0]+b[2])/2, cy=(b[1]+b[3])/2, hw=(b[2]-b[0])/2, hh=(b[3]-b[1])/2;
+  const seed=((windowIdx>>>0)*2654435761)>>>0;                    // hash multiplicativo de Knuth ⇒ ángulo determinista, 0 RNG
+  const ang=(seed%3600)/3600*Math.PI*2, off=WORLD_EVENT.rallyOffset|0;
+  const bx0=TS, by0=TS, bx1=(MAP_W-1)*TS, by1=(MAP_H-1)*TS;       // clamp a límites del mundo
+  const x=Math.max(bx0,Math.min(bx1, cx+Math.cos(ang)*(hw+off)));
+  const y=Math.max(by0,Math.min(by1, cy+Math.sin(ang)*(hh+off)));
+  return { x:+x.toFixed(2), y:+y.toFixed(2), ang:+ang.toFixed(4), windowIdx:windowIdx>>>0 };
+}
+export function warhornScheduleAt(nowMs){
+  const out={ enabled:!!WORLD_EVENT.enabled, active:false, phase:"idle", windowIdx:0,
+    remainingSec:0, nextInSec:0, xpMult:1, repPerKill:0, rally:null };
+  if(!Number.isFinite(nowMs) || nowMs<=0) return out;             // sin reloj (harness sin nowMs) ⇒ inactivo, nada que derivar
+  const periodMs=Math.max(1000,(WORLD_EVENT.periodSec|0)*1000), windowMs=Math.max(0,(WORLD_EVENT.windowSec|0)*1000);
+  const elapsed=nowMs-(WORLD_EVENT.epochMs||0); if(elapsed<0) return out;
+  const windowIdx=Math.floor(elapsed/periodMs), into=elapsed-windowIdx*periodMs; // ms dentro del periodo actual
+  out.windowIdx=windowIdx>>>0;
+  if(into<windowMs){                                              // VENTANA ACTIVA
+    const peak=into>=windowMs/2;                                  // fase PICO / Fervor = 2ª mitad de la ventana ("escalante")
+    out.active=true; out.phase=peak?"peak":"call";
+    out.remainingSec=(windowMs-into)/1000; out.nextInSec=0;
+    out.xpMult=peak?(+WORLD_EVENT.peakXpMult||+WORLD_EVENT.xpMult||1):(+WORLD_EVENT.xpMult||1);
+    out.repPerKill=peak?(WORLD_EVENT.peakRepPerKill|0):(WORLD_EVENT.repPerKill|0);
+    out.rally=warhornPointFor(windowIdx);
+  } else {                                                        // OCIOSO: cuenta atrás al próximo Toque
+    out.remainingSec=0; out.nextInSec=(periodMs-into)/1000;
+  }
+  return out;
+}
+// CAS-2284: tick del EVENTO MUNDIAL — deriva el estado del Toque de Guerra del reloj de pared COMPARTIDO (Date.now, leído SÓLO
+// aquí y SÓLO bajo el gate) y lo cachea en G.warhorn (transitorio, fuera del allowlist de serializeSave ⇒ nunca persiste). Con
+// WORLD_EVENT.enabled:false NUNCA se invoca ⇒ Date.now nunca se llama, G.warhorn nunca se crea ⇒ byte-idéntico a HEAD.
+function tickWorldEvent(){ if(!WORLD_EVENT.enabled) return; G.warhorn=warhornScheduleAt(Date.now()); }
+// CAS-2284: RECOMPENSA por kill durante la ventana activa. Participación PASIVA (sin key/moneda nueva): un kill de MUNDO ABIERTO
+// (fuera de la SAFEZONE) otorga un bono de XP por el chokepoint gainXP YA existente (mult temporal estilo RESTED) + RENOMBRE
+// (SANCTUARY_REP, reusa ese knob). Deriva del estado ya cacheado en G.warhorn (reloj compartido). Gated ⇒ OFF return inmediato
+// ⇒ gainXP/rep byte-idénticos a HEAD (0 XP extra, h.sanctuaryRep intacto). No crea estado nuevo persistente.
+function warhornOnKill(h, e, tpl){
+  const w=G.warhorn; if(!WORLD_EVENT.enabled || !h || h.dead || !w || !w.active) return;
+  if(inSafeZone(e.x, e.y)) return;                                // recompensa SÓLO en el mundo abierto (convergencia fuera del hub)
+  const bonus=Math.round(((tpl&&tpl.xp)||0)*((w.xpMult||1)-1));   // bono = base×(mult-1), por el ÚNICO chokepoint (compone Rested/meta)
+  if(bonus>0) gainXP(bonus);
+  if(SANCTUARY_REP.enabled && (w.repPerKill|0)>0){               // el RENOMBRE reutiliza el knob de facción (gated ⇒ OFF campo intacto)
+    h.sanctuaryRep=Math.max(0,(h.sanctuaryRep||0)+(w.repPerKill|0)); }
+}
+
 // CAS-2269: TABLÓN DE RECOMPENSAS — helpers deterministas. El PROGRESO no se rastrea: se DERIVA de un contador MONÓTONO ya
 // vivo y ya persistido (h.kills para "any", h.killsByType[target] para un tipo, poblado en killEnemy) MENOS el snapshot `base`
 // tomado al aceptar. 0 RNG, 0 estado nuevo por-frame, 0 hook en killEnemy. Sólo se invoca bajo BOUNTY_BOARD.enabled.
@@ -3521,6 +3573,10 @@ function killEnemy(e){
   if(ZONE5.enabled && zone==="caldera" && !tpl.neutral && !e.eventGuard && !e.eventGoblin){
     if(zone5Rng.srand() < (ZONE5.bonusLootRate||0)){ const win=(ZONE_LOOT.caldera||ZONE_LOOT.abyss).tier;
       dropGear(e.x+frr(-10,10), e.y+12, rollGearInst(zone5Rng.srand, win[0], win[1])); } }
+  // CAS-2284: TOQUE DE GUERRA — recompensa de participación pasiva. Un kill de mundo abierto durante la ventana activa otorga
+  // bono de XP (chokepoint gainXP) + RENOMBRE (SANCTUARY_REP). Gated + derivado (G.warhorn del reloj compartido) ⇒ OFF return
+  // inmediato ⇒ ruta de kill byte-idéntica a HEAD. Corre tras todos los payoffs de loot (no perturba srand/legRng/etc.).
+  if(WORLD_EVENT.enabled && !tpl.neutral) warhornOnKill(G.hero, e, tpl);
   if(e.type==="wolf" && !G.quest.done){ G.quest.wolves=Math.min(8,G.quest.wolves+1);
     if(G.quest.wolves>=8){ G.quest.done=true; toast(STR.questDone); } }
   addFx("poof",e.x,e.y);
@@ -5083,6 +5139,7 @@ export function update(dtMs){
   tickSafeZone(h,dt);// CAS-2242: regen de HP en la Zona Segura de la Ciudad + pausa post-daño (aritmética/geometría, no RNG, gated on SAFEZONE.enabled)
   tickRestedXP(h,dt);// CAS-2255: acumulación del pool de Descanso mientras el héroe está en la SAFEZONE (aritmética, no RNG, gated on RESTED_XP.enabled ⇒ OFF byte-id)
   tickRecall(h,dt); // CAS-2266: bind al Santuario en zona + enfriar cooldown del Recall + canal (dormido) (aritmética/geometría, no RNG, gated on RECALL.enabled ⇒ OFF byte-id)
+  if(WORLD_EVENT.enabled) tickWorldEvent(); // CAS-2284: Toque de Guerra — horario compartido derivado del reloj de pared (transitorio en G.warhorn, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -6338,6 +6395,28 @@ export const dev = {
       restedCap: h?+restedCapFor(h).toFixed(2):RESTED_XP.poolCap,           // knob efectivo (prueba del reward restedCap)
       hasField: h ? ("sanctuaryRewards" in h) : false,                     // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
+  // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
+  // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
+  // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).
+  //   warhorn()                     → {enabled,periodSec,windowSec,now:<estado derivado o null>,hero}
+  //   warhorn({enabled:true})       → flip runtime IN-MEMORY de WORLD_EVENT.enabled (schedule/reward sin tocar el disco)
+  //   warhorn({nowMs})              → deriva+cachea el estado en G.warhorn PARA ese reloj (idle/activo/fase pico) — 0 espera real
+  //   warhorn({nowMs,kill:true})    → tras derivar, simula un kill de mundo abierto por warhornOnKill (observa +XP/+RENOMBRE)
+  warhorn(p){
+    let killObserved=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) WORLD_EVENT.enabled=!!p.enabled;
+      if("nowMs" in p) G.warhorn=warhornScheduleAt(+p.nowMs);              // inyecta el reloj compartido para OBSERVAR la ventana
+      if(p.kill && G.hero){ const before={xp:G.hero.xp|0, rep:(G.hero.sanctuaryRep|0)};
+        // simula un kill FUERA de la SAFEZONE (kx/ky lejos) por el chokepoint real (usa la ventana ya derivada en G.warhorn)
+        warhornOnKill(G.hero, {x:(p.kx!=null?+p.kx:1e7), y:(p.ky!=null?+p.ky:1e7)}, {xp:(+p.killXp||100), neutral:false});
+        killObserved={ xpDelta:(G.hero.xp|0)-before.xp, repDelta:(G.hero.sanctuaryRep|0)-before.rep }; }
+    }
+    const h=G.hero, w=G.warhorn||null;
+    return { enabled:WORLD_EVENT.enabled, periodSec:WORLD_EVENT.periodSec|0, windowSec:WORLD_EVENT.windowSec|0,
+      xpMult:+WORLD_EVENT.xpMult, peakXpMult:+WORLD_EVENT.peakXpMult, repPerKill:WORLD_EVENT.repPerKill|0, peakRepPerKill:WORLD_EVENT.peakRepPerKill|0,
+      now: w, killObserved,
+      hero:h?{ xp:h.xp|0, rep:(h.sanctuaryRep|0), hasRepField:("sanctuaryRep" in h), x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead }:null }; },
   // CAS-1729: read-only snapshot of custom (map-editor) deco props, exposing the
   // sliced-cell sub-rect (sx,sy,sw,sh) when present. Lets QA prove a sliced tileset
   // cell — not the whole sheet — reached world.deco in vivo. Pure read, no mutation.

@@ -1735,6 +1735,40 @@ export const SANCTUARY_REWARDS = {
   ],
 };
 
+// CAS-2284: TOQUE DE GUERRA DEL SANTUARIO / SANCTUARY WARHORN (DARK, WORLD_EVENT) — el primer EVENTO MUNDIAL PROGRAMADO del
+// arco Santuario. Canon MMORPG: world boss timer / GW2 meta-event / Tibia server-save event. Su valor central NO es
+// single-player: es la CONVERGENCIA SOCIAL SINCRONIZADA — todos los jugadores del shard ven el MISMO horario y la MISMA
+// ventana activa porque se DERIVAN de forma determinista del reloj de pared (bucket de minutos del epoch), así que la gente
+// coincide en el mundo compartido al mismo tiempo. Diseño Stage-1, server-authority-ready y 100% DETERMINISTA (0 RNG):
+//   · HORARIO COMPARTIDO (función pura del wall-clock): windowIdx = floor((now-epochMs)/periodMs); la ventana está ACTIVA
+//     mientras (now-epochMs) mod periodMs < windowMs. Idéntico en todo cliente con el reloj correcto ⇒ convergencia. En
+//     Stage-2 el server provee el reloj autoritativo (mismo cálculo). El wall-clock (Date.now) SÓLO se lee dentro del tick
+//     GATEADO (tickWorldEvent) ⇒ con la feature OFF es CÓDIGO MUERTO, nunca entra en el sim determinista (save/worldFingerprint/
+//     RNG byte-idénticos a HEAD — respeta la regla de game.js:120 y el anti-CAS-2220).
+//   · OBJETIVO DE REUNIÓN marcado cerca del borde de la SAFEZONE/Santuario: posición DERIVADA (hash puro de windowIdx, 0 RNG,
+//     0 assets — blip en minimapa + estilo badge) ⇒ el punto de encuentro cambia cada evento pero es el mismo para todos.
+//   · RECOMPENSA ESCALANTE por PARTICIPACIÓN PASIVA (SIN moneda nueva, SIN key nueva — evita la clase de bug de colisión de
+//     keybind CAS-2273): durante la ventana activa, matar/combatir en el MUNDO ABIERTO (fuera de la SAFEZONE) otorga
+//     +repPerKill de RENOMBRE (SANCTUARY_REP, reusa ese knob) + un multiplicador temporal de XP estilo RESTED_XP aplicado por
+//     el chokepoint gainXP YA existente. "Escalante" = 2 fases deterministas dentro de la ventana (Llamada → Fervor, pico en
+//     la 2ª mitad): la fase PICO sube el mult de XP y el rep por kill. Acotado y determinista (decisión de BALANCE del CEO).
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tickWorldEvent RETURN inmediato (Date.now nunca se llama), G.warhorn NUNCA se
+// crea, warhornOnKill RETURN inmediato, el badge/blip nunca se dibuja, serializeSave NO toca ninguna clave nueva (estado 100%
+// DERIVADO/transitorio, cero persistencia nueva) ⇒ save.v1 + comportamiento + worldFingerprint BYTE-IDÉNTICOS a HEAD.
+// Reversible en 1 línea (enabled:true→false + redeploy overlay CONSISTENTE-HEAD: config+sim+render). Escala a N jugadores sin
+// contención (el horario es una función pura compartida; el reward es per-hero por el chokepoint gainXP/rep ya vivo).
+export const WORLD_EVENT = {
+  enabled: false,          // DARK. Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+render).
+  periodSec: 900,          // cada 15 min suena el Toque (bucket determinista del epoch). CEO balance knob.
+  windowSec: 180,          // duración de la ventana activa (3 min de convergencia/recompensa). CEO balance knob.
+  xpMult: 1.25,            // multiplicador de XP durante la fase LLAMADA (1ª mitad), vía gainXP (estilo RESTED). Acotado.
+  peakXpMult: 1.5,         // multiplicador de XP durante la fase PICO / Fervor (2ª mitad de la ventana) — "escalante".
+  repPerKill: 8,           // RENOMBRE (SANCTUARY_REP) por kill de mundo abierto en fase LLAMADA (gated a SANCTUARY_REP.enabled).
+  peakRepPerKill: 14,      // RENOMBRE por kill en fase PICO / Fervor. Acotado, determinista.
+  rallyOffset: 260,        // px MÁS ALLÁ del borde de la SAFEZONE donde aparece el objetivo de reunión (seeded por windowIdx).
+  epochMs: 0,              // ancla del epoch compartido (0 = epoch Unix). Bucket = floor((Date.now()-epochMs)/periodMs).
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

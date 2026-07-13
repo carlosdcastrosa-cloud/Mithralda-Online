@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -339,6 +339,11 @@ export function createRenderer(ctx){
     // renombre reclamables (ámbar pulsante si hay ≥1) + título de renombre actual. Refleja la autoridad de sim
     // (h.sanctuaryRewards + rango de rep); cosmético puro (no lee/escribe RNG ni save).
     if(SANCTUARY_REWARDS.enabled) renderQuartermasterBadge();
+    // CAS-2284: indicador "Toque de Guerra" (World Event / Sanctuary Warhorn, render-only, $0 arte, DARK). Con WORLD_EVENT.enabled:false
+    // NUNCA corre ⇒ salida byte-idéntica (0 refs render fuera de este gate). ON: cuerno + estado del EVENTO MUNDIAL compartido —
+    // OCIOSO = cuenta atrás "próx mm:ss" al siguiente Toque; ACTIVO = "¡ACTIVO! mm:ss" pulsante + fase (Fervor en el pico). Refleja
+    // el horario derivado del reloj compartido (G.warhorn, autoridad en sim); cosmético puro (no lee/escribe RNG ni save).
+    if(WORLD_EVENT.enabled) renderWarhornBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3200,6 +3205,48 @@ export function createRenderer(ctx){
     ctx.restore();
   }
 
+  // CAS-2284: indicador "Toque de Guerra" (World Event / Sanctuary Warhorn). SIEMPRE visible (evento MUNDIAL compartido, no
+  // per-hub) cuando la feature está ON: un cuerno + estado del EVENTO. OCIOSO → "próx mm:ss" (cuenta atrás al siguiente Toque,
+  // gris cálido). ACTIVO → "¡ACTIVO! mm:ss" ámbar/rojo pulsante + fase (Llamada/Fervor). Deriva de G.warhorn (autoridad en sim,
+  // reloj compartido); cosmético puro (no lee/escribe sim/RNG/save). Gated arriba en WORLD_EVENT.enabled ⇒ OFF nunca se invoca.
+  function renderWarhornBadge(){
+    const w=G.warhorn; if(!w) return;                       // aún sin derivar (pre-primer-tick) ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+120, sw=14, sh=14;               // bajo toda la fila de badges (gap anti-solape con el Intendente @+100)
+    const active=!!w.active, peak=w.phase==="peak";
+    const secs=active?(+w.remainingSec||0):(+w.nextInSec||0);
+    const mm=(secs/60)|0, ss=Math.max(0,Math.ceil(secs))%60, tstr=mm+":"+String(ss).padStart(2,"0");
+    const pulse=active?(0.72+0.24*Math.sin(G.t*(peak?5.5:3.8))):0.6;
+    const glyph=active?(peak?"#ff8a4a":"#ffcf5a"):"#c9b98a"; // pico=rojo-ámbar, llamada=ámbar, ocioso=gris cálido
+    ctx.save(); ctx.globalAlpha=pulse;
+    // cuerno procedural ($0 arte): arco cónico con boca abierta + contorno oscuro
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.beginPath();
+    ctx.moveTo(bx, by+sh*0.72); ctx.quadraticCurveTo(bx+sw*0.2, by+sh*0.1, bx+sw*0.9, by+sh*0.2);
+    ctx.lineTo(bx+sw, by+sh*0.5); ctx.quadraticCurveTo(bx+sw*0.5, by+sh*0.55, bx+sw*0.28, by+sh);
+    ctx.closePath();
+    ctx.fillStyle=active?(peak?"rgba(180,70,30,0.62)":"rgba(170,120,40,0.6)"):"rgba(96,88,66,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.78)"; ctx.stroke();
+    // ondas de sonido si está activo (afordancia de "sonando")
+    if(active){ ctx.beginPath(); ctx.lineWidth=1.4; ctx.strokeStyle=glyph;
+      ctx.arc(bx+sw*0.98, cy, sh*0.34, -0.9, 0.9); ctx.stroke();
+      ctx.beginPath(); ctx.arc(bx+sw*0.98, cy, sh*0.6, -0.7, 0.7); ctx.globalAlpha=pulse*0.6; ctx.stroke(); ctx.globalAlpha=pulse; }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Toque de Guerra";
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=active?"#ffe6b0":"#c9b98a"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104])
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=active?("¡ACTIVO! "+tstr):("próx "+tstr);
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    // fase bajo la fila cuando está activo (Llamada / Fervor)
+    if(active){ ctx.globalAlpha=pulse*0.9; ctx.font="9px "+FF; ctx.textAlign="left"; ctx.fillStyle=peak?"#ffb27a":"#e9cf94";
+      ctx.fillText(peak?"Fervor":"Llamada", bx, by+sh+6); }
+    ctx.restore();
+  }
+
   function renderMiniMap(){ if(isTouch) return;
     const sidebar=view.sbw>0;
     let mw=120, mh=120, x, y;
@@ -3244,6 +3291,14 @@ export function createRenderer(ctx){
     if(MINIMAP.enabled){ for(const b of mapBlips()){ const bx=mmox+b.x*sx, by=mmoy+b.y*sy;
       ctx.fillStyle=b.col; ctx.fillRect(bx-2,by-2,4,4);
       ctx.strokeStyle="rgba(10,12,16,0.85)"; ctx.lineWidth=1; ctx.strokeRect(bx-2.5,by-2.5,5,5); } }
+    // CAS-2284: OBJETIVO DE REUNIÓN del Toque de Guerra — blip pulsante (rombo ámbar/rojo) en el borde de la SAFEZONE durante la
+    // ventana activa. Posición DERIVADA (G.warhorn.rally, hash puro de windowIdx ⇒ mismo punto para todos). Gated en
+    // WORLD_EVENT.enabled ⇒ OFF nunca se dibuja ⇒ byte-idéntico. $0 arte (canvas procedural).
+    if(WORLD_EVENT.enabled && G.warhorn && G.warhorn.active && G.warhorn.rally){
+      const r=G.warhorn.rally, rx=mmox+r.x*sx, ry=mmoy+r.y*sy, pz=0.7+0.3*Math.sin(G.t*5), s=3.2+pz;
+      ctx.save(); ctx.globalAlpha=0.55+0.4*pz; ctx.translate(rx,ry); ctx.rotate(Math.PI/4);
+      ctx.fillStyle=G.warhorn.phase==="peak"?"#ff7a3a":"#ffcf5a"; ctx.fillRect(-s/2,-s/2,s,s);
+      ctx.strokeStyle="rgba(10,12,16,0.9)"; ctx.lineWidth=1; ctx.strokeRect(-s/2,-s/2,s,s); ctx.restore(); }
     // CAS-454: directional arrow for player position
     const hx=mmox+G.hero.x*sx, hy=mmoy+G.hero.y*sy, fa=G.hero.facing, ar=5;
     ctx.save(); ctx.translate(hx,hy); ctx.rotate(fa);

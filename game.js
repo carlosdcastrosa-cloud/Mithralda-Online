@@ -281,6 +281,11 @@ export function createGame(canvas, ctx, getView){
       // quartermaster({enabled:true}) flip runtime IN-MEMORY; quartermaster({grantRep:n}) suma rep para observar desbloqueos;
       // quartermaster({claim:true}) reclama por el chokepoint REAL (tryQuartermaster).
       quartermaster:(p)=>simDev.quartermaster(p),
+      // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK, WORLD_EVENT). warhorn() lee {enabled,periodSec,
+      // windowSec,now:<estado derivado del reloj compartido: active/phase/remainingSec/nextInSec/xpMult/repPerKill/rally>,hero};
+      // warhorn({enabled:true}) flip runtime IN-MEMORY; warhorn({nowMs}) inyecta el reloj compartido para observar idle/ventana/
+      // pico sin esperar minutos reales; warhorn({nowMs,kill:true}) simula un kill de mundo abierto (observa +XP/+RENOMBRE).
+      warhorn:(p)=>simDev.warhorn(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
