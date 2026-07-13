@@ -1893,6 +1893,35 @@ export const SANCTUARY_LEDGER = {
   ],
 };
 
+// CAS-2305: CLASIFICACIÓN DE ÓRDENES / ORDER STANDINGS (DARK, ORDER_STANDINGS) — capa SOCIAL COMPETITIVA sobre el arco del Santuario.
+// El LIBRO (SANCTUARY_LEDGER, LIVE) ya da a cada una de las 3 Órdenes deterministas (dawn/iron/wander) una PROGRESIÓN COLECTIVA
+// semanal server-authoritative. Lo que falta — y es NATIVO de MMORPG — es una CLASIFICACIÓN COMPARTIDA de esas órdenes que TODO
+// jugador del shard ve idéntica: rivalidad e identidad social entre facciones, más un pequeño PASIVO para la orden LÍDER de la
+// semana. Canon MMO: la tabla de facciones/gremios de un realm (WoW faction standings / GW2 world-vs-world scoreboard). Diseño
+// Stage-1, 100% DETERMINISTA (0 RNG) y server-authority-ready:
+//   · RANKING = función PURA del reloj de pared: standingsRank(period) ordena las 3 órdenes por su BASELINE COLECTIVO del Libro
+//     (ledgerBaseline(period,orderId) — la parte COMUNITARIA/server-authoritative, NO la contribución per-hero ⇒ TODO cliente con
+//     el mismo reloj converge a la MISMA clasificación, 0 desync bajo N jugadores). En Stage-2 el baseline se sustituye por la
+//     SUMA real de contribuciones server-authoritative; el seam del ranking es idéntico. La clasificación es ESTABLE toda la semana
+//     (el ramp por frac es uniforme ⇒ el orden depende sólo del jitter determinista por orden) y ROTA por semana (identidad social
+//     cambiante). El desempate es estable por id (0 RNG).
+//   · PASIVO DEL LÍDER (order-wide, temporal): la orden en el PUESTO 1 esta semana otorga a SUS miembros un bono FIJO y ACOTADO por
+//     un knob YA vivo (0 balance/moneda nueva): +leadValue al MULTIPLICADOR de Descanso (RESTED_XP.xpMult), sumado en el MISMO
+//     chokepoint de gainXP que sanctuaryRewardMul("restedMult") ⇒ canal distinto al del Libro (safeRegen/restedCap/recallCd) para
+//     que ambos pasivos sean observables por separado. Gateado a que la orden del héroe (su JURAMENTO) SEA la líder esta semana.
+//   · La orden del héroe la aporta el JURAMENTO (SANCTUARY_OATH). Sin juramento ⇒ no recibe pasivo, pero la clasificación existe
+//     igual (es estado del MUNDO, no per-hero). 0 campo nuevo en el héroe (reusa h.sanctuaryOath) ⇒ 0 clave nueva en save.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tickStandings RETURN inmediato (G.standings NUNCA se crea), standingsMul RETURN 0 (el
+// knob de Descanso queda byte-idéntico a HEAD), la fila del panel y el ♛ del nameplate NUNCA se dibujan ⇒ comportamiento + save.v1 +
+// worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN input.js (0 hotkey nuevo — superficie SOLO lectura en el panel del Tablón + nameplate).
+// Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS (leadValue) =
+// decisión de BALANCE del CEO (retune = edición de knob barata y reversible). Depende de SANCTUARY_LEDGER (LIVE) para los baselines.
+export const ORDER_STANDINGS = {
+  enabled: false,          // DARK. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  leadKind: "restedMult",  // canal del pasivo del LÍDER: reusa el multiplicador de Descanso (RESTED_XP.xpMult) en gainXP (mismo seam que sanctuaryRewardMul).
+  leadValue: 0.15,         // +15% al mult de Descanso para la orden LÍDER de la semana (bounded, server-authoritative). CEO balance knob.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

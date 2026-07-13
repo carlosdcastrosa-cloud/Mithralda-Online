@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -1097,6 +1097,13 @@ export function createRenderer(ctx){
         // sin racha ⇒ "" ⇒ nada dibuja ⇒ byte-idéntico a HEAD. Anclada al ancho del tag para no solaparse.
         if(SANCTUARY_LEDGER.enabled && sim.sanctuaryLedgerTag(h)){ const tw=ctx.measureText("⟦"+ot+"⟧").width;
           ctx.strokeText("★",h.x+tw/2+7,ty); ctx.fillStyle="#ffcf5c"; ctx.fillText("★",h.x+tw/2+7,ty); }
+        // CAS-2305: CLASIFICACIÓN DE ÓRDENES — ♛ ámbar cuando la orden del héroe LIDERA la clasificación semanal del shard (pasivo del
+        // líder activo). Estado AUTORITATIVO del sim (sim.sanctuaryStandingsTag; 0 duplicación de lógica, capa social MMO — en Stage-2
+        // otros ven qué orden domina el realm). Gated ⇒ OFF / sin liderazgo ⇒ "" ⇒ nada dibuja ⇒ byte-idéntico a HEAD. Anclada a la
+        // DERECHA de la ★ (o del tag si no hay racha) para no solaparse.
+        if(ORDER_STANDINGS.enabled && sim.sanctuaryStandingsTag(h)){ const tw=ctx.measureText("⟦"+ot+"⟧").width;
+          const cx=h.x+tw/2+7+((SANCTUARY_LEDGER.enabled&&sim.sanctuaryLedgerTag(h))?12:0);
+          ctx.strokeText("♛",cx,ty); ctx.fillStyle="#ffc16a"; ctx.fillText("♛",cx,ty); }
         ctx.restore(); } }
   }
   // CAS-92: draw one frame of a hero animation strip. Every frame is HERO_FW×HERO_FH;
@@ -4074,7 +4081,7 @@ export function createRenderer(ctx){
   function renderBounty(){ const b=daily.board(); ui.bountyRects=[];
     // CAS-2295: con SANCTUARY_OATH.enabled el panel crece 76px para alojar la fila de Órdenes bajo los contratos (gated ⇒ OFF el alto
     // y todo el layout quedan byte-idénticos a HEAD).
-    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0)+(SANCTUARY_LEDGER.enabled?46:0), x=(VW-bw)/2, y=(VH-bh)/2;
+    const bw=Math.min(VW*0.9,500), bh=Math.min(VH*0.9,470)+(SANCTUARY_OATH.enabled?76:0)+(SANCTUARY_LEDGER.enabled?46:0)+(ORDER_STANDINGS.enabled?58:0), x=(VW-bw)/2, y=(VH-bh)/2;
     panel(x,y,bw,bh);
     ctx.textAlign="center"; ctx.fillStyle=COL.textGold; ctx.font="bold 18px "+FF; ctx.fillText(STR.bountyTitle,VW/2,y+28);
     if(!b){ ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("—",VW/2,y+60); return; }
@@ -4128,6 +4135,9 @@ export function createRenderer(ctx){
     // CAS-2300: LIBRO DE LA ORDEN — fila del marcador COLECTIVO semanal de la orden del héroe (SOLO lectura: barra de progreso +
     // estado de racha; sin hotkey, sin tap-rect nuevo). Gated ⇒ OFF nada se dibuja (el bh no creció) ⇒ escena byte-idéntica a HEAD.
     if(SANCTUARY_LEDGER.enabled) renderLedgerRow(x,y,bw,bh);
+    // CAS-2305: CLASIFICACIÓN DE ÓRDENES — fila del ranking SEMANAL COMPARTIDO de las 3 Órdenes (SOLO lectura: podio + líder + pasivo;
+    // sin hotkey, sin tap-rect nuevo). Se sitúa SOBRE la fila del Libro. Gated ⇒ OFF nada se dibuja (el bh no creció) ⇒ escena byte-id.
+    if(ORDER_STANDINGS.enabled) renderStandingsRow(x,y,bw,bh);
     // close
     const ccy=y+bh-30; ctx.fillStyle="#3a2c1e"; ctx.fillRect(x+bw/2-60,ccy,120,24);
     ctx.textAlign="center"; ctx.fillStyle=COL.cream; ctx.font="13px "+FF; ctx.fillText("Cerrar (E)",VW/2,ccy+17);
@@ -4181,6 +4191,30 @@ export function createRenderer(ctx){
     ctx.strokeStyle="#3a4150"; ctx.lineWidth=1; ctx.strokeRect(pbx+0.5,pby+0.5,pbw,pbh);
     ctx.fillStyle=COL.cream; ctx.font="10px "+FF; ctx.textAlign="center";
     ctx.fillText(v.total+" / "+v.goal+" pts"+(v.contribution>0?("   (tú +"+v.contribution+")"):""), x+bw/2, pby+pbh+12);
+    ctx.textAlign="left";
+  }
+  // CAS-2305: CLASIFICACIÓN DE ÓRDENES — dibuja el ranking SEMANAL COMPARTIDO de las 3 Órdenes como un podio de chips: puesto + nombre
+  // + total colectivo, con el LÍDER resaltado en ámbar (♛) y la orden del héroe marcada. Estado AUTORITATIVO del sim (sim.orderStandings;
+  // 0 duplicación de lógica, 0 sim/RNG desde render — el ranking es idéntico en todo cliente ⇒ capa social MMO). SOLO lectura (no empuja
+  // tap-rects, no hotkey). Se sitúa SOBRE la fila del Libro. Sólo se invoca bajo ORDER_STANDINGS.enabled ⇒ OFF nunca corre ⇒ byte-id.
+  function renderStandingsRow(x,y,bw,bh){
+    const v=sim.orderStandings(G.hero); if(!v) return;
+    const sy=y+bh-30-(SANCTUARY_OATH.enabled?76:0)-(SANCTUARY_LEDGER.enabled?46:0)-52;   // franja sobre la fila del Libro
+    ctx.textAlign="left"; ctx.font="11px "+FF; ctx.fillStyle="#ffcf5c";
+    ctx.fillText("Clasificación de Órdenes", x+20, sy);
+    if(v.mineLeading){ ctx.textAlign="right"; ctx.fillStyle="#ffc16a"; ctx.font="bold 11px "+FF;
+      ctx.fillText("♛ Tu Orden lidera: +"+Math.round(v.leadValue*100)+"% Descanso", x+bw-20, sy); ctx.textAlign="left"; }
+    // podio: una fila de 3 chips (uno por orden, en orden de puesto)
+    const arr=(v.order||[]).slice().sort((a,b)=>a.rank-b.rank);
+    const n=Math.max(1,arr.length), gap=8, cw=(bw-40-gap*(n-1))/n, ch=34, cyy=sy+8;
+    for(let i=0;i<arr.length;i++){ const o=arr[i]; const cx=x+20+i*(cw+gap);
+      ctx.fillStyle=o.isLeader?"#3a3016":(o.isMine?"#20302a":"#20262f"); ctx.fillRect(cx,cyy,cw,ch);
+      ctx.strokeStyle=o.isLeader?"#ffc16a":(o.isMine?"#8fe0b0":"#3a4150"); ctx.lineWidth=o.isLeader?2:1; ctx.strokeRect(cx+0.5,cyy+0.5,cw,ch);
+      ctx.textAlign="left"; ctx.fillStyle=o.isLeader?"#ffcf5c":COL.textGold; ctx.font="bold 12px "+FF;
+      ctx.fillText((o.isLeader?"♛ ":(o.rank+". "))+(o.tag||o.name), cx+8, cyy+15);
+      ctx.fillStyle=o.isMine?"#9fd0c0":COL.textDim; ctx.font="10px "+FF;
+      ctx.fillText(o.total+" pts"+(o.isMine?"  · tú":""), cx+8, cyy+29);
+    }
     ctx.textAlign="left";
   }
   // a small CLAIM / CLAIMED chip; `on` = active (gold), `done` = already claimed (dim).

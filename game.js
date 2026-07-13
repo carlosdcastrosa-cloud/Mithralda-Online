@@ -303,6 +303,12 @@ export function createGame(canvas, ctx, getView){
       // ledger({nowMs}) inyecta el reloj compartido para observar el marcador semanal sin esperar días; ledger({pledge:"dawn"}) fija la
       // orden del héroe (tryPledgeOath); ledger({grantRep:n})/{kill:{n}} contribuyen al marcador colectivo por los contadores monótonos.
       ledger:(p)=>simDev.ledger(p),
+      // CAS-2305: CLASIFICACIÓN DE ÓRDENES / ORDER STANDINGS OBSERVABLE hook (DARK, ORDER_STANDINGS). standings() lee {enabled,leadKind,
+      // leadValue,schedule:<period/frac del reloj compartido>,leader,heroOrder,mineLeading,order:[{id,name,tag,rank,total,isLeader,isMine}],
+      // standingsMulRestedMult,restedXpMult,gExists,hero}; standings({enabled:true}) flip runtime IN-MEMORY; standings({nowMs}) inyecta el
+      // reloj compartido para observar qué orden LIDERA la semana (convergencia, mismo ranking en N clientes) sin esperar días;
+      // standings({pledge:"dawn"}) fija la orden del héroe (tryPledgeOath) para observar el pasivo de la orden líder. SOLO lectura (0 hotkey).
+      standings:(p)=>simDev.standings(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
