@@ -1,0 +1,122 @@
+{
+  "build": "5f266f2801ed",
+  "served": {
+    "config": "0e7ee01aa81b51933957e83b704ab4ea",
+    "render": "33aff15a87700dc5cd08701d3adcc4c9",
+    "game": "abc8b265736ef042cca596edb1209f1a",
+    "headConfig": "0e7ee01aa81b51933957e83b704ab4ea",
+    "headRender": "33aff15a87700dc5cd08701d3adcc4c9",
+    "headGame": "abc8b265736ef042cca596edb1209f1a"
+  },
+  "desk": {
+    "accrual": {
+      "p0": 0,
+      "p1": 9,
+      "rate": 6,
+      "inZone": true,
+      "dt": 1.5
+    },
+    "cap": {
+      "cap": 600,
+      "pool": 600
+    },
+    "spend": {
+      "mult": 1.5,
+      "willSpend": true,
+      "before": 300,
+      "after": 250,
+      "inZone": false,
+      "expDrain": 50,
+      "drain": 50
+    },
+    "inSpend": {
+      "willSpend": false,
+      "before": 300,
+      "after": 300,
+      "inZone": true
+    },
+    "offHead": {
+      "enabled": false,
+      "willSpend": false,
+      "pool": 0
+    },
+    "flags": {
+      "RESTED_XP": true,
+      "SAFEZONE": true,
+      "noAggro": true,
+      "TEMPLE_RESPAWN": true,
+      "ZONE_BANNER": true,
+      "WEATHER": true,
+      "DAYNIGHT": true,
+      "MINIMAP": true
+    },
+    "regen": {
+      "hp0": 60,
+      "hp1": 102.55,
+      "near": true,
+      "mul": 2.5
+    },
+    "respawn": {
+      "hero": {
+        "x": 5088,
+        "y": 23504,
+        "dead": false,
+        "hp": 255
+      },
+      "point": {
+        "x": 5088,
+        "y": 23504
+      },
+      "near": true,
+      "inZone": true,
+      "dist": 48
+    },
+    "noAggro": {
+      "noAggro": true,
+      "heroInZone": true,
+      "states": [
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle",
+        "idle"
+      ]
+    },
+    "fps": {
+      "samples": [
+        60.2,
+        60.2,
+        59.4,
+        60.1
+      ],
+      "median": 60.2,
+      "min": 59.4,
+      "max": 60.2
+    },
+    "errors": [],
+    "req404": [
+      "favicon.ico",
+      "favicon.ico"
+    ]
+  },
+  "mobile": {
+    "moveDelta": 49.9,
+    "accrual": {
+      "p0": 0,
+      "p1": 9,
+      "inZone": true,
+      "enabled": true
+    },
+    "fps": 60.2,
+    "errs": [],
+    "scene": "play"
+  }
+}
