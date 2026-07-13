@@ -1653,7 +1653,12 @@ export const RECALL = {
 // BALANCE del CEO (retune = edición de knob barata y reversible). target debe ser una clave de ETPL o "any".
 export const BOUNTY_BOARD = {
   enabled: true,           // LIVE (CAS-2270 flip). Reversible: true→false + redeploy overlay consistente-HEAD (config+sim+game+render+input).
-  key: "KeyB",             // tecla dedicada del Tablón ("Bounty"); acepta/reclama en el Santuario. Gated ⇒ OFF inerte.
+  key: "End",              // CAS-2273 FIX: tecla dedicada del Tablón; acepta/reclama en el Santuario. Gated ⇒ OFF inerte.
+                           //   Antes "KeyB" pero customize/wardrobe (REBINDS settings.js) YA defaultea a KeyB desde CAS-1659 ⇒
+                           //   playAction("KeyB")→"customize" ganaba en input.js edge() y la línea del bounty era código muerto
+                           //   (feature 100% inalcanzable por el jugador real, sólo vía __dev). 26 letras ocupadas ⇒ "End" es un
+                           //   code LIBRE (grep-verificado: no en REBINDS ni en Home/Comma/Period/Backslash/Backquote dedicados),
+                           //   sibling natural del RECALL.key="Home". Móvil = botón HUD tb.bounty (contextual, sólo en la SAFEZONE).
   requireSafeZone: true,   // aceptar/reclamar sólo DENTRO de la SAFEZONE (hub loop, mirror del BIND del Recall). false = desde cualquier lugar.
   bounties: [              // pool ORDENADO de contratos; el destacado rota por bountyIdx. target = clave ETPL o "any".
     { id:"cull",    name:"Limpieza del Sendero", target:"any",      count:10, gold:70,  xp:140 },
@@ -1664,6 +1669,34 @@ export const BOUNTY_BOARD = {
     { id:"greenrage", name:"Furia Verde",         target:"orc",      count:4,  gold:150, xp:300 },
   ],
   epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER/SAFEZONE), MMORPG-safe.
+};
+
+// CAS-2272: RENOMBRE DEL SANTUARIO / SANCTUARY REPUTATION (DARK, SANCTUARY_REP) — la meta-progresión de LARGO PLAZO que corona
+// el loop del Tablón de Recompensas (BOUNTY_BOARD, LIVE). Canon MMORPG: faction reputation / faction standing (WoW/Tibia). Al
+// completar bounties, el héroe acumula RENOMBRE persistente con la facción del Santuario ⇒ rangos visibles (Neutral → Reconocido
+// → Honrado → Venerado → Exaltado). Diseño Stage-1, per-hero, 100% DETERMINISTA y server-authority-ready:
+//   · ACUMULACIÓN DETERMINISTA (0 RNG, 0 moneda nueva): +repPerBounty por bounty COMPLETADO, enganchado en el MISMO evento ya
+//     validado (bounty-complete que ya llama h.gold += / gainXP en tryBounty). No hay tracking nuevo por-frame ni hook en killEnemy.
+//   · RANGOS = FUNCIÓN PURA del total acumulado: el rango es el más alto cuyo umbral `at` ≤ rep (sanctuaryRank). Idéntico en todo
+//     cliente por construcción ⇒ listo para netcode autoritativo. Sin reloj local ⇒ MMORPG-safe.
+//   · UN perk gateado (acoplamiento bajo): xpMult por rango = pequeño multiplicador de la XP de bounty, aplicado ÚNICAMENTE
+//     dentro del chokepoint gainXP de bounty ya existente (sanctuaryPerkXP en tryBounty, NO en el gainXP global). Neutral = 1.00
+//     ⇒ sin efecto hasta subir de rango.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ tryBounty no acumula, sanctuaryPerkXP devuelve la XP sin tocar, serializeSave OMITE
+// la clave, h.sanctuaryRep NUNCA se crea, el indicador de rango NUNCA se dibuja ⇒ save.v1 + comportamiento + worldFingerprint +
+// ruta gainXP BYTE-IDÉNTICOS a HEAD (abs-diff limpio). Reversible: enabled:true→false + redeploy overlay CONSISTENTE-HEAD
+// (config+sim+game[+dev hook]+render[+indicador]). Escala a N jugadores sin contención (estado 100% per-hero). Los NÚMEROS
+// (repPerBounty / umbrales / xpMult) = decisión de BALANCE del CEO (retune = edición de knob barata y reversible).
+export const SANCTUARY_REP = {
+  enabled: false,          // DARK (CAS-2272). Reversible: false→true + redeploy overlay consistente-HEAD (config+sim+game+render).
+  repPerBounty: 25,        // Renombre ganado por bounty COMPLETADO (flat, determinista, 0 RNG). CEO balance knob.
+  ranks: [                 // umbrales ACUMULADOS de rep → rango + perk (xpMult de bounty). Función pura del total; `at` ascendente.
+    { id:"neutral",    name:"Neutral",    at:0,    xpMult:1.00 },   // sin perk (byte-id de la ruta gainXP hasta subir de rango)
+    { id:"recognized", name:"Reconocido", at:150,  xpMult:1.03 },   // ~6 bounties
+    { id:"honored",    name:"Honrado",    at:450,  xpMult:1.06 },   // ~18 bounties
+    { id:"revered",    name:"Venerado",   at:1000, xpMult:1.10 },   // ~40 bounties
+    { id:"exalted",    name:"Exaltado",   at:2000, xpMult:1.15 },   // ~80 bounties (meta de largo plazo)
+  ],
 };
 
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
@@ -2367,6 +2400,7 @@ export const COMBAT_CODEX_ENTRIES = [
   { group:"Recursos",   label:"STAMINA",            keyOf:()=>"—",                  desc:"Sin stamina no puedes rodar ni lanzar pesados; se regenera.", gate:()=>STAMINA.enabled },
   { group:"Recursos",   label:"Invocar espíritu",   keyOf:()=>SUMMON.key,           desc:"Cenizas de Espíritu: invoca un aliado que divide la aggro del jefe.", gate:()=>SUMMON.enabled },
   { group:"Recursos",   label:"Hoguera",            keyOf:()=>BONFIRE.key,          desc:"Descansa: cura, recarga Estus y fija checkpoint.", gate:()=>BONFIRE.enabled },
+  { group:"Recursos",   label:"Tablón de Recompensas", keyOf:()=>BOUNTY_BOARD.key,  desc:"En el Santuario: acepta el contrato destacado (mata N de X) y reclámalo al completarlo por oro + XP.", gate:()=>BOUNTY_BOARD.enabled }, // CAS-2273: entrada data-driven ⇒ la tecla mostrada nunca miente
   { group:"Recursos",   label:"Mancha de sangre",   keyOf:()=>"—",                  desc:"Al morir sueltas la Esencia; recupérala en el punto de muerte.", gate:()=>BLOODSTAIN.enabled },
   // JEFES
   { group:"Jefes",      label:"Jefe de Firma",      keyOf:()=>"—",                  desc:"Jefes de 2 fases con ventana de vulnerabilidad tras romper poise.", gate:()=>SIGNATURE_BOSS.enabled },

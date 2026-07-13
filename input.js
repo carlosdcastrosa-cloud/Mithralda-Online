@@ -356,10 +356,12 @@ function edge(code){
   // es rebindable (deliberate, como SUMMON.key / KeyH parry: never touches REBINDS/settings.binds). El sim decide (tryRecall
   // gated en escena play + vivo + vinculado + cooldown). Cross-platform (móvil: botón HUD reservado; QA: __dev.recall({cast})).
   if(code===RECALL.key && RECALL.enabled){ sim.tryRecall(); return; }
-  // CAS-2269: tecla dedicada BOUNTY_BOARD.key (default "KeyB") dispara el TABLÓN DE RECOMPENSAS (acepta/reclama en el Santuario).
-  // Gated on BOUNTY_BOARD.enabled ⇒ con la feature off la tecla es inerte (falls through, no state change) ⇒ snapshot byte-id. NO
-  // es rebindable (mirror RECALL.key/SUMMON.key). El sim decide (tryBounty gated en escena play + vivo + [requireSafeZone] en la
-  // SAFEZONE). Cross-platform (móvil: botón HUD reservado; QA: __dev.bounty({act})).
+  // CAS-2269/CAS-2273: tecla dedicada BOUNTY_BOARD.key (default "End") dispara el TABLÓN DE RECOMPENSAS (acepta/reclama en
+  // el Santuario). CAS-2273 FIX: la default era "KeyB" pero customize/wardrobe (REBINDS) YA reclama KeyB ⇒ playAction ganaba
+  // arriba y esta línea era código muerto; "End" es un code libre (sibling de RECALL.key="Home"). Gated on BOUNTY_BOARD.enabled
+  // ⇒ con la feature off la tecla es inerte (falls through, no state change) ⇒ snapshot byte-id. NO es rebindable (mirror
+  // RECALL.key/SUMMON.key). El sim decide (tryBounty gated en escena play + vivo + [requireSafeZone] en la SAFEZONE).
+  // Cross-platform (móvil: botón HUD tb.bounty contextual en la SAFEZONE; QA: __dev.bounty({act})).
   if(code===BOUNTY_BOARD.key && BOUNTY_BOARD.enabled){ sim.tryBounty(); return; }
   // Digit1 is a FIXED numeric attack alias (always works, regardless of rebinds).
   if(code==="Digit1"){ kbCast(0); } // CAS-347: keyboard attack still aims at the cursor on desktop
@@ -507,6 +509,12 @@ export function tbtns(){ // returns button rects for current scene
     // controles es byte-idéntico a HEAD (mirror tb.guardbreak). Es un TAP (no hold): handleUITap llama `act` ⇒ sim.lungeStrike() dispara
     // el dash ofensivo (mismo seam del sim que desktop; se atenúa durante la recuperación _lungeCd — ver render). $0 arte (glifo procedural ➤).
     ...(LUNGE.enabled ? { lunge:{x:m+bs*9.15, y:VH-m-bs*2.2, r:bs*0.4, label:"➤", act:()=>sim.lungeStrike()} } : {}),
+    // CAS-2273: botón táctil del TABLÓN DE RECOMPENSAS — SÓLO cuando BOUNTY_BOARD.enabled Y el héroe está en la SAFEZONE
+    // (contextual: es una acción de hub, no de combate ⇒ no clutteriza el cluster mientras cazas fuera; con el knob OFF
+    // NO hay botón ⇒ layout byte-idéntico a HEAD, mirror tb.summon/tb.lunge). Es un TAP (no hold): handleUITap llama `act`
+    // ⇒ sim.tryBounty() acepta el destacado / reclama si está completo (mismo chokepoint que la tecla End en desktop). Lo
+    // sitúo AISLADO en lo alto de la columna izquierda (sobre el ult) para no solapar el cluster de combate. $0 arte (📜).
+    ...((BOUNTY_BOARD.enabled && sim.heroInSafeZone()) ? { bounty:{x:m+bs*0.5, y:VH-m-bs*5.55, r:bs*0.46, label:"📜", act:()=>sim.tryBounty()} } : {}),
     bs
   };
 }

@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -3116,6 +3116,26 @@ export function createRenderer(ctx){
       ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(bx,byy,barW,barH);
       ctx.fillStyle=done?"#8fe07a":"#d9a94e"; ctx.fillRect(bx,byy,Math.round(barW*fr),barH);
     }
+    // CAS-2272: indicador de RENOMBRE DEL SANTUARIO (Sanctuary Reputation, render-only, $0 arte, DARK). Sólo DENTRO del Santuario
+    // (inZone) — el faction-standing es cosmético del hub. Rango actual (violeta) + barra de progreso al siguiente umbral, DERIVADO
+    // del total acumulado (misma aritmética pura que sim.sanctuaryRank; NO lee/escribe sim ni RNG). Gated en SANCTUARY_REP.enabled
+    // ⇒ OFF nunca se dibuja ⇒ badge byte-idéntico a HEAD (CAS-2269, abs-diff limpio).
+    if(SANCTUARY_REP.enabled && inZone){
+      const rep=Math.max(0,h.sanctuaryRep|0), R=SANCTUARY_REP.ranks||[];
+      let ci=0; for(let i=0;i<R.length;i++){ if(rep>=(R[i].at|0)) ci=i; }
+      const cur=R[ci]||{name:"—",at:0}, next=R[ci+1]||null;
+      const ry=by+sh+(b?9:3);
+      ctx.globalAlpha=0.9; ctx.font="bold 10px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+      const rl="Santuario: "+(cur.name||"—");
+      ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(rl,bx,ry+6);
+      ctx.fillStyle="#d9c48a"; ctx.fillText(rl,bx,ry+6);
+      if(next){ const into=Math.max(0,rep-(cur.at|0)), span=Math.max(1,(next.at|0)-(cur.at|0)), fr=Math.max(0,Math.min(1,into/span));
+        const barW=104, barH=3, byy=ry+13;
+        ctx.globalAlpha=0.72; ctx.fillStyle="rgba(0,0,0,0.55)"; ctx.fillRect(bx,byy,barW,barH);
+        ctx.fillStyle="#b98fe0"; ctx.fillRect(bx,byy,Math.round(barW*fr),barH);   // violeta = faction-standing
+        ctx.globalAlpha=0.82; ctx.font="9px "+FF; ctx.textAlign="right"; ctx.fillStyle="#c7b3e6"; ctx.fillText(into+"/"+span, bx+barW, ry+6);
+      } else { ctx.globalAlpha=0.85; ctx.font="9px "+FF; ctx.textAlign="right"; ctx.fillStyle="#b98fe0"; ctx.fillText("máx", bx+104, ry+6); }
+    }
     ctx.restore();
   }
 
@@ -4739,6 +4759,9 @@ export function createRenderer(ctx){
     if(tb.weaponart) btn(tb.weaponart, G.hero&&(G.hero.artCD>0) ? "#6b5aa8" : "#b49af0"); // CAS-1914: botón del ARTE DE ARMA (present only when WEAPON_ARTS.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA durante el cooldown (artCD>0)
     if(tb.guardbreak) btn(tb.guardbreak, G.hero&&(G.hero._gbCd>0) ? "#8a6a4a" : "#e0b060"); // CAS-2146: botón del EMPUJÓN/ROMPE-GUARDIA (present only when GUARD_BREAK.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA durante la recuperación (_gbCd>0)
     if(tb.lunge) btn(tb.lunge, G.hero&&(G.hero._lungeCd>0) ? "#4a6a8a" : "#60b0e0"); // CAS-2156: botón de la ESTOCADA DE AVANCE (present only when LUNGE.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA durante la recuperación (_lungeCd>0)
+    if(tb.bounty){ const h=G.hero, b=h&&h.bounty; let rdy=false; // CAS-2273: botón del TABLÓN (present only when BOUNTY_BOARD.enabled Y en la SAFEZONE ⇒ undefined fuera/OFF ⇒ byte-id)
+      if(b){ const cur=(b.target==="any")?(h.kills|0):(((h.killsByType||{})[b.target])|0); rdy=(Math.max(0,Math.min(b.count|0,cur-(b.base|0)))>=(b.count|0))&&(b.count|0)>0; } // progreso DERIVADO puro (mismo cálculo que renderBountyBadge; 0 sim, 0 RNG)
+      btn(tb.bounty, rdy?COL.textGold:"#c8a24a"); } // se ilumina en oro cuando el contrato está LISTO para reclamar
     if(tb.throwable){ const h=G.hero; const noThrow=!h || h.throwCD>0 || h.throwWind>0 || (h[tb.throwable.chargeKey]||0)<=0; btn(tb.throwable, noThrow?"#7a5a3a":"#e0a45a"); // CAS-1920: botón del ARROJADIZO (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id); se ATENÚA sin cargas / en cooldown / durante el windup; muestra el glyph del tipo activo
       if(h){ ctx.font="bold 9px "+FF; ctx.textAlign="center"; const cn=""+(h[tb.throwable.chargeKey]||0); ctx.fillStyle=COL.out; ctx.fillText(cn,tb.throwable.x+1,tb.throwable.y+tb.throwable.r+10); ctx.fillStyle=noThrow?"#caa27a":"#ffd9a0"; ctx.fillText(cn,tb.throwable.x,tb.throwable.y+tb.throwable.r+9); } } // conteo de cargas bajo el botón
     if(tb.throwcycle) btn(tb.throwcycle, "#c79a55"); // CAS-1920: botón de CICLAR el tipo de arrojadizo (present only when THROWABLES.enabled ⇒ undefined OFF ⇒ byte-id)
