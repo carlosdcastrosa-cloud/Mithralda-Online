@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -1999,6 +1999,10 @@ export function serializeSave(){
     // byte-idéntico a HEAD (allowlist anti-CAS-2220). Additive cuando ON: saves viejos carecen de la clave → loadSave rehidrata a
     // sin-emisario → sin SAVE_VERSION bump.
     ...(SANCTUARY_EMISSARY.enabled && h.emissary ? { emissary:{ id:String(h.emissary.id||""), period:(h.emissary.period|0), target:String(h.emissary.target), count:h.emissary.count|0, gold:h.emissary.gold|0, rep:h.emissary.rep|0, base:h.emissary.base|0, claimed:!!h.emissary.claimed } } : {}),
+    // CAS-2295: persist el JURAMENTO (h.sanctuaryOath = id de orden + h.sanctuaryOathAt = kills al jurar, para el cooldown de cambio)
+    // SÓLO con la feature ON y una orden jurada (spread condicional). La afiliación sobrevive al reload (canon MMORPG). enabled:false /
+    // sin juramento ⇒ las claves NO se emiten ⇒ save.v1 byte-idéntico a HEAD (allowlist anti-CAS-2220). Additive cuando ON.
+    ...(SANCTUARY_OATH.enabled && h.sanctuaryOath ? { sanctuaryOath:String(h.sanctuaryOath), sanctuaryOathAt:Math.max(0,h.sanctuaryOathAt|0) } : {}),
     quest:{wolves:G.quest.wolves, done:G.quest.done, rewarded:G.quest.rewarded} };
 }
 // Rehydrate a save blob into a live hero and enter play. Returns false (without
@@ -2099,6 +2103,10 @@ export function loadSave(d){
     if(SANCTUARY_EMISSARY.enabled){ const e=d.emissary;
       if(e && typeof e==="object" && e.target && (e.count|0)>0){
         h.emissary={ id:String(e.id||""), period:(e.period|0), target:String(e.target), count:e.count|0, gold:Math.max(0,e.gold|0), rep:Math.max(0,e.rep|0), base:Math.max(0,e.base|0), claimed:!!e.claimed }; } }
+    // CAS-2295: rehidrata el JURAMENTO (validado contra el pool de órdenes; saves viejos carecen de la clave → sin juramento; gated ⇒
+    // OFF las claves sanctuaryOath/sanctuaryOathAt NUNCA se crean ⇒ byte-id). h.sanctuaryOathAt es un snapshot del contador monótono de kills.
+    if(SANCTUARY_OATH.enabled && typeof d.sanctuaryOath==="string" && (SANCTUARY_OATH.orders||[]).some(o=>o.id===d.sanctuaryOath)){
+      h.sanctuaryOath=d.sanctuaryOath; h.sanctuaryOathAt=Math.max(0,Math.floor(num(d.sanctuaryOathAt,0))); }
     // CAS-128: resume an in-progress tutorial (clamped); a finished/absent one stays off.
     if(d.tut && typeof d.tut.i==="number"){ startTutorial(); G.tut.i=Math.max(0,Math.min(TUT_STEPS.length-1,Math.floor(d.tut.i))); }
     else G.tut=null;
@@ -2640,7 +2648,7 @@ function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
   const g=safeZoneGeom();
   if(g && g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
     if(dx*dx+dy*dy <= tr*tr) rate*=SAFEZONE.templeMul; }   // santuario del Templo = regen acelerado
-  rate*=(1 + sanctuaryRewardMul(h,"safeRegen"));            // CAS-2278: reward Intendente acelera el regen (gated ⇒ OFF ×1 exacto)
+  rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen"));            // CAS-2278/2295: reward Intendente + pasivo Juramento aceleran el regen (gated ⇒ OFF ×1 exacto)
   h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
 }
 
@@ -2823,9 +2831,17 @@ function sanctuaryRewardTitle(h){ if(!SANCTUARY_REWARDS.enabled||!h||!h.sanctuar
 // Serialización canónica (orden de config, sólo ids válidos reclamados) del array de rewards reclamados.
 function sanctuaryRewardsSave(h){ const defs=SANCTUARY_REWARDS.rewards||[], out=[];
   for(let i=0;i<defs.length;i++){ if(sanctuaryRewardClaimed(h,defs[i].id)) out.push(defs[i].id); } return out; }
+// CAS-2295: JURAMENTO DEL SANTUARIO — pasivo pasivo de la ORDEN jurada. oathOrderOf(h) = la definición de la orden jurada (o null).
+// oathMul(h,kind) = el `value` de la orden jurada si su `kind` coincide, si no 0 ⇒ el knob reutilizado queda byte-idéntico a HEAD
+// (mismo patrón que sanctuaryRewardMul). Gated ⇒ OFF / sin juramento ⇒ 0. Puras (0 RNG, 0 estado, 0 side-effect).
+function oathOrderOf(h){ if(!SANCTUARY_OATH.enabled||!h||!h.sanctuaryOath) return null;
+  const O=SANCTUARY_OATH.orders||[]; for(let i=0;i<O.length;i++){ if(O[i].id===h.sanctuaryOath) return O[i]; } return null; }
+function oathMul(h,kind){ const o=oathOrderOf(h); return (o && o.kind===kind) ? (+o.value||0) : 0; }
+// tag corto de la orden jurada (o "") para el nameplate (capa social; reusa la ruta de TITLES). Puro, 0 sim/RNG.
+export function sanctuaryOathTag(h){ const o=oathOrderOf(h||G.hero); return o?(o.tag||o.name||""):""; }
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
-function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd")); }
-function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap")); }
+function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd")); }   // CAS-2295: + pasivo del Juramento (gated ⇒ OFF ×base exacto)
+function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap")); }         // CAS-2295: idem
 // CAS-2278: INTENTO de reclamar en el Intendente — chokepoint del jugador (tecla Supr + móvil + __dev.quartermaster({claim})).
 // Contextual: reclama el reward DESBLOQUEADO (rango de rep alcanzado) de MENOR índice aún NO reclamado (presiones repetidas
 // reclaman en orden). Gate: feature ON, escena play, héroe vivo, y (si requireSafeZone) dentro de la SAFEZONE = en el Santuario.
@@ -2907,6 +2923,29 @@ export function tryEmissary(){
   q.claimed=true;                                                // idempotente dentro del period (rolar el period re-habilita)
   floater(h.x, h.y-34, "Emisario cumplido +"+gold+" oro", C_GOLD);
   return "claimed";
+}
+
+// CAS-2295: INTENTO de Juramento — el ÚNICO chokepoint del jugador para JURAR/CAMBIAR de Orden del Santuario. Se invoca desde la UI
+// YA existente del Santuario (fila de chips en la escena `bounty` del Tablón: desktop click + móvil tap por el MISMO ui.bountyRects,
+// 0 hotkey nuevo — SIN tocar input.js) y desde __dev.oath({pledge}). Gate: feature ON, héroe vivo, y rango mínimo de SANCTUARY_REP
+// alcanzado (reutiliza el arco de reputación). CAMBIO de orden ⇒ cooldown determinista en kills (h.kills − h.sanctuaryOathAt ≥
+// switchCooldownKills); el PRIMER juramento es libre; re-jurar la misma orden = no-op ("same", no consume cooldown). OFF ⇒ return
+// "off" sin tocar nada ⇒ byte-idéntico (h.sanctuaryOath/h.sanctuaryOathAt nunca se crean, save omite). Devuelve un motivo para HUD/QA.
+export function tryPledgeOath(orderId){
+  const h=G.hero; if(!SANCTUARY_OATH.enabled) return "off";
+  if(!h || h.dead) return "unavailable";
+  const O=SANCTUARY_OATH.orders||[]; const def=O.find(o=>o.id===orderId); if(!def) return "none";
+  // gate por rango mínimo de SANCTUARY_REP (reutiliza el arco de reputación; con SANCTUARY_REP OFF ⇒ sin gate, compone limpio)
+  const minIdx=sanctuaryRankIdxOf(SANCTUARY_OATH.minRank||"neutral");
+  const curIdx=SANCTUARY_REP.enabled ? sanctuaryRank(h.sanctuaryRep||0).idx : 1e9;
+  if(curIdx < minIdx) return "rank";
+  if(h.sanctuaryOath===orderId) return "same";                              // ya jurada ⇒ no-op (no consume cooldown)
+  if(h.sanctuaryOath){                                                      // CAMBIO ⇒ cooldown determinista en el contador monótono de kills
+    if(((h.kills|0)-(h.sanctuaryOathAt|0)) < (SANCTUARY_OATH.switchCooldownKills|0)) return "cooldown"; }
+  const first=!h.sanctuaryOath;
+  h.sanctuaryOath=orderId; h.sanctuaryOathAt=h.kills|0;                     // el campo SÓLO se crea con la feature ON ⇒ byte-id OFF
+  floater(h.x, h.y-34, "Juramento: "+(def.name||orderId), "#d9b8ff");
+  return first?"pledged":"switched";
 }
 
 // CAS-2273: helper presentacional PURO (0 RNG, 0 estado) para el HUD táctil — ¿está el héroe DENTRO de la SAFEZONE?
@@ -6289,7 +6328,7 @@ export const dev = {
       if(inZone){ rate=SAFEZONE.regenPct;
         if(g&&g.temple){ const dx=h.x-g.temple.x, dy=h.y-g.temple.y, tr=SAFEZONE.templeRadius;
           if(dx*dx+dy*dy<=tr*tr){ nearTemple=true; rate*=SAFEZONE.templeMul; } }
-        rate*=(1 + sanctuaryRewardMul(h,"safeRegen")); } }   // CAS-2278: refleja el reward del Intendente (gated ⇒ OFF ×1)
+        rate*=(1 + sanctuaryRewardMul(h,"safeRegen") + oathMul(h,"safeRegen")); } }   // CAS-2278/2295: reward Intendente + pasivo Juramento (gated ⇒ OFF ×1)
     return { enabled:SAFEZONE.enabled, inZone, nearTemple,
       ratePctPerSec:+(rate*100).toFixed(3), regenHpPerSec:h?+(heroMaxHp(h)*rate).toFixed(2):0,
       hp:h?+(+h.hp).toFixed(2):0, maxHp:h?heroMaxHp(h):0, pauseT:h?+(h._safeRegenPauseT||0).toFixed(2):0,
@@ -6460,6 +6499,38 @@ export const dev = {
       recallCdSec: h?+recallCooldownSec(h).toFixed(3):RECALL.cooldownSec,   // knob efectivo (prueba del reward recallCd)
       restedCap: h?+restedCapFor(h).toFixed(2):RESTED_XP.poolCap,           // knob efectivo (prueba del reward restedCap)
       hasField: h ? ("sanctuaryRewards" in h) : false,                     // prueba byte-id: OFF ⇒ el campo NUNCA se crea
+      hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
+  // CAS-2295: JURAMENTO DEL SANTUARIO / SANCTUARY OATH OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del juramento + la orden
+  // jurada + su EFECTO agregado sobre el knob reutilizado + el gate de rango + el cooldown de cambio en kills + flip/drivers IN-MEMORY
+  // para OBSERVAR en DARK (disco sigue false, patrón __dev.quartermaster). Formas:
+  //   oath()                  → {enabled,order,orderName,tag,orders:[...],effect,minRank,rankOk,canSwitch,killsToSwitch,oathMul*,hasField,hero}
+  //   oath({enabled:true})    → flip runtime IN-MEMORY de SANCTUARY_OATH.enabled (jurar/efectos sin tocar el disco)
+  //   oath({pledge:"dawn"})   → dispara tryPledgeOath("dawn") por el chokepoint REAL (jura/cambia/no-op; devuelve el motivo)
+  //   oath({grantRep:n})      → suma rep (SANCTUARY_REP) para observar el GATE de rango (requiere SANCTUARY_REP.enabled)
+  //   oath({kill:{n}})        → bump h.kills (contador monótono) para observar el COOLDOWN de cambio de orden
+  oath(p){
+    let result=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) SANCTUARY_OATH.enabled=!!p.enabled;
+      if("grantRep" in p && G.hero && SANCTUARY_REP.enabled) G.hero.sanctuaryRep=Math.max(0,(G.hero.sanctuaryRep||0)+Math.floor(+p.grantRep||0));
+      if(p.kill && G.hero) G.hero.kills=(G.hero.kills|0)+Math.max(0,Math.floor(+p.kill.n||0));   // mirror killEnemy: bump el contador monótono
+      if("pledge" in p) result=tryPledgeOath(p.pledge);                    // pasa por el ÚNICO chokepoint del Juramento (validación real)
+    }
+    const h=G.hero, o=oathOrderOf(h);
+    const minIdx=sanctuaryRankIdxOf(SANCTUARY_OATH.minRank||"neutral");
+    const curIdx=(SANCTUARY_REP.enabled&&h) ? sanctuaryRank(h.sanctuaryRep||0).idx : 1e9;
+    const cdKills=SANCTUARY_OATH.switchCooldownKills|0, since=h?((h.kills|0)-(h.sanctuaryOathAt|0)):0;
+    return { enabled:SANCTUARY_OATH.enabled, result,
+      order:(h&&h.sanctuaryOath)||null, orderName:o?o.name:null, tag:o?o.tag:null,
+      effect:o?{ kind:o.kind, value:o.value }:null,
+      orders:(SANCTUARY_OATH.orders||[]).map(x=>({ id:x.id, name:x.name, tag:x.tag, kind:x.kind, value:x.value })),
+      minRank:SANCTUARY_OATH.minRank, rankOk: curIdx>=minIdx,
+      canSwitch: (!h||!h.sanctuaryOath) ? true : (since>=cdKills),
+      killsToSwitch: (h&&h.sanctuaryOath) ? Math.max(0,cdKills-since) : 0,
+      oathMulRecallCd: h?oathMul(h,"recallCd"):0, oathMulRestedCap: h?oathMul(h,"restedCap"):0, oathMulSafeRegen: h?oathMul(h,"safeRegen"):0,
+      recallCdSec: h?+recallCooldownSec(h).toFixed(3):RECALL.cooldownSec,   // knob efectivo (prueba del pasivo recallCd)
+      restedCap: h?+restedCapFor(h).toFixed(2):RESTED_XP.poolCap,           // knob efectivo (prueba del pasivo restedCap)
+      hasField: h ? ("sanctuaryOath" in h) : false,                        // prueba byte-id: OFF ⇒ el campo NUNCA se crea
       hero:h?{x:+(+h.x).toFixed(2),y:+(+h.y).toFixed(2),dead:!!h.dead}:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
