@@ -1579,6 +1579,18 @@ export const SAFEZONE = {
   epochMs: 0,              // reservado — reloj compartible determinista (patrón DAYNIGHT/WEATHER), MMORPG-safe.
 };
 
+// CAS-2245: HOME-TEMPLE RESPAWN (Tibia) — al morir, el héroe reaparece en SU Templo de la Ciudad, dentro de la
+// Zona Segura (SAFEZONE, CAS-2242). El punto se DERIVA DETERMINÍSTICAMENTE del MISMO POI `prop_city_temple` de
+// world.deco que ya usan MINIMAP/ZONE_BANNER/SAFEZONE (0 RNG, server-authoritative-ready: el server calcula el
+// mismo punto para todos). Aterriza dentro del templeRadius de SAFEZONE ⇒ engancha con el regen ×2.5 del santuario
+// ⇒ el bucle "muere → vuelve a casa → recupera HP" queda cohesivo. HARD-GATED: enabled:false ⇒ respawn() usa el
+// checkpoint normal (h.respawn) EXACTAMENTE como HEAD ⇒ save + worldFingerprint byte-idénticos (feature inerte,
+// 0 campos transitorios nuevos). Reversible: enabled:true→false + redeploy overlay CONSISTENTE-HEAD (config+sim).
+export const TEMPLE_RESPAWN = {
+  enabled: true,           // LIVE (CAS-2247 flip). Reversible: true→false + redeploy (overlay consistente-HEAD config+sim).
+  offsetY: 48,             // px al SUR del POI Templo donde aterriza el héroe (entrada del templo; dentro de templeRadius y del bbox seguro).
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
