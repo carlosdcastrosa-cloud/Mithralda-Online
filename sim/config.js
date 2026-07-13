@@ -1832,7 +1832,7 @@ export const SANCTUARY_EMISSARY = {
 // CONSISTENTE-HEAD: config+sim+render+game — SIN input.js). Escala a N jugadores sin contención (estado 100% per-hero, elección
 // determinista). Los NÚMEROS (minRank / cooldown / values) = decisión de BALANCE del CEO (retune = edición de knob barata y reversible).
 export const SANCTUARY_OATH = {
-  enabled: false,          // DARK. Reversible: false→true + redeploy overlay consistente-HEAD (config+sim+render+game — SIN input.js).
+  enabled: true,           // CAS-2296 LIVE FLIP. Reversible 1-line: true→false + redeploy overlay consistente-HEAD (config+sim+render+game — SIN input.js).
   minRank: "recognized",   // rango mínimo de SANCTUARY_REP para poder jurar (reutiliza el arco de reputación). "neutral" = sin gate.
   switchCooldownKills: 20, // kills (contador monótono h.kills) requeridos entre CAMBIOS de orden. 1er juramento libre; re-jurar = no-op.
   // 3 Órdenes deterministas. `kind`+`value` = el knob reutilizado y su fracción de bono (oathMul suma el value de la orden jurada de
