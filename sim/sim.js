@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2948,7 +2948,7 @@ export function orderStandings(h){ h=h||G.hero; const s=G.standings||null, mine=
 // CAS-2310: DOMINIO DE ÓRDENES / ORDER TERRITORY — control VISIBLE del Santuario por la orden LÍDER de la Clasificación. Todo DERIVADO
 // (0 RNG, 0 estado nuevo, server-authority-ready). El CONTROLADOR = standingsLeader() (la orden líder ya cacheada en G.standings por
 // tickStandings, DERIVADA del reloj COMPARTIDO) ⇒ TODO cliente con el mismo reloj converge al MISMO controlador (0 desync). OFF ⇒ null.
-function territoryController(){ if(!ORDER_TERRITORY.enabled) return null; return standingsLeader(); }
+function territoryController(){ if(!ORDER_TERRITORY.enabled) return null; return contestController(standingsLeader()); }
 // territoryMul(h,kind) = +controlValue SÓLO si: feature ON, kind coincide con controlKind, la orden del héroe (Juramento) ES la
 // CONTROLADORA, Y el héroe está DENTRO de la Zona Segura (dominio ⇒ SÓLO en el territorio controlado). Guard de PRECEDENCIA: si controlKind
 // coincide con el canal de ORDER_STANDINGS (leadKind), RETURN 0 (STANDINGS tiene precedencia ⇒ nunca se dobla el valor). Puro (0 RNG, 0
@@ -2969,6 +2969,59 @@ export function orderTerritory(h){ h=h||G.hero; const ctrl=territoryController()
     controlKind:ORDER_TERRITORY.controlKind||"safeRegen", controlValue:+ORDER_TERRITORY.controlValue||0,
     banner:territoryBanner(), inZone:h?inSafeZone(h.x,h.y):false,
     territoryMulSafeRegen:h?territoryMul(h,ORDER_TERRITORY.controlKind||"safeRegen"):0 }; }
+
+// CAS-2313: ASALTO AL SANTUARIO / SANCTUARY CONTEST — ventana de asalto determinista donde el RETADOR (2º de la Clasificación) puede
+// ARREBATAR el control del Santuario al líder. Todo DERIVADO (0 RNG, 0 estado nuevo, server-authority-ready): lee G.ledger (period/frac del
+// reloj COMPARTIDO ya cacheado por tickLedger) + G.standings (ranking ya cacheado por tickStandings) ⇒ TODO cliente con el mismo reloj deriva
+// la MISMA ventana, el MISMO surge y el MISMO flip en el MISMO tick lógico (convergencia N-clientes, 0 desync). NO añade tick/Date.now/G.* nuevo.
+// OFF ⇒ contestController devuelve el líder SIN cambios ⇒ territoryController + banner + pasivo byte-idénticos a HEAD.
+// contestWindow(frac) = tramo FINAL del ciclo semanal (windowFrac). active + iw(0→1) puramente del reloj compartido.
+function contestWindow(frac){
+  const wf=Math.max(0,Math.min(1,+ORDER_CONTEST.windowFrac||0));
+  const start=1-wf, f=Math.max(0,Math.min(1,+frac||0)), active=wf>0 && f>=start;
+  return { windowFrac:wf, start, active, iw: active ? Math.max(0,Math.min(1,(f-start)/wf)) : 0 };
+}
+// fuerza del asalto ESTA semana (determinista por period, 0 RNG) en banda [0.5,1.5): algunas semanas el surge basta para el flip, otras no
+// (identidad social cambiante — territorio realmente disputado). Reusa ledgerHash (mismo hash de Knuth del Libro).
+function contestStrength(period){ return 0.5 + (ledgerHash(period>>>0,"contest")%1000)/1000; }
+// contestState() = snapshot AUTORITATIVO del asalto, derivado de G.standings (ranking) + G.ledger (ventana). Reglas: fuera de ventana el
+// controlador (1º) RETIENE; en ventana el retador (2º) acumula `surge` (fracción de su baseline colectivo, rampada por iw × gain × fuerza)
+// y si su total efectivo alcanza el baseline del controlador ⇒ flip STICKY (iw monótono ⇒ surge monótono) al retador. TODO baseline (0 per-hero).
+function contestState(){
+  const out={ enabled:!!ORDER_CONTEST.enabled, active:false, controller:null, challenger:null,
+    controllerTotal:0, challengerTotal:0, surge:0, effective:null, flipped:false, progress:0, iw:0, windowFrac:0, nextInSec:0 };
+  if(!ORDER_CONTEST.enabled) return out;
+  const s=G.standings, L=G.ledger; if(!s||!s.order||s.order.length<2||!L) return out;
+  const w=contestWindow(+L.frac||0); out.windowFrac=w.windowFrac; out.nextInSec=L.nextInSec|0;
+  const ctrl=s.order[0].id, chal=s.order[1].id;
+  out.controller=ctrl; out.challenger=chal; out.effective=ctrl;                 // por defecto (fuera de ventana / sin surge) el líder retiene
+  out.controllerTotal=+s.order[0].total||0; out.challengerTotal=+s.order[1].total||0;
+  if(!w.active) return out;
+  out.active=true; out.iw=w.iw;
+  out.surge=out.challengerTotal * (Math.max(0,+ORDER_CONTEST.gain||0)) * contestStrength(L.period>>>0) * w.iw;
+  const chalEff=out.challengerTotal+out.surge;
+  const holdThreshold=out.controllerTotal * (1 + Math.max(0,+ORDER_CONTEST.holdMargin||0));   // ventaja del defensor (incumbencia): hay que superar el umbral, no sólo empatar
+  out.progress=holdThreshold>0 ? Math.max(0,Math.min(1, chalEff/holdThreshold)) : 0;
+  if(chalEff>=holdThreshold && holdThreshold>0){ out.effective=chal; out.flipped=true; }
+  return out;
+}
+// el controlador EFECTIVO del Santuario respetando el flip de asalto. OFF ⇒ devuelve `lead` SIN cambios (nunca evalúa contestState) ⇒
+// territoryController byte-idéntico a HEAD. Server-auth: el flip lo decide esta función pura del reloj+ranking; el cliente sólo reconcilia.
+function contestController(lead){ if(!ORDER_CONTEST.enabled) return lead;
+  const c=contestState(); return (c.active && c.flipped) ? c.effective : lead; }
+// Banner "Asalto en curso" para el badge de Zona segura (estado del MUNDO — mismo para todos en zona). {active,challengerTag,controllerTag,
+// progress,flipped} o null (OFF / sin ventana). Puro, 0 sim/RNG. OFF ⇒ null ⇒ nada dibuja ⇒ byte-id.
+export function contestBanner(){ if(!ORDER_CONTEST.enabled) return null; const c=contestState(); if(!c.active) return null;
+  const cd=oathOrderOf({sanctuaryOath:c.challenger}), td=oathOrderOf({sanctuaryOath:c.controller});
+  return { active:true, flipped:c.flipped, progress:c.progress,
+    challenger:c.challenger, challengerTag:cd?(cd.tag||cd.name||c.challenger):c.challenger,
+    controller:c.controller, controllerTag:td?(td.tag||td.name||c.controller):c.controller }; }
+// View-model PURO (panel/hook): estado completo del asalto + el controlador EFECTIVO + si el flip está activo.
+export function orderContest(h){ h=h||G.hero; const c=contestState(), mine=ledgerHeroOrder(h);
+  return { enabled:!!ORDER_CONTEST.enabled, active:c.active, windowFrac:c.windowFrac, iw:+c.iw.toFixed(4), nextInSec:c.nextInSec,
+    controller:c.controller, challenger:c.challenger, effective:c.effective, flipped:c.flipped,
+    controllerTotal:c.controllerTotal, challengerTotal:c.challengerTotal, surge:+c.surge.toFixed(2), progress:+c.progress.toFixed(4),
+    mineOrder:mine, mineChallenging:!!(mine && c.active && mine===c.challenger), mineControls:!!(mine && c.effective && mine===c.effective) }; }
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -6749,6 +6802,35 @@ export const dev = {
       safeRegenMul:+sRegen.toFixed(4),                                    // knob efectivo (prueba: OFF/fuera-de-zona/no-controlador ⇒ == base+reward+oath+ledger)
       precedenceInert:((ORDER_TERRITORY.controlKind||"safeRegen")===(ORDER_STANDINGS.leadKind||"restedMult")),   // true ⇒ territory cede a standings (canal idéntico ⇒ no doblar)
       gStandingsExists:(G.standings!=null),                              // territory NO crea estado nuevo (deriva de G.standings de tickStandings)
+      hero:h?{ order:mine, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, inZone:inSafeZone(h.x,h.y) }:null }; },
+  // CAS-2313: ASALTO AL SANTUARIO / SANCTUARY CONTEST OBSERVABLE hook (DARK, ORDER_CONTEST). Snapshot autoritativo (sim) de la VENTANA DE
+  // ASALTO + el controlador EFECTIVO (con/sin flip) derivado del reloj COMPARTIDO (G.ledger) + el ranking (G.standings) + flip/drivers
+  // IN-MEMORY para OBSERVAR en DARK sin esperar semanas reales (disco sigue false, patrón __dev.territory/standings). El nowMs INYECTADO
+  // prueba "mismo reloj ⇒ MISMA ventana + MISMO flip" (convergencia N-clientes, 0 desync). Formas:
+  //   contest()                 → {enabled,windowFrac,active,iw,nextInSec,controller,challenger,effective,flipped,progress,controllerTotal,challengerTotal,surge,territoryController,banner,precedence,gStandings,hero}
+  //   contest({enabled:true})   → flip runtime IN-MEMORY de ORDER_CONTEST.enabled (asalto sin tocar el disco)
+  //   contest({standings:true}) / contest({territory:true}) → flip IN-MEMORY de las capas de las que DEPENDE el asalto
+  //   contest({nowMs})          → deriva+cachea Libro+Clasificación en G.ledger/G.standings PARA ese reloj (observa la ventana/flip de esa semana) — 0 espera real
+  //   contest({pledge:"iron"})  → fija la orden del héroe por el chokepoint REAL del Juramento (para observar mineChallenging/mineControls + pasivo)
+  contest(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) ORDER_CONTEST.enabled=!!p.enabled;
+      if("standings" in p) ORDER_STANDINGS.enabled=!!p.standings;
+      if("territory" in p) ORDER_TERRITORY.enabled=!!p.territory;
+      if("nowMs" in p){ const s=ledgerScheduleAt(+p.nowMs); G.ledger=s; G.standings=standingsRank(s.period, s.frac);   // inyecta el reloj compartido (Libro+Clasificación+Asalto consistentes)
+        const hh=G.hero; if(SANCTUARY_LEDGER.enabled && hh && (!hh.ledgerAt || (hh.ledgerAt.period>>>0)!==(s.period>>>0))) hh.ledgerAt={ period:s.period>>>0, killBase:hh.kills|0, repBase:hh.sanctuaryRep|0 }; }
+      if("pledge" in p) tryPledgeOath(p.pledge);
+    }
+    const h=G.hero, c=contestState(), mine=ledgerHeroOrder(h);
+    return { enabled:ORDER_CONTEST.enabled, windowFrac:c.windowFrac, active:c.active, iw:+c.iw.toFixed(4), nextInSec:c.nextInSec,
+      controller:c.controller, challenger:c.challenger, effective:c.effective, flipped:c.flipped, progress:+c.progress.toFixed(4),
+      controllerTotal:c.controllerTotal, challengerTotal:c.challengerTotal, surge:+c.surge.toFixed(2),
+      territoryController:territoryController(),                          // el controlador EFECTIVO que ORDER_TERRITORY renderiza (== effective bajo flip)
+      banner:contestBanner(),                                            // banner "Asalto en curso" (estado del MUNDO, mismo para todos en zona)
+      standingsLeader:(G.standings?G.standings.leader:null),             // el ranking NO cambia con el asalto (sólo el CONTROL) ⇒ precedencia sin doble-conteo
+      precedence:"standings(restedMult,1º)→territory(safeRegen,efectivo)",// orden de resolución documentado
+      gStandings:(G.standings!=null), gLedger:(G.ledger!=null),          // el asalto NO crea estado nuevo (deriva de caches existentes)
+      mineOrder:mine, mineChallenging:!!(mine && c.active && mine===c.challenger), mineControls:!!(mine && c.effective && mine===c.effective),
       hero:h?{ order:mine, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, inZone:inSafeZone(h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,

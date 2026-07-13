@@ -1949,6 +1949,37 @@ export const ORDER_TERRITORY = {
   controlValue: 0.10,        // +10% al regen de la Zona Segura para los miembros de la orden CONTROLADORA, SÓLO dentro de la zona. CEO balance knob.
 };
 
+// CAS-2313: ASALTO AL SANTUARIO / SANCTUARY CONTEST (DARK, ORDER_CONTEST) — convierte el control PASIVO del Santuario (ORDER_TERRITORY, LIVE:
+// la orden LÍDER controla y la transferencia es pasiva en el límite semanal) en TERRITORIO-EN-DISPUTA DINÁMICO: una VENTANA DE ASALTO
+// recurrente y determinista donde el RETADOR (2º de ORDER_STANDINGS) puede ARREBATAR el control ACTIVAMENTE. Pilar MMORPG de territorio
+// disputado (GW2 WvW keep flips / EVE sov contest). Diseño Stage-1, 100% DETERMINISTA (0 RNG) y server-authority-ready:
+//   · VENTANA DE ASALTO = tramo FINAL del MISMO ciclo semanal de ORDER_STANDINGS/SANCTUARY_LEDGER (los últimos `windowFrac` de la semana),
+//     derivada del reloj de pared COMPARTIDO (ledgerScheduleAt.frac) ⇒ TODO cliente con el mismo reloj deriva la MISMA ventana (0 desync).
+//   · RETADOR = la orden en el PUESTO 2 de ORDER_STANDINGS (ranking server-auth ya cacheado en G.standings). El CONTROLADOR = el líder (1º).
+//   · CONTRIBUCIÓN DE ASALTO = REUTILIZA el mecanismo del Libro/Clasificación: durante la ventana, el retador acumula un SURGE derivado de
+//     su BASELINE colectivo server-auth (ledgerBaseline — la parte COMUNITARIA, NUNCA la contribución per-hero ⇒ convergente, 0 contención
+//     entre N héroes), rampado por el avance DENTRO de la ventana (iw 0→1) y escalado por `gain`×fuerza-de-semana determinista. Las MISMAS
+//     acciones que ya suman al Libro (kills + RENOMBRE) alimentan el baseline ⇒ SIN acciones/hotkeys nuevos. En Stage-2 el surge se sustituye
+//     por la SUMA real de contribuciones server-authoritative de la orden retadora dentro de la ventana; el seam del flip es idéntico.
+//   · FLIP INMEDIATO y VISIBLE: si (baseline del retador + surge) ≥ baseline del controlador, el control efectivo del Santuario CAMBIA de
+//     inmediato al retador — VISIBLE para TODOS los en-zona (reutiliza el estandarte ⚑ + nameplate de ORDER_TERRITORY, $0 arte). El flip es
+//     STICKY dentro de la ventana (iw monótono ⇒ surge monótono ⇒ 0 flapping) y se RESETEA al límite semanal (nueva Clasificación ⇒ nuevo líder).
+//   · ESTADO COMPARTIDO OBSERVABLE: mientras la ventana está activa, todos los en-zona ven un banner "Asalto en curso" + progreso (reutiliza
+//     el badge de Zona segura). El controlador EFECTIVO (con o sin flip) es el que ORDER_TERRITORY renderiza y al que aplica el pasivo de dominio.
+//   · PRECEDENCIA (anti-doblado): ORDER_CONTEST NO añade canal de pasivo propio — SÓLO reescribe QUIÉN es el controlador efectivo de
+//     ORDER_TERRITORY (canal safeRegen, SÓLO en zona). ORDER_STANDINGS (canal restedMult, al 1º del ranking) queda INTACTO (el asalto NO cambia
+//     el ranking, sólo el CONTROL del territorio) ⇒ los dos canales siguen separados, 0 doble-conteo. Orden de resolución: standings→territory→contest.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ contestController devuelve el líder SIN cambios ⇒ territoryController + banner + pasivo + save.v1 +
+// worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave nueva). SIN tocar input.js (asalto observado + alimentado por acciones que YA
+// existen, 0 hotkey — anti-CAS-2273). Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render).
+// Depende de ORDER_TERRITORY (LIVE) + ORDER_STANDINGS (LIVE) + SANCTUARY_LEDGER (LIVE). Los NÚMEROS = decisión de BALANCE del CEO (retune barato).
+export const ORDER_CONTEST = {
+  enabled: false,            // DARK. Reversible 1-line: false→true + redeploy overlay consistente-HEAD (config+sim+game+render — SIN input.js).
+  windowFrac: 0.25,          // fracción FINAL del ciclo semanal que es la VENTANA DE ASALTO (0.25 = último cuarto de la semana). Derivada del reloj compartido.
+  gain: 0.40,                // escala del SURGE de asalto del retador (fracción de su baseline colectivo que puede sumar al final de la ventana, ×fuerza-de-semana). CEO balance knob.
+  holdMargin: 0.25,          // VENTAJA DEL DEFENSOR (incumbencia): el retador debe superar controllerTotal×(1+holdMargin) para arrebatar el control ⇒ territorio REALMENTE disputado (~50% de semanas flipean, varía por fuerza-de-semana). CEO balance knob.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

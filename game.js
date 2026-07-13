@@ -316,6 +316,12 @@ export function createGame(canvas, ctx, getView){
       // qué orden CONTROLA la semana (convergencia, mismo controlador en N clientes); territory({pledge:"dawn"}) fija la orden del héroe
       // (tryPledgeOath) para observar su pasivo de DOMINIO (gateado a inSafeZone). SOLO lectura (0 hotkey — control derivado read-only).
       territory:(p)=>simDev.territory(p),
+      // CAS-2313: ASALTO AL SANTUARIO / SANCTUARY CONTEST OBSERVABLE hook (DARK, ORDER_CONTEST). contest() lee {enabled,windowFrac,active,
+      // iw,nextInSec,controller,challenger,effective,flipped,progress,controllerTotal,challengerTotal,surge,territoryController,banner,
+      // precedence,gStandings,hero}; contest({enabled:true}) flip runtime IN-MEMORY; contest({nowMs}) inyecta el reloj compartido para
+      // observar la VENTANA de asalto y el flip de esa semana (convergencia, misma ventana/flip en N clientes); contest({pledge:"iron"})
+      // fija la orden del héroe (tryPledgeOath) para observar mineChallenging/mineControls. SOLO lectura (0 hotkey — asalto derivado read-only).
+      contest:(p)=>simDev.contest(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

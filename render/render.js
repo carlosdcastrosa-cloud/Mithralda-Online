@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -3028,6 +3028,18 @@ export function createRenderer(ctx){
       if(tb){ const lbl=" ⚑"+(tb.tag||tb.name||""); const lw=ctx.measureText("Zona segura").width;
         ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(lbl,tx+lw,ty);
         ctx.fillStyle="#ffc16a"; ctx.fillText(lbl,tx+lw,ty); } }
+    // CAS-2313: ASALTO AL SANTUARIO — mientras la VENTANA de asalto está activa, TODOS los en-zona ven "Asalto en curso" + progreso del
+    // retador (estado del MUNDO compartido; DERIVADO server-auth vía sim.contestBanner ⇒ MISMO estado para todos en la zona, 0 duplicación
+    // de lógica). Al superar el umbral, el estandarte ⚑ de arriba YA muestra al retador (flip visible). $0 arte (segunda micro-línea + barra
+    // procedural). Gated en ORDER_CONTEST.enabled ⇒ OFF ⇒ nada dibuja ⇒ byte-idéntico a HEAD.
+    if(ORDER_CONTEST.enabled){ const cb=sim.contestBanner();
+      if(cb){ ctx.font="bold 10px "+FF; const cy=ty+13;
+        const msg=cb.flipped ? "⚔ Asalto: ¡"+(cb.challengerTag||"")+" toma el Santuario!" : "⚔ Asalto en curso · "+(cb.challengerTag||"");
+        ctx.strokeStyle="rgba(0,0,0,0.7)"; ctx.strokeText(msg,tx,cy);
+        ctx.fillStyle=cb.flipped?"#ffd15c":"#ff8f6a"; ctx.fillText(msg,tx,cy);
+        const mw=ctx.measureText(msg).width, bx2=tx, by2=cy+8, bw2=Math.max(60,mw), bh2=3;   // barra de progreso del asalto
+        ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(bx2,by2,bw2,bh2);
+        ctx.fillStyle=cb.flipped?"#ffd15c":"#ff8f6a"; ctx.fillRect(bx2,by2,bw2*Math.max(0,Math.min(1,+cb.progress||0)),bh2); } }
     ctx.restore();
   }
 
