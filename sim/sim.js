@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3694,6 +3694,78 @@ export function syncVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
   return { enabled:!!BATTLE_SYNC.enabled, zone:z, syncable, count, tier, tierCount:(BATTLE_SYNC.tiers||[]).length,
     boostKind:BATTLE_SYNC.channel||"restedMult", boost: h?syncMul(h,BATTLE_SYNC.channel||"restedMult"):0 }; }
 
+// CAS-2356: MARCHA / CONVOY MARCH — EVO #57, primer pilar VECTORIAL/DIRECCIONAL. Mide la COHERENCIA DIRECCIONAL de los vectores de VELOCIDAD de los jugadores en movimiento por zona
+// (¿marchan JUNTOS con rumbo común?), ortogonal a headcount/footfall/composición/continuidad/dispersión/flujo/reloj (todos ESCALARES). server-authoritative: el server suma los vectores de
+// velocidad de los presentes EN MOVIMIENTO, compara |Σv| contra Σ|v| ⇒ coherencia c∈[0,1]; mientras ≥minMovers se muevan con c≥cThreshold ACUMULA un `march` sostenido con DECAY, empuja
+// { zona → { march, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. convoyCoherence(vels,minSpeed) = CÓMPUTO server-side de la coherencia = { movers, c=|Σv|/Σ|v| }. Función PURA
+// (0 RNG, 0 side-effect). Casos borde: todos QUIETOS (rapidez≤minSpeed) ⇒ movers 0/c 0 (NO abre); 2 en rumbos OPUESTOS ⇒ |Σv|≈0 ⇒ c≈0 (NO abre); N mismo rumbo ⇒ c=1 (abre si movers≥minMovers).
+export function convoyCoherence(vels, minSpeed){ minSpeed=Math.max(0,+minSpeed||0);
+  let sx=0, sy=0, sumSpeed=0, movers=0;
+  if(Array.isArray(vels)) for(const v of vels){ if(!v) continue; const vx=+v.vx||0, vy=+v.vy||0, sp=Math.sqrt(vx*vx+vy*vy);
+    if(sp<=minSpeed) continue; movers++; sx+=vx; sy+=vy; sumSpeed+=sp; }
+  const c = sumSpeed>0 ? Math.sqrt(sx*sx+sy*sy)/sumSpeed : 0;
+  return { movers, c: Math.max(0, Math.min(1, c)) }; }
+// ¿el estado de movimiento de una zona SOSTIENE un convoy este tick? (movers≥minMovers Y c≥cThreshold). Puro sobre el resultado de convoyCoherence.
+function convoySustains(co){ if(!co) return false; return (co.movers|0)>=(CONVOY_MARCH.minMovers|0) && (+co.c||0)>=(+CONVOY_MARCH.cThreshold||0); }
+// convoyTier(march) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ march. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function convoyTier(march){ const T=CONVOY_MARCH.tiers||[]; march=+march||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && march>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost restedMult del tier vigente (0 si Tier 0). Puro. El gate global lo cubre convoyMul; aquí sólo la TABLA determinista.
+function convoyBoost(march){ const t=convoyTier(march); return t>0 ? (+CONVOY_MARCH.tiers[t-1].boost||0) : 0; }
+// `march` sostenido PROYECTADO de una zona leído del snapshot reflejado en G.convoy.march (ya proyectado al `now` por tickConvoy). 0 si sin snapshot / zona ausente. Puro.
+function convoyMarchVal(zone){ const g=G.convoy; if(!g||!g.march||!zone) return 0; return +g.march[zone]||0; }
+function convoyOpen(zone){ return convoyTier(convoyMarchVal(zone))>0; }
+// convoyMul(h,kind) = el passive COMPARTIDO de los presentes en una zona en Marcha (tier≥1), en el canal restedMult (REUSA RESTED_XP), con PRECEDENCIA EXPLÍCITA anti-stacking
+// (CONVOY_MARCH es la MÁS BAJA del canal, tras CAS-2355 BATTLE_SYNC ⇒ MÁXIMO ÚNICO): CEDE (return 0) a STANDINGS, MENTOR, SOUL, PULSE, CONGREGATION, WAYFARER, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE y BATTLE_SYNC
+// ⇒ se aplica el MAYOR (0 doble-dip). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function convoyMul(h,kind){ if(!CONVOY_MARCH.enabled||!h) return 0;
+  if(kind!==(CONVOY_MARCH.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ MARCHA cede
+  if(mentorMul(h,kind)>0) return 0;      // MENTOR (personal) gana ⇒ cede
+  if(soulMul(h,kind)>0) return 0;        // SOUL (recuperación) gana ⇒ cede
+  if(pulseMul(h,kind)>0) return 0;       // PULSE (ambiental del reloj) gana ⇒ cede
+  if(congMul(h,kind)>0) return 0;        // CONGREGATION (headcount) gana ⇒ cede
+  if(wayfarerMul(h,kind)>0) return 0;    // WAYFARER (traversal) gana ⇒ cede
+  if(confMul(h,kind)>0) return 0;        // DIVERSE_COMPANY (composición) gana ⇒ cede
+  if(longWatchMul(h,kind)>0) return 0;   // LONG_WATCH (continuidad) gana ⇒ cede
+  if(frontierMul(h,kind)>0) return 0;    // FRONTIER_SPREAD (dispersión) gana ⇒ cede
+  if(influxMul(h,kind)>0) return 0;      // INFLUX_SURGE (afluencia) gana ⇒ cede
+  if(syncMul(h,kind)>0) return 0;        // BATTLE_SYNC (sincronía) gana ⇒ cede (CONVOY_MARCH es la MÁS BAJA del canal, tras CAS-2355)
+  const z=zoneOf(world,h.x,h.y); if(!z || (CONVOY_MARCH.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de marcha ⇒ 0
+  return convoyBoost(convoyMarchVal(z));   // el Δ del tier vigente por el `march` server-authoritative de esa zona
+}
+// tick de la MARCHA (mirror tickInflux/tickFrontier): REFLEJA el snapshot server-authoritative { zona → { march, atMs } } (empujado por el server, cacheado en G.convoyServer) y lo
+// PROYECTA al `now` compartido hacia G.convoy.march aplicando el DECAY determinista por vida-media (march_now = march·0.5^(max(0,now−atMs)/halfLife), 0 RNG, techo capMarch). SIN estado
+// per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca (Date.now nunca se llama) ⇒ G.convoy/G.convoyServer NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin
+// tocar Date.now real (prueba decay + convergencia). Fallback al reloj inyectado (G.convoyNow) para que el re-tick del game-loop no reintroduzca Date.now REAL (footgun heredado influx/frontier).
+function tickConvoy(nowArg){ if(!CONVOY_MARCH.enabled) return; const now=(nowArg!=null?+nowArg:(G.convoyNow!=null?+G.convoyNow:Date.now()));
+  const src=G.convoyServer||{}, march={}, hl=Math.max(1,(CONVOY_MARCH.halfLifeSec|0))*1000, cap=Math.max(0,(CONVOY_MARCH.capMarch|0));
+  for(const z of (CONVOY_MARCH.zones||[])){ const raw=src[z]; if(!raw) continue;
+    const base=Math.max(0,+raw.march||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let m=base * Math.pow(0.5, dtMs/hl); if(cap>0) m=Math.min(cap,m);   // DECAE determinista por vida-media hacia el `now` compartido (0 RNG)
+    if(m>0) march[z]=m; }
+  G.convoy={ march, nowMs:now }; }
+// helper server-side: ACUMULA `add` unidades de marcha en una zona sobre el `march` proyectado al `atMs` (mirror del acumulador con decay). Puro sobre G.convoyServer; devuelve el nuevo raw.
+function convoyAccrue(zone, add, atMs){ if((CONVOY_MARCH.zones||[]).indexOf(zone)<0) return null; add=Math.max(0,+add||0);
+  const src=G.convoyServer||(G.convoyServer={}), raw=src[zone], hl=Math.max(1,(CONVOY_MARCH.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.march||0):0, prevAt=raw?(+raw.atMs||0):atMs, dtMs=Math.max(0,atMs-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl);   // proyecta el march previo al instante de esta acumulación
+  src[zone]={ march:projected+add, atMs }; return src[zone]; }
+// helper server-side: dado el estado de movimiento {vels} de una zona y el dt, computa la coherencia y ACUMULA accruePerSec·dt si el convoy se sostiene (movers≥K y c≥umbral), o SÓLO
+// decae (add 0). Devuelve { co, add, raw }. Puro salvo la escritura en G.convoyServer (mismo patrón que influx transition). Prueba diferenciadores: quietos/opuestos ⇒ 0 ⇒ decae.
+function convoyStep(zone, vels, dtSec, atMs){ if((CONVOY_MARCH.zones||[]).indexOf(zone)<0) return null;
+  const co=convoyCoherence(vels, CONVOY_MARCH.minSpeed), add=convoySustains(co) ? (Math.max(0,+CONVOY_MARCH.accruePerSec||0)*Math.max(0,+dtSec||0)) : 0;
+  const raw=convoyAccrue(zone, add, atMs); return { co, add, raw }; }
+// glifo de la Marcha para el badge (mirror influxTag/frontierTag): ⇉ (flechas paralelas del convoy) si la zona del héroe está en Marcha (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function convoyTag(h){ h=h||G.hero; if(!CONVOY_MARCH.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(CONVOY_MARCH.zones||[]).indexOf(z)<0) return ""; return convoyOpen(z) ? "⇉" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su `march` sostenido LIVE server-authoritative, tier vigente y passive efectivo. 0 sim/RNG/side-effect.
+export function convoyVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const convoyable=!!(z && (CONVOY_MARCH.zones||[]).indexOf(z)>=0);
+  const march=convoyable?convoyMarchVal(z):0, tier=convoyable?convoyTier(march):0;
+  return { enabled:!!CONVOY_MARCH.enabled, zone:z, convoyable, march:+march.toFixed(2), tier, tierCount:(CONVOY_MARCH.tiers||[]).length,
+    boostKind:CONVOY_MARCH.channel||"restedMult", boost: h?convoyMul(h,CONVOY_MARCH.channel||"restedMult"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4732,7 +4804,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult") + frontierMul(h,"restedMult") + influxMul(h,"restedMult") + syncMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341/2347/2352/2355: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) + passive de VIGILIA (continuidad temporal) + passive de EXPEDICIÓN (dispersión espacial) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; frontierMul CEDE a standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch ⇒ MÁXIMO ÚNICO, 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult") + frontierMul(h,"restedMult") + influxMul(h,"restedMult") + syncMul(h,"restedMult") + convoyMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341/2347/2352/2355/2356: reward Intendente + pasivos LÍDER/PROTÉGÉ/RECUPERADOR/PULSO/CONGREGACIÓN/SENDERO/CONFLUENCIA/VIGILIA/EXPEDICIÓN/AFLUENCIA/SINCRONÍA/MARCHA suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; cada uno CEDE a los canales previos ⇒ MÁXIMO ÚNICO, 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -6117,6 +6189,7 @@ export function update(dtMs){
   if(LONG_WATCH.enabled) tickLongWatch(); // CAS-2341: Vigilia — refleja el snapshot server-authoritative { zona → { streak, atMs, present } } y lo proyecta al reloj compartido (streak sube con presencia, decae/rompe al vaciar; transitorio en G.longWatch/G.longWatchServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(INFLUX_SURGE.enabled) tickInflux(); // CAS-2352: Afluencia — refleja el surge server-authoritative { zona → { surge, atMs } } (llegadas acumuladas, EDGE-triggered) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.influx/G.influxServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(BATTLE_SYNC.enabled) tickBattleSync(); // CAS-2355: Sincronía — refleja el snapshot server-authoritative { zona → { id → últimoKillMs } } (gestas/kills co-presentes) y lo proyecta al reloj compartido contando ids DISTINTOS en la ventana deslizante (expira gestas viejas = decay determinista; transitorio en G.sync/G.syncServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(CONVOY_MARCH.enabled) tickConvoy(); // CAS-2356: Marcha — refleja el `march` sostenido server-authoritative { zona → { march, atMs } } (coherencia direccional de los vectores de velocidad de los presentes en movimiento) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.convoy/G.convoyServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(FRONTIER_SPREAD.enabled) tickFrontier(); // CAS-2347: Expedición — refleja la cobertura server-authoritative { zona → { cover, atMs } } (nº de sub-celdas coarse distintas ocupadas) y la proyecta al reloj compartido con DECAY determinista (transitorio en G.frontier/G.frontierServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
@@ -7898,6 +7971,50 @@ export const dev = {
       marksMap: G.syncServer?JSON.parse(JSON.stringify(G.syncServer)):null,   // snapshot crudo de gestas por zona (últimoKillMs por jugador)
       gExists:(G.sync!=null),                                               // prueba byte-id: OFF ⇒ G.sync NUNCA se crea (0 estado nuevo, 0 clave serializada)
       nowMs:(G.sync&&G.sync.nowMs)||null,                                  // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2356: MARCHA / CONVOY MARCH OBSERVABLE hook (DARK, CONVOY_MARCH). Snapshot AUTORITATIVO (sim) del `march` sostenido server-authoritative { zona → { march, atMs } } (coherencia
+  // direccional de los vectores de velocidad de los presentes en movimiento) + flip/drivers IN-MEMORY para OBSERVAR en DARK sin server real (disco sigue false, patrón __dev.influx/frontier).
+  // El snapshot+reloj INYECTADOS prueban el determinismo "mismo march/reloj ⇒ mismo tier/passive" (convergencia byte-idéntica en N clientes, 0 desync) + decay al frenar + diferenciadores.
+  //   convoy()                                          → {enabled,channel,zones,tiers,minSpeed,minMovers,cThreshold,halfLifeSec,capMarch,accruePerSec,zone,convoyable,march,tier,tierCount,boost,convoyMulRested,restedXpMult,peer muls,tag,precedence,march(map),gExists,nowMs,probe,hero}
+  //   convoy({enabled:true})                            → flip runtime IN-MEMORY de CONVOY_MARCH.enabled (march/passive sin tocar el disco)
+  //   convoy({nowMs})                                   → fija el reloj compartido (decay) y RE-TICKea el snapshot ⇒ march proyectado a ese instante (0 espera real)
+  //   convoy({push:{forest:{march,atMs}}})              → el server EMPUJA el snapshot crudo de march por zona ⇒ el cliente lo REFLEJA (proyecta con nowMs)
+  //   convoy({movement:{forest:{vels:[{vx,vy}...],dt}}}) → el server computa la COHERENCIA (convoyCoherence) y ACUMULA accruePerSec·dt si el convoy se sostiene (movers≥K y c≥umbral), o sólo decae — prueba diferenciadores (quietos/opuestos ⇒ 0)
+  //   convoy({coherenceProbe:{vels,minSpeed}})          → devuelve la función PURA convoyCoherence(vels,minSpeed) en `probe` (byte-verificación de casos borde SIN tocar el snapshot)
+  //   convoy({march,zone,atMs})                         → conveniencia: empuja el march de UNA zona (default la del héroe / la 1ª) — 0 hotkey
+  //   convoy({toZone})                                  → teleporta el héroe a una tile determinista de esa zona (observa el passive compartido)
+  //   convoy({leave:true})                              → aleja el héroe de toda zona (el passive cae a 0)
+  //   convoy({clear:true})                              → limpia el snapshot server (todas las zonas vuelven sin marcha)
+  convoy(p){
+    let probe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) CONVOY_MARCH.enabled=!!p.enabled;
+      if("nowMs" in p){ G.convoyNow=+p.nowMs; tickConvoy(G.convoyNow); }
+      if("push" in p){ G.convoyServer=Object.assign({}, G.convoyServer||{}, p.push||{}); tickConvoy(G.convoyNow); }   // el server empuja el march crudo por zona ⇒ refleja+proyecta
+      if("movement" in p && p.movement && typeof p.movement==="object"){ const at=(G.convoyNow!=null?+G.convoyNow:0);
+        for(const zn in p.movement){ const m=p.movement[zn]||{}; convoyStep(zn, m.vels, m.dt, at); } tickConvoy(G.convoyNow); }   // server-side: computa coherencia y acumula/decae
+      if("coherenceProbe" in p && p.coherenceProbe && typeof p.coherenceProbe==="object"){ const cp=p.coherenceProbe;
+        probe=convoyCoherence(cp.vels, ("minSpeed" in cp)?cp.minSpeed:CONVOY_MARCH.minSpeed); }   // función PURA, SIN tocar el snapshot
+      if("march" in p){ const zn=(typeof p.zone==="string")?p.zone:((G.hero?zoneOf(world,G.hero.x,G.hero.y):null) || ((CONVOY_MARCH.zones||[])[0]));
+        if(zn){ const at=("atMs" in p)?+p.atMs:(G.convoyNow!=null?+G.convoyNow:0);
+          G.convoyServer=Object.assign({}, G.convoyServer||{}); G.convoyServer[zn]={ march:+p.march||0, atMs:at }; tickConvoy(G.convoyNow); } }
+      if(p.clear){ G.convoyServer={}; tickConvoy(G.convoyNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((CONVOY_MARCH.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+    }
+    const h=G.hero, vm=convoyVM(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0) + (h?pulseMul(h,"restedMult"):0) + (h?congMul(h,"restedMult"):0) + (h?wayfarerMul(h,"restedMult"):0) + (h?confMul(h,"restedMult"):0) + (h?longWatchMul(h,"restedMult"):0) + (h?frontierMul(h,"restedMult"):0) + (h?influxMul(h,"restedMult"):0) + (h?convoyMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: MARCHA cede a TODOS los canales previos)
+    return { enabled:CONVOY_MARCH.enabled, channel:CONVOY_MARCH.channel||"restedMult", zones:(CONVOY_MARCH.zones||[]).slice(), tiers:(CONVOY_MARCH.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost})), minSpeed:+CONVOY_MARCH.minSpeed||0, minMovers:CONVOY_MARCH.minMovers|0, cThreshold:+CONVOY_MARCH.cThreshold||0, halfLifeSec:CONVOY_MARCH.halfLifeSec|0, capMarch:CONVOY_MARCH.capMarch|0, accruePerSec:+CONVOY_MARCH.accruePerSec||0,
+      zone:vm.zone, convoyable:vm.convoyable, march:vm.march, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      convoyMulRested: h?convoyMul(h,"restedMult"):0,                       // knob efectivo del passive (prueba: OFF/no-en-zona/tier0/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                       // mult efectivo (prueba precedencia: MARCHA cede si standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch/frontier/influx aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0, soulMulRested: h?soulMul(h,"restedMult"):0, pulseMulRested: h?pulseMul(h,"restedMult"):0, congMulRested: h?congMul(h,"restedMult"):0, wayfarerMulRested: h?wayfarerMul(h,"restedMult"):0, confMulRested: h?confMul(h,"restedMult"):0, longWatchMulRested: h?longWatchMul(h,"restedMult"):0, frontierMulRested: h?frontierMul(h,"restedMult"):0, influxMulRested: h?influxMul(h,"restedMult"):0,
+      tag: convoyTag(h),                                                    // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / marcha ⇒ ⇉)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental > congregation_headcount > wayfarer_traversal > diverse_company_composicion > long_watch_continuidad > frontier_spread_dispersion > influx_surge_afluencia > convoy_march_coherencia) ⇒ MARCHA cede a TODOS los canales previos (mismo canal, MÁXIMO ÚNICO, 0 doble-dip); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      marchMap: (G.convoy&&G.convoy.march)?JSON.parse(JSON.stringify(G.convoy.march)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.convoy!=null),                                            // prueba byte-id: OFF ⇒ G.convoy NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.convoy&&G.convoy.nowMs)||null,                             // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      probe: probe?{ movers:probe.movers, c:+probe.c.toFixed(6) }:null,    // resultado de la función PURA convoyCoherence (byte-verificación de casos borde)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
