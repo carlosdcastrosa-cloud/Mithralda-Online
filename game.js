@@ -365,6 +365,11 @@ export function createGame(canvas, ctx, getView){
       // teleporta a esa zona (observa el passive compartido); confluence({leave}) aleja de toda zona; confluence({clear}) limpia el snapshot. SOLO lectura /
       // drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de composición, sin input.js).
       confluence:(p)=>simDev.confluence(p),
+      // CAS-2341: VIGILIA / LONG WATCH OBSERVABLE hook (DARK, LONG_WATCH). longWatch() lee la continuidad temporal server-authoritative { zona → { streak, atMs, present } }
+      // + tier/passive derivados; longWatch({enabled}) flip in-memory; longWatch({nowMs}) fija el reloj compartido (subida/decay/ruptura); longWatch({push}) el server empuja
+      // el snapshot por zona; longWatch({zone,streak,present}) empuja UNA zona; longWatch({toZone}) teleporta; longWatch({leave}) aleja; longWatch({clear}) limpia. Convergencia
+      // byte-a-byte (MISMO snapshot+reloj ⇒ MISMO streak/tier/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de continuidad, sin input.js).
+      longWatch:(p)=>simDev.longWatch(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
