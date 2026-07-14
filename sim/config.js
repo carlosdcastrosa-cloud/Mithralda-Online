@@ -2232,7 +2232,7 @@ export const WAYFARER_TRAIL = {
 // worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave serializada). SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey nuevo).
 // Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO.
 export const DIVERSE_COMPANY = {
-  enabled: false,            // DARK (EVO#53, ship DARK). Reversible 1-línea false→true (mirror CONGREGATION/WAYFARER_TRAIL/WORLD_PULSE).
+  enabled: true,             // LIVE (EVO#53, CAS-2339 flip). Reversible 1-línea true→false (mirror CONGREGATION/WAYFARER_TRAIL/WORLD_PULSE).
   channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER (ver confMul). CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden confluir (mirror CONGREGATION/WORLD_PULSE.zones — reusa las zonas de caza).
   classes: ["warrior","paladin","mage","druid","priest"],     // arquetipos/clases DISTINTAS que cuentan para la diversidad (mirror CLASS_LIST). El server cuenta cuántas DISTINTAS co-presentes por zona.
