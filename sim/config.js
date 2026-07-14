@@ -2178,6 +2178,41 @@ export const CONGREGATION = {
   ],
 };
 
+// CAS-2335: SENDERO TRILLADO / WELL-TRODDEN PATH (DARK, WAYFARER_TRAIL) — EVO mecánica #52. PILAR FRESCO: eje NUEVO de traversal/logística EMERGENTE.
+// El arco reciente cubrió vínculos sociales (Fellowship/Mentor #47–48), muerte (Vestige #49), reloj-de-mundo (World Pulse #50) y densidad-por-headcount
+// INSTANTÁNEA (Congregación #51 = presencia estática AHORA). Este pilot pivota a algo distinto: el mundo COMPARTIDO se DESGASTA con el paso AGREGADO de
+// MUCHOS jugadores A LO LARGO DEL TIEMPO. Las rutas más transitadas por la comunidad se "abren" solas (senderos) y recompensan a quien las sigue —
+// artefacto EMERGENTE del tránsito agregado; ningún jugador solo las produce. Diseño Stage-1, 100% DETERMINISTA (0 RNG) y server-authority-ready.
+//   · SERVER-AUTHORITATIVE (fuente de verdad del tránsito): el server acumula "pisadas" por CELDA de terreno (bucket COARSE de `cellSize` px, NO per-pixel
+//     ⇒ barato a escala) cada vez que un jugador la atraviesa, y EMPUJA el snapshot { celda → { tread, atMs } }; el cliente sólo lo REFLEJA (0 confianza,
+//     NO cuenta su propia pisada — el server ya la cuenta). En Stage-1 el snapshot se inyecta por hook (mismo patrón que WORLD_PULSE inyecta el reloj y
+//     CONGREGATION el headcount) ⇒ 2 clientes con el MISMO snapshot + el MISMO nowMs convergen byte-a-byte (mismo mapa de senderos + mismo pasivo, 0 desync).
+//     Cualquier desync de sendero/pasivo = sev-1.
+//   · DECAY DETERMINISTA (sin RNG): el tread de cada celda DECAE con el tiempo por vida-media exponencial — dec = tread · 0.5^(max(0,now−atMs)/halfLife).
+//     Ninguna celda sube sola sin tránsito real ⇒ requiere CONCURRENCIA AGREGADA de la comunidad (un solo jugador no puede "abrir" un sendero rápido; su
+//     pisada decae antes de cruzar el umbral). Función PURA del snapshot + reloj compartido ⇒ idéntica en N clientes.
+//   · SENDERO TRILLADO por UMBRAL: una celda cuyo tread decaído ≥ `threshold` es un Sendero Trillado. Quien TRANSITA sobre esa celda recibe un pasivo
+//     pequeño (REUSA el canal RESTED_XP restedMult) MIENTRAS camina por ella. Emergente, sin binding, SIN reloj propio, SIN headcount instantáneo.
+//   · PASSIVE COMPARTIDO: NO per-hero, NO clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (0 estado nuevo). El buff nace de la CELDA (estado del mundo
+//     compartido), no del jugador.
+//   · PRECEDENCIA NO-stack / MÁXIMO ÚNICO: WAYFARER_TRAIL es la MÁS BAJA del canal restedMult (la más difusa/emergente) ⇒ CEDE (return 0) a STANDINGS >
+//     MENTOR > SOUL > PULSE > CONGREGATION ⇒ se aplica el MAYOR pasivo vigente, NUNCA doble-dip. FELLOWSHIP(xpGain)/TERRITORY(safeRegen) canales ⊥ ⇒
+//     coexisten. Guard explícito (ver wayfarerMul).
+//   · INDICADOR $0-arte: badge de texto "Sendero Trillado" (reusa la fila de badges + glifo procedural, como Congregación/Pulso del Mundo), 0 arte nuevo.
+//     Tinte/overlay de tile para señalar el sendero = OPCIONAL y diferido (no requerido por el DoD; el badge ya lo hace observable). NO tocar input.js.
+// HARD-GATED: enabled:false ⇒ tickWayfarer jamás corre (Date.now nunca se llama), G.wayfarer/G.wayfarerServer NUNCA se crean, wayfarerMul RETURN 0,
+// wayfarerTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave serializada). SIN tocar input.js (100% AMBIENTAL, 0 hotkey).
+// Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO.
+export const WAYFARER_TRAIL = {
+  enabled: true,             // CAS-2336 LIVE FLIP (EVO#52, CEO Gate 998fc702 APPROVED; QA DARK 17/17 ×2 build c4a549ae2fa1). Reversible 1-línea true→false = DARK de nuevo (mirror CONGREGATION/WORLD_PULSE/SOUL_RECOVERY).
+  channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION (ver wayfarerMul). CEO balance knob.
+  cellSize: 128,             // lado del bucket COARSE en px (4 tiles de 32px). El tránsito se cuenta por celda, NO per-pixel ⇒ barato a escala (mapa de senderos disperso).
+  threshold: 100,            // tread DECAÍDO (post-decay) que convierte una celda en Sendero Trillado. Requiere tránsito AGREGADO de la comunidad para cruzarlo. CEO balance knob.
+  boost: 0.06,               // +6% restedMult a quien transita un Sendero Trillado (pasivo pequeño, compartido, mismo Δ para todos). Sin tiers (pasivo único). CEO balance knob.
+  halfLifeSec: 90,           // vida-media del DECAY determinista (sin RNG): el tread cae a la mitad cada 90s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de referencia para el helper de PRUEBA (teleport determinista, mirror CONGREGATION/WORLD_PULSE.zones). NO gatea el passive: el gate es la CELDA trillada, esté donde esté.
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
