@@ -2558,7 +2558,7 @@ export const WAYFARER_ROAM = {
 // HARD-GATED: enabled:false ⇒ tickFocus jamás corre (Date.now nunca se llama), G.focus/G.focusServer NUNCA se crean, focusMul RETURN 0 (pickup de oro byte-idéntico), focusTag "" ⇒ sim + save.v1 +
 // worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL emerge de las asignaciones de objetivo existentes). Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const FOCUS_FIRE = {
-  enabled: false,            // DARK (EVO#62). Reversible 1-línea false→true (flip vía CTO tras CEO Gate + post-flip QA LIVE). SERIALIZADO tras el arco vigente (anti-stacking: 1 mecánica valida a la vez).
+  enabled: true,             // LIVE (EVO#62) — flip CAS-2375 tras CEO Gate APPROVED (CAS-2370) + serializado tras #61 WAYFARER_ROAM LIVE&closed (CAS-2373, build ad87e26206c3, postQA PASS 31/31 ×2). Reversible 1-línea true→false + re-run overlay. anti-stacking: 1 arco valida a la vez.
   channel: "goldFind",       // canal del passive — REUSA goldFind (bono de oro) de KINSHIP_BOND #60. NO restedMult (XP), NO wardRegen (HP). Máximo-único DENTRO de goldFind: FOCUS_FIRE cede a KINSHIP_BOND. CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza que pueden sostener un fuego concentrado (mirror KINSHIP_BOND.zones — reusa las zonas de caza).
   minFocus: 2,               // nº mínimo de jugadores DISTINTOS concentrando fuego sobre el MISMO objetivo para acumular. 1 solo ⇒ conc 1 < 2 ⇒ nunca; objetivos dispersos ⇒ conc 1 ⇒ nunca. CEO balance knob.
