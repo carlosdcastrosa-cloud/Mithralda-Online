@@ -2263,7 +2263,7 @@ export const DIVERSE_COMPANY = {
 // HARD-GATED: enabled:false ⇒ tickLongWatch jamás corre (Date.now nunca se llama), G.longWatch/G.longWatchServer NUNCA se crean, longWatchMul RETURN 0, longWatchTag ""
 // ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey). Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const LONG_WATCH = {
-  enabled: false,            // DARK (EVO#54). Se construye/QAs en DARK; el flip a LIVE es un issue posterior (mirror DIVERSE_COMPANY/WAYFARER_TRAIL/CONGREGATION).
+  enabled: true,             // LIVE (EVO#54) — flip false→true CAS-2343 (CEO gate a3ed74a1). Mirror DIVERSE_COMPANY/WAYFARER_TRAIL/CONGREGATION flips.
   channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY (ver longWatchMul). CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Vigilia (mirror CONGREGATION/WORLD_PULSE/DIVERSE_COMPANY.zones — reusa las zonas de caza).
   halfLifeSec: 45,           // vida-media del DECAY determinista (sin RNG) del streak al vaciarse la zona: cae a la mitad cada 45s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
