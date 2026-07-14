@@ -393,6 +393,8 @@ export function createGame(canvas, ctx, getView){
       // convoy({coherenceProbe:{vels}}) devuelve la función PURA; convoy({march,zone,atMs}) empuja UNA zona; convoy({toZone}) teleporta; convoy({leave}) aleja; convoy({clear}) limpia.
       // Convergencia byte-a-byte (MISMO snapshot+reloj ⇒ MISMO march/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL emerge del movimiento, sin input.js).
       convoy:(p)=>simDev.convoy(p),
+      ward:(p)=>simDev.ward(p),  // CAS-2362: Cordón de Guardia OBSERVABLE hook (DARK, WARDING_RING — canal FRESCO wardRegen + eje cobertura angular)
+      kinship:(p)=>simDev.kinship(p),  // CAS-2361: Camaradería OBSERVABLE hook (DARK, KINSHIP_BOND — canal FRESCO goldFind + eje persistencia de vínculo/proximidad pareada SOSTENIDA)
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
