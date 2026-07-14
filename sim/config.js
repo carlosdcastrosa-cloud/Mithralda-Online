@@ -2523,7 +2523,7 @@ export const KINSHIP_BOND = {
 // HARD-GATED: enabled:false ⇒ tickWayfarerRoam jamás corre (Date.now nunca se llama), G.wayRoam/G.wayRoamServer NUNCA se crean, wayRoamMul RETURN 0 (damageHero byte-idéntico: real intacto),
 // h._roamCombatT NUNCA se escribe (fuera del allowlist de serializeSave), wayRoamTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js. Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const WAYFARER_ROAM = {
-  enabled: false,            // DARK (EVO#61). Reversible 1-línea false→true (flip vía CTO tras CEO Gate + post-flip QA LIVE). SERIALIZADO tras el flip LIVE de #60 (KINSHIP_BOND) ya verificado (anti-stacking: 1 arco valida a la vez).
+  enabled: true,             // LIVE (EVO#61) — flip CAS-2373 tras CEO Gate APPROVED (CAS-2369) + serializado tras #60 KINSHIP_BOND LIVE. Reversible 1-línea true→false + re-run overlay. anti-stacking: 1 arco valida a la vez.
   channel: "oocMitigation",  // canal PASIVO FRESCO — NO restedMult (XP), NO wardRegen/soulRecovery (HP), NO goldFind (oro). Mitigación de daño FUERA DE COMBATE en el sink damageHero. ⊥ a los demás canales. CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo aplica (mirror KINSHIP_BOND.zones — reusa las zonas de caza; la ciudad/SAFEZONE queda fuera).
   cellSize: 128,             // px: lado de la celda coarse de roaming. Cruzar a una celda DISTINTA suma amplitud; quedarse dentro de la misma no. Mismo grid coarse que Kinship/Expedición/Sendero. CEO balance knob.
