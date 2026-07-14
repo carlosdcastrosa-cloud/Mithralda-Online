@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3522,6 +3522,61 @@ export function longWatchVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):nul
   return { enabled:!!LONG_WATCH.enabled, zone:z, watchable, streak:+streak.toFixed(2), tier, tierCount:(LONG_WATCH.tiers||[]).length,
     boostKind:LONG_WATCH.channel||"restedMult", boost: h?longWatchMul(h,LONG_WATCH.channel||"restedMult"):0 }; }
 
+// CAS-2347: EXPEDICIÓN / FRONTIER SPREAD — EVO #55, pilar FRESCO de DISPERSIÓN ESPACIAL. Mide cuán ESPARCIDA está la comunidad en una zona (nº de SUB-CELDAS COARSE
+// DISTINTAS ocupadas = cobertura/spread), ortogonal a headcount/footfall/composición/continuidad/reloj. server-authoritative: el server agrupa a los presentes en
+// sub-celdas del MISMO grid coarse que Sendero, cuenta las distintas ocupadas, empuja { zona → { cover, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido con
+// DECAY determinista (0 RNG). frontierCellKey(x,y) = clave COARSE de la sub-celda que contiene (x,y) en px (bucket FRONTIER_SPREAD.cellSize px, reuso del grid de Sendero). Puro.
+function frontierCellKey(x,y){ const s=Math.max(1,(FRONTIER_SPREAD.cellSize|0)); return (Math.floor((+x||0)/s))+","+(Math.floor((+y||0)/s)); }
+// frontierCoverage(occupants) = CÓMPUTO server-side de la cobertura = nº de SUB-CELDAS DISTINTAS ocupadas por un conjunto de posiciones [[x,y],...]. Función PURA (0 RNG,
+// 0 side-effect). Casos borde: 1 pos ⇒ 1; N posiciones en la MISMA sub-celda ⇒ 1 (amontonarse NO cuenta — distingue de Congregación); N repartidas en K sub-celdas ⇒ K.
+export function frontierCoverage(occupants){ if(!Array.isArray(occupants)||!occupants.length) return 0; const seen=Object.create(null); let n=0;
+  for(const o of occupants){ if(!o) continue; const x=Array.isArray(o)?o[0]:o.x, y=Array.isArray(o)?o[1]:o.y; const k=frontierCellKey(x,y); if(!(k in seen)){ seen[k]=1; n++; } } return n; }
+// frontierTier(cover) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ cover. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function frontierTier(cover){ const T=FRONTIER_SPREAD.tiers||[]; cover=+cover||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && cover>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost restedMult del tier vigente (0 si Tier 0). Puro. El gate global lo cubre frontierMul; aquí sólo la TABLA determinista.
+function frontierBoost(cover){ const t=frontierTier(cover); return t>0 ? (+FRONTIER_SPREAD.tiers[t-1].boost||0) : 0; }
+// cobertura PROYECTADA (sub-celdas distintas ocupadas) de una zona leída del snapshot reflejado en G.frontier.cover (ya proyectada al `now` por tickFrontier). 0 si sin snapshot / zona ausente. Puro.
+function frontierCover(zone){ const g=G.frontier; if(!g||!g.cover||!zone) return 0; return +g.cover[zone]||0; }
+function frontierOpen(zone){ return frontierTier(frontierCover(zone))>0; }
+// frontierMul(h,kind) = el passive COMPARTIDO de los presentes en una zona en Expedición (tier≥1), en el canal restedMult (REUSA RESTED_XP), con PRECEDENCIA EXPLÍCITA
+// anti-stacking (FRONTIER_SPREAD es la MÁS BAJA del canal ⇒ MÁXIMO ÚNICO): CEDE (return 0) a STANDINGS, MENTOR, SOUL, PULSE, CONGREGATION, WAYFARER, DIVERSE_COMPANY y
+// LONG_WATCH ⇒ se aplica el MAYOR (0 doble-dip). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function frontierMul(h,kind){ if(!FRONTIER_SPREAD.enabled||!h) return 0;
+  if(kind!==(FRONTIER_SPREAD.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ EXPEDICIÓN cede
+  if(mentorMul(h,kind)>0) return 0;      // MENTOR (personal) gana ⇒ cede
+  if(soulMul(h,kind)>0) return 0;        // SOUL (recuperación) gana ⇒ cede
+  if(pulseMul(h,kind)>0) return 0;       // PULSE (ambiental del reloj) gana ⇒ cede
+  if(congMul(h,kind)>0) return 0;        // CONGREGATION (headcount) gana ⇒ cede
+  if(wayfarerMul(h,kind)>0) return 0;    // WAYFARER (traversal) gana ⇒ cede
+  if(confMul(h,kind)>0) return 0;        // DIVERSE_COMPANY (composición) gana ⇒ cede
+  if(longWatchMul(h,kind)>0) return 0;   // LONG_WATCH (continuidad) gana ⇒ cede (FRONTIER_SPREAD es la MÁS BAJA del canal)
+  const z=zoneOf(world,h.x,h.y); if(!z || (FRONTIER_SPREAD.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de frontera ⇒ 0
+  return frontierBoost(frontierCover(z));   // el Δ del tier vigente por la cobertura server-authoritative de esa zona
+}
+// tick de la EXPEDICIÓN (mirror tickWayfarer/tickLongWatch): REFLEJA el snapshot server-authoritative { zona → { cover, atMs } } (empujado por el server, cacheado en
+// G.frontierServer) y lo PROYECTA al `now` compartido hacia G.frontier.cover aplicando el DECAY determinista por vida-media (cover_now = cover·0.5^(max(0,now−atMs)/halfLife),
+// 0 RNG, techo capCover). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca (Date.now nunca se llama) ⇒ G.frontier/G.frontierServer NUNCA se crean ⇒ byte-id.
+// nowArg permite al harness inyectar el reloj sin tocar Date.now real (prueba decay + convergencia). Fallback al reloj inyectado (G.frontierNow) para que el re-tick del
+// game-loop no reintroduzca Date.now REAL entre frames y colapse la cobertura inyectada (footgun heredado wayfarer/longWatch); en producción G.frontierNow es null ⇒ Date.now.
+function tickFrontier(nowArg){ if(!FRONTIER_SPREAD.enabled) return; const now=(nowArg!=null?+nowArg:(G.frontierNow!=null?+G.frontierNow:Date.now()));
+  const src=G.frontierServer||{}, cover={}, hl=Math.max(1,(FRONTIER_SPREAD.halfLifeSec|0))*1000, cap=Math.max(0,(FRONTIER_SPREAD.capCover|0));
+  for(const z of (FRONTIER_SPREAD.zones||[])){ const raw=src[z]; if(!raw) continue;
+    const base=Math.max(0,+raw.cover||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let c=base * Math.pow(0.5, dtMs/hl); if(cap>0) c=Math.min(cap,c);   // DECAE determinista por vida-media hacia el `now` compartido (0 RNG)
+    if(c>0) cover[z]=c; }
+  G.frontier={ cover, nowMs:now }; }
+// glifo de la Expedición para el badge (mirror longWatchTag/confTag): ⌗ (malla de sub-celdas cubiertas) si la zona del héroe está en Expedición (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function frontierTag(h){ h=h||G.hero; if(!FRONTIER_SPREAD.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(FRONTIER_SPREAD.zones||[]).indexOf(z)<0) return ""; return frontierOpen(z) ? "⌗" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su cobertura LIVE server-authoritative, tier vigente y passive efectivo. 0 sim/RNG/side-effect.
+export function frontierVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const frontierable=!!(z && (FRONTIER_SPREAD.zones||[]).indexOf(z)>=0);
+  const cover=frontierable?frontierCover(z):0, tier=frontierable?frontierTier(cover):0;
+  return { enabled:!!FRONTIER_SPREAD.enabled, zone:z, frontierable, cover:+cover.toFixed(2), tier, tierCount:(FRONTIER_SPREAD.tiers||[]).length,
+    boostKind:FRONTIER_SPREAD.channel||"restedMult", boost: h?frontierMul(h,FRONTIER_SPREAD.channel||"restedMult"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4560,7 +4615,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) + passive de VIGILIA (continuidad temporal) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; longWatchMul CEDE a standings/mentor/soul/pulse/cong/wayfarer/conf ⇒ MÁXIMO ÚNICO, 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult") + frontierMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341/2347: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) + passive de VIGILIA (continuidad temporal) + passive de EXPEDICIÓN (dispersión espacial) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; frontierMul CEDE a standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch ⇒ MÁXIMO ÚNICO, 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -5943,6 +5998,7 @@ export function update(dtMs){
   if(WAYFARER_TRAIL.enabled) tickWayfarer(); // CAS-2335: Sendero Trillado — refleja el tread server-authoritative por celda coarse + DECAY determinista por vida-media (transitorio en G.wayfarer/G.wayfarerServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(DIVERSE_COMPANY.enabled) tickConfluence(); // CAS-2338: Confluencia — refleja la composición server-authoritative { zona → { clase → cuenta } } por zona (diversidad = clases distintas; transitorio en G.confluence/G.confServer, SIN estado per-hero/serializado, gated ⇒ OFF nunca se crea ⇒ byte-id)
   if(LONG_WATCH.enabled) tickLongWatch(); // CAS-2341: Vigilia — refleja el snapshot server-authoritative { zona → { streak, atMs, present } } y lo proyecta al reloj compartido (streak sube con presencia, decae/rompe al vaciar; transitorio en G.longWatch/G.longWatchServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(FRONTIER_SPREAD.enabled) tickFrontier(); // CAS-2347: Expedición — refleja la cobertura server-authoritative { zona → { cover, atMs } } (nº de sub-celdas coarse distintas ocupadas) y la proyecta al reloj compartido con DECAY determinista (transitorio en G.frontier/G.frontierServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -7602,6 +7658,45 @@ export const dev = {
       streaks: (G.longWatch&&G.longWatch.streaks)?JSON.parse(JSON.stringify(G.longWatch.streaks)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
       gExists:(G.longWatch!=null),                                           // prueba byte-id: OFF ⇒ G.longWatch NUNCA se crea (0 estado nuevo, 0 clave serializada)
       nowMs:(G.longWatch&&G.longWatch.nowMs)||null,                          // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2347: EXPEDICIÓN / FRONTIER SPREAD OBSERVABLE hook (DARK, FRONTIER_SPREAD). Snapshot AUTORITATIVO (sim) de la cobertura server-authoritative { zona → { cover, atMs } }
+  // (nº de SUB-CELDAS COARSE DISTINTAS ocupadas) + flip/drivers IN-MEMORY para OBSERVAR en DARK sin server real (disco sigue false, patrón __dev.longWatch/wayfarer). El snapshot+
+  // reloj INYECTADOS prueban el determinismo "misma cobertura/reloj ⇒ mismo tier/passive" (convergencia byte-idéntica en N clientes, 0 desync) + decay al bajar la cobertura + casos borde.
+  //   frontier()                                        → {enabled,channel,zones,tiers,cellSize,halfLifeSec,capCover,zone,frontierable,cover,tier,tierCount,boost,frontierMulRested,restedXpMult,peer muls,tag,precedence,cover(map),gExists,nowMs,hero}
+  //   frontier({enabled:true})                          → flip runtime IN-MEMORY de FRONTIER_SPREAD.enabled (cobertura/passive sin tocar el disco)
+  //   frontier({nowMs})                                 → fija el reloj compartido (decay) y RE-TICKea el snapshot ⇒ cobertura proyectada a ese instante (0 espera real)
+  //   frontier({push:{forest:{cover,atMs}}})            → el server EMPUJA el snapshot crudo de cobertura por zona ⇒ el cliente lo REFLEJA (proyecta con nowMs)
+  //   frontier({occupants:{forest:[[x,y],...]}})        → el server AGRUPA posiciones en sub-celdas coarse y empuja cover=|celdas distintas| por zona (atMs=nowMs) — prueba casos borde (amontonados⇒1, repartidos⇒K)
+  //   frontier({zone,cover,atMs})                       → conveniencia: empuja la cobertura de UNA zona (default la del héroe / la 1ª) — 0 hotkey
+  //   frontier({toZone})                                → teleporta el héroe a una tile determinista de esa zona (observa el passive compartido)
+  //   frontier({leave:true})                            → aleja el héroe de toda zona (el passive cae a 0)
+  //   frontier({clear:true})                            → limpia el snapshot server (todas las zonas vuelven sin frontera)
+  frontier(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) FRONTIER_SPREAD.enabled=!!p.enabled;
+      if("nowMs" in p){ G.frontierNow=+p.nowMs; tickFrontier(G.frontierNow); }
+      if("push" in p){ G.frontierServer=Object.assign({}, G.frontierServer||{}, p.push||{}); tickFrontier(G.frontierNow); }   // el server empuja la cobertura cruda por zona ⇒ refleja+proyecta
+      if("occupants" in p && p.occupants && typeof p.occupants==="object"){ const at=(G.frontierNow!=null?+G.frontierNow:0); G.frontierServer=Object.assign({}, G.frontierServer||{});
+        for(const zn in p.occupants){ if((FRONTIER_SPREAD.zones||[]).indexOf(zn)<0) continue; G.frontierServer[zn]={ cover:frontierCoverage(p.occupants[zn]), atMs:at }; } tickFrontier(G.frontierNow); }   // server-side: agrupa posiciones en sub-celdas ⇒ cover=|distintas|
+      if("cover" in p){ const zn=(typeof p.zone==="string")?p.zone:((G.hero?zoneOf(world,G.hero.x,G.hero.y):null) || ((FRONTIER_SPREAD.zones||[])[0]));
+        if(zn){ const at=("atMs" in p)?+p.atMs:(G.frontierNow!=null?+G.frontierNow:0);
+          G.frontierServer=Object.assign({}, G.frontierServer||{}); G.frontierServer[zn]={ cover:+p.cover||0, atMs:at }; tickFrontier(G.frontierNow); } }
+      if(p.clear){ G.frontierServer={}; tickFrontier(G.frontierNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((FRONTIER_SPREAD.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+    }
+    const h=G.hero, vm=frontierVM(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0) + (h?pulseMul(h,"restedMult"):0) + (h?congMul(h,"restedMult"):0) + (h?wayfarerMul(h,"restedMult"):0) + (h?confMul(h,"restedMult"):0) + (h?longWatchMul(h,"restedMult"):0) + (h?frontierMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: EXPEDICIÓN cede a TODOS los canales previos)
+    return { enabled:FRONTIER_SPREAD.enabled, channel:FRONTIER_SPREAD.channel||"restedMult", zones:(FRONTIER_SPREAD.zones||[]).slice(), tiers:(FRONTIER_SPREAD.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost})), cellSize:FRONTIER_SPREAD.cellSize|0, halfLifeSec:FRONTIER_SPREAD.halfLifeSec|0, capCover:FRONTIER_SPREAD.capCover|0,
+      zone:vm.zone, frontierable:vm.frontierable, cover:vm.cover, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      frontierMulRested: h?frontierMul(h,"restedMult"):0,                     // knob efectivo del passive (prueba: OFF/no-en-zona/tier0/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                        // mult efectivo (prueba precedencia: EXPEDICIÓN cede si standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0, soulMulRested: h?soulMul(h,"restedMult"):0, pulseMulRested: h?pulseMul(h,"restedMult"):0, congMulRested: h?congMul(h,"restedMult"):0, wayfarerMulRested: h?wayfarerMul(h,"restedMult"):0, confMulRested: h?confMul(h,"restedMult"):0, longWatchMulRested: h?longWatchMul(h,"restedMult"):0,
+      tag: frontierTag(h),                                                   // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / expedición ⇒ ⌗)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental > congregation_headcount > wayfarer_traversal > diverse_company_composicion > long_watch_continuidad > frontier_spread_dispersion) ⇒ EXPEDICIÓN cede a TODOS los canales previos (mismo canal, MÁXIMO ÚNICO, 0 doble-dip); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      coverMap: (G.frontier&&G.frontier.cover)?JSON.parse(JSON.stringify(G.frontier.cover)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.frontier!=null),                                           // prueba byte-id: OFF ⇒ G.frontier NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.frontier&&G.frontier.nowMs)||null,                          // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,

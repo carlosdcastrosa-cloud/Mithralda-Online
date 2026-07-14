@@ -370,6 +370,12 @@ export function createGame(canvas, ctx, getView){
       // el snapshot por zona; longWatch({zone,streak,present}) empuja UNA zona; longWatch({toZone}) teleporta; longWatch({leave}) aleja; longWatch({clear}) limpia. Convergencia
       // byte-a-byte (MISMO snapshot+reloj ⇒ MISMO streak/tier/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de continuidad, sin input.js).
       longWatch:(p)=>simDev.longWatch(p),
+      // CAS-2347: EXPEDICIÓN / FRONTIER SPREAD OBSERVABLE hook (DARK, FRONTIER_SPREAD). frontier() lee la cobertura server-authoritative por zona (nº de sub-celdas coarse
+      // DISTINTAS ocupadas) + tier/passive derivados; frontier({enabled}) flip in-memory; frontier({nowMs}) fija el reloj compartido (decay); frontier({push}) el server empuja
+      // el snapshot {zona→{cover,atMs}}; frontier({occupants:{zona:[[x,y],...]}}) el server agrupa posiciones en sub-celdas ⇒ cover=|distintas| (casos borde: amontonados⇒1,
+      // repartidos⇒K); frontier({zone,cover,atMs}) empuja UNA zona; frontier({toZone}) teleporta; frontier({leave}) aleja; frontier({clear}) limpia. Convergencia byte-a-byte
+      // (MISMO snapshot+reloj ⇒ MISMA cobertura/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de dispersión, sin input.js).
+      frontier:(p)=>simDev.frontier(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
