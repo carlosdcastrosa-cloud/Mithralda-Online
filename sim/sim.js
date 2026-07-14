@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3916,6 +3916,129 @@ export function kinshipVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
   return { enabled:!!KINSHIP_BOND.enabled, zone:z, bondable, kinship:+kin.toFixed(2), tier, tierCount:(KINSHIP_BOND.tiers||[]).length,
     boostKind:KINSHIP_BOND.channel||"goldFind", boost: h?kinshipMul(h,KINSHIP_BOND.channel||"goldFind"):0 }; }
 
+// CAS-2369: TROTAMUNDOS / WAYFARER (DARK, WAYFARER_ROAM) — EVO mecánica #61. EJE FRESCO AMPLITUD DE EXPLORACIÓN INDIVIDUAL (roaming breadth) + CANAL FRESCO oocMitigation (mitigación de daño
+// FUERA DE COMBATE, ⊥ restedMult/goldFind/wardRegen). server-authoritative: por JUGADOR (pid) el server registra su POSICIÓN como una CELDA coarse con marca de tiempo y cuenta las CELDAS
+// DISTINTAS ocupadas dentro de una VENTANA deslizante [now−windowSec, now]; empuja { pid → [ {c:cellKey, t:atMs} ] }; el cliente REFLEJA + PROYECTA al `now` compartido (expira marcas viejas =
+// decay 0-RNG). wayRoamBreadth(marks,now,windowMs) = CÓMPUTO server-side = nº de celdas DISTINTAS con t en la ventana. PURA. Casos borde: 1 marca ⇒ 1; N en la MISMA celda (quieto) ⇒ 1 (NO abre,
+// OPUESTO a quedarse quieto en Kinship); N en K celdas distintas ⇒ K; marca fuera de ventana ⇒ NO cuenta. INDIVIDUAL (1 jugador solo basta), SIN dirección (círculos cuentan ⇒ ≠ Convoy).
+function wayRoamCellKey(x,y){ const s=Math.max(1,(WAYFARER_ROAM.cellSize|0)); return (Math.floor((+x||0)/s))+","+(Math.floor((+y||0)/s)); }
+// wayRoamBreadth(marks, now, windowMs): nº de celdas COARSE DISTINTAS ocupadas por UN jugador con t dentro de la ventana [now−windowMs, now]. Función PURA (0 RNG, 0 side-effect). marks = [{c,t}].
+export function wayRoamBreadth(marks, now, windowMs){ if(!Array.isArray(marks)||!marks.length) return 0; const lo=(+now||0)-Math.max(0,+windowMs||0);
+  const seen=Object.create(null); let n=0;
+  for(const m of marks){ if(!m) continue; const t=+m.t||0; if(t<lo || t>(+now||0)) continue; const k=String(m.c); if(!(k in seen)){ seen[k]=1; n++; } } return n; }
+// wayRoamTier(breadth) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ breadth. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function wayRoamTier(breadth){ const T=WAYFARER_ROAM.tiers||[]; breadth=+breadth||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && breadth>=(+T[i].min||0)) idx=i+1; } return idx; }
+// mit del canal oocMitigation del tier vigente (0 si Tier 0), capeada a maxMitigation (anti-inmunidad). Puro. El gate global lo cubre wayRoamMul; aquí sólo la TABLA determinista.
+function wayRoamMitig(breadth){ const t=wayRoamTier(breadth); if(t<=0) return 0; const m=+WAYFARER_ROAM.tiers[t-1].mit||0; const cap=Math.max(0,+WAYFARER_ROAM.maxMitigation||0); return cap>0?Math.min(cap,m):m; }
+// pid del jugador LOCAL (el que aplica el pasivo a sí mismo). Transitorio G.wayRoamSelf (inyectable por el harness para 2-cliente); default "self". SIN estado per-hero/serializado.
+function wayRoamSelfPid(){ return (G.wayRoamSelf!=null)?String(G.wayRoamSelf):"self"; }
+// breadth PROYECTADO (celdas distintas en ventana) de un pid leído del snapshot reflejado en G.wayRoam.breadth (ya proyectado al `now` por tickWayfarerRoam). 0 si sin snapshot / pid ausente. Puro.
+function wayRoamBreadthVal(pid){ const g=G.wayRoam; if(!g||!g.breadth) return 0; return +g.breadth[pid!=null?String(pid):wayRoamSelfPid()]||0; }
+function wayRoamOpen(){ return wayRoamTier(wayRoamBreadthVal(wayRoamSelfPid()))>0; }
+// wayRoamMul(h,kind) = el passive INDIVIDUAL del jugador con roam abierto (tier≥1), en el canal FRESCO oocMitigation (fracción de daño mitigada fuera de combate). PRECEDENCIA máximo-único
+// DENTRO del canal: WAYFARER_ROAM es (por ahora) la ÚNICA fuente ⇒ trivial (documentado para que futuras del arco de-stackeen aquí). ORTOGONAL a restedMult/goldFind/wardRegen (seams distintos)
+// ⇒ jamás dobla con NINGÚN canal previo. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id: el daño en damageHero no se toca). Zona-gate: sólo en zonas de caza (SAFEZONE/ciudad fuera).
+function wayRoamMul(h,kind){ if(!WAYFARER_ROAM.enabled||!h) return 0;
+  if(kind!==(WAYFARER_ROAM.channel||"oocMitigation")) return 0;
+  const z=zoneOf(world,h.x,h.y); if(!z || (WAYFARER_ROAM.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de caza ⇒ 0 (ciudad/SAFEZONE quedan fuera)
+  return wayRoamMitig(wayRoamBreadthVal(wayRoamSelfPid()));   // la mit del tier vigente por el breadth server-authoritative del jugador LOCAL
+}
+// tick del TROTAMUNDOS (mirror tickKinship): REFLEJA el snapshot server-authoritative { pid → [ {c,t} ] } (marcas de posición, cacheado en G.wayRoamServer) y lo PROYECTA al `now` compartido
+// contando las celdas DISTINTAS con t en la ventana deslizante (expira marcas viejas = decay 0-RNG). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca (Date.now nunca se llama)
+// ⇒ G.wayRoam/G.wayRoamServer NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real.
+function tickWayfarerRoam(nowArg){ if(!WAYFARER_ROAM.enabled) return; const now=(nowArg!=null?+nowArg:(G.wayRoamNow!=null?+G.wayRoamNow:Date.now()));
+  const src=G.wayRoamServer||{}, breadth={}, win=Math.max(0,(WAYFARER_ROAM.windowSec|0))*1000;
+  for(const pid in src){ const marks=src[pid]; if(!Array.isArray(marks)||!marks.length) continue;
+    const b=wayRoamBreadth(marks, now, win); if(b>0) breadth[pid]=b; }   // proyecta contando celdas distintas en la ventana hacia el `now` compartido (0 RNG)
+  G.wayRoam={ breadth, nowMs:now }; }
+// helper server-side: REGISTRA una marca de posición (celda coarse + t) para un pid y PODA las marcas fuera de la ventana [atMs−windowSec, atMs]. Puro salvo la escritura en G.wayRoamServer.
+function wayRoamMark(pid, x, y, atMs){ pid=(pid!=null?String(pid):wayRoamSelfPid()); const src=G.wayRoamServer||(G.wayRoamServer={});
+  const win=Math.max(0,(WAYFARER_ROAM.windowSec|0))*1000, lo=(+atMs||0)-win;
+  const arr=(src[pid]||[]).filter(m=>m && (+m.t||0)>=lo);   // poda marcas expiradas (fuera de ventana)
+  arr.push({ c:wayRoamCellKey(x,y), t:(+atMs||0) }); src[pid]=arr; return arr; }
+// helper server-side: dado un PATH de posiciones {x,y} con instantes crecientes (o un mismo atMs) para un pid, registra cada marca. Prueba diferenciadores: quieto ⇒ misma celda ⇒ breadth 1; cruzar ⇒ K.
+function wayRoamStep(pid, path, atMs){ if(!Array.isArray(path)) return null; let last=null;
+  for(let i=0;i<path.length;i++){ const p=path[i]||{}; const t=(p.t!=null?+p.t:(+atMs||0)); last=wayRoamMark(pid, p.x, p.y, t); } return last; }
+// glifo del Trotamundos para el badge (mirror kinshipTag): ⇈ (rumbo/brújula abierta) si el jugador local tiene un roam abierto (tier≥1) y está en una zona de caza. Puro, 0 sim/RNG. "" si OFF / tier 0 / fuera de zona.
+export function wayRoamTag(h){ h=h||G.hero; if(!WAYFARER_ROAM.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(WAYFARER_ROAM.zones||[]).indexOf(z)<0) return ""; return wayRoamOpen() ? "⇈" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su breadth LIVE server-authoritative, tier vigente y passive efectivo (canal oocMitigation). 0 sim/RNG/side-effect.
+export function wayRoamVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const roamable=!!(z && (WAYFARER_ROAM.zones||[]).indexOf(z)>=0);
+  const breadth=wayRoamBreadthVal(wayRoamSelfPid()), tier=roamable?wayRoamTier(breadth):0;
+  return { enabled:!!WAYFARER_ROAM.enabled, zone:z, roamable, breadth:+breadth||0, tier, tierCount:(WAYFARER_ROAM.tiers||[]).length,
+    boostKind:WAYFARER_ROAM.channel||"oocMitigation", boost: h?wayRoamMul(h,WAYFARER_ROAM.channel||"oocMitigation"):0 }; }
+
+// CAS-2370: FUEGO CONCENTRADO / FOCUS FIRE (DARK, FOCUS_FIRE) — EVO mecánica #62. EJE FRESCO CONCENTRACIÓN DE OBJETIVO (cuántos jugadores DISTINTOS concentran su ataque sobre el MISMO enemigo a la
+// vez, SOSTENIDO) + canal goldFind (REUSA #60, de-stack máximo-único: FOCUS cede a KINSHIP). server-authoritative: el server toma las ASIGNACIONES { jugador → objetivo } de los presentes en combate,
+// las agrupa por objetivo y toma el MÁX nº de atacantes DISTINTOS sobre un único objetivo; mientras conc≥minFocus se sostiene ACUMULA `focus` con DECAY, empuja { zona → { focus, atMs } }; el cliente
+// REFLEJA + PROYECTA al `now` compartido. focusConcentration(assignments) = CÓMPUTO server-side de la concentración = { members, conc }. Función PURA (0 RNG, 0 side-effect). Casos borde byte-verificables:
+// [] ⇒ conc 0; 1 jugador ⇒ conc 1 (NO abre); N sobre el MISMO objetivo ⇒ conc N (SÍ abre, aunque estén DISPERSOS ⇒ OPUESTO a Kinship); N sobre objetivos DISTINTOS ⇒ conc 1 (NO abre, ≠ Congregation
+// headcount); mismo jugador dos veces sobre un objetivo ⇒ atacantes DISTINTOS ⇒ cuenta 1; jugador SIN objetivo (idle) ⇒ no cuenta. Funciona con jugadores QUIETOS (≠ Convoy velocidad).
+export function focusConcentration(assignments){
+  const list=Array.isArray(assignments)?assignments:[];
+  const byTarget=new Map();   // objetivo → Set de jugadores DISTINTOS que lo atacan
+  const players=new Set();
+  for(let i=0;i<list.length;i++){ const a=list[i]; if(!a) continue;
+    const t=a.t, p=a.p;
+    if(t===null||t===undefined||t==="") continue;        // sin objetivo (idle) ⇒ no cuenta
+    const pk=(p===null||p===undefined)?("#idx"+i):(""+p);  // jugador; sin id ⇒ clave DETERMINISTA por índice (0-RNG; en snapshot real siempre hay id)
+    players.add(pk);
+    let s=byTarget.get(""+t); if(!s){ s=new Set(); byTarget.set(""+t,s); } s.add(pk);   // atacantes DISTINTOS por objetivo (dedup por jugador)
+  }
+  let conc=0; for(const s of byTarget.values()){ if(s.size>conc) conc=s.size; }   // MÁX atacantes distintos sobre un único objetivo
+  return { members:players.size, conc }; }
+// ¿el estado de concentración de una zona SOSTIENE un fuego concentrado este tick? (conc≥minFocus). Puro sobre el resultado de focusConcentration.
+function focusSustains(fc){ if(!fc) return false; return (fc.conc|0)>=(FOCUS_FIRE.minFocus|0); }
+// focusTier(focus) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ focus. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function focusTier(f){ const T=FOCUS_FIRE.tiers||[]; f=+f||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && f>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost del canal goldFind del tier vigente (0 si Tier 0). Puro. El gate global lo cubre focusMul; aquí sólo la TABLA determinista.
+function focusBoost(f){ const t=focusTier(f); return t>0 ? (+FOCUS_FIRE.tiers[t-1].boost||0) : 0; }
+// `focus` sostenido PROYECTADO de una zona leído del snapshot reflejado en G.focus.focus (ya proyectado al `now` por tickFocus). 0 si sin snapshot / zona ausente. Puro.
+function focusVal(zone){ const g=G.focus; if(!g||!g.focus||!zone) return 0; return +g.focus[zone]||0; }
+function focusOpen(zone){ return focusTier(focusVal(zone))>0; }
+// focusMul(h,kind) = el passive COMPARTIDO de los presentes en una zona con fuego concentrado (tier≥1), en el canal goldFind (bono de oro). PRECEDENCIA máximo-único DENTRO del canal:
+// FOCUS_FIRE es la fuente MÁS NUEVA de goldFind ⇒ CEDE a KINSHIP_BOND (si kinshipMul>0 ⇒ return 0 ⇒ aplica el MAYOR, 0 doble-conteo). ORTOGONAL a restedMult (seam gainXP) y a wardRegen (regen HP).
+// Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id: el pickup de oro no se toca).
+function focusMul(h,kind){ if(!FOCUS_FIRE.enabled||!h) return 0;
+  if(kind!==(FOCUS_FIRE.channel||"goldFind")) return 0;
+  if(kinshipMul(h,kind)>0) return 0;        // precedencia MISMO-CANAL goldFind: KINSHIP_BOND (más antigua) gana ⇒ FOCUS_FIRE cede (aplica el MAYOR)
+  const z=zoneOf(world,h.x,h.y); if(!z || (FOCUS_FIRE.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de fuego concentrado ⇒ 0
+  return focusBoost(focusVal(z));   // el boost del tier vigente por el `focus` server-authoritative de esa zona
+}
+// tick del FUEGO CONCENTRADO (mirror tickKinship): REFLEJA el snapshot server-authoritative { zona → { focus, atMs } } (empujado por el server, cacheado en G.focusServer) y lo PROYECTA al `now` compartido
+// aplicando el DECAY determinista por vida-media (focus_now = focus·0.5^(max(0,now−atMs)/halfLife), 0 RNG, techo capFocus). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca (Date.now
+// nunca se llama) ⇒ G.focus/G.focusServer NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real.
+function tickFocus(nowArg){ if(!FOCUS_FIRE.enabled) return; const now=(nowArg!=null?+nowArg:(G.focusNow!=null?+G.focusNow:Date.now()));
+  const src=G.focusServer||{}, focus={}, hl=Math.max(1,(FOCUS_FIRE.halfLifeSec|0))*1000, cap=Math.max(0,(FOCUS_FIRE.capFocus|0));
+  for(const z of (FOCUS_FIRE.zones||[])){ const raw=src[z]; if(!raw) continue;
+    const base=Math.max(0,+raw.focus||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let w=base * Math.pow(0.5, dtMs/hl); if(cap>0) w=Math.min(cap,w);   // DECAE determinista por vida-media hacia el `now` compartido (0 RNG)
+    if(w>0) focus[z]=w; }
+  G.focus={ focus, nowMs:now }; }
+// helper server-side: ACUMULA `add` unidades de fuego concentrado en una zona sobre el `focus` proyectado al `atMs` (mirror kinshipAccrue). Puro sobre G.focusServer; devuelve el nuevo raw.
+function focusAccrue(zone, add, atMs){ if((FOCUS_FIRE.zones||[]).indexOf(zone)<0) return null; add=Math.max(0,+add||0);
+  const src=G.focusServer||(G.focusServer={}), raw=src[zone], hl=Math.max(1,(FOCUS_FIRE.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.focus||0):0, prevAt=raw?(+raw.atMs||0):atMs, dtMs=Math.max(0,atMs-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl);   // proyecta el focus previo al instante de esta acumulación
+  src[zone]={ focus:projected+add, atMs }; return src[zone]; }
+// helper server-side: dado el set de asignaciones {p,t} de una zona y el dt, computa la concentración y ACUMULA accruePerSec·dt si el fuego se sostiene (conc≥minFocus), o SÓLO decae (add 0).
+// Devuelve { fc, add, raw }. Puro salvo la escritura en G.focusServer (mismo patrón que kinshipStep). Prueba diferenciadores: objetivos distintos ⇒ conc 1 ⇒ decae; mismo objetivo ⇒ conc≥minFocus ⇒ acumula.
+function focusStep(zone, assignments, dtSec, atMs){ if((FOCUS_FIRE.zones||[]).indexOf(zone)<0) return null;
+  const fc=focusConcentration(assignments), add=focusSustains(fc) ? (Math.max(0,+FOCUS_FIRE.accruePerSec||0)*Math.max(0,+dtSec||0)) : 0;
+  const raw=focusAccrue(zone, add, atMs); return { fc, add, raw }; }
+// glifo del fuego concentrado para el badge (mirror kinshipTag): ⊙ (retícula/objetivo) si la zona del héroe está en fuego concentrado (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function focusTag(h){ h=h||G.hero; if(!FOCUS_FIRE.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(FOCUS_FIRE.zones||[]).indexOf(z)<0) return ""; return focusOpen(z) ? "⊙" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su `focus` sostenido LIVE server-authoritative, tier vigente y passive efectivo (canal goldFind). 0 sim/RNG/side-effect.
+export function focusVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const focusable=!!(z && (FOCUS_FIRE.zones||[]).indexOf(z)>=0);
+  const f=focusable?focusVal(z):0, tier=focusable?focusTier(f):0;
+  return { enabled:!!FOCUS_FIRE.enabled, zone:z, focusable, focus:+f.toFixed(2), tier, tierCount:(FOCUS_FIRE.tiers||[]).length,
+    boostKind:FOCUS_FIRE.channel||"goldFind", boost: h?focusMul(h,FOCUS_FIRE.channel||"goldFind"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -5523,7 +5646,7 @@ export function tryPickup(){
   const h=G.hero;
   for(const d of G.drops){ if(d.taken) continue; if(dist2(h.x,h.y,d.x,d.y)<CFG.pickRange*CFG.pickRange){
     if(d.kind==="gold"){ let g=d.amt||ri(3,8);
-      const kb=kinshipMul(h,KINSHIP_BOND.channel||"goldFind"); if(kb>0) g=Math.round(g*(1+kb));   // CAS-2361: Camaradería — canal FRESCO goldFind: un vínculo abierto (tier≥1) en la zona da +boost de oro al recoger. Gated ⇒ OFF ⇒ kb 0 ⇒ g intacto ⇒ byte-id
+      const gf=kinshipMul(h,"goldFind")+focusMul(h,"goldFind"); if(gf>0) g=Math.round(g*(1+gf));   // CAS-2361/2370: canal goldFind — un vínculo (Camaradería #60) O un fuego concentrado (Fuego Concentrado #62) abierto en la zona da +boost de oro. Máximo-único: FOCUS cede a KINSHIP ⇒ SÓLO uno ≠0 (0 doble-conteo). Ambos gated ⇒ OFF ⇒ gf 0 ⇒ g intacto ⇒ byte-id
       h.gold+=g; audio.sfx.coin(); floater(h.x,h.y-26,"+"+g+" oro",C_GOLD); }
     else if(d.kind==="potionhp"){ h.potHP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de vida")); }
     else if(d.kind==="potionmp"){ h.potMP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de maná")); }
@@ -6306,6 +6429,7 @@ export function update(dtMs){
   if(WEAPON_ARTS.enabled) h.artCD=Math.max(0,(h.artCD||0)-dt);   // CAS-1914: cooldown del Arte de Arma (transitorio, mirror atkCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   if(GUARD_BREAK.enabled) h._gbCd=Math.max(0,(h._gbCd||0)-dt);   // CAS-2146: ventana de recuperación del Empujón/Rompe-guardia (transitorio, mirror artCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   if(LUNGE.enabled) h._lungeCd=Math.max(0,(h._lungeCd||0)-dt);   // CAS-2156: ventana de recuperación de la Estocada (transitorio, mirror _gbCd). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
+  if(WAYFARER_ROAM.enabled) h._roamCombatT=Math.max(0,(h._roamCombatT||0)-dt);   // CAS-2369: Trotamundos — decae la ventana de combate (armada en damageHero); al expirar el héroe vuelve a estar FUERA de combate y el pasivo oocMitigation puede volver a mitigar. Transitorio, mirror _lungeCd. Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
   h.hurtAnim=Math.max(0,(h.hurtAnim||0)-dt); h.specialAnim=Math.max(0,(h.specialAnim||0)-dt); // CAS-256 hit-react / skill-cast anim timers
   h._pdCD=Math.max(0,(h._pdCD||0)-dt); // perfect-dodge reward cooldown
   if(DOORS_INTERIORS.enabled) h._doorCd=Math.max(0,(h._doorCd||0)-dt); // CAS-2225: post-warp threshold debounce (transient, mirror _pdCD). Gated ⇒ OFF no toca el héroe ⇒ byte-id HEAD
@@ -6344,7 +6468,9 @@ export function update(dtMs){
   if(BATTLE_SYNC.enabled) tickBattleSync(); // CAS-2355: Sincronía — refleja el snapshot server-authoritative { zona → { id → últimoKillMs } } (gestas/kills co-presentes) y lo proyecta al reloj compartido contando ids DISTINTOS en la ventana deslizante (expira gestas viejas = decay determinista; transitorio en G.sync/G.syncServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(CONVOY_MARCH.enabled) tickConvoy(); // CAS-2356: Marcha — refleja el `march` sostenido server-authoritative { zona → { march, atMs } } (coherencia direccional de los vectores de velocidad de los presentes en movimiento) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.convoy/G.convoyServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(WARDING_RING.enabled) tickWard(); // CAS-2362: Cordón de Guardia — refleja el `ward` sostenido server-authoritative { zona → { ward, atMs } } (cobertura ANGULAR de las posiciones alrededor del centroide) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.ward/G.wardServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(WAYFARER_ROAM.enabled) tickWayfarerRoam(); // CAS-2369: Trotamundos — refleja el snapshot server-authoritative { pid → [ {c,t} ] } (marcas de posición de cada jugador) y lo proyecta al reloj compartido contando las CELDAS DISTINTAS ocupadas en la ventana deslizante (roaming breadth individual; expira marcas viejas = decay determinista; transitorio en G.wayRoam/G.wayRoamServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(KINSHIP_BOND.enabled) tickKinship(); // CAS-2361: Camaradería — refleja el `kinship` sostenido server-authoritative { zona → { kinship, atMs } } (nº de PARES próximos SOSTENIDOS, celda coarse Chebyshev≤1) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.kinship/G.kinshipServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(FOCUS_FIRE.enabled) tickFocus(); // CAS-2370: Fuego Concentrado — refleja el `focus` sostenido server-authoritative { zona → { focus, atMs } } (MÁX atacantes DISTINTOS sobre un único objetivo) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.focus/G.focusServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(FRONTIER_SPREAD.enabled) tickFrontier(); // CAS-2347: Expedición — refleja la cobertura server-authoritative { zona → { cover, atMs } } (nº de sub-celdas coarse distintas ocupadas) y la proyecta al reloj compartido con DECAY determinista (transitorio en G.frontier/G.frontierServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
@@ -7235,6 +7361,13 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // queda acotado a incomingDmgCapFracMaxHp×HPmax (anti-cheese: el héroe recibe daño pero no puede ser one-shot mientras carga).
   // Corre POST-armadura (sobre `real`) ⇒ la armadura sigue mitigando. Gated ⇒ OFF / no cargando ⇒ real intacto ⇒ byte-id.
   if(CHARGED_ATTACK.enabled && h.charging){ const cap=CHARGED_ATTACK.incomingDmgCapFracMaxHp*(heroMaxHp(h)||h.hp); if(real>cap) real=cap; }
+  // CAS-2369: TROTAMUNDOS — canal FRESCO oocMitigation. Un golpe que aterriza estando FUERA de combate (h._roamCombatT<=0) se MITIGA por wayRoamMul (fracción, tier del roaming breadth del jugador);
+  // este golpe ARMA la ventana de combate ⇒ los golpes SIGUIENTES (ya en combate) NO se mitigan. DESACOPLADO del movimiento (no toca velocidad ⇒ 0 feedback runaway). ⊥ a restedMult/goldFind/wardRegen.
+  // Gated ⇒ OFF ⇒ rama muerta (h._roamCombatT nunca se escribe, wayRoamMul 0) ⇒ `real` intacto ⇒ ruta de daño byte-idéntica a HEAD.
+  if(WAYFARER_ROAM.enabled){
+    if((h._roamCombatT||0)<=0){ const mit=wayRoamMul(h,WAYFARER_ROAM.channel||"oocMitigation"); if(mit>0) real=Math.max(1, real*(1-mit)); }   // sólo el 1er golpe de la refriega (fuera de combate)
+    h._roamCombatT=Math.max(0,+WAYFARER_ROAM.combatWindowSec||0);   // este golpe te mete EN COMBATE ⇒ la ventana se rearma cada hit (transitorio, fuera del allowlist ⇒ save.v1 byte-id)
+  }
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   if(SAFEZONE.enabled) h._safeRegenPauseT=SAFEZONE.regenDelay;   // CAS-2242: recibir daño pausa el regen de la Zona Segura (feel). Gated ⇒ OFF nunca crea el campo ⇒ byte-id HEAD
   if(RECALL.enabled && RECALL.cancelOnDamage && (h.recallChannelT||0)>0){ h.recallChannelT=0; floater(h.x,h.y-30,"Recall cancelado","#ffb060"); }   // CAS-2266: el daño cancela el canal del Recall (Tibia/WoW). INERTE con channelSec=0 (recall instantáneo Stage-1). Gated ⇒ OFF byte-id
@@ -8260,6 +8393,98 @@ export const dev = {
       gExists:(G.kinship!=null),                                           // prueba byte-id: OFF ⇒ G.kinship NUNCA se crea (0 estado nuevo, 0 clave serializada)
       nowMs:(G.kinship&&G.kinship.nowMs)||null,                            // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       probe: probe?{ members:probe.members, pairs:probe.pairs }:null,      // resultado de la función PURA kinshipPairs (byte-verificación de casos borde)
+      goldPicked,                                                          // resultado del goldTick sintético { raw, boost, paid } (prueba del seam goldFind en aislamiento)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y), gold:h.gold|0 }:null }; },
+  // CAS-2369: TROTAMUNDOS / WAYFARER OBSERVABLE hook (DARK, WAYFARER_ROAM — eje FRESCO amplitud de exploración individual + canal FRESCO oocMitigation). Sólo lectura + drivers de PRUEBA
+  // gateados (0 hotkey — el axis emerge de las posiciones ya telemetradas). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO breadth/tier/mitigación en N clientes.
+  //   wayfarerRoam()                                  → snapshot {enabled,channel,zones,tiers,...,self,breadth,tier,mit,oocMitigMul,tag,breadthMap,gExists,nowMs,probe,inCombatT,hurtPicked,hero}
+  //   wayfarerRoam({enabled})                         → flip runtime IN-MEMORY de WAYFARER_ROAM.enabled (sin tocar el disco)
+  //   wayfarerRoam({nowMs})                           → fija el reloj compartido G.wayRoamNow (proyecta la ventana deslizante a ese instante)
+  //   wayfarerRoam({self})                            → fija el pid LOCAL (2-cliente: A="A", B="B") ⇒ cada cliente lee SU propio breadth
+  //   wayfarerRoam({push})                            → el server empuja el snapshot { pid → [ {c,t} ] } (marcas crudas) ⇒ refleja+proyecta
+  //   wayfarerRoam({path:{pid:[{x,y,t}]}})            → server-side: registra marcas de posición por pid (wayRoamStep) y proyecta (diferenciadores: quieto misma celda ⇒ breadth 1)
+  //   wayfarerRoam({breadthProbe:{marks,windowMs}})   → devuelve la función PURA wayRoamBreadth (byte-verificación de casos borde) SIN tocar el snapshot
+  //   wayfarerRoam({toZone}) / ({leave}) / ({clear})  → teleporta a la zona de caza / aleja de toda zona / limpia el snapshot server
+  //   wayfarerRoam({hurtTick:{dmg,inCombat}})         → aplica EXACTAMENTE el seam oocMitigation de damageHero en AISLAMIENTO (mit si fuera de combate + roam abierto) ⇒ byte-verifica el canal sin ruido
+  wayfarerRoam(p){
+    let probe=null, hurtPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) WAYFARER_ROAM.enabled=!!p.enabled;
+      if("self" in p) G.wayRoamSelf=(p.self!=null?String(p.self):null);
+      if("nowMs" in p){ G.wayRoamNow=+p.nowMs; tickWayfarerRoam(G.wayRoamNow); }
+      if("push" in p){ G.wayRoamServer=Object.assign({}, G.wayRoamServer||{}, p.push||{}); tickWayfarerRoam(G.wayRoamNow); }   // el server empuja las marcas crudas por pid ⇒ refleja+proyecta
+      if("path" in p && p.path && typeof p.path==="object"){ const at=(G.wayRoamNow!=null?+G.wayRoamNow:0);
+        for(const pid in p.path){ wayRoamStep(pid, p.path[pid], at); } tickWayfarerRoam(G.wayRoamNow); }   // server-side: registra marcas de posición y proyecta el breadth
+      if("breadthProbe" in p && p.breadthProbe && typeof p.breadthProbe==="object"){ const bp=p.breadthProbe;
+        probe=wayRoamBreadth(bp.marks, (bp.now!=null?+bp.now:(G.wayRoamNow!=null?+G.wayRoamNow:0)), bp.windowMs); }   // función PURA, SIN tocar el snapshot
+      if(p.clear){ G.wayRoamServer={}; tickWayfarerRoam(G.wayRoamNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((WAYFARER_ROAM.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("hurtTick" in p && p.hurtTick && typeof p.hurtTick==="object" && G.hero){ const ht=p.hurtTick; const raw=Math.max(1,+ht.dmg||0);
+        const inCombat=!!ht.inCombat; const mit=(!inCombat)?wayRoamMul(G.hero,WAYFARER_ROAM.channel||"oocMitigation"):0;   // EXACTO seam damageHero: sólo mitiga fuera de combate
+        const applied=(mit>0)?Math.max(1, raw*(1-mit)):raw; hurtPicked={ raw, inCombat, mit:+mit.toFixed(6), applied:+applied.toFixed(4) }; }
+    }
+    const h=G.hero, vm=wayRoamVM(h);
+    const mul=h?wayRoamMul(h,"oocMitigation"):0;
+    return { enabled:WAYFARER_ROAM.enabled, channel:WAYFARER_ROAM.channel||"oocMitigation", zones:(WAYFARER_ROAM.zones||[]).slice(), tiers:(WAYFARER_ROAM.tiers||[]).map(t=>({min:+t.min||0,mit:+t.mit})), cellSize:+WAYFARER_ROAM.cellSize||128, windowSec:WAYFARER_ROAM.windowSec|0, combatWindowSec:+WAYFARER_ROAM.combatWindowSec||0, maxMitigation:+WAYFARER_ROAM.maxMitigation||0,
+      self:wayRoamSelfPid(), zone:vm.zone, roamable:vm.roamable, breadth:vm.breadth, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      oocMitigMul: mul,                                                    // knob efectivo del passive (canal oocMitigation; prueba: OFF/no-en-zona/tier0 ⇒ 0 ⇒ byte-id)
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE: oocMitigation NO lo toca (⊥) ⇒ prueba 0 doble-conteo
+      goldFindMul: h?kinshipMul(h,"goldFind"):0,                          // canal goldFind — INDEPENDIENTE: oocMitigation NO lo toca (⊥) ⇒ prueba 0 doble-conteo entre canales frescos
+      wardRegenMul: h?wardMul(h,"wardRegen"):0,                           // canal wardRegen — INDEPENDIENTE: oocMitigation NO lo toca (⊥)
+      tag: wayRoamTag(h),                                                 // glifo SERVIDO (prueba: OFF/tier0/fuera-de-zona ⇒ "" / roam abierto en zona ⇒ ⇈)
+      precedence:"oocMitigation (canal FRESCO, mitigación fuera de combate): máximo-único DENTRO del canal (WAYFARER_ROAM única fuente por ahora ⇒ trivial; futuras del arco de-stackean aquí). ORTOGONAL a restedMult (seam gainXP), goldFind (seam tryPickup) y wardRegen (regen HP) ⇒ jamás dobla con NINGÚN canal previo; DESACOPLADO del movimiento (no toca move-speed)",
+      breadthMap: (G.wayRoam&&G.wayRoam.breadth)?JSON.parse(JSON.stringify(G.wayRoam.breadth)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.wayRoam!=null),                                          // prueba byte-id: OFF ⇒ G.wayRoam NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.wayRoam&&G.wayRoam.nowMs)||null,                           // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      inCombatT: h?+(+(h._roamCombatT||0)).toFixed(3):0,                  // ventana de combate restante (prueba del "sólo fuera de combate")
+      probe: probe,                                                       // resultado de la función PURA wayRoamBreadth (byte-verificación de casos borde)
+      hurtPicked,                                                         // resultado del hurtTick sintético { raw, inCombat, mit, applied } (prueba del seam oocMitigation en aislamiento)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y), hp:+(+h.hp).toFixed(2) }:null }; },
+  // CAS-2370: FUEGO CONCENTRADO / FOCUS FIRE OBSERVABLE hook (DARK, FOCUS_FIRE — eje CONCENTRACIÓN DE OBJETIVO + canal goldFind reusado, de-stack máximo-único con KINSHIP). Sólo lectura + drivers de PRUEBA
+  // gateados (0 hotkey — passive AMBIENTAL emerge de las asignaciones de objetivo). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO focus/passive en N clientes.
+  //   focus()                                          → snapshot {enabled,channel,zones,tiers,...,zone,focus,tier,boost,goldMul,tag,focusMap,gExists,nowMs,probe,hero}
+  //   focus({enabled})                                 → flip runtime IN-MEMORY de FOCUS_FIRE.enabled (sin tocar el disco)
+  //   focus({nowMs})                                   → fija el reloj compartido G.focusNow (proyecta el decay a ese instante)
+  //   focus({push})                                    → el server empuja el snapshot { zona → { focus, atMs } } ⇒ refleja+proyecta
+  //   focus({assignments:{zona:{list,dt}}})            → server-side: computa la concentración (focusConcentration) y acumula/decae (diferenciadores: objetivos distintos ⇒ conc 1 ⇒ NO abre)
+  //   focus({concProbe:{assignments}})                 → devuelve la función PURA focusConcentration (byte-verificación de casos borde) SIN tocar el snapshot
+  //   focus({focus,zone,atMs})                         → empuja el focus crudo de UNA zona
+  //   focus({toZone}) / ({leave}) / ({clear})          → teleporta a la zona / aleja de toda zona / limpia el snapshot server
+  //   focus({goldTick:n})                              → recoge n de oro sintético en AISLAMIENTO aplicando el seam goldFind COMPLETO (kinship+focus, máximo-único) — byte-verifica el mult sin ruido de drops
+  focus(p){
+    let probe=null, goldPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) FOCUS_FIRE.enabled=!!p.enabled;
+      if("nowMs" in p){ G.focusNow=+p.nowMs; tickFocus(G.focusNow); }
+      if("push" in p){ G.focusServer=Object.assign({}, G.focusServer||{}, p.push||{}); tickFocus(G.focusNow); }   // el server empuja el focus crudo por zona ⇒ refleja+proyecta
+      if("assignments" in p && p.assignments && typeof p.assignments==="object"){ const at=(G.focusNow!=null?+G.focusNow:0);
+        for(const zn in p.assignments){ const m=p.assignments[zn]||{}; focusStep(zn, m.list, m.dt, at); } tickFocus(G.focusNow); }   // server-side: computa la concentración y acumula/decae
+      if("concProbe" in p && p.concProbe && typeof p.concProbe==="object"){ probe=focusConcentration(p.concProbe.assignments); }   // función PURA, SIN tocar el snapshot
+      if("focus" in p){ const zn=(typeof p.zone==="string")?p.zone:((G.hero?zoneOf(world,G.hero.x,G.hero.y):null) || ((FOCUS_FIRE.zones||[])[0]));
+        if(zn){ const at=("atMs" in p)?+p.atMs:(G.focusNow!=null?+G.focusNow:0);
+          G.focusServer=Object.assign({}, G.focusServer||{}); G.focusServer[zn]={ focus:+p.focus||0, atMs:at }; tickFocus(G.focusNow); } }
+      if(p.clear){ G.focusServer={}; tickFocus(G.focusNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((FOCUS_FIRE.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("goldTick" in p && G.hero){ const raw=Math.max(0,Math.round(+p.goldTick||0)); const gf=kinshipMul(G.hero,"goldFind")+focusMul(G.hero,"goldFind");
+        const paid=gf>0?Math.round(raw*(1+gf)):raw; G.hero.gold=(G.hero.gold|0)+paid; goldPicked={ raw, boost:+gf.toFixed(6), paid }; }   // QA: recoge oro sintético aplicando EXACTAMENTE el seam del pickup (goldFind: kinship+focus máximo-único); OFF ⇒ paid==raw byte-id
+    }
+    const h=G.hero, vm=focusVM(h);
+    const boost=h?focusMul(h,"goldFind"):0;
+    return { enabled:FOCUS_FIRE.enabled, channel:FOCUS_FIRE.channel||"goldFind", zones:(FOCUS_FIRE.zones||[]).slice(), tiers:(FOCUS_FIRE.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost})), minFocus:FOCUS_FIRE.minFocus|0, halfLifeSec:FOCUS_FIRE.halfLifeSec|0, capFocus:FOCUS_FIRE.capFocus|0, accruePerSec:+FOCUS_FIRE.accruePerSec||0,
+      zone:vm.zone, focusable:vm.focusable, focus:vm.focus, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      goldFindMul: boost,                                                  // knob efectivo del passive (canal goldFind; prueba: OFF/no-en-zona/tier0/cede-a-kinship ⇒ 0 ⇒ byte-id)
+      goldFactor: +(1+boost).toFixed(5),                                   // factor efectivo del oro recogido dentro de un fuego concentrado (1+boost); OFF/tier0 ⇒ 1.0 exacto ⇒ pickup byte-id
+      kinshipMulGold: h?kinshipMul(h,"goldFind"):0,                        // el otro canal goldFind (KINSHIP #60) — prueba de-stack máximo-único: si >0, focus cede (boost 0)
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE: goldFind NO lo toca (⊥) ⇒ prueba 0 doble-conteo
+      wardRegenMul: h?wardMul(h,"wardRegen"):0,                            // canal wardRegen — INDEPENDIENTE: goldFind NO lo toca (⊥) ⇒ prueba 0 doble-conteo entre canales
+      tag: focusTag(h),                                                    // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / fuego concentrado ⇒ ⊙)
+      precedence:"goldFind (canal reusado #60): máximo-único DENTRO del canal — FOCUS_FIRE (más nueva) CEDE a KINSHIP_BOND ⇒ nunca doblan. ORTOGONAL a restedMult (seam gainXP) y a wardRegen (regen HP) ⇒ jamás dobla con NINGÚN otro canal",
+      focusMap: (G.focus&&G.focus.focus)?JSON.parse(JSON.stringify(G.focus.focus)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.focus!=null),                                             // prueba byte-id: OFF ⇒ G.focus NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.focus&&G.focus.nowMs)||null,                               // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      probe: probe?{ members:probe.members, conc:probe.conc }:null,        // resultado de la función PURA focusConcentration (byte-verificación de casos borde)
       goldPicked,                                                          // resultado del goldTick sintético { raw, boost, paid } (prueba del seam goldFind en aislamiento)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y), gold:h.gold|0 }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
