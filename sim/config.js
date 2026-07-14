@@ -2277,6 +2277,42 @@ export const LONG_WATCH = {
   ],
 };
 
+// CAS-2347: EXPEDICIÓN / FRONTIER SPREAD (DARK, FRONTIER_SPREAD) — EVO mecánica #55. Eje FRESCO: DISPERSIÓN ESPACIAL — cuán ESPARCIDA está la comunidad
+// dentro de una zona. Ortogonal a todo el arco: ≠ Congregación #51 (headcount/densidad, *cuántos*), ≠ Sendero #52 (footfall acumulado, *camino*), ≠ Confluencia
+// #53 (variedad de clases, *qué tan distintos*), ≠ Vigilia #54 (continuidad temporal, *cuánto tiempo seguido*), ≠ World Pulse #50 (reloj global). Aquí importa
+// CÓMO se REPARTEN en el ESPACIO: sostener frontera / cubrir terreno vs amontonarse.
+//   · SERVER-AUTHORITATIVE (fuente de verdad de la cobertura): el server, por zona por tick, AGRUPA a los presentes en SUB-CELDAS COARSE (bucket determinista de
+//     coords, MISMO grid que Sendero para reuso, frontierCellKey) y cuenta el NÚMERO de sub-celdas DISTINTAS ocupadas simultáneamente (= "cobertura"/spread). Empuja
+//     el snapshot { zona → { cover, atMs } }; el cliente sólo lo REFLEJA + PROYECTA al `now` compartido (0 confianza). En Stage-1 el snapshot se inyecta por hook (mismo
+//     patrón que WAYFARER_TRAIL inyecta el tread y LONG_WATCH el streak) ⇒ 2 clientes con el MISMO snapshot+reloj convergen byte-a-byte (misma cobertura/tier/buff, 0 desync).
+//   · CÓMPUTO DE COBERTURA = función PURA (frontierCoverage): agrupa N posiciones en sub-celdas de cellSize px y devuelve |celdas distintas|. Casos borde byte-verificables:
+//     1 jugador ⇒ cover 1; N amontonados en la MISMA sub-celda ⇒ cover 1 (NO abre — distingue de Congregación); N repartidos en ≥2 sub-celdas ⇒ cover ≥2 (abre).
+//   · PROYECCIÓN determinista al `now`: cover_now = cover · 0.5^((now−atMs)/halfLife) (DECAE cuando la cobertura BAJA, mismo half-life estilo #52/#54, 0 RNG, 0 histéresis)
+//     ⇒ N clientes convergen. Techo capCover evita crecimiento ilimitado.
+//   · TIERS por UMBRAL de SUB-CELDAS DISTINTAS ocupadas (deterministas, monótonos): <2 ⇒ Tier 0 (sin efecto); ≥2 ⇒ T1; ≥3 ⇒ T2; ≥4 ⇒ T3. Cruzar arriba abre la Expedición;
+//     el decay al bajar cobertura la baja de tier. 1 jugador (o todos amontonados) NUNCA abre — premia REPARTIRSE / sostener frontera.
+//   · PASSIVE COMPARTIDO (frontera): TODO jugador presente en una zona en Expedición (tier≥1) recibe el MISMO Δ del tier vigente (REUSA el canal RESTED_XP restedMult).
+//     Emergente, sin binding: NO per-hero, NO clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (0 estado nuevo).
+//   · PRECEDENCIA NO-stack / MÁXIMO ÚNICO: FRONTIER_SPREAD es la MÁS BAJA del canal restedMult (10ª y última fuente) ⇒ CEDE (return 0) a STANDINGS > MENTOR > SOUL >
+//     PULSE > CONGREGATION > WAYFARER > DIVERSE_COMPANY > LONG_WATCH ⇒ se aplica el MAYOR pasivo vigente, NUNCA doble-dip. FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten.
+//   · INDICADOR $0-arte: badge de texto "Expedición: <zona> T<n>" (reusa la fila de badges + glifo procedural ⌗ = malla de sub-celdas cubiertas), 0 arte nuevo.
+// HARD-GATED: enabled:false ⇒ tickFrontier jamás corre (Date.now nunca se llama), G.frontier/G.frontierServer NUNCA se crean, frontierMul RETURN 0, frontierTag ""
+// ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey). Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const FRONTIER_SPREAD = {
+  enabled: true,             // CAS-2348 LIVE FLIP (EVO#55, CEO Gate APPROVED; QA DARK 14/14 ×2 build c4a549ae2fa1). false→true (config-only 1-línea, reversible true→false = DARK). Mirror LONG_WATCH/WAYFARER_TRAIL/CONGREGATION/DIVERSE_COMPANY/WORLD_PULSE/SOUL_RECOVERY flips.
+  channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY/LONG_WATCH (ver frontierMul). CEO balance knob.
+  cellSize: 128,             // lado del bucket COARSE en px (4 tiles de 32px) — MISMO grid que WAYFARER_TRAIL.cellSize (reuso). Sub-celda = unidad de cobertura. CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Expedición (mirror CONGREGATION/WORLD_PULSE/LONG_WATCH.zones — reusa las zonas de caza).
+  halfLifeSec: 45,           // vida-media del DECAY determinista (sin RNG) de la cobertura al BAJAR: cae a la mitad cada 45s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capCover: 8,               // techo de la cobertura proyectada (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  // TABLA de tiers: umbral de SUB-CELDAS DISTINTAS ocupadas (min, inclusivo) → boost restedMult. Tier vigente = el más alto cuyo `min` ≤ cover. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — frontera naciente (≥2 sub-celdas distintas): pasivo suave.
+    { min: 3, boost: 0.10 },   // Tier 2 — frontera firme (≥3 sub-celdas): pasivo medio.
+    { min: 4, boost: 0.15 },   // Tier 3 — frontera plena (≥4 sub-celdas): pasivo pleno. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
