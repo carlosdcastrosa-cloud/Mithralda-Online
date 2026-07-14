@@ -376,6 +376,12 @@ export function createGame(canvas, ctx, getView){
       // repartidos⇒K); frontier({zone,cover,atMs}) empuja UNA zona; frontier({toZone}) teleporta; frontier({leave}) aleja; frontier({clear}) limpia. Convergencia byte-a-byte
       // (MISMO snapshot+reloj ⇒ MISMA cobertura/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de dispersión, sin input.js).
       frontier:(p)=>simDev.frontier(p),
+      // CAS-2352: AFLUENCIA / INFLUX SURGE OBSERVABLE hook (DARK, INFLUX_SURGE). influx() lee el surge server-authoritative por zona (llegadas acumuladas EDGE-triggered) +
+      // tier/passive derivados; influx({enabled}) flip in-memory; influx({nowMs}) fija el reloj compartido (decay); influx({push}) el server empuja el snapshot {zona→{surge,atMs}};
+      // influx({arrivals:{zona:N}}) registra N llegadas (acumula sobre el surge proyectado); influx({transition:{zona:{prev,now}}}) cuenta llegadas de borde (casos borde: prev==now⇒0,
+      // todos nuevos⇒|now|); influx({zone,surge,atMs}) empuja UNA zona; influx({toZone}) teleporta; influx({leave}) aleja; influx({clear}) limpia. Convergencia byte-a-byte (MISMO
+      // snapshot+reloj ⇒ MISMO surge/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de afluencia, sin input.js).
+      influx:(p)=>simDev.influx(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

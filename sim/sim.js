@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3577,6 +3577,67 @@ export function frontierVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null
   return { enabled:!!FRONTIER_SPREAD.enabled, zone:z, frontierable, cover:+cover.toFixed(2), tier, tierCount:(FRONTIER_SPREAD.tiers||[]).length,
     boostKind:FRONTIER_SPREAD.channel||"restedMult", boost: h?frontierMul(h,FRONTIER_SPREAD.channel||"restedMult"):0 }; }
 
+// CAS-2352: AFLUENCIA / INFLUX SURGE — EVO #56, pilar FRESCO de TASA DE LLEGADA (flujo/afluencia). Mide el RITMO de ENTRADAS (jugadores nuevos que CRUZAN hacia una zona),
+// ortogonal a headcount/footfall/composición/continuidad/dispersión/reloj. server-authoritative: el server detecta las LLEGADAS (transición de borde fuera→dentro), las
+// acumula en un `surge` con DECAY (0 RNG), empuja { zona → { surge, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. influxArrivals(prevIds,nowIds) = CÓMPUTO
+// server-side de las llegadas = nº de ids DENTRO AHORA que NO estaban antes (EDGE-triggered). Función PURA (0 RNG, 0 side-effect). Casos borde: prev==now (misma multitud quieta)
+// ⇒ 0 (amontonarse/quedarse NO cuenta — distingue de Congregación, que SÍ abre por headcount); todos nuevos ⇒ |now| (oleada de recién-llegados abre).
+export function influxArrivals(prevIds,nowIds){ if(!Array.isArray(nowIds)||!nowIds.length) return 0; const was=Object.create(null);
+  if(Array.isArray(prevIds)) for(const p of prevIds){ if(p!=null) was[String(p)]=1; } let n=0; const seen=Object.create(null);
+  for(const q of nowIds){ if(q==null) continue; const k=String(q); if(k in seen) continue; seen[k]=1; if(!(k in was)) n++; } return n; }
+// influxTier(surge) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ surge. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function influxTier(surge){ const T=INFLUX_SURGE.tiers||[]; surge=+surge||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && surge>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost restedMult del tier vigente (0 si Tier 0). Puro. El gate global lo cubre influxMul; aquí sólo la TABLA determinista.
+function influxBoost(surge){ const t=influxTier(surge); return t>0 ? (+INFLUX_SURGE.tiers[t-1].boost||0) : 0; }
+// surge PROYECTADO (llegadas acumuladas) de una zona leído del snapshot reflejado en G.influx.surge (ya proyectado al `now` por tickInflux). 0 si sin snapshot / zona ausente. Puro.
+function influxSurgeVal(zone){ const g=G.influx; if(!g||!g.surge||!zone) return 0; return +g.surge[zone]||0; }
+function influxOpen(zone){ return influxTier(influxSurgeVal(zone))>0; }
+// influxMul(h,kind) = el passive COMPARTIDO de los presentes en una zona en Afluencia (tier≥1), en el canal restedMult (REUSA RESTED_XP), con PRECEDENCIA EXPLÍCITA anti-stacking
+// (INFLUX_SURGE es la MÁS BAJA del canal ⇒ MÁXIMO ÚNICO): CEDE (return 0) a STANDINGS, MENTOR, SOUL, PULSE, CONGREGATION, WAYFARER, DIVERSE_COMPANY, LONG_WATCH y FRONTIER_SPREAD
+// ⇒ se aplica el MAYOR (0 doble-dip). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function influxMul(h,kind){ if(!INFLUX_SURGE.enabled||!h) return 0;
+  if(kind!==(INFLUX_SURGE.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ AFLUENCIA cede
+  if(mentorMul(h,kind)>0) return 0;      // MENTOR (personal) gana ⇒ cede
+  if(soulMul(h,kind)>0) return 0;        // SOUL (recuperación) gana ⇒ cede
+  if(pulseMul(h,kind)>0) return 0;       // PULSE (ambiental del reloj) gana ⇒ cede
+  if(congMul(h,kind)>0) return 0;        // CONGREGATION (headcount) gana ⇒ cede
+  if(wayfarerMul(h,kind)>0) return 0;    // WAYFARER (traversal) gana ⇒ cede
+  if(confMul(h,kind)>0) return 0;        // DIVERSE_COMPANY (composición) gana ⇒ cede
+  if(longWatchMul(h,kind)>0) return 0;   // LONG_WATCH (continuidad) gana ⇒ cede
+  if(frontierMul(h,kind)>0) return 0;    // FRONTIER_SPREAD (dispersión) gana ⇒ cede (INFLUX_SURGE es la MÁS BAJA del canal)
+  const z=zoneOf(world,h.x,h.y); if(!z || (INFLUX_SURGE.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de afluencia ⇒ 0
+  return influxBoost(influxSurgeVal(z));   // el Δ del tier vigente por el surge server-authoritative de esa zona
+}
+// tick de la AFLUENCIA (mirror tickFrontier/tickLongWatch): REFLEJA el snapshot server-authoritative { zona → { surge, atMs } } (empujado por el server, cacheado en
+// G.influxServer) y lo PROYECTA al `now` compartido hacia G.influx.surge aplicando el DECAY determinista por vida-media (surge_now = surge·0.5^(max(0,now−atMs)/halfLife),
+// 0 RNG, techo capSurge). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca (Date.now nunca se llama) ⇒ G.influx/G.influxServer NUNCA se crean ⇒ byte-id.
+// nowArg permite al harness inyectar el reloj sin tocar Date.now real (prueba decay + convergencia). Fallback al reloj inyectado (G.influxNow) para que el re-tick del
+// game-loop no reintroduzca Date.now REAL entre frames y colapse el surge inyectado (footgun heredado frontier/longWatch); en producción G.influxNow es null ⇒ Date.now.
+function tickInflux(nowArg){ if(!INFLUX_SURGE.enabled) return; const now=(nowArg!=null?+nowArg:(G.influxNow!=null?+G.influxNow:Date.now()));
+  const src=G.influxServer||{}, surge={}, hl=Math.max(1,(INFLUX_SURGE.halfLifeSec|0))*1000, cap=Math.max(0,(INFLUX_SURGE.capSurge|0));
+  for(const z of (INFLUX_SURGE.zones||[])){ const raw=src[z]; if(!raw) continue;
+    const base=Math.max(0,+raw.surge||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let s=base * Math.pow(0.5, dtMs/hl); if(cap>0) s=Math.min(cap,s);   // DECAE determinista por vida-media hacia el `now` compartido (0 RNG)
+    if(s>0) surge[z]=s; }
+  G.influx={ surge, nowMs:now }; }
+// helper server-side: registra `n` LLEGADAS en una zona ACUMULANDO sobre el surge proyectado al `atMs` (mirror del acumulador con decay). Puro sobre G.influxServer; devuelve el nuevo raw.
+function influxAccrue(zone, n, atMs){ if((INFLUX_SURGE.zones||[]).indexOf(zone)<0) return null; n=Math.max(0,+n||0);
+  const src=G.influxServer||(G.influxServer={}), raw=src[zone], hl=Math.max(1,(INFLUX_SURGE.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.surge||0):0, prevAt=raw?(+raw.atMs||0):atMs, dtMs=Math.max(0,atMs-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl);   // proyecta el surge previo al instante de esta llegada
+  src[zone]={ surge:projected+n, atMs }; return src[zone]; }
+// glifo de la Afluencia para el badge (mirror frontierTag/longWatchTag): ⇈ (flechas de entrada ascendentes) si la zona del héroe está en Afluencia (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function influxTag(h){ h=h||G.hero; if(!INFLUX_SURGE.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(INFLUX_SURGE.zones||[]).indexOf(z)<0) return ""; return influxOpen(z) ? "⇈" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su surge LIVE server-authoritative, tier vigente y passive efectivo. 0 sim/RNG/side-effect.
+export function influxVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const influxable=!!(z && (INFLUX_SURGE.zones||[]).indexOf(z)>=0);
+  const surge=influxable?influxSurgeVal(z):0, tier=influxable?influxTier(surge):0;
+  return { enabled:!!INFLUX_SURGE.enabled, zone:z, influxable, surge:+surge.toFixed(2), tier, tierCount:(INFLUX_SURGE.tiers||[]).length,
+    boostKind:INFLUX_SURGE.channel||"restedMult", boost: h?influxMul(h,INFLUX_SURGE.channel||"restedMult"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4615,7 +4676,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult") + frontierMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341/2347: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) + passive de VIGILIA (continuidad temporal) + passive de EXPEDICIÓN (dispersión espacial) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; frontierMul CEDE a standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch ⇒ MÁXIMO ÚNICO, 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult") + frontierMul(h,"restedMult") + influxMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341/2347/2352: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) + passive de VIGILIA (continuidad temporal) + passive de EXPEDICIÓN (dispersión espacial) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; frontierMul CEDE a standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch ⇒ MÁXIMO ÚNICO, 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -5998,6 +6059,7 @@ export function update(dtMs){
   if(WAYFARER_TRAIL.enabled) tickWayfarer(); // CAS-2335: Sendero Trillado — refleja el tread server-authoritative por celda coarse + DECAY determinista por vida-media (transitorio en G.wayfarer/G.wayfarerServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(DIVERSE_COMPANY.enabled) tickConfluence(); // CAS-2338: Confluencia — refleja la composición server-authoritative { zona → { clase → cuenta } } por zona (diversidad = clases distintas; transitorio en G.confluence/G.confServer, SIN estado per-hero/serializado, gated ⇒ OFF nunca se crea ⇒ byte-id)
   if(LONG_WATCH.enabled) tickLongWatch(); // CAS-2341: Vigilia — refleja el snapshot server-authoritative { zona → { streak, atMs, present } } y lo proyecta al reloj compartido (streak sube con presencia, decae/rompe al vaciar; transitorio en G.longWatch/G.longWatchServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(INFLUX_SURGE.enabled) tickInflux(); // CAS-2352: Afluencia — refleja el surge server-authoritative { zona → { surge, atMs } } (llegadas acumuladas, EDGE-triggered) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.influx/G.influxServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(FRONTIER_SPREAD.enabled) tickFrontier(); // CAS-2347: Expedición — refleja la cobertura server-authoritative { zona → { cover, atMs } } (nº de sub-celdas coarse distintas ocupadas) y la proyecta al reloj compartido con DECAY determinista (transitorio en G.frontier/G.frontierServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
@@ -7697,6 +7759,48 @@ export const dev = {
       coverMap: (G.frontier&&G.frontier.cover)?JSON.parse(JSON.stringify(G.frontier.cover)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
       gExists:(G.frontier!=null),                                           // prueba byte-id: OFF ⇒ G.frontier NUNCA se crea (0 estado nuevo, 0 clave serializada)
       nowMs:(G.frontier&&G.frontier.nowMs)||null,                          // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2352: AFLUENCIA / INFLUX SURGE OBSERVABLE hook (DARK, INFLUX_SURGE). Snapshot AUTORITATIVO (sim) del surge server-authoritative { zona → { surge, atMs } } (llegadas
+  // acumuladas EDGE-triggered) + flip/drivers IN-MEMORY para OBSERVAR en DARK sin server real (disco sigue false, patrón __dev.frontier/longWatch). El snapshot+reloj INYECTADOS
+  // prueban el determinismo "mismo surge/reloj ⇒ mismo tier/passive" (convergencia byte-idéntica en N clientes, 0 desync) + decay al parar el flujo + casos borde (multitud quieta ⇒ 0).
+  //   influx()                                          → {enabled,channel,zones,tiers,halfLifeSec,capSurge,zone,influxable,surge,tier,tierCount,boost,influxMulRested,restedXpMult,peer muls,tag,precedence,surge(map),gExists,nowMs,hero}
+  //   influx({enabled:true})                            → flip runtime IN-MEMORY de INFLUX_SURGE.enabled (surge/passive sin tocar el disco)
+  //   influx({nowMs})                                   → fija el reloj compartido (decay) y RE-TICKea el snapshot ⇒ surge proyectado a ese instante (0 espera real)
+  //   influx({push:{forest:{surge,atMs}}})              → el server EMPUJA el snapshot crudo de surge por zona ⇒ el cliente lo REFLEJA (proyecta con nowMs)
+  //   influx({arrivals:{forest:N}})                     → el server registra N LLEGADAS en la zona (ACUMULA sobre el surge proyectado, atMs=nowMs) — prueba el acumulador con decay
+  //   influx({transition:{forest:{prev:[ids],now:[ids]}}}) → el server cuenta las llegadas de borde (influxArrivals) y las acumula — prueba casos borde (misma multitud prev==now ⇒ 0, todos nuevos ⇒ |now|)
+  //   influx({zone,surge,atMs})                         → conveniencia: empuja el surge de UNA zona (default la del héroe / la 1ª) — 0 hotkey
+  //   influx({toZone})                                  → teleporta el héroe a una tile determinista de esa zona (observa el passive compartido)
+  //   influx({leave:true})                              → aleja el héroe de toda zona (el passive cae a 0)
+  //   influx({clear:true})                              → limpia el snapshot server (todas las zonas vuelven sin afluencia)
+  influx(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) INFLUX_SURGE.enabled=!!p.enabled;
+      if("nowMs" in p){ G.influxNow=+p.nowMs; tickInflux(G.influxNow); }
+      if("push" in p){ G.influxServer=Object.assign({}, G.influxServer||{}, p.push||{}); tickInflux(G.influxNow); }   // el server empuja el surge crudo por zona ⇒ refleja+proyecta
+      if("arrivals" in p && p.arrivals && typeof p.arrivals==="object"){ const at=(G.influxNow!=null?+G.influxNow:0);
+        for(const zn in p.arrivals){ influxAccrue(zn, p.arrivals[zn], at); } tickInflux(G.influxNow); }   // server-side: acumula N llegadas sobre el surge proyectado
+      if("transition" in p && p.transition && typeof p.transition==="object"){ const at=(G.influxNow!=null?+G.influxNow:0);
+        for(const zn in p.transition){ const t=p.transition[zn]||{}; influxAccrue(zn, influxArrivals(t.prev, t.now), at); } tickInflux(G.influxNow); }   // server-side: cuenta llegadas de borde (edge) y las acumula
+      if("surge" in p){ const zn=(typeof p.zone==="string")?p.zone:((G.hero?zoneOf(world,G.hero.x,G.hero.y):null) || ((INFLUX_SURGE.zones||[])[0]));
+        if(zn){ const at=("atMs" in p)?+p.atMs:(G.influxNow!=null?+G.influxNow:0);
+          G.influxServer=Object.assign({}, G.influxServer||{}); G.influxServer[zn]={ surge:+p.surge||0, atMs:at }; tickInflux(G.influxNow); } }
+      if(p.clear){ G.influxServer={}; tickInflux(G.influxNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((INFLUX_SURGE.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+    }
+    const h=G.hero, vm=influxVM(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0) + (h?pulseMul(h,"restedMult"):0) + (h?congMul(h,"restedMult"):0) + (h?wayfarerMul(h,"restedMult"):0) + (h?confMul(h,"restedMult"):0) + (h?longWatchMul(h,"restedMult"):0) + (h?frontierMul(h,"restedMult"):0) + (h?influxMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: AFLUENCIA cede a TODOS los canales previos)
+    return { enabled:INFLUX_SURGE.enabled, channel:INFLUX_SURGE.channel||"restedMult", zones:(INFLUX_SURGE.zones||[]).slice(), tiers:(INFLUX_SURGE.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost})), halfLifeSec:INFLUX_SURGE.halfLifeSec|0, capSurge:INFLUX_SURGE.capSurge|0,
+      zone:vm.zone, influxable:vm.influxable, surge:vm.surge, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      influxMulRested: h?influxMul(h,"restedMult"):0,                        // knob efectivo del passive (prueba: OFF/no-en-zona/tier0/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                        // mult efectivo (prueba precedencia: AFLUENCIA cede si standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch/frontier aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0, soulMulRested: h?soulMul(h,"restedMult"):0, pulseMulRested: h?pulseMul(h,"restedMult"):0, congMulRested: h?congMul(h,"restedMult"):0, wayfarerMulRested: h?wayfarerMul(h,"restedMult"):0, confMulRested: h?confMul(h,"restedMult"):0, longWatchMulRested: h?longWatchMul(h,"restedMult"):0, frontierMulRested: h?frontierMul(h,"restedMult"):0,
+      tag: influxTag(h),                                                     // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / afluencia ⇒ ⇈)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental > congregation_headcount > wayfarer_traversal > diverse_company_composicion > long_watch_continuidad > frontier_spread_dispersion > influx_surge_afluencia) ⇒ AFLUENCIA cede a TODOS los canales previos (mismo canal, MÁXIMO ÚNICO, 0 doble-dip); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      surgeMap: (G.influx&&G.influx.surge)?JSON.parse(JSON.stringify(G.influx.surge)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.influx!=null),                                             // prueba byte-id: OFF ⇒ G.influx NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.influx&&G.influx.nowMs)||null,                              // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
