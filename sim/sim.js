@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3850,6 +3850,72 @@ export function wardVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
   return { enabled:!!WARDING_RING.enabled, zone:z, wardable, ward:+ward.toFixed(2), tier, tierCount:(WARDING_RING.tiers||[]).length,
     boostKind:WARDING_RING.channel||"wardRegen", boost: h?wardMul(h,WARDING_RING.channel||"wardRegen"):0 }; }
 
+// CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
+// pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
+// (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
+// = CÓMPUTO server-side de los pares próximos = { members, pairs }. Función PURA (0 RNG, 0 side-effect). Casos borde byte-verificables: 1 jugador ⇒ 0 pares (NO abre); 2 en celdas ADYACENTES ⇒
+// 1 par; N AMONTONADOS (misma celda) ⇒ C(N,2) pares (SÍ abre, OPUESTO a Warding); 2 LEJOS (Chebyshev≥2) ⇒ 0 pares (NO abre). Funciona con jugadores QUIETOS (≠ Convoy velocidad).
+export function kinshipPairs(positions){
+  const cs=Math.max(1,+KINSHIP_BOND.cellSize||128);
+  const pts=Array.isArray(positions)?positions.filter(p=>p && isFinite(+p.x) && isFinite(+p.y)):[];
+  const members=pts.length;
+  if(members<2) return { members, pairs:0 };
+  const cells=pts.map(p=>({ cx:Math.floor((+p.x)/cs), cy:Math.floor((+p.y)/cs) }));   // celda coarse por jugador
+  let pairs=0;
+  for(let i=0;i<cells.length;i++){ for(let j=i+1;j<cells.length;j++){
+    const dcx=Math.abs(cells[i].cx-cells[j].cx), dcy=Math.abs(cells[i].cy-cells[j].cy);
+    if(dcx<=1 && dcy<=1) pairs++;   // Chebyshev≤1 = misma celda o adyacente ⇒ par próximo
+  }}
+  return { members, pairs }; }
+// ¿el estado de posición de una zona SOSTIENE un vínculo este tick? (pairs≥minPairs). Puro sobre el resultado de kinshipPairs.
+function kinshipSustains(kp){ if(!kp) return false; return (kp.pairs|0)>=(KINSHIP_BOND.minPairs|0); }
+// kinshipTier(kinship) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ kinship. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function kinshipTier(kin){ const T=KINSHIP_BOND.tiers||[]; kin=+kin||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && kin>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost del canal goldFind del tier vigente (0 si Tier 0). Puro. El gate global lo cubre kinshipMul; aquí sólo la TABLA determinista.
+function kinshipBoost(kin){ const t=kinshipTier(kin); return t>0 ? (+KINSHIP_BOND.tiers[t-1].boost||0) : 0; }
+// `kinship` sostenido PROYECTADO de una zona leído del snapshot reflejado en G.kinship.kinship (ya proyectado al `now` por tickKinship). 0 si sin snapshot / zona ausente. Puro.
+function kinshipVal(zone){ const g=G.kinship; if(!g||!g.kinship||!zone) return 0; return +g.kinship[zone]||0; }
+function kinshipOpen(zone){ return kinshipTier(kinshipVal(zone))>0; }
+// kinshipMul(h,kind) = el passive COMPARTIDO de los presentes en una zona con vínculo (tier≥1), en el canal FRESCO goldFind (bono de oro). PRECEDENCIA máximo-único DENTRO del canal:
+// KINSHIP_BOND es (por ahora) la ÚNICA fuente ⇒ máximo-único trivial (documentado para que futuras del arco de-stackeen aquí). ORTOGONAL a restedMult (seam gainXP) y a wardRegen (regen HP)
+// ⇒ jamás dobla con NINGÚN canal previo. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id: el pickup de oro no se toca).
+function kinshipMul(h,kind){ if(!KINSHIP_BOND.enabled||!h) return 0;
+  if(kind!==(KINSHIP_BOND.channel||"goldFind")) return 0;
+  const z=zoneOf(world,h.x,h.y); if(!z || (KINSHIP_BOND.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de vínculo ⇒ 0
+  return kinshipBoost(kinshipVal(z));   // el boost del tier vigente por el `kinship` server-authoritative de esa zona
+}
+// tick del VÍNCULO (mirror tickWard): REFLEJA el snapshot server-authoritative { zona → { kinship, atMs } } (empujado por el server, cacheado en G.kinshipServer) y lo PROYECTA al `now` compartido
+// aplicando el DECAY determinista por vida-media (kinship_now = kinship·0.5^(max(0,now−atMs)/halfLife), 0 RNG, techo capKinship). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca
+// (Date.now nunca se llama) ⇒ G.kinship/G.kinshipServer NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real.
+function tickKinship(nowArg){ if(!KINSHIP_BOND.enabled) return; const now=(nowArg!=null?+nowArg:(G.kinshipNow!=null?+G.kinshipNow:Date.now()));
+  const src=G.kinshipServer||{}, kinship={}, hl=Math.max(1,(KINSHIP_BOND.halfLifeSec|0))*1000, cap=Math.max(0,(KINSHIP_BOND.capKinship|0));
+  for(const z of (KINSHIP_BOND.zones||[])){ const raw=src[z]; if(!raw) continue;
+    const base=Math.max(0,+raw.kinship||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let w=base * Math.pow(0.5, dtMs/hl); if(cap>0) w=Math.min(cap,w);   // DECAE determinista por vida-media hacia el `now` compartido (0 RNG)
+    if(w>0) kinship[z]=w; }
+  G.kinship={ kinship, nowMs:now }; }
+// helper server-side: ACUMULA `add` unidades de vínculo en una zona sobre el `kinship` proyectado al `atMs` (mirror del acumulador con decay). Puro sobre G.kinshipServer; devuelve el nuevo raw.
+function kinshipAccrue(zone, add, atMs){ if((KINSHIP_BOND.zones||[]).indexOf(zone)<0) return null; add=Math.max(0,+add||0);
+  const src=G.kinshipServer||(G.kinshipServer={}), raw=src[zone], hl=Math.max(1,(KINSHIP_BOND.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.kinship||0):0, prevAt=raw?(+raw.atMs||0):atMs, dtMs=Math.max(0,atMs-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl);   // proyecta el kinship previo al instante de esta acumulación
+  src[zone]={ kinship:projected+add, atMs }; return src[zone]; }
+// helper server-side: dado el set de posiciones {x,y} de una zona y el dt, computa los pares próximos y ACUMULA accruePerSec·dt si el vínculo se sostiene (pairs≥minPairs), o SÓLO decae (add 0).
+// Devuelve { kp, add, raw }. Puro salvo la escritura en G.kinshipServer (mismo patrón que wardStep). Prueba diferenciadores: 1-solo/lejos ⇒ 0 pares ⇒ decae; amontonados ⇒ pares≥1 ⇒ acumula.
+function kinshipStep(zone, positions, dtSec, atMs){ if((KINSHIP_BOND.zones||[]).indexOf(zone)<0) return null;
+  const kp=kinshipPairs(positions), add=kinshipSustains(kp) ? (Math.max(0,+KINSHIP_BOND.accruePerSec||0)*Math.max(0,+dtSec||0)) : 0;
+  const raw=kinshipAccrue(zone, add, atMs); return { kp, add, raw }; }
+// glifo del vínculo para el badge (mirror wardTag): ⚭ (vínculo pareado) si la zona del héroe está en vínculo (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function kinshipTag(h){ h=h||G.hero; if(!KINSHIP_BOND.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(KINSHIP_BOND.zones||[]).indexOf(z)<0) return ""; return kinshipOpen(z) ? "⚭" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su `kinship` sostenido LIVE server-authoritative, tier vigente y passive efectivo (canal goldFind). 0 sim/RNG/side-effect.
+export function kinshipVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const bondable=!!(z && (KINSHIP_BOND.zones||[]).indexOf(z)>=0);
+  const kin=bondable?kinshipVal(z):0, tier=bondable?kinshipTier(kin):0;
+  return { enabled:!!KINSHIP_BOND.enabled, zone:z, bondable, kinship:+kin.toFixed(2), tier, tierCount:(KINSHIP_BOND.tiers||[]).length,
+    boostKind:KINSHIP_BOND.channel||"goldFind", boost: h?kinshipMul(h,KINSHIP_BOND.channel||"goldFind"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -5456,7 +5522,9 @@ function takeRune(type){ const h=G.hero; const r=runeDef(type); if(!r) return;
 export function tryPickup(){
   const h=G.hero;
   for(const d of G.drops){ if(d.taken) continue; if(dist2(h.x,h.y,d.x,d.y)<CFG.pickRange*CFG.pickRange){
-    if(d.kind==="gold"){ const g=d.amt||ri(3,8); h.gold+=g; audio.sfx.coin(); floater(h.x,h.y-26,"+"+g+" oro",C_GOLD); }
+    if(d.kind==="gold"){ let g=d.amt||ri(3,8);
+      const kb=kinshipMul(h,KINSHIP_BOND.channel||"goldFind"); if(kb>0) g=Math.round(g*(1+kb));   // CAS-2361: Camaradería — canal FRESCO goldFind: un vínculo abierto (tier≥1) en la zona da +boost de oro al recoger. Gated ⇒ OFF ⇒ kb 0 ⇒ g intacto ⇒ byte-id
+      h.gold+=g; audio.sfx.coin(); floater(h.x,h.y-26,"+"+g+" oro",C_GOLD); }
     else if(d.kind==="potionhp"){ h.potHP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de vida")); }
     else if(d.kind==="potionmp"){ h.potMP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de maná")); }
     else if(d.kind==="gear"){ takeGear(d.inst);
@@ -6276,6 +6344,7 @@ export function update(dtMs){
   if(BATTLE_SYNC.enabled) tickBattleSync(); // CAS-2355: Sincronía — refleja el snapshot server-authoritative { zona → { id → últimoKillMs } } (gestas/kills co-presentes) y lo proyecta al reloj compartido contando ids DISTINTOS en la ventana deslizante (expira gestas viejas = decay determinista; transitorio en G.sync/G.syncServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(CONVOY_MARCH.enabled) tickConvoy(); // CAS-2356: Marcha — refleja el `march` sostenido server-authoritative { zona → { march, atMs } } (coherencia direccional de los vectores de velocidad de los presentes en movimiento) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.convoy/G.convoyServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(WARDING_RING.enabled) tickWard(); // CAS-2362: Cordón de Guardia — refleja el `ward` sostenido server-authoritative { zona → { ward, atMs } } (cobertura ANGULAR de las posiciones alrededor del centroide) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.ward/G.wardServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(KINSHIP_BOND.enabled) tickKinship(); // CAS-2361: Camaradería — refleja el `kinship` sostenido server-authoritative { zona → { kinship, atMs } } (nº de PARES próximos SOSTENIDOS, celda coarse Chebyshev≤1) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.kinship/G.kinshipServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(FRONTIER_SPREAD.enabled) tickFrontier(); // CAS-2347: Expedición — refleja la cobertura server-authoritative { zona → { cover, atMs } } (nº de sub-celdas coarse distintas ocupadas) y la proyecta al reloj compartido con DECAY determinista (transitorio en G.frontier/G.frontierServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
@@ -8148,6 +8217,51 @@ export const dev = {
       nowMs:(G.ward&&G.ward.nowMs)||null,                                  // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       probe: probe?{ members:probe.members, onRing:probe.onRing, sectors:probe.sectors, cover:+probe.cover.toFixed(6) }:null,    // resultado de la función PURA wardCoverage (byte-verificación de casos borde)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y), hp:+(+h.hp).toFixed(2), maxHp:+heroMaxHp(h).toFixed(2) }:null }; },
+  // CAS-2361: CAMARADERÍA / KINSHIP BOND OBSERVABLE hook (DARK, KINSHIP_BOND — canal FRESCO goldFind + eje persistencia de vínculo/proximidad pareada SOSTENIDA). Sólo lectura + drivers de PRUEBA
+  // gateados (0 hotkey — passive AMBIENTAL emerge de las posiciones). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO kinship/passive en N clientes.
+  //   kinship()                                       → snapshot {enabled,channel,zones,tiers,...,zone,kinship,tier,boost,goldMul,tag,kinshipMap,gExists,nowMs,probe,hero}
+  //   kinship({enabled})                              → flip runtime IN-MEMORY de KINSHIP_BOND.enabled (sin tocar el disco)
+  //   kinship({nowMs})                                → fija el reloj compartido G.kinshipNow (proyecta el decay a ese instante)
+  //   kinship({push})                                 → el server empuja el snapshot { zona → { kinship, atMs } } ⇒ refleja+proyecta
+  //   kinship({positions:{zona:{pts,dt}}})            → server-side: computa los pares próximos (kinshipPairs) y acumula/decae (diferenciadores: 1-solo/lejos ⇒ 0 pares)
+  //   kinship({pairsProbe:{positions}})               → devuelve la función PURA kinshipPairs (byte-verificación de casos borde) SIN tocar el snapshot
+  //   kinship({kinship,zone,atMs})                    → empuja el kinship crudo de UNA zona
+  //   kinship({toZone}) / ({leave}) / ({clear})       → teleporta a la zona / aleja de toda zona / limpia el snapshot server
+  //   kinship({goldTick:n})                           → recoge n de oro sintético en AISLAMIENTO aplicando el canal goldFind (byte-verifica el mult sin ruido de drops)
+  kinship(p){
+    let probe=null, goldPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) KINSHIP_BOND.enabled=!!p.enabled;
+      if("nowMs" in p){ G.kinshipNow=+p.nowMs; tickKinship(G.kinshipNow); }
+      if("push" in p){ G.kinshipServer=Object.assign({}, G.kinshipServer||{}, p.push||{}); tickKinship(G.kinshipNow); }   // el server empuja el kinship crudo por zona ⇒ refleja+proyecta
+      if("positions" in p && p.positions && typeof p.positions==="object"){ const at=(G.kinshipNow!=null?+G.kinshipNow:0);
+        for(const zn in p.positions){ const m=p.positions[zn]||{}; kinshipStep(zn, m.pts, m.dt, at); } tickKinship(G.kinshipNow); }   // server-side: computa los pares próximos y acumula/decae
+      if("pairsProbe" in p && p.pairsProbe && typeof p.pairsProbe==="object"){ probe=kinshipPairs(p.pairsProbe.positions); }   // función PURA, SIN tocar el snapshot
+      if("kinship" in p){ const zn=(typeof p.zone==="string")?p.zone:((G.hero?zoneOf(world,G.hero.x,G.hero.y):null) || ((KINSHIP_BOND.zones||[])[0]));
+        if(zn){ const at=("atMs" in p)?+p.atMs:(G.kinshipNow!=null?+G.kinshipNow:0);
+          G.kinshipServer=Object.assign({}, G.kinshipServer||{}); G.kinshipServer[zn]={ kinship:+p.kinship||0, atMs:at }; tickKinship(G.kinshipNow); } }
+      if(p.clear){ G.kinshipServer={}; tickKinship(G.kinshipNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((KINSHIP_BOND.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("goldTick" in p && G.hero){ const raw=Math.max(0,Math.round(+p.goldTick||0)); const kb=kinshipMul(G.hero,KINSHIP_BOND.channel||"goldFind");
+        const paid=kb>0?Math.round(raw*(1+kb)):raw; G.hero.gold=(G.hero.gold|0)+paid; goldPicked={ raw, boost:+kb.toFixed(6), paid }; }   // QA: recoge oro sintético aplicando EXACTAMENTE el seam del pickup (mult goldFind); OFF ⇒ paid==raw byte-id
+    }
+    const h=G.hero, vm=kinshipVM(h);
+    const boost=h?kinshipMul(h,"goldFind"):0;
+    return { enabled:KINSHIP_BOND.enabled, channel:KINSHIP_BOND.channel||"goldFind", zones:(KINSHIP_BOND.zones||[]).slice(), tiers:(KINSHIP_BOND.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost})), cellSize:+KINSHIP_BOND.cellSize||128, minPairs:KINSHIP_BOND.minPairs|0, halfLifeSec:KINSHIP_BOND.halfLifeSec|0, capKinship:KINSHIP_BOND.capKinship|0, accruePerSec:+KINSHIP_BOND.accruePerSec||0,
+      zone:vm.zone, bondable:vm.bondable, kinship:vm.kinship, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      goldFindMul: boost,                                                  // knob efectivo del passive (canal goldFind; prueba: OFF/no-en-zona/tier0 ⇒ 0 ⇒ byte-id)
+      goldFactor: +(1+boost).toFixed(5),                                   // factor efectivo del oro recogido dentro de un vínculo (1+boost); OFF/tier0 ⇒ 1.0 exacto ⇒ pickup byte-id
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE: goldFind NO lo toca (⊥) ⇒ prueba 0 doble-conteo
+      wardRegenMul: h?wardMul(h,"wardRegen"):0,                            // canal wardRegen — INDEPENDIENTE: goldFind NO lo toca (⊥) ⇒ prueba 0 doble-conteo entre canales frescos
+      tag: kinshipTag(h),                                                  // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / vínculo ⇒ ⚭)
+      precedence:"goldFind (canal FRESCO, bono de oro): máximo-único DENTRO del canal (KINSHIP_BOND única fuente por ahora ⇒ trivial; futuras del arco de-stackean aquí). ORTOGONAL a restedMult (seam gainXP) y a wardRegen (regen HP) ⇒ jamás dobla con NINGÚN canal previo; los canales APILAN ENTRE sí",
+      kinshipMap: (G.kinship&&G.kinship.kinship)?JSON.parse(JSON.stringify(G.kinship.kinship)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.kinship!=null),                                           // prueba byte-id: OFF ⇒ G.kinship NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.kinship&&G.kinship.nowMs)||null,                            // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      probe: probe?{ members:probe.members, pairs:probe.pairs }:null,      // resultado de la función PURA kinshipPairs (byte-verificación de casos borde)
+      goldPicked,                                                          // resultado del goldTick sintético { raw, boost, paid } (prueba del seam goldFind en aislamiento)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y), gold:h.gold|0 }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).

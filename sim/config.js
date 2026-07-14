@@ -2467,6 +2467,44 @@ export const WARDING_RING = {
   ],
 };
 
+// CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Otro CANAL FRESCO y otro EJE FRESCO, ambos ⊥ a todo lo previo:
+//   (A) CANAL DE RECOMPENSA FRESCO = `goldFind` (bono de ORO al recoger monedas). El sub-arco `restedMult` (XP, seam gainXP) cerró en #58; #59 abrió `wardRegen` (HP-regen). #60 abre
+//       un TERCER canal `goldFind`, un MULTIPLICADOR del oro recogido, enganchado en el chokepoint ÚNICO de pickup de monedas (tryPickup, d.kind==="gold"). ORTOGONAL a restedMult (XP) y a
+//       wardRegen (HP) por CONSTRUCCIÓN (canal/seam distintos) ⇒ 0 doble-conteo; los canales del arco APILAN ENTRE sí (goldFind ⊥ wardRegen ⊥ restedMult) sin ceder, sólo de-stackean DENTRO de su canal.
+//   (B) EJE FRESCO = PERSISTENCIA DE VÍNCULO / proximidad pareada SOSTENIDA en el tiempo. Ejes previos: headcount instantáneo (#51 Cong), footfall (#52), variedad de clases (#53), continuidad
+//       de guardia (#54), dispersión de CELDAS de ÁREA (#55), tasa de llegadas (#56), correlación temporal de gestas (#57), coherencia de VELOCIDAD (#58), cobertura ANGULAR alrededor del centroide
+//       (#59). Aquí importa cuántos PARES de jugadores DISTINTOS permanecen PRÓXIMOS (misma celda coarse o adyacente, Chebyshev≤1) de forma SOSTENIDA ⇒ vínculos que se forjan al QUEDARSE juntos.
+//   · SERVER-AUTHORITATIVE, 0-RNG: por zona por tick el server toma las posiciones de los presentes, las asigna a una celda coarse (floor(x/cellSize),floor(y/cellSize)) y cuenta los PARES (i<j)
+//     cuyas celdas distan Chebyshev≤1 (misma o adyacente = próximos). `kinshipPairs(positions)` = { members, pairs } es PURA. Mientras ≥minPairs pares se sostienen, `kinship` SUBE (accruePerSec·dt);
+//     al romperse (se separan o se van) NO acumula y DECAE por vida-media halfLifeSec (kinship_now = kinship·0.5^((now−atMs)/halfLife), 0 RNG, techo capKinship). El decay evita corte seco.
+//   · DIFERENCIADORES (ortogonalidad OBLIGATORIA):
+//       ≠ CONGREGATION (headcount INSTANTÁNEO): 4 juntos 1 tick ⇒ pairs alto pero kinship≈accruePerSec·dt (ínfimo) < 2 ⇒ Tier 0 ⇒ NO abre; hace falta PERMANENCIA (acumulador sostenido).
+//       ≠ CONVOY_MARCH (coherencia direccional en MOVIMIENTO): sólo usa POSICIONES ⇒ QUIETOS juntos SÍ cuentan (Convoy exige rumbo común; aquí no).
+//       ≠ INFLUX (tasa de LLEGADA): pasar de largo ⇒ pares efímeros ⇒ decae ⇒ NO abre; hay que QUEDARSE.
+//       ≠ WARDING_RING (cobertura ANGULAR / anillo REPARTIDO): N AMONTONADOS ⇒ Warding onRing 0 (NO abre) pero KINSHIP pairs=C(N,2) alto (SÍ abre) ⇒ respuesta OPUESTA al agrupamiento ⇒ ⊥.
+//       1 solo ⇒ 0 pares ⇒ NO abre. 2 lejos (Chebyshev≥2) ⇒ 0 pares ⇒ NO abre.
+//   · TIERS por UMBRAL de `kinship` sostenido: <2 ⇒ T0; ≥2 ⇒ T1; ≥4 ⇒ T2; ≥6 ⇒ T3. Un vínculo forjado (tier≥1) da +boost de oro (goldFind) a los presentes al recoger monedas en la zona.
+//   · PRECEDENCIA máximo-único DENTRO del canal goldFind: KINSHIP_BOND es (por ahora) la ÚNICA fuente ⇒ máximo-único trivial; documentado para que futuras del arco de-stackeen aquí. ⊥ a wardRegen/restedMult.
+//   · INDICADOR $0-arte: reusa la fila de badges de recuperación (glifo procedural ⚭ = vínculo pareado), 0 arte nuevo. NO nueva moneda: sólo un mult sobre el oro YA existente en el pickup.
+// HARD-GATED: enabled:false ⇒ tickKinship jamás corre (Date.now nunca se llama), G.kinship/G.kinshipServer NUNCA se crean, kinshipMul RETURN 0 (pickup de oro byte-idéntico), kinshipTag ""
+// ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL emerge de las posiciones existentes, 0 hotkey/input nuevo). Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const KINSHIP_BOND = {
+  enabled: false,            // DARK por defecto (EVO#60). Flip reversible 1-línea false→true por CEO Gate tras QA PASS (mirror WARDING_RING/CONVOY_MARCH), SERIALIZADO tras el flip de #59.
+  channel: "goldFind",       // canal FRESCO del passive — NO restedMult (XP), NO wardRegen (HP). Multiplicador del ORO recogido en el pickup de monedas. ⊥ a los otros dos canales. CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza que pueden forjar un vínculo (mirror WARDING_RING.zones — reusa las zonas de caza).
+  cellSize: 128,             // px: lado de la celda coarse de proximidad. Dos jugadores en la MISMA celda o en una ADYACENTE (Chebyshev≤1) forman un PAR próximo. Mismo grid coarse que Expedición/Sendero. CEO balance knob.
+  minPairs: 1,               // nº mínimo de PARES próximos sostenidos para acumular vínculo. 1 solo ⇒ 0 pares ⇒ nunca; pares efímeros que se cruzan ⇒ decaen ⇒ nunca. CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `kinship` al romperse los pares: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capKinship: 12,            // techo del `kinship` proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  accruePerSec: 1,           // `kinship` acumulado por segundo de pares sostenidos (con tiers 2/4/6 ⇒ 2s/4s/6s de vínculo sostenido para T1/T2/T3). CEO balance knob.
+  // TABLA de tiers: umbral de `kinship` sostenido (min inclusivo) → boost del canal goldFind (fracción extra de oro al recoger). Tier vigente = el más alto cuyo `min` ≤ kinship. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — vínculo naciente (≥2s de pares sostenidos): +5% oro.
+    { min: 4, boost: 0.10 },   // Tier 2 — vínculo firme (≥4s): +10% oro.
+    { min: 6, boost: 0.15 },   // Tier 3 — gran camaradería (≥6s): +15% oro. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

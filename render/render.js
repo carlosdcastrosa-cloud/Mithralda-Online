@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -383,6 +383,7 @@ export function createRenderer(ctx){
     // derivados (sim.convoyVM, autoridad en sim) ⇒ MISMO march/tier/buff para todos los clientes con el mismo snapshot. Resalta si la zona está en Marcha. Cosmético puro.
     if(CONVOY_MARCH.enabled) renderConvoyBadge();
     if(WARDING_RING.enabled) renderWardBadge(); // CAS-2362: Cordón de Guardia — badge de recuperación (canal wardRegen); resalta si la zona tiene un Cordón (cobertura angular sostenida). Cosmético puro.
+    if(KINSHIP_BOND.enabled) renderKinshipBadge(); // CAS-2361: Camaradería — badge de vínculo (canal goldFind); resalta si la zona tiene un vínculo forjado (pares próximos sostenidos). Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3748,6 +3749,42 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + ward (cordón sostenido)
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" "+ward):(w.wardable?(ward+""):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2361: badge de CAMARADERÍA (KINSHIP_BOND). Refleja el VM PURO (sim.kinshipVM, autoridad en sim) ⇒ MISMO kinship/tier para todos los clientes con el mismo snapshot. Glifo procedural
+  // ⚭ = vínculo pareado; dos nodos unidos por un lazo cuyo brillo sube con el tier (pares próximos sostenidos). Reusa la fila de badges de recuperación ($0-arte). Cosmético puro.
+  function renderKinshipBadge(){
+    const k=sim.kinshipVM&&sim.kinshipVM(); if(!k) return;                 // pre-primer-tick (G.kinship null) ⇒ kinship 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+384, sw=14, sh=14;                             // bajo el Cordón (@+362); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, kin=Math.round(k.kinship||0);
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(2.6+tier*0.5))):0.55;
+    const glyph=here?"#e6c67a":"#8a9bb0";                                 // vínculo=oro-camaradería (canal goldFind), inerte=gris
+    const zn=k.zone?STR.zoneName(k.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2, r=sw*0.20, off=sw*0.24;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⚭ dos nodos unidos por un lazo: el brillo del lazo sube con el tier (T1 tenue → T3 pleno) = vínculo sostenido, procedural
+    const litA=here?Math.min(1,0.35+tier*0.22):0.22;
+    ctx.lineWidth=1.8; ctx.lineCap="round"; ctx.strokeStyle=here?glyph:"rgba(120,150,160,0.30)"; ctx.globalAlpha=pulse*litA;
+    ctx.beginPath(); ctx.moveTo(cx-off,cy); ctx.lineTo(cx+off,cy); ctx.stroke();   // el lazo
+    ctx.globalAlpha=pulse;
+    ctx.fillStyle=here?"rgba(120,92,30,0.55)":"rgba(74,84,100,0.5)";
+    ctx.beginPath(); ctx.arc(cx-off,cy,r,0,6.28); ctx.fill();                       // nodo izq
+    ctx.beginPath(); ctx.arc(cx+off,cy,r,0,6.28); ctx.fill();                       // nodo der
+    ctx.lineWidth=1.4; ctx.strokeStyle=here?glyph:"rgba(120,150,160,0.45)";
+    ctx.beginPath(); ctx.arc(cx-off,cy,r,0,6.28); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx+off,cy,r,0,6.28); ctx.stroke();
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Camaradería: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#f0dca6":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + kinship (vínculo sostenido)
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" "+kin):(k.bondable?(kin+""):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();
