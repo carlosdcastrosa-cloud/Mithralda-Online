@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -366,6 +366,10 @@ export function createRenderer(ctx){
     // (0 refs render fuera de este gate). ON: glifo ❈ procedural (corrientes que confluyen = clases distintas) + "Confluencia: <zona> T<n> ×N" — la diversidad
     // LIVE server-authoritative (nº de clases distintas) de la zona del héroe (sim.confluenceVM, autoridad en sim) ⇒ MISMO tier/diversidad/buff para todos los clientes en la zona. Cosmético puro.
     if(DIVERSE_COMPANY.enabled) renderConfluenceBadge();
+    // CAS-2341: indicador "Vigilia" (Long Watch, render-only, $0 arte, DARK). Con LONG_WATCH.enabled:false NUNCA corre ⇒ salida byte-idéntica (0 refs render fuera de
+    // este gate). ON: glifo ⌖ procedural (retícula de vigía) + "Vigilia: <zona> T<n>" — el streak (segundos-continuos) server-authoritative de la zona del héroe
+    // (sim.longWatchVM, autoridad en sim) ⇒ MISMO tier/streak/buff para todos los clientes en la zona. Cosmético puro.
+    if(LONG_WATCH.enabled) renderLongWatchBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3526,6 +3530,39 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + diversidad (clases distintas)
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" ×"+div):(w.confable?("×"+div):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2341: badge "Vigilia" ($0 arte, render-only, DARK). Autoridad en sim (longWatchVM). Glifo ⌖ procedural = anillo de vigía + arco creciente (fracción por tier) +
+  // manecilla = TIEMPO sostenido; resalta cuando el héroe está en una zona en Vigilia (recibe el passive compartido). Muestra tier + streak LIVE. Cosmético (no lee/escribe RNG ni save).
+  function renderLongWatchBadge(){
+    const w=sim.longWatchVM&&sim.longWatchVM(); if(!w) return;             // pre-primer-tick (G.longWatch null) ⇒ streak 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+252, sw=14, sh=14;                             // bajo la Confluencia (@+230); gap anti-solape (CAS-2263)
+    const tier=w.tier|0, here=tier>0, streak=w.streak|0;
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(3.0+tier*0.5))):0.55;
+    const glyph=here?"#d8c48a":"#8a9bb0";                                 // vigilia=ámbar-vela (fuego de guardia), inerte=gris
+    const zn=w.zone?STR.zoneName(w.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⌖ vigía: anillo + arco creciente (fracción tier/tierCount) + manecilla = tiempo sostenido, procedural
+    ctx.beginPath(); ctx.arc(cx,cy,sw*0.44,0,6.28);
+    ctx.fillStyle=here?"rgba(120,100,50,0.55)":"rgba(74,84,100,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.78)"; ctx.stroke();
+    if(here){ ctx.strokeStyle=glyph; ctx.lineWidth=1.5; ctx.lineCap="round";
+      const frac=Math.max(0.15,Math.min(1,tier/Math.max(1,w.tierCount|0)));
+      ctx.beginPath(); ctx.arc(cx,cy,sw*0.30,-1.5708,-1.5708+6.283*frac); ctx.stroke();   // arco = progreso de tier
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx,cy-3.6); ctx.stroke(); }           // manecilla de vigilia
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Vigilia: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#efe0b0":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + streak (segundos-continuos)
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" "+streak+"s"):(w.watchable?(streak+"s"):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();

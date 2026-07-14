@@ -2244,6 +2244,39 @@ export const DIVERSE_COMPANY = {
   ],
 };
 
+// CAS-2341: VIGILIA / LONG WATCH (DARK, LONG_WATCH) — EVO mecánica #54. Eje FRESCO: CONTINUIDAD TEMPORAL de habitación de una zona (≠ arco #47-53).
+// No es headcount instantáneo (Congregación #51), ni footfall acumulado por celda (Sendero #52), ni variedad de clases (Confluencia #53), ni zona por reloj
+// (World Pulse #50). Es CUÁNTO TIEMPO una zona lleva OCUPADA SIN INTERRUPCIÓN por ≥1 jugador — una "vigilia" sostenida por la comunidad vía RELEVO/hand-off.
+//   · SERVER-AUTHORITATIVE (fuente de verdad de la continuidad): el server mantiene por zona un `streak` (segundos-ocupados-continuos) que SUBE mientras haya ≥1
+//     jugador presente y DECAE determinista (vida-media fija, 0 RNG) al vaciarse; si el hueco vacío supera `gapBreakSec` el streak se ROMPE (→0). El server EMPUJA
+//     el snapshot { zona → { streak, atMs, present } }; el cliente sólo lo REFLEJA + proyecta al `now` compartido (0 confianza). En Stage-1 el snapshot se inyecta por
+//     hook (mismo patrón que WAYFARER_TRAIL inyecta el tread) ⇒ 2 clientes con el MISMO snapshot+reloj convergen byte-a-byte (mismo streak/tier/buff, 0 desync).
+//   · PROYECCIÓN determinista al `now`: present>0 ⇒ streak_now = min(cap, streak + (now−atMs)); present==0 ⇒ si (now−atMs) > gapBreakSec ⇒ 0 (roto), si no
+//     streak_now = streak · 0.5^((now−atMs)/halfLife) (decae). Función pura del snapshot+reloj (0 RNG, 0 histéresis) ⇒ N clientes convergen.
+//   · TIERS por UMBRAL de segundos-continuos (deterministas): <t1 ⇒ Tier 0 (sin efecto); ≥t1 ⇒ T1; ≥t2 ⇒ T2; ≥t3 ⇒ T3. Cruzar arriba abre la Vigilia; el decay/
+//     ruptura al vaciarse la baja de tier. 1 jugador que entra y SALE NO la abre (el streak decae/rompe antes de cruzar t1 salvo que alguien RELEVE — hand-off social).
+//   · PASSIVE COMPARTIDO (continuidad): TODO jugador presente en una zona en Vigilia (tier≥1) recibe el MISMO Δ del tier vigente (REUSA el canal RESTED_XP
+//     restedMult). Emergente, sin binding: NO per-hero, NO clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (0 estado nuevo).
+//   · PRECEDENCIA NO-stack / MÁXIMO ÚNICO: LONG_WATCH es la MÁS BAJA del canal restedMult (9ª y última fuente) ⇒ CEDE (return 0) a STANDINGS > MENTOR > SOUL >
+//     PULSE > CONGREGATION > WAYFARER > DIVERSE_COMPANY ⇒ se aplica el MAYOR pasivo vigente, NUNCA doble-dip. FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten.
+//   · INDICADOR $0-arte: badge de texto "Vigilia: <zona> T<n>" (reusa la fila de badges + glifo procedural), 0 arte nuevo.
+// HARD-GATED: enabled:false ⇒ tickLongWatch jamás corre (Date.now nunca se llama), G.longWatch/G.longWatchServer NUNCA se crean, longWatchMul RETURN 0, longWatchTag ""
+// ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey). Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const LONG_WATCH = {
+  enabled: false,            // DARK (EVO#54). Se construye/QAs en DARK; el flip a LIVE es un issue posterior (mirror DIVERSE_COMPANY/WAYFARER_TRAIL/CONGREGATION).
+  channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY (ver longWatchMul). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Vigilia (mirror CONGREGATION/WORLD_PULSE/DIVERSE_COMPANY.zones — reusa las zonas de caza).
+  halfLifeSec: 45,           // vida-media del DECAY determinista (sin RNG) del streak al vaciarse la zona: cae a la mitad cada 45s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  gapBreakSec: 60,           // si la zona lleva vacía MÁS de esto (s), el streak se ROMPE (→0): la vigilia se pierde si nadie releva a tiempo. CEO balance knob.
+  capSec: 600,               // techo del streak (s) (evita crecimiento ilimitado; el tier máx se satura mucho antes). CEO balance knob.
+  // TABLA de tiers: umbral de SEGUNDOS-OCUPADOS-CONTINUOS (min, inclusivo) → boost restedMult. Tier vigente = el más alto cuyo `min` ≤ streak (determinista, monótono).
+  tiers: [
+    { min: 30,  boost: 0.05 },   // Tier 1 — vigilia naciente (≥30s continuos): pasivo suave.
+    { min: 90,  boost: 0.10 },   // Tier 2 — vigilia firme (≥90s): pasivo medio.
+    { min: 180, boost: 0.15 },   // Tier 3 — vigilia plena (≥180s): pasivo pleno. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

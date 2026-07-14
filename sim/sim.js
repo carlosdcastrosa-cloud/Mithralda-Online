@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3471,6 +3471,57 @@ export function confluenceVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):nu
     classes:Object.keys(roster), roster:Object.assign({},roster),
     boostKind:DIVERSE_COMPANY.channel||"restedMult", boost: h?confMul(h,DIVERSE_COMPANY.channel||"restedMult"):0 }; }
 
+// CAS-2341: VIGILIA / LONG WATCH — EVO #54, eje FRESCO de CONTINUIDAD TEMPORAL (cuánto lleva una zona OCUPADA SIN INTERRUPCIÓN por ≥1 jugador; NO headcount/footfall/
+// composición/reloj). El server mantiene por zona un `streak` (segundos-ocupados-continuos) que SUBE con presencia y DECAE determinista al vaciarse (rompe si el hueco
+// supera gapBreakSec), EMPUJA { zona → { streak, atMs, present } }; el cliente lo REFLEJA y lo PROYECTA al `now` compartido. Al cruzar umbrales (tiers) la zona entra en
+// Vigilia y da a TODOS los presentes el MISMO passive (canal RESTED_XP). 1 jugador que entra y sale NO la abre. 2 clientes con el mismo snapshot+reloj convergen byte-a-byte.
+// longWatchTier(streakSec) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ segundos-continuos. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function longWatchTier(streakSec){ const T=LONG_WATCH.tiers||[]; streakSec=+streakSec||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && streakSec>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost restedMult del tier vigente (0 si Tier 0). Puro. El gate global lo cubre longWatchMul; aquí sólo la TABLA determinista.
+function longWatchBoost(streakSec){ const t=longWatchTier(streakSec); return t>0 ? (+LONG_WATCH.tiers[t-1].boost||0) : 0; }
+// streak PROYECTADO (segundos-ocupados-continuos) de una zona leído del snapshot reflejado en G.longWatch.streaks (ya proyectado al `now` por tickLongWatch). 0 si sin snapshot / zona ausente. Puro.
+function longWatchStreak(zone){ const g=G.longWatch; if(!g||!g.streaks||!zone) return 0; return +g.streaks[zone]||0; }
+function longWatchWatching(zone){ return longWatchTier(longWatchStreak(zone))>0; }
+// longWatchMul(h,kind) = el passive COMPARTIDO de los presentes en una zona en Vigilia (tier≥1), en el canal restedMult (REUSA RESTED_XP), con PRECEDENCIA EXPLÍCITA
+// anti-stacking (LONG_WATCH es la MÁS BAJA del canal ⇒ MÁXIMO ÚNICO): CEDE (return 0) a STANDINGS, MENTOR, SOUL, PULSE, CONGREGATION, WAYFARER y DIVERSE_COMPANY ⇒ se
+// aplica el MAYOR (0 doble-dip). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function longWatchMul(h,kind){ if(!LONG_WATCH.enabled||!h) return 0;
+  if(kind!==(LONG_WATCH.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ VIGILIA cede
+  if(mentorMul(h,kind)>0) return 0;      // MENTOR (personal) gana ⇒ cede
+  if(soulMul(h,kind)>0) return 0;        // SOUL (recuperación) gana ⇒ cede
+  if(pulseMul(h,kind)>0) return 0;       // PULSE (ambiental del reloj) gana ⇒ cede
+  if(congMul(h,kind)>0) return 0;        // CONGREGATION (headcount) gana ⇒ cede
+  if(wayfarerMul(h,kind)>0) return 0;    // WAYFARER (traversal) gana ⇒ cede
+  if(confMul(h,kind)>0) return 0;        // DIVERSE_COMPANY (composición) gana ⇒ cede (LONG_WATCH es la MÁS BAJA del canal)
+  const z=zoneOf(world,h.x,h.y); if(!z || (LONG_WATCH.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona que pueda vigilar ⇒ 0
+  return longWatchBoost(longWatchStreak(z));   // el Δ del tier vigente por los segundos-continuos server-authoritative de esa zona
+}
+// tick de la VIGILIA (mirror tickWayfarer): REFLEJA el snapshot server-authoritative { zona → { streak, atMs, present } } (empujado por el server, cacheado en
+// G.longWatchServer) y lo PROYECTA al `now` compartido hacia G.longWatch.streaks: present>0 ⇒ sube (min cap, streak+(now−atMs)); present==0 ⇒ ROMPE si el hueco supera
+// gapBreakSec, si no DECAE por vida-media (0 RNG). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca (Date.now nunca se llama) ⇒ G.longWatch/G.longWatchServer
+// NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real (prueba subida/decay/ruptura + convergencia).
+function tickLongWatch(nowArg){ if(!LONG_WATCH.enabled) return; const now=(nowArg!=null?+nowArg:(G.longWatchNow!=null?+G.longWatchNow:Date.now()));   // fallback al reloj inyectado (dev/QA) para que el re-tick del game-loop no reintroduzca Date.now REAL entre frames (footgun heredado wayfarer/pulse); en producción G.longWatchNow es null ⇒ Date.now
+  const src=G.longWatchServer||{}, streaks={}, hl=Math.max(1,(LONG_WATCH.halfLifeSec|0))*1000, gap=Math.max(0,(LONG_WATCH.gapBreakSec|0))*1000, cap=Math.max(0,(LONG_WATCH.capSec|0));
+  for(const z of (LONG_WATCH.zones||[])){ const raw=src[z]; if(!raw) continue;
+    const base=Math.max(0,+raw.streak||0), atMs=+raw.atMs||0, present=(raw.present|0), dtMs=Math.max(0,now-atMs);
+    let s;
+    if(present>0){ s=base + dtMs/1000; if(cap>0) s=Math.min(cap,s); }   // ocupada ⇒ el streak SUBE con el tiempo transcurrido (techo cap)
+    else if(dtMs>gap){ s=0; }                                          // hueco vacío > umbral ⇒ la vigilia se ROMPE
+    else { s=base * Math.pow(0.5, dtMs/hl); }                          // vacía dentro del umbral ⇒ DECAE por vida-media
+    if(s>0) streaks[z]=s; }
+  G.longWatch={ streaks, nowMs:now }; }
+// glifo de la Vigilia para el badge (mirror wayfarerTag/confTag): ⌖ (retícula de vigía) si la zona del héroe está en Vigilia (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function longWatchTag(h){ h=h||G.hero; if(!LONG_WATCH.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(LONG_WATCH.zones||[]).indexOf(z)<0) return ""; return longWatchWatching(z) ? "⌖" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su streak LIVE server-authoritative, tier vigente y passive efectivo. 0 sim/RNG/side-effect.
+export function longWatchVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const watchable=!!(z && (LONG_WATCH.zones||[]).indexOf(z)>=0);
+  const streak=watchable?longWatchStreak(z):0, tier=watchable?longWatchTier(streak):0;
+  return { enabled:!!LONG_WATCH.enabled, zone:z, watchable, streak:+streak.toFixed(2), tier, tierCount:(LONG_WATCH.tiers||[]).length,
+    boostKind:LONG_WATCH.channel||"restedMult", boost: h?longWatchMul(h,LONG_WATCH.channel||"restedMult"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4509,7 +4560,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; confMul CEDE a standings/mentor/soul/pulse/cong/wayfarer ⇒ MÁXIMO ÚNICO, 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) + passive de VIGILIA (continuidad temporal) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; longWatchMul CEDE a standings/mentor/soul/pulse/cong/wayfarer/conf ⇒ MÁXIMO ÚNICO, 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -5891,6 +5942,7 @@ export function update(dtMs){
   if(CONGREGATION.enabled) tickCongregation(); // CAS-2332: Congregación — refleja el headcount server-authoritative por zona (transitorio en G.congregation/G.congServer, SIN estado per-hero/serializado, gated ⇒ OFF nunca se crea ⇒ byte-id)
   if(WAYFARER_TRAIL.enabled) tickWayfarer(); // CAS-2335: Sendero Trillado — refleja el tread server-authoritative por celda coarse + DECAY determinista por vida-media (transitorio en G.wayfarer/G.wayfarerServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(DIVERSE_COMPANY.enabled) tickConfluence(); // CAS-2338: Confluencia — refleja la composición server-authoritative { zona → { clase → cuenta } } por zona (diversidad = clases distintas; transitorio en G.confluence/G.confServer, SIN estado per-hero/serializado, gated ⇒ OFF nunca se crea ⇒ byte-id)
+  if(LONG_WATCH.enabled) tickLongWatch(); // CAS-2341: Vigilia — refleja el snapshot server-authoritative { zona → { streak, atMs, present } } y lo proyecta al reloj compartido (streak sube con presencia, decae/rompe al vaciar; transitorio en G.longWatch/G.longWatchServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -7514,6 +7566,42 @@ export const dev = {
       precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental > congregation_headcount > wayfarer_traversal > diverse_company_composicion) ⇒ CONFLUENCIA cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER (mismo canal, MÁXIMO ÚNICO, 0 doble-dip); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
       rosters: (G.confluence&&G.confluence.rosters)?JSON.parse(JSON.stringify(G.confluence.rosters)):null,   // snapshot server-authoritative reflejado (convergencia byte-a-byte entre clientes)
       gExists:(G.confluence!=null),                                          // prueba byte-id: OFF ⇒ G.confluence NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2341: VIGILIA / LONG WATCH OBSERVABLE hook (DARK, LONG_WATCH). Snapshot AUTORITATIVO (sim) de la continuidad temporal server-authoritative { zona → { streak,
+  // atMs, present } } + flip/drivers IN-MEMORY para OBSERVAR en DARK sin server real (disco sigue false, patrón __dev.wayfarer). El snapshot+reloj INYECTADOS prueban
+  // el determinismo "mismo streak/reloj ⇒ mismo tier/passive" (convergencia byte-idéntica en N clientes, 0 desync) + subida con presencia / decay al vaciar / ruptura tras hueco.
+  //   longWatch()                                       → {enabled,channel,zones,tiers,halfLifeSec,gapBreakSec,capSec,zone,watchable,streak,tier,tierCount,boost,longWatchMulRested,restedXpMult,peer muls,tag,precedence,streaks,gExists,nowMs,hero}
+  //   longWatch({enabled:true})                         → flip runtime IN-MEMORY de LONG_WATCH.enabled (streak/passive sin tocar el disco)
+  //   longWatch({nowMs})                                → fija el reloj compartido (subida/decay/ruptura) y RE-TICKea el snapshot ⇒ streak proyectado a ese instante (0 espera real)
+  //   longWatch({push:{forest:{streak,atMs,present}}})  → el server EMPUJA el snapshot crudo por zona ⇒ el cliente lo REFLEJA (proyecta con nowMs)
+  //   longWatch({zone,streak,atMs,present})             → conveniencia: empuja el estado de UNA zona (default la del héroe / la 1ª) — 0 hotkey
+  //   longWatch({toZone})                               → teleporta el héroe a una tile determinista de esa zona (observa el passive compartido)
+  //   longWatch({leave:true})                           → aleja el héroe de toda zona (el passive cae a 0)
+  //   longWatch({clear:true})                           → limpia el snapshot server (todas las zonas vuelven sin vigilia)
+  longWatch(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) LONG_WATCH.enabled=!!p.enabled;
+      if("nowMs" in p){ G.longWatchNow=+p.nowMs; tickLongWatch(G.longWatchNow); }
+      if("push" in p){ G.longWatchServer=Object.assign({}, G.longWatchServer||{}, p.push||{}); tickLongWatch(G.longWatchNow); }   // el server empuja el estado crudo por zona ⇒ refleja+proyecta
+      if(("streak" in p) || ("present" in p)){ const zn=(typeof p.zone==="string")?p.zone:((G.hero?zoneOf(world,G.hero.x,G.hero.y):null) || ((LONG_WATCH.zones||[])[0]));
+        if(zn){ const at=("atMs" in p)?+p.atMs:(G.longWatchNow!=null?+G.longWatchNow:0);
+          G.longWatchServer=Object.assign({}, G.longWatchServer||{}); G.longWatchServer[zn]={ streak:+p.streak||0, atMs:at, present:(p.present|0) }; tickLongWatch(G.longWatchNow); } }
+      if(p.clear){ G.longWatchServer={}; tickLongWatch(G.longWatchNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((LONG_WATCH.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+    }
+    const h=G.hero, vm=longWatchVM(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0) + (h?pulseMul(h,"restedMult"):0) + (h?congMul(h,"restedMult"):0) + (h?wayfarerMul(h,"restedMult"):0) + (h?confMul(h,"restedMult"):0) + (h?longWatchMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: VIGILIA cede a TODOS los canales previos)
+    return { enabled:LONG_WATCH.enabled, channel:LONG_WATCH.channel||"restedMult", zones:(LONG_WATCH.zones||[]).slice(), tiers:(LONG_WATCH.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost})), halfLifeSec:LONG_WATCH.halfLifeSec|0, gapBreakSec:LONG_WATCH.gapBreakSec|0, capSec:LONG_WATCH.capSec|0,
+      zone:vm.zone, watchable:vm.watchable, streak:vm.streak, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      longWatchMulRested: h?longWatchMul(h,"restedMult"):0,                   // knob efectivo del passive (prueba: OFF/no-en-zona/tier0/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                        // mult efectivo (prueba precedencia: VIGILIA cede si standings/mentor/soul/pulse/cong/wayfarer/conf aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0, soulMulRested: h?soulMul(h,"restedMult"):0, pulseMulRested: h?pulseMul(h,"restedMult"):0, congMulRested: h?congMul(h,"restedMult"):0, wayfarerMulRested: h?wayfarerMul(h,"restedMult"):0, confMulRested: h?confMul(h,"restedMult"):0,
+      tag: longWatchTag(h),                                                  // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / vigilia ⇒ ⌖)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental > congregation_headcount > wayfarer_traversal > diverse_company_composicion > long_watch_continuidad) ⇒ VIGILIA cede a TODOS los canales previos (mismo canal, MÁXIMO ÚNICO, 0 doble-dip); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      streaks: (G.longWatch&&G.longWatch.streaks)?JSON.parse(JSON.stringify(G.longWatch.streaks)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.longWatch!=null),                                           // prueba byte-id: OFF ⇒ G.longWatch NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.longWatch&&G.longWatch.nowMs)||null,                          // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
