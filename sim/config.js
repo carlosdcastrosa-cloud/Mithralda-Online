@@ -2405,7 +2405,7 @@ export const BATTLE_SYNC = {
 // HARD-GATED: enabled:false ⇒ tickConvoy jamás corre (Date.now nunca se llama), G.convoy/G.convoyServer NUNCA se crean, convoyMul RETURN 0, convoyTag ""
 // ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL emerge del movimiento existente, 0 hotkey/input nuevo). Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const CONVOY_MARCH = {
-  enabled: false,            // DARK. Gate CEO flippea enabled:false→true (config-only 1-línea, reversible, mirror INFLUX_SURGE/FRONTIER_SPREAD/LONG_WATCH).
+  enabled: true,             // LIVE (CAS-2359 flip false→true, EVO#58; Gate CEO APPROVED byte-verify LIVE 310253B 9/9 flags served true 0-regr; config-only 1-línea, reversible, mirror INFLUX_SURGE/FRONTIER_SPREAD/LONG_WATCH/BATTLE_SYNC).
   channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY/LONG_WATCH/FRONTIER_SPREAD/INFLUX_SURGE/BATTLE_SYNC (ver convoyMul). CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Marcha (mirror INFLUX_SURGE/FRONTIER_SPREAD/CONGREGATION.zones — reusa las zonas de caza).
   minSpeed: 0.5,             // rapidez mínima (px/tick) para contar como EN MOVIMIENTO: por debajo el jugador está QUIETO y NO cuenta para la coherencia. CEO balance knob.
