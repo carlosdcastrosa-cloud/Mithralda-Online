@@ -1,0 +1,3 @@
+{ "class":"paladin", "base":"https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/336df0da-587c-4408-84ec-af33b142131c/",
+  "walk":   { "down":["3b757741-dbb5-4ee6-9873-c648af142c65",6], "up":["e071f714-7ebd-4df1-bfa4-ffdd1ed54e5c",6], "side":["95e3bb1b-c063-4245-981a-670125aca089",6] },
+  "attack": { "down":["85e465e5-791f-447a-b6bb-0519215c0b69",8], "up":["a9e56eff-2061-443b-8d9f-ecb22022b918",8], "side":["4f424f0b-17cb-43a7-895a-549ec221f8e8",8] } }

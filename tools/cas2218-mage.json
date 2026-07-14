@@ -1,0 +1,3 @@
+{ "class":"mage", "base":"https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/d25a83b4-b8b3-4b1e-b67c-9206ffe4fec2/",
+  "walk":   { "down":["31422c64-c7df-407c-9b0f-d06c7e0a0595",6], "up":["6ed7c4aa-2bd1-411e-976f-63cdc700dd82",6], "side":["fa20a952-aec6-4c3e-8519-28ab51c07333",6] },
+  "attack": { "down":["86c4baed-9345-4691-a957-98fd8ad30eac",8], "up":["5cde40dc-e118-4146-b122-06021dad5f04",8], "side":["5b9d4a5f-f6e6-423f-864a-2e923770f350",8] } }

@@ -1,0 +1,12 @@
+{
+  "priest": {
+    "fc": {
+      "idle": 2,
+      "walk": 6,
+      "attack": 8
+    },
+    "fw": 88,
+    "fh": 64,
+    "note": "CAS-2218: walk+idle+attack, one loco transform (walk+rot basis); idle=breathing bob"
+  }
+}
