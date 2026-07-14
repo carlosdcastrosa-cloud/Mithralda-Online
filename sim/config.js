@@ -2313,6 +2313,41 @@ export const FRONTIER_SPREAD = {
   ],
 };
 
+// CAS-2352: AFLUENCIA / INFLUX SURGE (DARK, INFLUX_SURGE) — EVO mecánica #56. Eje FRESCO: TASA DE LLEGADA (flujo/afluencia) — cuántos jugadores NUEVOS CRUZAN HACIA una zona
+// por ventana de tiempo. Ortogonal a todo el arco: ≠ Congregación #51 (headcount/densidad, *cuántos están*), ≠ Sendero #52 (footfall acumulado por celda, *camino*), ≠
+// Confluencia #53 (variedad de clases, *qué tan distintos*), ≠ Vigilia #54 (continuidad temporal, *cuánto tiempo seguido*), ≠ Expedición #55 (dispersión espacial, *cómo se
+// reparten*), ≠ World Pulse #50 (reloj global). Aquí importa el FLUJO / la DERIVADA: el RITMO de ENTRADAS (transiciones fuera→dentro de la zona), no el stock presente.
+//   · SERVER-AUTHORITATIVE (fuente de verdad del flujo): el server, por zona, detecta las LLEGADAS = jugadores cuyo id NO estaba dentro en el snapshot previo y AHORA sí
+//     (transición de borde, EDGE-triggered). Acumula esas llegadas en un `surge` (intensidad de afluencia) y empuja { zona → { surge, atMs } }; el cliente sólo lo REFLEJA +
+//     PROYECTA al `now` compartido con DECAY determinista (0 confianza). En Stage-1 el snapshot se inyecta por hook (mismo patrón que FRONTIER_SPREAD inyecta la cobertura y
+//     LONG_WATCH el streak) ⇒ 2 clientes con el MISMO snapshot+reloj convergen byte-a-byte (mismo surge/tier/buff, 0 desync).
+//   · CÓMPUTO DE LLEGADAS = función PURA (influxArrivals): dados los ids DENTRO antes y AHORA, cuenta |ids nuevos| (presentes ahora y NO antes). Casos borde byte-verificables:
+//     prev==now (MISMA multitud quieta, aunque sean 50) ⇒ 0 llegadas (NO abre — distingue de Congregación, que SÍ abre por headcount); todos ids nuevos ⇒ llegadas=|now| (abre).
+//   · ACUMULADOR con DECAY (mirror #55/#54/#52): cada llegada SUMA al surge; el surge DECAE vida-media halfLifeSec al parar el flujo (surge_now = surge·0.5^((now−atMs)/halfLife),
+//     0 RNG, 0 histéresis, techo capSurge) ⇒ N clientes convergen. Una multitud que DEJA de recibir recién-llegados ve su surge caer a 0 (el flujo es TRANSITORIO por diseño).
+//   · TIERS por UMBRAL de surge proyectado (deterministas, monótonos): <2 ⇒ Tier 0 (sin efecto); ≥2 ⇒ T1; ≥4 ⇒ T2; ≥6 ⇒ T3. Cruzar arriba abre la Afluencia; el decay al parar
+//     el flujo la baja de tier. 1 llegada suelta (o una multitud estática sin recién-llegados) NUNCA abre — premia atraer un FLUJO de recién-llegados / ondas de entrada.
+//   · PASSIVE COMPARTIDO (afluencia): TODO jugador presente en una zona en Afluencia (tier≥1) recibe el MISMO Δ del tier vigente (REUSA el canal RESTED_XP restedMult).
+//     Emergente, sin binding: NO per-hero, NO clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (0 estado nuevo).
+//   · PRECEDENCIA NO-stack / MÁXIMO ÚNICO: INFLUX_SURGE es la MÁS BAJA del canal restedMult (11ª y última fuente) ⇒ CEDE (return 0) a STANDINGS > MENTOR > SOUL > PULSE >
+//     CONGREGATION > WAYFARER > DIVERSE_COMPANY > LONG_WATCH > FRONTIER_SPREAD ⇒ se aplica el MAYOR pasivo vigente, NUNCA doble-dip. FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten.
+//   · INDICADOR $0-arte: badge de texto "Afluencia: <zona> T<n>" (reusa la fila de badges + glifo procedural ⇈ = flechas de entrada ascendentes), 0 arte nuevo.
+// HARD-GATED: enabled:false ⇒ tickInflux jamás corre (Date.now nunca se llama), G.influx/G.influxServer NUNCA se crean, influxMul RETURN 0, influxTag ""
+// ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey). Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const INFLUX_SURGE = {
+  enabled: true,             // LIVE (CAS-2353 flip EVO#56 Afluencia). Reversible 1-línea true→false + re-run overlay. CEO Gate APPROVED (QA DARK 14/14 ×2, 0-regr 7 flags).
+  channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY/LONG_WATCH/FRONTIER_SPREAD (ver influxMul). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Afluencia (mirror FRONTIER_SPREAD/CONGREGATION/LONG_WATCH.zones — reusa las zonas de caza).
+  halfLifeSec: 30,           // vida-media del DECAY determinista (sin RNG) del surge al PARAR el flujo: cae a la mitad cada 30s (más rápido que Expedición #55=45s — el flujo es transitorio). Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capSurge: 10,              // techo del surge proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  // TABLA de tiers: umbral de surge (llegadas acumuladas proyectadas, min inclusivo) → boost restedMult. Tier vigente = el más alto cuyo `min` ≤ surge. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — afluencia naciente (≥2 recién-llegados en la ventana): pasivo suave.
+    { min: 4, boost: 0.10 },   // Tier 2 — afluencia firme (≥4): pasivo medio.
+    { min: 6, boost: 0.15 },   // Tier 3 — oleada/surge plena (≥6): pasivo pleno. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
