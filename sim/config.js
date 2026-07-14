@@ -2335,7 +2335,7 @@ export const FRONTIER_SPREAD = {
 // HARD-GATED: enabled:false ⇒ tickInflux jamás corre (Date.now nunca se llama), G.influx/G.influxServer NUNCA se crean, influxMul RETURN 0, influxTag ""
 // ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey). Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const INFLUX_SURGE = {
-  enabled: false,            // DARK. Gate CEO flippea enabled:false→true (config-only 1-línea, reversible, mirror FRONTIER_SPREAD/LONG_WATCH/WAYFARER_TRAIL/DIVERSE_COMPANY).
+  enabled: true,             // LIVE (CAS-2353 flip EVO#56 Afluencia). Reversible 1-línea true→false + re-run overlay. CEO Gate APPROVED (QA DARK 14/14 ×2, 0-regr 7 flags).
   channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY/LONG_WATCH/FRONTIER_SPREAD (ver influxMul). CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Afluencia (mirror FRONTIER_SPREAD/CONGREGATION/LONG_WATCH.zones — reusa las zonas de caza).
   halfLifeSec: 30,           // vida-media del DECAY determinista (sin RNG) del surge al PARAR el flujo: cae a la mitad cada 30s (más rápido que Expedición #55=45s — el flujo es transitorio). Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
