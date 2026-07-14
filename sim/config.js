@@ -2167,7 +2167,7 @@ export const WORLD_PULSE = {
 // worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave serializada). SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey nuevo).
 // Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO.
 export const CONGREGATION = {
-  enabled: false,            // DARK — flip 1-línea false→true (mismo patrón que WORLD_PULSE/SOUL_RECOVERY/ORDER_CONTEST).
+  enabled: true,             // CAS-2333 LIVE FLIP (Gate CEO APROBADO, QA 18/18 ×2 build c4a549ae2fa1). false→true (config-only 1-línea, reversible, mirror WORLD_PULSE/SOUL_RECOVERY/ORDER_CONTEST).
   channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: cede a STANDINGS/MENTOR/SOUL/PULSE (mismo canal, ver congMul). CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden congregarse (mirror WORLD_PULSE.zones/SOUL_RECOVERY.zones — reusa las zonas de caza).
   // TABLA de tiers: umbral de headcount (min, inclusivo) → boost restedMult. Tier vigente = el más alto cuyo `min` ≤ cuenta LIVE (determinista, monótono).
