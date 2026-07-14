@@ -353,6 +353,12 @@ export function createGame(canvas, ctx, getView){
       // (convergencia byte-a-byte, MISMO tier/cuenta/buff en N clientes con el MISMO snapshot); congregation({toZone:"forest"}) teleporta a esa zona (observa
       // el passive compartido); congregation({leave}) aleja de toda zona. SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL, sin input.js).
       congregation:(p)=>simDev.congregation(p),
+      // CAS-2335: SENDERO TRILLADO / WELL-TRODDEN PATH OBSERVABLE hook (DARK, WAYFARER_TRAIL). wayfarer() lee el tread server-authoritative por celda coarse +
+      // DECAY determinista + sendero/pasivo derivados; wayfarer({enabled}) flip in-memory; wayfarer({nowMs}) fija el reloj compartido (decay); wayfarer({push})
+      // el server empuja el snapshot {celda→{tread,atMs}}; wayfarer({tread,atMs}) empuja en la celda ACTUAL del héroe; wayfarer({toZone}) teleporta; wayfarer({leave})
+      // aleja de toda celda; wayfarer({clear}) limpia el snapshot. Convergencia byte-a-byte (MISMO snapshot+reloj ⇒ MISMO sendero/pasivo en N clientes). SOLO lectura /
+      // drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de traversal, sin input.js).
+      wayfarer:(p)=>simDev.wayfarer(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

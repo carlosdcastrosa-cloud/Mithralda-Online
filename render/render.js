@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -358,6 +358,10 @@ export function createRenderer(ctx){
     // (0 refs render fuera de este gate). ON: glifo ⛭ procedural (anillo + puntos = tier) + "Congregación: <zona> T<n> ×N" — el headcount LIVE server-
     // authoritative de la zona del héroe (sim.congregationVM, autoridad en sim) ⇒ MISMO tier/cuenta/buff para todos los clientes en la zona. Cosmético puro.
     if(CONGREGATION.enabled) renderCongregationBadge();
+    // CAS-2335: indicador "Sendero Trillado" (Well-Trodden Path, render-only, $0 arte, DARK). Con WAYFARER_TRAIL.enabled:false NUNCA corre ⇒ salida byte-idéntica
+    // (0 refs render fuera de este gate). ON: glifo ⌇ procedural (traza sinuosa) + "Sendero Trillado" — la celda coarse server-authoritative que el héroe transita
+    // y su tread decaído (sim.wayfarerVM, autoridad en sim) ⇒ MISMO sendero/pasivo para todos los clientes con el mismo snapshot. Resalta si es un Sendero Trillado. Cosmético puro.
+    if(WAYFARER_TRAIL.enabled) renderWayfarerBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3457,6 +3461,37 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + headcount
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" ×"+cnt):(w.congable?("×"+cnt):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2335: badge "Sendero Trillado" ($0 arte, render-only, DARK). Autoridad en sim (wayfarerVM). Glifo ⌇ procedural = traza sinuosa (el sendero);
+  // resalta cuando el héroe transita una celda que cruzó el umbral de tránsito (recibe el passive compartido). Muestra el tread decaído vs umbral. Cosmético (no lee/escribe RNG ni save).
+  function renderWayfarerBadge(){
+    const w=sim.wayfarerVM&&sim.wayfarerVM(); if(!w) return;               // pre-primer-tick (G.wayfarer null) ⇒ tread 0 ⇒ no trillada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+208, sw=14, sh=14;                             // bajo la Congregación (@+186); gap anti-solape (CAS-2263)
+    const here=!!w.trodden, tread=+w.tread||0, thr=+w.threshold||1;
+    const frac=Math.max(0,Math.min(1,tread/thr));
+    const pulse=here?(0.74+0.20*Math.sin(G.t*3.0)):0.55;
+    const glyph=here?"#c8b68a":"#8a9bb0";                                 // sendero abierto=arena/tierra pisada, inerte=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⌇ traza del sendero: dos surcos sinuosos procedurales (huella de tránsito)
+    ctx.beginPath(); ctx.arc(cx,cy,sw*0.44,0,6.28);
+    ctx.fillStyle=here?"rgba(120,100,66,0.6)":"rgba(74,84,100,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.78)"; ctx.stroke();
+    ctx.lineWidth=1.4; ctx.lineCap="round"; ctx.strokeStyle=here?glyph:"rgba(138,155,176,0.7)";
+    for(let s=-1;s<=1;s+=2){ ctx.beginPath(); for(let i=0;i<=6;i++){ const px=cx-4+i*1.35, py=cy+s*1.6+Math.sin(i*1.1)*1.5; if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py); } ctx.stroke(); }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Sendero Trillado";
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#e9dcb8":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): trillado ✓ / progreso de tránsito %
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?"⌇ activo":(Math.round(frac*100)+"%");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();
