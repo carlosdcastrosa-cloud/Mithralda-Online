@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -384,6 +384,7 @@ export function createRenderer(ctx){
     if(CONVOY_MARCH.enabled) renderConvoyBadge();
     if(WARDING_RING.enabled) renderWardBadge(); // CAS-2362: Cordón de Guardia — badge de recuperación (canal wardRegen); resalta si la zona tiene un Cordón (cobertura angular sostenida). Cosmético puro.
     if(KINSHIP_BOND.enabled) renderKinshipBadge(); // CAS-2361: Camaradería — badge de vínculo (canal goldFind); resalta si la zona tiene un vínculo forjado (pares próximos sostenidos). Cosmético puro.
+    if(WAYFARER_ROAM.enabled) renderWayRoamBadge(); // CAS-2369: Trotamundos — badge de rumbo (canal oocMitigation); resalta si el jugador tiene un roam abierto (amplitud de celdas distintas en la ventana). Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3785,6 +3786,39 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + kinship (vínculo sostenido)
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" "+kin):(k.bondable?(kin+""):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2369: badge de TROTAMUNDOS (WAYFARER_ROAM). Refleja el VM PURO (sim.wayRoamVM, autoridad en sim) ⇒ MISMO breadth/tier para todos los clientes con el mismo snapshot. Glifo procedural
+  // ⇈ (rumbo/brújula abierta): dos flechas ascendentes cuyo brillo sube con el tier. Cosmético puro (0 sim/RNG). $0 arte (reusa la fila de badges de recuperación).
+  function renderWayRoamBadge(){
+    const k=sim.wayRoamVM&&sim.wayRoamVM(); if(!k) return;                 // pre-primer-tick (G.wayRoam null) ⇒ breadth 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+406, sw=14, sh=14;                             // bajo la Camaradería (@+384); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, br=k.breadth|0;
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(2.6+tier*0.5))):0.55;
+    const glyph=here?"#8fe0c0":"#8a9bb0";                                 // rumbo=verde-viajero (canal oocMitigation), inerte=gris
+    const zn=k.zone?STR.zoneName(k.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2, off=sw*0.22;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⇈ dos flechas ascendentes (rumbo cubierto): el brillo sube con el tier (T1 tenue → T3 pleno) = amplitud recorrida, procedural
+    const litA=here?Math.min(1,0.35+tier*0.22):0.22;
+    ctx.lineWidth=1.8; ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle=here?glyph:"rgba(120,150,160,0.35)"; ctx.globalAlpha=pulse*litA;
+    for(const ax of [cx-off, cx+off]){
+      ctx.beginPath(); ctx.moveTo(ax, cy+sh*0.28); ctx.lineTo(ax, cy-sh*0.30); ctx.stroke();          // asta
+      ctx.beginPath(); ctx.moveTo(ax-off*0.7, cy-sh*0.06); ctx.lineTo(ax, cy-sh*0.30); ctx.lineTo(ax+off*0.7, cy-sh*0.06); ctx.stroke();   // punta
+    }
+    ctx.globalAlpha=pulse;
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Trotamundos: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#c8f0e0":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + breadth (celdas distintas)
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" "+br):(k.roamable?(br+""):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();

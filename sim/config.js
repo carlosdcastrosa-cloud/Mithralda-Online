@@ -2505,6 +2505,39 @@ export const KINSHIP_BOND = {
   ],
 };
 
+// CAS-2369: TROTAMUNDOS / WAYFARER (DARK, WAYFARER_ROAM) — EVO mecánica #61. EJE FRESCO + CANAL FRESCO, ambos OPUESTOS/⊥ a #60 Kinship y a todo lo enviado #47-60:
+//   (A) EJE FRESCO = AMPLITUD DE EXPLORACIÓN INDIVIDUAL (roaming breadth). server-authoritative, 0-RNG: por jugador el server registra su POSICIÓN (ya telemetrada) como una CELDA
+//       COARSE con marca de tiempo y cuenta el nº de CELDAS DISTINTAS que ocupa dentro de una VENTANA temporal DESLIZANTE [now−windowSec, now]. `wayRoamBreadth(marks,now,win)` PURA.
+//       El decay es EXPIRACIÓN de ventana (marcas viejas caen fuera ⇒ dejan de contar), 0-RNG determinista. Reusa las posiciones ⇒ NO input.js, sin hotkey (100% ambiental).
+//   (B) CANAL PASIVO FRESCO = `oocMitigation` (mitigación de daño FUERA DE COMBATE). DISTINTO de restedMult (XP), soulRecovery/wardRegen (HP), goldFind (oro). Un golpe que aterriza
+//       estando el héroe FUERA de combate (h._roamCombatT<=0) se MITIGA por `wayRoamMul` (fracción); ese golpe ARMA la ventana de combate (combatWindowSec) ⇒ los golpes SIGUIENTES
+//       NO se mitigan (ya en combate). El Trotamundos avezado esquiva mejor la EMBOSCADA/primer golpe. 🔑 DESACOPLADO del movimiento (NO toca move-speed ⇒ 0 feedback runaway breadth→speed→breadth
+//       y 0 riesgo de desync 2-cliente). Máx-único DENTRO de su canal (WAYFARER_ROAM única fuente ⇒ trivial); coexiste ⊥ con restedMult/goldFind/wardRegen (0 doble-conteo, seams distintos).
+//   · DIFERENCIADORES (ortogonalidad OBLIGATORIA):
+//       ≠ KINSHIP_BOND (#60, proximidad pareada SOSTENIDA): OPUESTO — premia MOVERSE y cubrir terreno, no quedarse junto a otro. Quieto ⇒ 1 sola celda ⇒ breadth 1 < 2 ⇒ NO abre. 1 jugador SOLO basta.
+//       ≠ CONVOY_MARCH (#58, rumbo común grupal): INDIVIDUAL y SIN importar dirección; moverse en CÍRCULOS cubriendo celdas distintas ⇒ cuenta (Convoy exige coherencia direccional entre varios).
+//       ≠ CONGREGATION (headcount) / WARDING_RING (#59, cobertura angular alrededor de centroide): NO es sobre otros jugadores ni ángulos; es amplitud de celdas PROPIAS de UN jugador.
+//       ≠ INFLUX_SURGE (#56, tasa de LLEGADA): NO es llegar a una zona; es cubrir muchas celdas DISTINTAS dentro de la ventana. Patrullar 1 celda / quedarse quieto ⇒ NO; cruzar muchas ⇒ SÍ.
+//   · TIERS por nº de CELDAS DISTINTAS/ventana: <2 ⇒ T0; ≥2 ⇒ T1; ≥3 ⇒ T2; ≥4 ⇒ T3. Un roam abierto (tier≥1) da −mit de daño fuera de combate al jugador presente en una zona de caza.
+//   · INDICADOR $0-arte: reusa la fila de badges de recuperación (glifo procedural ⇈ = brújula/rumbo abierto), 0 arte nuevo. El pasivo es un MULT sobre el daño YA existente en damageHero (sin nuevo sistema).
+// HARD-GATED: enabled:false ⇒ tickWayfarerRoam jamás corre (Date.now nunca se llama), G.wayRoam/G.wayRoamServer NUNCA se crean, wayRoamMul RETURN 0 (damageHero byte-idéntico: real intacto),
+// h._roamCombatT NUNCA se escribe (fuera del allowlist de serializeSave), wayRoamTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js. Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const WAYFARER_ROAM = {
+  enabled: false,            // DARK (EVO#61). Reversible 1-línea false→true (flip vía CTO tras CEO Gate + post-flip QA LIVE). SERIALIZADO tras el flip LIVE de #60 (KINSHIP_BOND) ya verificado (anti-stacking: 1 arco valida a la vez).
+  channel: "oocMitigation",  // canal PASIVO FRESCO — NO restedMult (XP), NO wardRegen/soulRecovery (HP), NO goldFind (oro). Mitigación de daño FUERA DE COMBATE en el sink damageHero. ⊥ a los demás canales. CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo aplica (mirror KINSHIP_BOND.zones — reusa las zonas de caza; la ciudad/SAFEZONE queda fuera).
+  cellSize: 128,             // px: lado de la celda coarse de roaming. Cruzar a una celda DISTINTA suma amplitud; quedarse dentro de la misma no. Mismo grid coarse que Kinship/Expedición/Sendero. CEO balance knob.
+  windowSec: 20,             // ventana DESLIZANTE (s): sólo cuentan las celdas ocupadas en los últimos 20s. Marca vieja ⇒ expira ⇒ deja de contar (decay 0-RNG por expiración). Reloj de pared COMPARTIDO ⇒ misma ventana en N clientes. CEO balance knob.
+  combatWindowSec: 3,        // s que un golpe recibido te mantiene EN COMBATE: mientras h._roamCombatT>0 el pasivo NO mitiga (sólo el 1er golpe de la refriega, estando fuera de combate). CEO balance knob.
+  maxMitigation: 0.15,       // techo de seguridad de la fracción mitigada (los tiers saturan en 0.15; cap defensivo anti-inmunidad). CEO balance knob.
+  // TABLA de tiers: umbral de CELDAS DISTINTAS/ventana (min inclusivo) → mit del canal oocMitigation (fracción de daño mitigada fuera de combate). Tier vigente = el más alto cuyo `min` ≤ breadth. Determinista, monótono.
+  tiers: [
+    { min: 2, mit: 0.05 },   // Tier 1 — errante (≥2 celdas distintas/ventana): −5% daño fuera de combate.
+    { min: 3, mit: 0.10 },   // Tier 2 — trotamundos (≥3 celdas): −10%.
+    { min: 4, mit: 0.15 },   // Tier 3 — gran explorador (≥4 celdas): −15%. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
