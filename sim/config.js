@@ -2204,7 +2204,7 @@ export const CONGREGATION = {
 // wayfarerTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave serializada). SIN tocar input.js (100% AMBIENTAL, 0 hotkey).
 // Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO.
 export const WAYFARER_TRAIL = {
-  enabled: false,            // DARK. false ⇒ build byte-idéntico a HEAD (3963b5470441). Flip 1-línea false→true tras CEO Gate (mirror CONGREGATION/WORLD_PULSE/SOUL_RECOVERY).
+  enabled: true,             // CAS-2336 LIVE FLIP (EVO#52, CEO Gate 998fc702 APPROVED; QA DARK 17/17 ×2 build c4a549ae2fa1). Reversible 1-línea true→false = DARK de nuevo (mirror CONGREGATION/WORLD_PULSE/SOUL_RECOVERY).
   channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION (ver wayfarerMul). CEO balance knob.
   cellSize: 128,             // lado del bucket COARSE en px (4 tiles de 32px). El tránsito se cuenta por celda, NO per-pixel ⇒ barato a escala (mapa de senderos disperso).
   threshold: 100,            // tread DECAÍDO (post-decay) que convierte una celda en Sendero Trillado. Requiere tránsito AGREGADO de la comunidad para cruzarlo. CEO balance knob.
