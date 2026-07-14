@@ -2348,6 +2348,39 @@ export const INFLUX_SURGE = {
   ],
 };
 
+// CAS-2355: SINCRONÍA DE BATALLA / BATTLE SYNCHRONY (DARK, BATTLE_SYNC) — EVO mecánica #57. Eje FRESCO: CORRELACIÓN / SIMULTANEIDAD de gestas de combate — cuántos jugadores
+// DISTINTOS co-presentes anotan una GESTA (kill) dentro de la MISMA ventana deslizante corta. Ortogonal a todo el arco: ≠ Congregación #51 (headcount/densidad, *cuántos están*),
+// ≠ Sendero #52 (footfall/camino), ≠ Confluencia #53 (variedad de clases), ≠ Vigilia #54 (continuidad temporal, *cuánto tiempo seguido*), ≠ Expedición #55 (dispersión espacial),
+// ≠ Afluencia #56 (tasa de LLEGADA/flujo), ≠ Mentor #48/Diverse #53 (nivel/clase). Aquí importa la CO-OCURRENCIA temporal de ACCIONES DE COMBATE entre jugadores distintos.
+//   · SERVER-AUTHORITATIVE (fuente de verdad de la coordinación): el server, por zona, marca el instante de la ÚLTIMA gesta (kill) de cada jugador co-presente — REUSA el contador
+//     monótono `h.kills` que YA existe (misma técnica que Libro/Ledger y MENTOR: 0 tracking nuevo por-frame, 0 hook, SIN input.js). Empuja { zona → { jugadorId → últimoKillMs } }; el
+//     cliente sólo lo REFLEJA + PROYECTA al `now` compartido contando cuántos ids DISTINTOS tienen su última gesta DENTRO de la ventana deslizante [now−windowMs, now]. En Stage-1 el
+//     snapshot+reloj se inyectan por hook (mismo patrón que INFLUX_SURGE/FRONTIER_SPREAD/LONG_WATCH) ⇒ 2 clientes con el MISMO snapshot+reloj convergen byte-a-byte (0 desync).
+//   · CÓMPUTO = función PURA (syncCount): dado { id → últimoKillMs } y el `now`, cuenta |ids distintos con (now−últimoKillMs) ∈ [0, windowMs]|. Casos borde byte-verificables:
+//     N presentes pero INACTIVOS (0 kills / sin marca) ⇒ 0 (NO abre — distingue de Congregación por headcount y de Afluencia por flujo); 2 que matan en ventanas SEPARADAS/no-solapadas
+//     ⇒ en cualquier `now` sólo 1 cae en la ventana ⇒ synchrony 0 (es CORRELACIÓN temporal, no un rate acumulado); 1 solo matando ⇒ count 1 ⇒ NO abre (requiere ≥2 DISTINTOS).
+//   · DECAY = expiración de la VENTANA DESLIZANTE (0 RNG, análogo a half-life): una gesta más vieja que windowSec deja de contar ⇒ el count cae determinista al parar el combate coordinado.
+//   · TIERS por UMBRAL de jugadores sincronizados (deterministas, monótonos): <2 ⇒ Tier 0; ≥2 ⇒ T1; ≥3 ⇒ T2; ≥4 ⇒ T3. Cruzar arriba abre la Sincronía; que expiren las gestas la baja.
+//   · PASSIVE COMPARTIDO: TODO jugador presente en una zona en Sincronía (tier≥1) recibe el MISMO Δ del tier (REUSA el canal RESTED_XP restedMult). Emergente, sin binding, NO per-hero,
+//     NO clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (0 estado nuevo).
+//   · PRECEDENCIA NO-stack / MÁXIMO ÚNICO: BATTLE_SYNC es la MÁS BAJA del canal restedMult (12ª y última fuente) ⇒ CEDE (return 0) a STANDINGS > MENTOR > SOUL > PULSE > CONGREGATION >
+//     WAYFARER > DIVERSE_COMPANY > LONG_WATCH > FRONTIER_SPREAD > INFLUX_SURGE ⇒ se aplica el MAYOR pasivo vigente, NUNCA doble-dip. FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten.
+//   · INDICADOR $0-arte: badge de texto "Sincronía: <zona> T<n>" (reusa la fila de badges + glifo procedural ⇌ = espadas cruzadas sincronizadas), 0 arte nuevo.
+// HARD-GATED: enabled:false ⇒ tickBattleSync jamás corre (Date.now nunca se llama), G.sync/G.syncServer/h.syncAt NUNCA se crean, syncMul RETURN 0, syncTag ""
+// ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (reusa gestas/kills que YA existen, passive 100% AMBIENTAL, 0 hotkey). Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const BATTLE_SYNC = {
+  enabled: false,            // DARK. Gate CEO flippea enabled:false→true (config-only 1-línea, reversible, mirror INFLUX_SURGE/FRONTIER_SPREAD/LONG_WATCH).
+  channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY/LONG_WATCH/FRONTIER_SPREAD/INFLUX_SURGE (ver syncMul). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Sincronía (mirror INFLUX_SURGE/FRONTIER_SPREAD/CONGREGATION.zones — reusa las zonas de caza).
+  windowSec: 5,              // ventana deslizante CORTA de la sincronía: una gesta cuenta si su instante cae en [now−windowSec, now]. Más vieja ⇒ expira (decay determinista, 0 RNG). Reloj de pared COMPARTIDO ⇒ misma ventana en N clientes. CEO balance knob.
+  // TABLA de tiers: umbral de jugadores DISTINTOS sincronizados en la ventana (min inclusivo) → boost restedMult. Tier vigente = el más alto cuyo `min` ≤ count. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — sincronía naciente (≥2 jugadores distintos matando en la ventana): pasivo suave.
+    { min: 3, boost: 0.10 },   // Tier 2 — sincronía firme (≥3): pasivo medio.
+    { min: 4, boost: 0.15 },   // Tier 3 — batalla plenamente sincronizada (≥4): pasivo pleno. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

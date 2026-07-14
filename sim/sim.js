@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3638,6 +3638,62 @@ export function influxVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
   return { enabled:!!INFLUX_SURGE.enabled, zone:z, influxable, surge:+surge.toFixed(2), tier, tierCount:(INFLUX_SURGE.tiers||[]).length,
     boostKind:INFLUX_SURGE.channel||"restedMult", boost: h?influxMul(h,INFLUX_SURGE.channel||"restedMult"):0 }; }
 
+// CAS-2355: SINCRONÍA DE BATALLA / BATTLE SYNCHRONY — EVO #57, pilar FRESCO de CORRELACIÓN / SIMULTANEIDAD de gestas de combate. Mide la CO-OCURRENCIA temporal de kills entre jugadores
+// DISTINTOS co-presentes, ortogonal a headcount/footfall/composición/continuidad/dispersión/flujo/reloj/nivel. server-authoritative: el server marca el instante de la ÚLTIMA gesta (kill,
+// REUSA el contador monótono h.kills) de cada jugador por zona, empuja { zona → { id → últimoKillMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. syncCount(marks,now,windowMs) =
+// CÓMPUTO server-side de la sincronía = nº de ids DISTINTOS cuya última gesta cae DENTRO de la ventana deslizante [now−windowMs, now]. Función PURA (0 RNG, 0 side-effect). Casos borde:
+// N presentes pero INACTIVOS (sin marca / kills viejos) ⇒ 0 (amontonarse/estar NO cuenta — distingue de Congregación por headcount y de Afluencia por flujo); 2 en ventanas separadas
+// ⇒ en cualquier `now` sólo 1 cae en la ventana ⇒ 0 (es CORRELACIÓN temporal, no un rate acumulado); 1 solo matando ⇒ 1 (NO abre — requiere ≥2 DISTINTOS); todos matando a la vez ⇒ |ids|.
+export function syncCount(marks, now, windowMs){ if(!marks || typeof marks!=="object") return 0; now=+now||0; windowMs=Math.max(0,+windowMs||0);
+  let n=0; for(const id in marks){ const t=+marks[id]; if(!isFinite(t)) continue; const dt=now-t; if(dt>=0 && dt<=windowMs) n++; } return n; }
+// syncTier(count) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ count. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function syncTier(count){ const T=BATTLE_SYNC.tiers||[]; count=+count||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && count>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost restedMult del tier vigente (0 si Tier 0). Puro. El gate global lo cubre syncMul; aquí sólo la TABLA determinista.
+function syncBoost(count){ const t=syncTier(count); return t>0 ? (+BATTLE_SYNC.tiers[t-1].boost||0) : 0; }
+// nº de jugadores sincronizados PROYECTADO de una zona leído del snapshot reflejado en G.sync.count (ya proyectado al `now` por tickBattleSync). 0 si sin snapshot / zona ausente. Puro.
+function syncCountVal(zone){ const g=G.sync; if(!g||!g.count||!zone) return 0; return +g.count[zone]||0; }
+function syncOpen(zone){ return syncTier(syncCountVal(zone))>0; }
+// syncMul(h,kind) = el passive COMPARTIDO de los presentes en una zona en Sincronía (tier≥1), en el canal restedMult (REUSA RESTED_XP), con PRECEDENCIA EXPLÍCITA anti-stacking
+// (BATTLE_SYNC es la MÁS BAJA del canal ⇒ MÁXIMO ÚNICO): CEDE (return 0) a STANDINGS, MENTOR, SOUL, PULSE, CONGREGATION, WAYFARER, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD e INFLUX_SURGE
+// ⇒ se aplica el MAYOR (0 doble-dip). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function syncMul(h,kind){ if(!BATTLE_SYNC.enabled||!h) return 0;
+  if(kind!==(BATTLE_SYNC.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ SINCRONÍA cede
+  if(mentorMul(h,kind)>0) return 0;      // MENTOR (personal) gana ⇒ cede
+  if(soulMul(h,kind)>0) return 0;        // SOUL (recuperación) gana ⇒ cede
+  if(pulseMul(h,kind)>0) return 0;       // PULSE (ambiental del reloj) gana ⇒ cede
+  if(congMul(h,kind)>0) return 0;        // CONGREGATION (headcount) gana ⇒ cede
+  if(wayfarerMul(h,kind)>0) return 0;    // WAYFARER (traversal) gana ⇒ cede
+  if(confMul(h,kind)>0) return 0;        // DIVERSE_COMPANY (composición) gana ⇒ cede
+  if(longWatchMul(h,kind)>0) return 0;   // LONG_WATCH (continuidad) gana ⇒ cede
+  if(frontierMul(h,kind)>0) return 0;    // FRONTIER_SPREAD (dispersión) gana ⇒ cede
+  if(influxMul(h,kind)>0) return 0;      // INFLUX_SURGE (afluencia) gana ⇒ cede (BATTLE_SYNC es la MÁS BAJA del canal)
+  const z=zoneOf(world,h.x,h.y); if(!z || (BATTLE_SYNC.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de sincronía ⇒ 0
+  return syncBoost(syncCountVal(z));   // el Δ del tier vigente por el nº de sincronizados server-authoritative de esa zona
+}
+// tick de la SINCRONÍA (mirror tickInflux/tickFrontier): REFLEJA el snapshot server-authoritative { zona → { id → últimoKillMs } } (empujado por el server, cacheado en
+// G.syncServer) y lo PROYECTA al `now` compartido hacia G.sync.count contando cuántos ids DISTINTOS caen en la ventana deslizante (0 RNG). SIN estado per-hero, SIN clave serializada.
+// OFF ⇒ NUNCA se invoca (Date.now nunca se llama) ⇒ G.sync/G.syncServer NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real (prueba
+// ventana/expiración + convergencia). Fallback al reloj inyectado (G.syncNow) para que el re-tick del game-loop no reintroduzca Date.now REAL entre frames (footgun heredado influx/frontier).
+function tickBattleSync(nowArg){ if(!BATTLE_SYNC.enabled) return; const now=(nowArg!=null?+nowArg:(G.syncNow!=null?+G.syncNow:Date.now()));
+  const src=G.syncServer||{}, count={}, windowMs=Math.max(1,(BATTLE_SYNC.windowSec|0))*1000;
+  for(const z of (BATTLE_SYNC.zones||[])){ const marks=src[z]; if(!marks) continue;
+    const c=syncCount(marks, now, windowMs); if(c>0) count[z]=c; }   // nº de sincronizados vigentes en la ventana (expira gestas viejas = decay determinista)
+  G.sync={ count, nowMs:now }; }
+// helper server-side: registra la GESTA (kill) de un jugador `id` en una zona marcando su último instante `atMs` (mirror del contador monótono h.kills; la ventana expira las viejas). Puro sobre G.syncServer.
+function syncMark(zone, id, atMs){ if((BATTLE_SYNC.zones||[]).indexOf(zone)<0 || id==null) return null;
+  const src=G.syncServer||(G.syncServer={}), m=src[zone]||(src[zone]={}); m[String(id)]=+atMs||0; return m; }
+// glifo de la Sincronía para el badge (mirror influxTag/frontierTag): ⇌ (espadas cruzadas sincronizadas) si la zona del héroe está en Sincronía (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function syncTag(h){ h=h||G.hero; if(!BATTLE_SYNC.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(BATTLE_SYNC.zones||[]).indexOf(z)<0) return ""; return syncOpen(z) ? "⇌" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su nº de sincronizados LIVE server-authoritative, tier vigente y passive efectivo. 0 sim/RNG/side-effect.
+export function syncVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const syncable=!!(z && (BATTLE_SYNC.zones||[]).indexOf(z)>=0);
+  const count=syncable?syncCountVal(z):0, tier=syncable?syncTier(count):0;
+  return { enabled:!!BATTLE_SYNC.enabled, zone:z, syncable, count, tier, tierCount:(BATTLE_SYNC.tiers||[]).length,
+    boostKind:BATTLE_SYNC.channel||"restedMult", boost: h?syncMul(h,BATTLE_SYNC.channel||"restedMult"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4676,7 +4732,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult") + frontierMul(h,"restedMult") + influxMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341/2347/2352: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) + passive de VIGILIA (continuidad temporal) + passive de EXPEDICIÓN (dispersión espacial) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; frontierMul CEDE a standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch ⇒ MÁXIMO ÚNICO, 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult") + longWatchMul(h,"restedMult") + frontierMul(h,"restedMult") + influxMul(h,"restedMult") + syncMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338/2341/2347/2352/2355: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) + passive de VIGILIA (continuidad temporal) + passive de EXPEDICIÓN (dispersión espacial) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; frontierMul CEDE a standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch ⇒ MÁXIMO ÚNICO, 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -6060,6 +6116,7 @@ export function update(dtMs){
   if(DIVERSE_COMPANY.enabled) tickConfluence(); // CAS-2338: Confluencia — refleja la composición server-authoritative { zona → { clase → cuenta } } por zona (diversidad = clases distintas; transitorio en G.confluence/G.confServer, SIN estado per-hero/serializado, gated ⇒ OFF nunca se crea ⇒ byte-id)
   if(LONG_WATCH.enabled) tickLongWatch(); // CAS-2341: Vigilia — refleja el snapshot server-authoritative { zona → { streak, atMs, present } } y lo proyecta al reloj compartido (streak sube con presencia, decae/rompe al vaciar; transitorio en G.longWatch/G.longWatchServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(INFLUX_SURGE.enabled) tickInflux(); // CAS-2352: Afluencia — refleja el surge server-authoritative { zona → { surge, atMs } } (llegadas acumuladas, EDGE-triggered) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.influx/G.influxServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(BATTLE_SYNC.enabled) tickBattleSync(); // CAS-2355: Sincronía — refleja el snapshot server-authoritative { zona → { id → últimoKillMs } } (gestas/kills co-presentes) y lo proyecta al reloj compartido contando ids DISTINTOS en la ventana deslizante (expira gestas viejas = decay determinista; transitorio en G.sync/G.syncServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(FRONTIER_SPREAD.enabled) tickFrontier(); // CAS-2347: Expedición — refleja la cobertura server-authoritative { zona → { cover, atMs } } (nº de sub-celdas coarse distintas ocupadas) y la proyecta al reloj compartido con DECAY determinista (transitorio en G.frontier/G.frontierServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
@@ -7801,6 +7858,46 @@ export const dev = {
       surgeMap: (G.influx&&G.influx.surge)?JSON.parse(JSON.stringify(G.influx.surge)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
       gExists:(G.influx!=null),                                             // prueba byte-id: OFF ⇒ G.influx NUNCA se crea (0 estado nuevo, 0 clave serializada)
       nowMs:(G.influx&&G.influx.nowMs)||null,                              // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2355: SINCRONÍA DE BATALLA / BATTLE SYNCHRONY OBSERVABLE hook (DARK, BATTLE_SYNC). Snapshot AUTORITATIVO (sim) de la coordinación server-authoritative { zona → { id → últimoKillMs } }
+  // (gestas/kills de jugadores co-presentes) + flip/drivers IN-MEMORY para OBSERVAR en DARK sin server real (disco sigue false, patrón __dev.influx/frontier). El snapshot+reloj INYECTADOS
+  // prueban el determinismo "mismo snapshot de gestas/reloj ⇒ mismo tier/passive" (convergencia byte-idéntica en N clientes, 0 desync) + expiración de la ventana + casos borde (inactivos ⇒ 0, ventanas separadas ⇒ 0).
+  //   sync()                                            → {enabled,channel,zones,tiers,windowSec,zone,syncable,count,tier,tierCount,boost,syncMulRested,restedXpMult,peer muls,tag,precedence,count(map),marks(map),gExists,nowMs,hero}
+  //   sync({enabled:true})                              → flip runtime IN-MEMORY de BATTLE_SYNC.enabled (sincronía/passive sin tocar el disco)
+  //   sync({nowMs})                                     → fija el reloj compartido (ventana) y RE-TICKea ⇒ count proyectado a ese instante (0 espera real; avanzar > windowSec expira gestas)
+  //   sync({push:{forest:{p1:ms,p2:ms}}})               → el server EMPUJA el snapshot crudo de últimoKillMs por jugador/zona ⇒ el cliente lo REFLEJA (proyecta con nowMs)
+  //   sync({kills:{forest:{ids:[p1,p2],atMs}}})         → el server registra la GESTA de cada id en la zona (marca su último instante, default atMs=nowMs) — prueba sincronía/solo/inactivos
+  //   sync({kill:{zone,id,atMs}})                       → conveniencia: registra UNA gesta de un jugador (o {ids:[...]}) — 0 hotkey
+  //   sync({toZone})                                    → teleporta el héroe a una tile determinista de esa zona (observa el passive compartido)
+  //   sync({leave:true})                                → aleja el héroe de toda zona (el passive cae a 0)
+  //   sync({clear:true})                                → limpia el snapshot server (todas las zonas vuelven sin sincronía)
+  sync(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) BATTLE_SYNC.enabled=!!p.enabled;
+      if("nowMs" in p){ G.syncNow=+p.nowMs; tickBattleSync(G.syncNow); }
+      if("push" in p){ G.syncServer=Object.assign({}, G.syncServer||{}, p.push||{}); tickBattleSync(G.syncNow); }   // el server empuja el snapshot crudo de gestas por zona ⇒ refleja+proyecta
+      if("kills" in p && p.kills && typeof p.kills==="object"){ const dat=(G.syncNow!=null?+G.syncNow:0);
+        for(const zn in p.kills){ const k=p.kills[zn]; const ids=Array.isArray(k)?k:(k&&Array.isArray(k.ids)?k.ids:[]); const at=(k&&"atMs" in k)?+k.atMs:dat;
+          for(const id of ids){ syncMark(zn, id, at); } } tickBattleSync(G.syncNow); }   // server-side: marca la gesta (última) de cada jugador
+      if("kill" in p && p.kill && typeof p.kill==="object"){ const k=p.kill, at=("atMs" in k)?+k.atMs:(G.syncNow!=null?+G.syncNow:0);
+        const ids=Array.isArray(k.ids)?k.ids:(k.id!=null?[k.id]:[]); for(const id of ids){ syncMark(k.zone, id, at); } tickBattleSync(G.syncNow); }   // conveniencia: 1+ gestas
+      if(p.clear){ G.syncServer={}; tickBattleSync(G.syncNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((BATTLE_SYNC.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+    }
+    const h=G.hero, vm=syncVM(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0) + (h?pulseMul(h,"restedMult"):0) + (h?congMul(h,"restedMult"):0) + (h?wayfarerMul(h,"restedMult"):0) + (h?confMul(h,"restedMult"):0) + (h?longWatchMul(h,"restedMult"):0) + (h?frontierMul(h,"restedMult"):0) + (h?influxMul(h,"restedMult"):0) + (h?syncMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: SINCRONÍA cede a TODOS los canales previos)
+    return { enabled:BATTLE_SYNC.enabled, channel:BATTLE_SYNC.channel||"restedMult", zones:(BATTLE_SYNC.zones||[]).slice(), tiers:(BATTLE_SYNC.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost})), windowSec:BATTLE_SYNC.windowSec|0,
+      zone:vm.zone, syncable:vm.syncable, count:vm.count, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      syncMulRested: h?syncMul(h,"restedMult"):0,                            // knob efectivo del passive (prueba: OFF/no-en-zona/tier0/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                        // mult efectivo (prueba precedencia: SINCRONÍA cede si standings/mentor/soul/pulse/cong/wayfarer/conf/longWatch/frontier/influx aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0, soulMulRested: h?soulMul(h,"restedMult"):0, pulseMulRested: h?pulseMul(h,"restedMult"):0, congMulRested: h?congMul(h,"restedMult"):0, wayfarerMulRested: h?wayfarerMul(h,"restedMult"):0, confMulRested: h?confMul(h,"restedMult"):0, longWatchMulRested: h?longWatchMul(h,"restedMult"):0, frontierMulRested: h?frontierMul(h,"restedMult"):0, influxMulRested: h?influxMul(h,"restedMult"):0,
+      tag: syncTag(h),                                                       // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / sincronía ⇒ ⇌)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental > congregation_headcount > wayfarer_traversal > diverse_company_composicion > long_watch_continuidad > frontier_spread_dispersion > influx_surge_afluencia > battle_sync_sincronia) ⇒ SINCRONÍA cede a TODOS los canales previos (mismo canal, MÁXIMO ÚNICO, 0 doble-dip); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      countMap: (G.sync&&G.sync.count)?JSON.parse(JSON.stringify(G.sync.count)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      marksMap: G.syncServer?JSON.parse(JSON.stringify(G.syncServer)):null,   // snapshot crudo de gestas por zona (últimoKillMs por jugador)
+      gExists:(G.sync!=null),                                               // prueba byte-id: OFF ⇒ G.sync NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.sync&&G.sync.nowMs)||null,                                  // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
