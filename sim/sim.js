@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4039,6 +4039,81 @@ export function focusVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
   return { enabled:!!FOCUS_FIRE.enabled, zone:z, focusable, focus:+f.toFixed(2), tier, tierCount:(FOCUS_FIRE.tiers||[]).length,
     boostKind:FOCUS_FIRE.channel||"goldFind", boost: h?focusMul(h,FOCUS_FIRE.channel||"goldFind"):0 }; }
 
+// CAS-2377: SENDERO / TRAILCRAFT (DARK, TRAILCRAFT) — EVO mecánica #63. EJE FRESCO DIVERSIDAD DE TERRENO (variedad CUALITATIVA: nº de TIPOS de bioma DISTINTOS pisados en la ventana) +
+// canal FRESCO lootQuality (RAREZA/calidad del drop, NO oro). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas de bioma { pid → [{b,t}] } (b = bioma/zona
+// pisado, vía zoneOf), computa `trailVariety(marks,now,win)` = nº de TIPOS DISTINTOS en la ventana (PURA), y mientras variety≥minVariety ACUMULA `trailcraft` (accruePerSec·dt) con DECAY
+// vida-media (familia acumulador tick/accrue/step #55-62), empuja { pid → { craft, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. OPUESTO a Wayfarer (#61, celdas/amplitud):
+// vueltas en UN bioma ⇒ variety 1 < minVariety ⇒ NUNCA acumula; cruzar biomas DISTINTOS ⇒ acumula. Casos borde byte-verificables: [] ⇒ 0; 1 marca ⇒ variety 1 (NO abre); N marcas MISMO bioma
+// (quieto/vueltas) ⇒ variety 1 (NO abre); K biomas distintos ⇒ variety K; marca fuera de ventana ⇒ no cuenta; 1-tick dt=0.5 con variety≥2 ⇒ craft≈0.5 < 2 ⇒ Tier 0 (permanencia).
+// clave de bioma desde una posición (mirror wayRoamCellKey pero CUALITATIVA: la ZONA/bioma, no la celda coarse). "" si fuera de zona (no cuenta como tipo).
+function trailBiomeKey(x,y){ const z=zoneOf(world,x,y); return z?String(z):""; }
+// trailVariety(marks, now, windowMs): nº de TIPOS de bioma DISTINTOS (m.b) con t dentro de la ventana [now−windowMs, now]. Función PURA (0 RNG, 0 side-effect). marks = [{b,t}]. Vacías / fuera de ventana ⇒ no cuentan.
+export function trailVariety(marks, now, windowMs){ if(!Array.isArray(marks)||!marks.length) return 0; const lo=(+now||0)-Math.max(0,+windowMs||0);
+  const seen=Object.create(null); let n=0;
+  for(const m of marks){ if(!m) continue; const t=+m.t||0; if(t<lo || t>(+now||0)) continue; const k=String(m.b); if(k==="") continue; if(!(k in seen)){ seen[k]=1; n++; } } return n; }
+// ¿la variedad de este tick SOSTIENE un sendero? (variety≥minVariety). Puro.
+function trailSustains(variety){ return (+variety||0)>=(TRAILCRAFT.minVariety|0); }
+// trailcraftTier(craft) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ craft. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function trailcraftTier(craft){ const T=TRAILCRAFT.tiers||[]; craft=+craft||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && craft>=(+T[i].min||0)) idx=i+1; } return idx; }
+// PASOS de piso de rareza del canal lootQuality del tier vigente (0 si Tier 0). Puro. El gate global lo cubre trailcraftFloor; aquí sólo la TABLA determinista.
+function trailcraftStepsFor(craft){ const t=trailcraftTier(craft); return t>0 ? (TRAILCRAFT.tiers[t-1].steps|0) : 0; }
+// pid del jugador LOCAL (el que aplica el pasivo a sí mismo). Transitorio G.trailSelf (inyectable por el harness para 2-cliente); default "self". SIN estado per-hero/serializado. Mirror wayRoamSelfPid.
+function trailSelfPid(){ return (G.trailSelf!=null)?String(G.trailSelf):"self"; }
+// `trailcraft` PROYECTADO de un pid leído del snapshot reflejado en G.trail.craft (ya proyectado al `now` por tickTrailcraft). 0 si sin snapshot / pid ausente. Puro.
+function trailcraftVal(pid){ const g=G.trail; if(!g||!g.craft) return 0; return +g.craft[pid!=null?String(pid):trailSelfPid()]||0; }
+// PASOS efectivos del jugador LOCAL (per-pid) del canal lootQuality (0 si Tier 0). Puro sobre el snapshot proyectado.
+function trailcraftSteps(pid){ return trailcraftStepsFor(trailcraftVal(pid!=null?pid:trailSelfPid())); }
+function trailcraftOpen(){ return trailcraftTier(trailcraftVal(trailSelfPid()))>0; }
+// trailcraftFloor() = el PISO de rareza (`minR`) que el jugador LOCAL con sendero abierto (tier≥1) impone al gear que dropea EN una zona de caza. Canal FRESCO lootQuality. PRECEDENCIA máximo-único
+// DENTRO del canal: TRAILCRAFT es (por ahora) la ÚNICA fuente ⇒ trivial (documentado para que futuras del arco de-stackeen aquí). ORTOGONAL a goldFind (seam tryPickup/oro), restedMult (gainXP/XP),
+// wardRegen (regen HP) y oocMitigation (damageHero) ⇒ jamás dobla con NINGÚN canal previo (sube RAREZA, no cantidad). Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ "" ⇒ `minR`=undefined en rollGearInst
+// (drop de gear byte-idéntico). Zona-gate: sólo en zonas de caza (SAFEZONE/ciudad fuera). Devuelve la rareza-string (bumpRarity desde "common") o "" si cerrado.
+function trailcraftFloor(){ if(!TRAILCRAFT.enabled) return ""; const h=G.hero; if(!h) return "";
+  const z=zoneOf(world,h.x,h.y); if(!z || (TRAILCRAFT.zones||[]).indexOf(z)<0) return "";   // el héroe NO está en una zona de caza ⇒ "" (ciudad/SAFEZONE quedan fuera)
+  const steps=trailcraftSteps(trailSelfPid()); if(steps<=0) return "";                       // tier 0 ⇒ "" ⇒ piso sin cambio (byte-id vs baseline)
+  return bumpRarity("common", steps);   // sube el piso `minR` desde común por los PASOS del tier vigente (server-authoritative del jugador LOCAL)
+}
+// tick del SENDERO (mirror tickWayfarerRoam + tickFocus): REFLEJA el snapshot server-authoritative { pid → { craft, atMs } } (empujado por el server, cacheado en G.trailServer) y lo PROYECTA al `now`
+// compartido aplicando el DECAY determinista por vida-media (craft_now = craft·0.5^(max(0,now−atMs)/halfLife), 0 RNG, techo capCraft). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca
+// (Date.now nunca se llama) ⇒ G.trail/G.trailServer NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real.
+function tickTrailcraft(nowArg){ if(!TRAILCRAFT.enabled) return; const now=(nowArg!=null?+nowArg:(G.trailNow!=null?+G.trailNow:Date.now()));
+  const src=G.trailServer||{}, craft={}, hl=Math.max(1,(TRAILCRAFT.halfLifeSec|0))*1000, cap=Math.max(0,(TRAILCRAFT.capCraft|0));
+  for(const pid in src){ const raw=src[pid]; if(!raw) continue;
+    const base=Math.max(0,+raw.craft||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let w=base * Math.pow(0.5, dtMs/hl); if(cap>0) w=Math.min(cap,w);   // DECAE determinista por vida-media hacia el `now` compartido (0 RNG)
+    if(w>0) craft[pid]=w; }
+  G.trail={ craft, nowMs:now }; }
+// helper server-side: ACUMULA `add` unidades de sendero para un pid sobre el `craft` proyectado al `atMs` (mirror focusAccrue, keyed pid). Puro sobre G.trailServer; devuelve el nuevo raw.
+function trailcraftAccrue(pid, add, atMs){ pid=(pid!=null?String(pid):trailSelfPid()); add=Math.max(0,+add||0);
+  const src=G.trailServer||(G.trailServer={}), raw=src[pid], hl=Math.max(1,(TRAILCRAFT.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.craft||0):0, prevAt=raw?(+raw.atMs||0):atMs, dtMs=Math.max(0,atMs-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl);   // proyecta el craft previo al instante de esta acumulación
+  src[pid]={ craft:projected+add, atMs:(+atMs||0) }; return src[pid]; }
+// helper server-side: REGISTRA una marca de bioma (b + t) para un pid y PODA las marcas fuera de la ventana [atMs−windowSec, atMs]. Puro salvo la escritura en G.trailMarks. Mirror wayRoamMark (bioma, no celda).
+function trailMark(pid, biome, atMs){ pid=(pid!=null?String(pid):trailSelfPid()); const src=G.trailMarks||(G.trailMarks={});
+  const win=Math.max(0,(TRAILCRAFT.windowSec|0))*1000, lo=(+atMs||0)-win;
+  let arr=(src[pid]||[]).filter(m=>m && (+m.t||0)>=lo);   // poda las marcas expiradas de la ventana
+  arr.push({ b:String(biome==null?"":biome), t:(+atMs||0) }); src[pid]=arr; return arr; }
+// helper server-side: dado un path de posiciones {x,y,t}, deriva el bioma de cada punto (zoneOf) y REGISTRA la marca. Puro salvo la escritura en G.trailMarks. Mirror wayRoamStep (bioma, no celda coarse).
+function trailPathStep(pid, path, atMs){ if(!Array.isArray(path)) return null; let last=null;
+  for(let i=0;i<path.length;i++){ const p=path[i]||{}; const t=(p.t!=null?+p.t:(+atMs||0)); last=trailMark(pid, trailBiomeKey(p.x,p.y), t); } return last; }
+// helper server-side: dado el dt de un tick, computa la variedad ACTUAL del pid (trailVariety sobre sus marcas en la ventana) y ACUMULA accruePerSec·dt si el sendero se sostiene (variety≥minVariety),
+// o SÓLO decae (add 0). Devuelve { variety, add, raw }. Mismo patrón que focusStep. Prueba diferenciadores: 1 bioma ⇒ variety 1 ⇒ decae; K biomas ⇒ variety K≥min ⇒ acumula; 1-tick ⇒ craft ínfimo (permanencia).
+function trailStep(pid, dtSec, atMs){ pid=(pid!=null?String(pid):trailSelfPid()); const win=Math.max(0,(TRAILCRAFT.windowSec|0))*1000;
+  const marks=(G.trailMarks&&G.trailMarks[pid])||[], variety=trailVariety(marks, atMs, win);
+  const add=trailSustains(variety) ? (Math.max(0,+TRAILCRAFT.accruePerSec||0)*Math.max(0,+dtSec||0)) : 0;
+  const raw=trailcraftAccrue(pid, add, atMs); return { variety, add, raw }; }
+// glifo del sendero para el badge (mirror wayRoamTag): ⟿ (sendero serpenteante) si el jugador local en zona de caza tiene un sendero abierto (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0 / fuera de zona.
+export function trailcraftTag(h){ h=h||G.hero; if(!TRAILCRAFT.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(TRAILCRAFT.zones||[]).indexOf(z)<0) return ""; return trailcraftOpen() ? "⟿" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su `trailcraft` LIVE server-authoritative, tier vigente, pasos de piso y piso de rareza efectivo (canal lootQuality). 0 sim/RNG/side-effect.
+export function trailcraftVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const craftable=!!(z && (TRAILCRAFT.zones||[]).indexOf(z)>=0);
+  const craft=trailcraftVal(trailSelfPid()), tier=craftable?trailcraftTier(craft):0, steps=craftable?trailcraftStepsFor(craft):0;
+  return { enabled:!!TRAILCRAFT.enabled, zone:z, craftable, craft:+craft.toFixed(2), tier, tierCount:(TRAILCRAFT.tiers||[]).length,
+    boostKind:TRAILCRAFT.channel||"lootQuality", steps, floor: craftable&&steps>0 ? bumpRarity("common", steps) : "" }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4846,7 +4921,9 @@ function killEnemy(e){
     if(e.elite){ onEliteKill(e, zone); }
     else if(e.champElite){ onChampElite(e, zone); } // CAS-1590: guaranteed superior loot + unique roll + banked Esencia (champion path only → RNG untouched at rate=0)
     else if(srand()<((tpl.gearChance||0)*pactRewardMul("drop"))){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier; // CAS-1763: heat lifts the trash-gear threshold — the gate srand() already fires unconditionally (×1.0 at heat=0 ⇒ byte-identical)
-      dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1])); }
+      // CAS-2377: SENDERO / TRAILCRAFT (DARK) — canal FRESCO lootQuality: un sendero abierto (variedad de terreno sostenida) SUBE el piso de rareza `minR` del drop. trailcraftFloor()="" cuando OFF/tier0/fuera-de-zona
+      // ⇒ `minR`=undefined ⇒ rollGearInst byte-IDÉNTICO a HEAD (0 cambio del srand autoritativo). Sube RAREZA, no cantidad de oro ⇒ ⊥ goldFind/restedMult/wardRegen/oocMitigation.
+      dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1], trailcraftFloor()||undefined)); }
     // CAS-1586: an AFFIXED trash kill also ticks the lifetime affix-kill counter (feeds the Esencia
     // tie-in via the run recap). Rides the SAME branch that already paid the affix xp/gold/gear, so
     // no new roll/RNG — an un-affixed mob (incl. rate=0) leaves e.affix undefined → counter untouched.
@@ -8487,6 +8564,63 @@ export const dev = {
       probe: probe?{ members:probe.members, conc:probe.conc }:null,        // resultado de la función PURA focusConcentration (byte-verificación de casos borde)
       goldPicked,                                                          // resultado del goldTick sintético { raw, boost, paid } (prueba del seam goldFind en aislamiento)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y), gold:h.gold|0 }:null }; },
+  // CAS-2377: SENDERO / TRAILCRAFT OBSERVABLE hook (DARK, TRAILCRAFT — eje DIVERSIDAD DE TERRENO + canal FRESCO lootQuality/rareza). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
+  // passive AMBIENTAL emerge del traversal, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO trailcraft/tier/pasos en N clientes. INDIVIDUAL (per-pid, mirror wayfarerRoam).
+  //   trailcraft()                                      → snapshot {enabled,channel,zones,tiers,...,self,zone,craft,tier,steps,floor,lootQualityFloor,peer muls ⊥,tag,craftMap,gExists,nowMs,probe,lootPicked,hero}
+  //   trailcraft({enabled})                             → flip runtime IN-MEMORY de TRAILCRAFT.enabled (sin tocar el disco)
+  //   trailcraft({self})                                → fija el pid LOCAL (el que aplica el pasivo a sí mismo) — 2-cliente
+  //   trailcraft({nowMs})                               → fija el reloj compartido G.trailNow (proyecta el decay a ese instante)
+  //   trailcraft({push})                                → el server empuja el snapshot crudo { pid → { craft, atMs } } ⇒ refleja+proyecta
+  //   trailcraft({marks:{pid:[{b,t}]}})                 → fija las marcas crudas de bioma por pid (para computar la variedad)
+  //   trailcraft({path:{pid:[{x,y,t}]}})                → server-side: deriva el bioma (zoneOf) de cada punto y REGISTRA la marca (diferenciador Wayfarer: vueltas en 1 bioma ⇒ variety 1 ⇒ NO abre)
+  //   trailcraft({step:{pid:{dt}}})                     → server-side: computa la variedad actual del pid y ACUMULA accruePerSec·dt si variety≥minVariety (o sólo decae) — prueba el acumulador+permanencia
+  //   trailcraft({varietyProbe:{marks,now,windowMs}})   → devuelve la función PURA trailVariety (byte-verificación de casos borde) SIN tocar el snapshot
+  //   trailcraft({craft,pid,atMs})                      → empuja el craft crudo de UN pid
+  //   trailcraft({lootTick:{seed,tmin,tmax}})           → rueda un drop sintético con SEED FIJO (createRNG, NO toca el srand autoritativo) SIN y CON el piso trailcraftFloor ⇒ byte-verifica el seam lootQuality (OFF ⇒ floorRarity==baseRarity)
+  //   trailcraft({toZone}) / ({leave}) / ({clear})      → teleporta a la zona / aleja de toda zona / limpia el snapshot+marcas server
+  trailcraft(p){
+    let probe=null, lootPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) TRAILCRAFT.enabled=!!p.enabled;
+      if("self" in p) G.trailSelf=(p.self!=null?String(p.self):null);
+      if("nowMs" in p){ G.trailNow=+p.nowMs; tickTrailcraft(G.trailNow); }
+      if("push" in p){ G.trailServer=Object.assign({}, G.trailServer||{}, p.push||{}); tickTrailcraft(G.trailNow); }   // el server empuja el craft crudo por pid ⇒ refleja+proyecta
+      if("marks" in p && p.marks && typeof p.marks==="object"){ G.trailMarks=Object.assign({}, G.trailMarks||{}); for(const pid in p.marks){ G.trailMarks[pid]=(p.marks[pid]||[]).map(m=>({ b:String((m&&m.b)==null?"":m.b), t:(+(m&&m.t)||0) })); } }   // fija marcas crudas de bioma por pid
+      if("path" in p && p.path && typeof p.path==="object"){ const at=(G.trailNow!=null?+G.trailNow:0);
+        for(const pid in p.path){ trailPathStep(pid, p.path[pid], at); } }   // server-side: deriva bioma (zoneOf) y registra marcas
+      if("step" in p && p.step && typeof p.step==="object"){ const at=(G.trailNow!=null?+G.trailNow:0);
+        for(const pid in p.step){ const s=p.step[pid]||{}; trailStep(pid, s.dt, at); } tickTrailcraft(G.trailNow); }   // server-side: computa variedad y acumula/decae
+      if("varietyProbe" in p && p.varietyProbe && typeof p.varietyProbe==="object"){ const vp=p.varietyProbe;
+        probe=trailVariety(vp.marks, (vp.now!=null?+vp.now:(G.trailNow!=null?+G.trailNow:0)), vp.windowMs); }   // función PURA, SIN tocar el snapshot
+      if("craft" in p){ const pid=(p.pid!=null?String(p.pid):trailSelfPid()); const at=("atMs" in p)?+p.atMs:(G.trailNow!=null?+G.trailNow:0);
+        G.trailServer=Object.assign({}, G.trailServer||{}); G.trailServer[pid]={ craft:+p.craft||0, atMs:at }; tickTrailcraft(G.trailNow); }
+      if(p.clear){ G.trailServer={}; G.trailMarks={}; tickTrailcraft(G.trailNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((TRAILCRAFT.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("lootTick" in p && p.lootTick && typeof p.lootTick==="object"){ const lt=p.lootTick;
+        const seed=(lt.seed!=null?(lt.seed|0):0x7a11c4f7), tmin=(lt.tmin!=null?lt.tmin|0:1), tmax=(lt.tmax!=null?lt.tmax|0:2);
+        const floor=trailcraftFloor();   // "" cuando OFF/tier0/fuera-de-zona
+        const baseInst=rollGearInst(createRNG(seed).srand, tmin, tmax);                          // MISMO seed, SIN floor
+        const floorInst=rollGearInst(createRNG(seed).srand, tmin, tmax, floor||undefined);       // MISMO seed, CON floor
+        lootPicked={ seed, floor:floor||"", steps:trailcraftSteps(trailSelfPid()),
+          baseRarity:baseInst?baseInst.rarity:null, floorRarity:floorInst?floorInst.rarity:null }; }   // OFF ⇒ floorRarity==baseRarity byte-id; abierto ⇒ floorRarity≥baseRarity
+    }
+    const h=G.hero, vm=trailcraftVM(h);
+    return { enabled:TRAILCRAFT.enabled, channel:TRAILCRAFT.channel||"lootQuality", zones:(TRAILCRAFT.zones||[]).slice(), tiers:(TRAILCRAFT.tiers||[]).map(t=>({min:+t.min||0,steps:t.steps|0})), windowSec:TRAILCRAFT.windowSec|0, minVariety:TRAILCRAFT.minVariety|0, halfLifeSec:TRAILCRAFT.halfLifeSec|0, capCraft:TRAILCRAFT.capCraft|0, accruePerSec:+TRAILCRAFT.accruePerSec||0,
+      self:trailSelfPid(), zone:vm.zone, craftable:vm.craftable, craft:vm.craft, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, steps:vm.steps, floor:vm.floor,
+      lootQualityFloor: trailcraftFloor()||"",                             // piso EFECTIVO del jugador local (canal lootQuality; prueba: OFF/no-en-zona/tier0 ⇒ "" ⇒ byte-id)
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE: lootQuality NO lo toca (⊥) ⇒ prueba 0 doble-conteo
+      goldFindMul: h?(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")):0,  // canal goldFind — INDEPENDIENTE: lootQuality NO lo toca (⊥) ⇒ sube RAREZA, no cantidad de oro
+      wardRegenMul: h?wardMul(h,"wardRegen"):0,                            // canal wardRegen — INDEPENDIENTE: lootQuality NO lo toca (⊥)
+      oocMitigMul: h?wayRoamMul(h,"oocMitigation"):0,                      // canal oocMitigation (Wayfarer) — INDEPENDIENTE: lootQuality NO lo toca (⊥)
+      tag: trailcraftTag(h),                                              // glifo SERVIDO (prueba: OFF/tier0/fuera-de-zona ⇒ "" / sendero abierto ⇒ ⟿)
+      precedence:"lootQuality (canal FRESCO, RAREZA/calidad del drop — sube el piso `minR` de rollGearInst, NO cantidad de oro): máximo-único DENTRO del canal (TRAILCRAFT única fuente por ahora ⇒ trivial; futuras del arco de-stackean aquí). ORTOGONAL a goldFind (seam tryPickup/oro), restedMult (gainXP/XP), wardRegen (regen HP) y oocMitigation (damageHero) ⇒ jamás dobla con NINGÚN canal previo; INDIVIDUAL + CUALITATIVO (OPUESTO a Wayfarer amplitud/celdas)",
+      craftMap: (G.trail&&G.trail.craft)?JSON.parse(JSON.stringify(G.trail.craft)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.trail!=null),                                            // prueba byte-id: OFF ⇒ G.trail NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.trail&&G.trail.nowMs)||null,                              // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      probe: probe,                                                       // resultado de la función PURA trailVariety (byte-verificación de casos borde)
+      lootPicked,                                                         // resultado del lootTick sintético { seed, floor, steps, baseRarity, floorRarity } (prueba del seam lootQuality en aislamiento, seed fijo)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).

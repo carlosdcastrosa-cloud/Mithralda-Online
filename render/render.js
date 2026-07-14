@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -386,6 +386,7 @@ export function createRenderer(ctx){
     if(KINSHIP_BOND.enabled) renderKinshipBadge(); // CAS-2361: Camaradería — badge de vínculo (canal goldFind); resalta si la zona tiene un vínculo forjado (pares próximos sostenidos). Cosmético puro.
     if(WAYFARER_ROAM.enabled) renderWayRoamBadge(); // CAS-2369: Trotamundos — badge de rumbo (canal oocMitigation); resalta si el jugador tiene un roam abierto (amplitud de celdas distintas en la ventana). Cosmético puro.
     if(FOCUS_FIRE.enabled) renderFocusBadge(); // CAS-2370: Fuego Concentrado — badge de concentración (canal goldFind); resalta si la zona tiene un fuego concentrado (atacantes distintos sobre un mismo objetivo, sostenido). Cosmético puro.
+    if(TRAILCRAFT.enabled) renderTrailcraftBadge(); // CAS-2377: Sendero — badge de variedad (canal lootQuality); resalta si el jugador tiene un sendero abierto (nº de tipos de bioma distintos pisados en la ventana). Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3857,6 +3858,44 @@ export function createRenderer(ctx){
     const st=here?("T"+tier+" "+fv):(k.focusable?(fv+""):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+  // CAS-2377: badge de SENDERO (TRAILCRAFT). Refleja el VM PURO (sim.trailcraftVM, autoridad en sim) ⇒ MISMO craft/tier/pasos para todos los clientes con el mismo snapshot. Glifo procedural
+  // ⟿ (sendero serpenteante) — el brillo sube con el tier. Muestra el estado del canal FRESCO lootQuality (calidad/rareza del drop) — cosmético puro, 0 sim/RNG.
+  function renderTrailcraftBadge(){
+    const k=sim.trailcraftVM&&sim.trailcraftVM(); if(!k) return;           // pre-primer-tick (G.trail null) ⇒ craft 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+450, sw=14, sh=14;                             // bajo el Fuego Concentrado (@+428); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, cv=Math.round(k.craft||0), steps=k.steps|0;
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(2.6+tier*0.5))):0.55;
+    const glyph=here?"#9ad06a":"#8a9bb0";                                 // sendero=verde-musgo (canal lootQuality), inerte=gris
+    const zn=k.zone?STR.zoneName(k.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⟿ sendero serpenteante: una polilínea ondulada de izquierda a derecha; el brillo sube con el tier (T1 tenue → T3 pleno) = variedad de terreno sostenida, procedural
+    const litA=here?Math.min(1,0.35+tier*0.22):0.22;
+    ctx.lineWidth=1.8; ctx.lineCap="round"; ctx.lineJoin="round"; ctx.strokeStyle=here?glyph:"rgba(120,150,160,0.42)"; ctx.globalAlpha=pulse*litA;
+    ctx.beginPath();
+    const x0=cx-sw*0.34, x1=cx+sw*0.34, amp=sh*0.22;
+    ctx.moveTo(x0, cy+amp);
+    ctx.quadraticCurveTo(cx-sw*0.17, cy-amp*1.6, cx, cy);                 // primer arco (subida)
+    ctx.quadraticCurveTo(cx+sw*0.17, cy+amp*1.6, x1, cy-amp);            // segundo arco (bajada) — la serpentina
+    ctx.stroke();
+    // 3 hitos del sendero (tipos de bioma distintos): puntos a lo largo de la polilínea; encendidos = pasos de piso de rareza activos
+    ctx.globalAlpha=pulse;
+    const marks=[[x0,cy+amp],[cx,cy],[x1,cy-amp]];
+    for(let i=0;i<marks.length;i++){ const lit=here && i<=tier; ctx.fillStyle=lit?glyph:"rgba(74,84,100,0.5)";
+      ctx.beginPath(); ctx.arc(marks[i][0],marks[i][1],1.5,0,6.28); ctx.fill(); }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Sendero: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#c8e8a8":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + craft (+ pasos de piso de rareza)
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" +"+steps):(k.craftable?(cv+""):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
     ctx.restore();
   }
 

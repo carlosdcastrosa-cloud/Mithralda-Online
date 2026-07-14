@@ -2573,6 +2573,42 @@ export const FOCUS_FIRE = {
   ],
 };
 
+// CAS-2377: SENDERO / TRAILCRAFT (DARK, TRAILCRAFT) — EVO mecánica #63. EJE FRESCO + CANAL FRESCO, ambos ⊥/OPUESTOS a todo lo enviado #47-62:
+//   (A) EJE FRESCO = DIVERSIDAD DE TERRENO (variedad CUALITATIVA): el jugador ACUMULA `trailcraft` según el nº de TIPOS de bioma/tile DISTINTOS que PISA dentro de una
+//       ventana deslizante. server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas de bioma { pid → [{b,t}] } (b = zona/bioma pisado, derivado
+//       de zoneOf), computa `trailVariety(marks,now,win)` = nº de TIPOS DISTINTOS en la ventana (PURA), y mientras variety≥minVariety ACUMULA `trailcraft` (accruePerSec·dt)
+//       con DECAY vida-media (familia acumulador tick/accrue/step de #55-62). Empuja { pid → { craft, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido.
+//   (B) CANAL FRESCO = `lootQuality` (RAREZA/calidad del drop, NO cantidad de oro): con trailcraft abierto (tier≥1) el server SUBE el PISO de rareza (`minR`) del gear que dropea
+//       el jugador local en la zona ⇒ los botines son de mejor CALIDAD, no más oro. Seam = el `minR` (floor) de `rollGearInst` en la rama de drop de basura de killEnemy (chokepoint
+//       de loot EXISTENTE). ⊥ goldFind (Kinship/Focus, cantidad de oro) ⊥ restedMult (XP) ⊥ wardRegen (HP) ⊥ oocMitigation (Wayfarer) ⊥ convoy velocidad ⇒ 0 doble-conteo, 0 runaway
+//       (NO move-speed). PRECEDENCIA máximo-único DENTRO de lootQuality: TRAILCRAFT es (por ahora) la ÚNICA fuente ⇒ trivial (documentado para que futuras del arco de-stackeen aquí).
+//   · DIFERENCIADORES (ortogonalidad OBLIGATORIA — el eje usa VARIEDAD de tipos, no cantidad/posición/velocidad/headcount):
+//       ≠ WAYFARER_ROAM (#61, AMPLITUD = celdas coarse DISTINTAS recorridas): OPUESTO — Wayfarer paga CUÁNTO se movió (distancia/celdas); Trailcraft paga la VARIEDAD de terreno. Dar
+//         vueltas en UN solo bioma cubriendo MUCHAS celdas ⇒ Wayfarer alto, Trailcraft variety 1 < minVariety ⇒ NUNCA acumula (cerrado). Cruzar 4 biomas distintos ⇒ Trailcraft abre.
+//       ≠ FRONTIER_SPREAD (#55, DISPERSIÓN grupal / cobertura espacial de la comunidad): INDIVIDUAL, no grupal, y CUALITATIVO (tipos), no área cubierta.
+//       ≠ CONGREGATION (#51, headcount) / KINSHIP (#60, proximidad pareada): no es sobre otros jugadores; es la variedad de terreno PROPIA de UN jugador.
+//       ≠ 1-tick efímero: variety≥minVariety 1 tick (dt=0.5) ⇒ trailcraft≈accruePerSec·0.5 < 2 ⇒ Tier 0 ⇒ NO abre (hace falta PERMANENCIA sostenida). Decae vida-media al dejar de variar.
+//   · TIERS por UMBRAL de `trailcraft` sostenido → PASOS de piso de rareza: <2 ⇒ T0 (0 pasos); ≥2 ⇒ T1 (+1 piso); ≥4 ⇒ T2 (+1); ≥6 ⇒ T3 (+2). Determinista, monótono.
+//   · INDICADOR $0-arte: badge procedural ⟿ (sendero serpenteante), 0 arte nuevo. NO nueva moneda/loot-table: sólo eleva el `minR` YA existente de rollGearInst en el drop.
+// HARD-GATED: enabled:false ⇒ tickTrailcraft jamás corre (Date.now nunca se llama), G.trail/G.trailServer/G.trailMarks NUNCA se crean, trailcraftFloor RETURN "" ⇒ `minR`=undefined en rollGearInst
+// (drop de gear BYTE-IDÉNTICO a HEAD), trailcraftTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% AMBIENTAL emerge del traversal). Reversible 1-línea. NÚMEROS = balance del CEO.
+export const TRAILCRAFT = {
+  enabled: true,             // LIVE (EVO#63, CAS-2378) — flip config-only false→true tras QA DARK PASS 19/19 ×2 + CEO Gate APPROVED. Reversible 1-línea true→false.
+  channel: "lootQuality",    // canal FRESCO del passive — sube la RAREZA/calidad del drop (piso `minR` de rollGearInst), NO cantidad de oro. ⊥ goldFind/restedMult/wardRegen/oocMitigation. CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo de calidad aplica al drop (mirror WAYFARER_ROAM.zones — la ciudad/SAFEZONE queda fuera).
+  windowSec: 30,             // ventana deslizante (s) para contar TIPOS de bioma distintos pisados. CEO balance knob.
+  minVariety: 2,             // nº mínimo de TIPOS de bioma DISTINTOS en la ventana para ACUMULAR. 1 solo bioma (vueltas en un sitio) ⇒ variety 1 < 2 ⇒ nunca. CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `trailcraft` al dejar de variar terreno: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capCraft: 12,              // techo del `trailcraft` proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  accruePerSec: 1,           // `trailcraft` acumulado por segundo con variedad sostenida (con tiers 2/4/6 ⇒ 2s/4s/6s para T1/T2/T3). CEO balance knob.
+  // TABLA de tiers: umbral de `trailcraft` sostenido (min inclusivo) → `steps` = PASOS de subida del piso de rareza del drop (0 = sin efecto). Tier vigente = el más alto cuyo `min` ≤ trailcraft. Determinista, monótono.
+  tiers: [
+    { min: 2, steps: 1 },    // Tier 1 — sendero naciente (≥2s de variedad): +1 piso de rareza (común → poco común).
+    { min: 4, steps: 1 },    // Tier 2 — sendero firme (≥4s): +1 piso (se mantiene; el piso es potente).
+    { min: 6, steps: 2 },    // Tier 3 — sendero maestro (≥6s): +2 pisos de rareza (común → raro). CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
