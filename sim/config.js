@@ -2448,7 +2448,7 @@ export const CONVOY_MARCH = {
 // HARD-GATED: enabled:false ⇒ tickWard jamás corre (Date.now nunca se llama), wardRegenTick RETURN inmediato, G.ward/G.wardServer NUNCA se crean, wardMul RETURN 0, wardTag ""
 // ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL emerge de las posiciones existentes, 0 hotkey/input nuevo). Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const WARDING_RING = {
-  enabled: false,            // DARK por defecto (EVO#59). Flip reversible 1-línea false→true por CEO Gate tras QA PASS (mirror CONVOY_MARCH/INFLUX_SURGE/FRONTIER_SPREAD).
+  enabled: true,             // LIVE (EVO#59, flip CAS-2365, CEO Gate APPROVED). Reversible 1-línea true→false (mirror CONVOY_MARCH/INFLUX_SURGE/FRONTIER_SPREAD).
   channel: "wardRegen",      // canal FRESCO del passive — NO restedMult (XP). Multiplicador de la tasa de regen de HP. ORTOGONAL a restedMult (seam gainXP) y a safeRegen (SAFEZONE/TERRITORY, zona-ciudad). CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza que pueden sostener un Cordón (mirror CONVOY_MARCH/INFLUX_SURGE/FRONTIER_SPREAD.zones — reusa las zonas de caza).
   sectors: 8,                // nº de sectores angulares (compás, 45° c/u) alrededor del centroide para medir la cobertura direccional del anillo. CEO balance knob.
