@@ -2593,7 +2593,7 @@ export const FOCUS_FIRE = {
 // HARD-GATED: enabled:false ⇒ tickTrailcraft jamás corre (Date.now nunca se llama), G.trail/G.trailServer/G.trailMarks NUNCA se crean, trailcraftFloor RETURN "" ⇒ `minR`=undefined en rollGearInst
 // (drop de gear BYTE-IDÉNTICO a HEAD), trailcraftTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% AMBIENTAL emerge del traversal). Reversible 1-línea. NÚMEROS = balance del CEO.
 export const TRAILCRAFT = {
-  enabled: false,            // DARK — nace apagado (EVO#63). El CEO flipea false→true en el Gate (config-only 1 línea) tras QA PASS. Reversible.
+  enabled: true,             // LIVE (EVO#63, CAS-2378) — flip config-only false→true tras QA DARK PASS 19/19 ×2 + CEO Gate APPROVED. Reversible 1-línea true→false.
   channel: "lootQuality",    // canal FRESCO del passive — sube la RAREZA/calidad del drop (piso `minR` de rollGearInst), NO cantidad de oro. ⊥ goldFind/restedMult/wardRegen/oocMitigation. CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo de calidad aplica al drop (mirror WAYFARER_ROAM.zones — la ciudad/SAFEZONE queda fuera).
   windowSec: 30,             // ventana deslizante (s) para contar TIPOS de bioma distintos pisados. CEO balance knob.
