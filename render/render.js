@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -362,6 +362,10 @@ export function createRenderer(ctx){
     // (0 refs render fuera de este gate). ON: glifo ⌇ procedural (traza sinuosa) + "Sendero Trillado" — la celda coarse server-authoritative que el héroe transita
     // y su tread decaído (sim.wayfarerVM, autoridad en sim) ⇒ MISMO sendero/pasivo para todos los clientes con el mismo snapshot. Resalta si es un Sendero Trillado. Cosmético puro.
     if(WAYFARER_TRAIL.enabled) renderWayfarerBadge();
+    // CAS-2338: indicador "Confluencia" (Diverse Company, render-only, $0 arte, DARK). Con DIVERSE_COMPANY.enabled:false NUNCA corre ⇒ salida byte-idéntica
+    // (0 refs render fuera de este gate). ON: glifo ❈ procedural (corrientes que confluyen = clases distintas) + "Confluencia: <zona> T<n> ×N" — la diversidad
+    // LIVE server-authoritative (nº de clases distintas) de la zona del héroe (sim.confluenceVM, autoridad en sim) ⇒ MISMO tier/diversidad/buff para todos los clientes en la zona. Cosmético puro.
+    if(DIVERSE_COMPANY.enabled) renderConfluenceBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3492,6 +3496,36 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): trillado ✓ / progreso de tránsito %
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?"⌇ activo":(Math.round(frac*100)+"%");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2338: badge "Confluencia" ($0 arte, render-only, DARK). Autoridad en sim (confluenceVM). Glifo ❈ procedural = N radios de distinto tono (una clase distinta
+  // por radio hasta el tier) = corrientes que confluyen; resalta cuando el héroe está en una zona con composición diversa (recibe el passive compartido). Muestra tier + diversidad LIVE. Cosmético (no lee/escribe RNG ni save).
+  function renderConfluenceBadge(){
+    const w=sim.confluenceVM&&sim.confluenceVM(); if(!w) return;           // pre-primer-tick (G.confluence null) ⇒ diversity 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+230, sw=14, sh=14;                             // bajo el Sendero Trillado (@+208); gap anti-solape (CAS-2263)
+    const tier=w.tier|0, here=tier>0, div=w.diversity|0;
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(3.0+tier*0.5))):0.55;
+    const glyph=here?"#9fd0c0":"#8a9bb0";                                 // confluencia=verde-azulado (mezcla), inerte=gris
+    const zn=w.zone?STR.zoneName(w.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ❈ corrientes que confluyen: anillo + N radios (uno por clase distinta hasta el umbral del tier) procedural
+    ctx.beginPath(); ctx.arc(cx,cy,sw*0.44,0,6.28);
+    ctx.fillStyle=here?"rgba(70,120,110,0.6)":"rgba(74,84,100,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.78)"; ctx.stroke();
+    if(here){ ctx.strokeStyle=glyph; ctx.lineWidth=1.3; ctx.lineCap="round"; const n=Math.max(2,Math.min(4,div)); for(let i=0;i<n;i++){ const ang=-1.5708+i*(6.283/n); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(ang)*4.2,cy+Math.sin(ang)*4.2); ctx.stroke(); } }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Confluencia: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#c8ede2":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + diversidad (clases distintas)
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" ×"+div):(w.confable?("×"+div):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();
