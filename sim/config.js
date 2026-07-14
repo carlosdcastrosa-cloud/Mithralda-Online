@@ -2489,7 +2489,7 @@ export const WARDING_RING = {
 // HARD-GATED: enabled:false ⇒ tickKinship jamás corre (Date.now nunca se llama), G.kinship/G.kinshipServer NUNCA se crean, kinshipMul RETURN 0 (pickup de oro byte-idéntico), kinshipTag ""
 // ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL emerge de las posiciones existentes, 0 hotkey/input nuevo). Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const KINSHIP_BOND = {
-  enabled: false,            // DARK por defecto (EVO#60). Flip reversible 1-línea false→true por CEO Gate tras QA PASS (mirror WARDING_RING/CONVOY_MARCH), SERIALIZADO tras el flip de #59.
+  enabled: true,             // LIVE (EVO#60, CAS-2367 flip). Reversible 1-línea true→false. SERIALIZADO tras el flip LIVE de #59 (WARDING_RING) verificado LIVE por post-flip QA CAS-2366 (anti-stacking: 1 arco valida a la vez).
   channel: "goldFind",       // canal FRESCO del passive — NO restedMult (XP), NO wardRegen (HP). Multiplicador del ORO recogido en el pickup de monedas. ⊥ a los otros dos canales. CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza que pueden forjar un vínculo (mirror WARDING_RING.zones — reusa las zonas de caza).
   cellSize: 128,             // px: lado de la celda coarse de proximidad. Dos jugadores en la MISMA celda o en una ADYACENTE (Chebyshev≤1) forman un PAR próximo. Mismo grid coarse que Expedición/Sendero. CEO balance knob.
