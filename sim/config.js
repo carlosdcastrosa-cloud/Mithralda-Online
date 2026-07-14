@@ -2147,6 +2147,37 @@ export const WORLD_PULSE = {
   boost: 0.10,               // +10% restedMult a los presentes en la zona-en-Pulso mientras VIVA (compartido, mismo Δ para todos). CEO balance knob.
 };
 
+// CAS-2332: CONGREGACIÓN / GATHERING DENSITY (DARK, CONGREGATION) — EVO #51, la mecánica MÁS multiplayer-native del arco. CELEBRA directamente el
+// pilar de CONCURRENCIA Y ESCALA de Mithralda Online: cuanta más gente comparte una zona a la vez, más viva se siente y mejor se juega ⇒ recompensa
+// que el mundo COMPARTIDO se llene. Diseño Stage-1, 100% DETERMINISTA (0 RNG) y server-authority-ready.
+// Pivote FUERA de los pasivos de reloj (World Pulse #50) y de vínculo/proximidad (Fellowship/Mentor/Soul #47–49): NO la agenda un reloj, NO ata
+// jugadores concretos — la dirige el HEADCOUNT REAL de jugadores LIVE concurrentes por zona (presencia server-authoritative). Forma hubs sociales orgánicos.
+//   · SERVER-AUTHORITATIVE (fuente de verdad de presencia): el server cuenta los jugadores LIVE por zona y EMPUJA el snapshot { zona → cuenta }; el
+//     cliente sólo lo REFLEJA (0 confianza al cliente, NO añade su propia presencia — el server ya la cuenta). En Stage-1 el snapshot se inyecta por
+//     hook (mismo patrón que WORLD_PULSE inyecta el reloj compartido) ⇒ 2 clientes con el MISMO snapshot convergen byte-a-byte (mismo tier/cuenta/buff,
+//     0 desync). Cualquier desync de cuenta/tier/buff = sev-1.
+//   · TIERS por UMBRAL de headcount (deterministas, 0 RNG): <umbral₁ ⇒ Tier 0 (sin efecto); ≥umbral₁ ⇒ T1; ≥umbral₂ ⇒ T2; ≥umbral₃ ⇒ T3. El tier
+//     DECAE de forma determinista al bajar la cuenta (jugadores salen/logout) ⇒ baja exactamente al umbral vigente (función pura del headcount, sin histéresis).
+//   · PASSIVE COMPARTIDO (concurrencia): TODO jugador presente en una zona en Congregación (tier≥1) recibe el MISMO Δ del tier vigente (REUSA el canal
+//     RESTED_XP restedMult). Emergente, sin binding: NO per-hero, NO clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (0 estado nuevo).
+//   · PRECEDENCIA NO-stack / MÁXIMO ÚNICO: CONGREGATION es la MÁS BAJA del canal restedMult ⇒ CEDE (return 0) a STANDINGS > MENTOR > SOUL > PULSE ⇒ se
+//     aplica el MAYOR pasivo vigente, NUNCA doble-dip. FELLOWSHIP(xpGain)/TERRITORY(safeRegen) canales ⊥ ⇒ coexisten. Guard explícito (ver congMul).
+//   · INDICADOR $0-arte: badge de texto "Congregación: <zona> T<n> ×N" (reusa la fila de badges + glifo procedural, como Pulso del Mundo/Emisario), 0 arte nuevo.
+// HARD-GATED: enabled:false ⇒ tickCongregation jamás corre, G.congregation/G.congServer NUNCA se crean, congMul RETURN 0, congTag "" ⇒ sim + save.v1 +
+// worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave serializada). SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey nuevo).
+// Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO.
+export const CONGREGATION = {
+  enabled: true,             // CAS-2333 LIVE FLIP (Gate CEO APROBADO, QA 18/18 ×2 build c4a549ae2fa1). false→true (config-only 1-línea, reversible, mirror WORLD_PULSE/SOUL_RECOVERY/ORDER_CONTEST).
+  channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: cede a STANDINGS/MENTOR/SOUL/PULSE (mismo canal, ver congMul). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden congregarse (mirror WORLD_PULSE.zones/SOUL_RECOVERY.zones — reusa las zonas de caza).
+  // TABLA de tiers: umbral de headcount (min, inclusivo) → boost restedMult. Tier vigente = el más alto cuyo `min` ≤ cuenta LIVE (determinista, monótono).
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — hub incipiente (≥2 jugadores en la zona): pasivo suave.
+    { min: 4, boost: 0.10 },   // Tier 2 — congregación (≥4): pasivo medio.
+    { min: 8, boost: 0.15 },   // Tier 3 — multitud (≥8): pasivo pleno. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

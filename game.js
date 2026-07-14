@@ -347,6 +347,12 @@ export function createGame(canvas, ctx, getView){
       // (convergencia, MISMA zona/fase en N clientes); pulse({toZone}) teleporta a la zona-en-Pulso VIVA (observa el passive compartido); pulse({leave})
       // aleja de toda zona. SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL derivado del reloj, sin input.js).
       pulse:(p)=>simDev.pulse(p),
+      // CAS-2332: CONGREGACIÓN / GATHERING DENSITY OBSERVABLE hook (DARK, CONGREGATION). congregation() lee {enabled,zones,tiers,zone,congable,count,
+      // tier,boostKind,boost,congMulRested,restedXpMult,standings/mentor/soul/pulseMulRested,tag,precedence,counts,gExists,hero}; congregation({enabled:true})
+      // flip runtime IN-MEMORY; congregation({counts:{zona:n}}) el server EMPUJA el snapshot de presencia server-authoritative ⇒ el cliente lo REFLEJA
+      // (convergencia byte-a-byte, MISMO tier/cuenta/buff en N clientes con el MISMO snapshot); congregation({toZone:"forest"}) teleporta a esa zona (observa
+      // el passive compartido); congregation({leave}) aleja de toda zona. SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL, sin input.js).
+      congregation:(p)=>simDev.congregation(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
