@@ -2381,6 +2381,47 @@ export const BATTLE_SYNC = {
   ],
 };
 
+// CAS-2356: MARCHA / CONVOY MARCH (DARK, CONVOY_MARCH) — EVO mecánica #57 (primer eje VECTORIAL/DIRECCIONAL de la serie). Eje FRESCO: COHERENCIA DIRECCIONAL de los vectores de
+// VELOCIDAD de los jugadores en movimiento — la comunidad *marchando junta como convoy/caravana/migración*. Ortogonal a TODO el arco, que fue 100% ESCALAR: ≠ Congregación #51
+// (headcount/densidad, *cuántos*), ≠ Sendero #52 (footfall acumulado, *camino histórico*), ≠ Confluencia #53 (variedad de clases), ≠ Vigilia #54 (continuidad temporal), ≠ Expedición
+// #55 (dispersión/cobertura espacial), ≠ Afluencia #56 (tasa neta de llegadas = magnitud de cambio de población), ≠ World Pulse #50 (reloj). Aquí importa el RUMBO COMÚN INSTANTÁNEO
+// del movimiento de los PRESENTES: no cuántos, no dónde, no desde-cuándo — hacia DÓNDE van juntos.
+//   · SERVER-AUTHORITATIVE (fuente de verdad de la coherencia): el server, por zona por tick, toma los jugadores EN MOVIMIENTO (rapidez > minSpeed), SUMA sus vectores de velocidad y
+//     compara la MAGNITUD del vector resultante contra la SUMA de rapideces individuales ⇒ coeficiente de coherencia c = |Σv| / Σ|v| ∈ [0,1] (c=1 todos mismo rumbo; c≈0 rumbos
+//     dispersos/opuestos). Cuando ≥minMovers se mueven con c ≥ cThreshold de forma SOSTENIDA (acumulador con decay), la zona entra en Marcha por tiers y da a TODOS los presentes
+//     el MISMO passive (RESTED_XP). Empuja { zona → { march, atMs } }; el cliente sólo lo REFLEJA + PROYECTA al `now` compartido (0 confianza). En Stage-1 el snapshot+reloj se inyectan
+//     por hook (mismo patrón que INFLUX_SURGE/FRONTIER_SPREAD/LONG_WATCH) ⇒ 2 clientes con el MISMO snapshot+reloj convergen byte-a-byte (0 desync).
+//   · CÓMPUTO DE COHERENCIA = función PURA (convoyCoherence): dado un set de vectores {vx,vy} y minSpeed, filtra los EN MOVIMIENTO (rapidez>minSpeed), suma vectores + rapideces y
+//     devuelve { movers, c=|Σv|/Σ|v| }. Casos borde byte-verificables: todos QUIETOS (rapidez≤minSpeed) ⇒ movers 0 / c 0; 2 en rumbos OPUESTOS ⇒ |Σv|≈0 ⇒ c≈0; N mismo rumbo ⇒ c=1.
+//   · ACUMULADOR SOSTENIDO con DECAY (mirror #56/#55/#54): mientras el convoy se sostiene (movers≥minMovers Y c≥cThreshold) el `march` SUBE (accruePerSec·dt); al FRENAR o DIVERGIR el
+//     convoy, `march` NO acumula y DECAE por vida-media halfLifeSec (march_now = march·0.5^((now−atMs)/halfLife), 0 RNG, 0 histéresis, techo capMarch). El decay evita corte seco.
+//   · TIERS por UMBRAL de `march` sostenido proyectado (deterministas, monótonos): <2 ⇒ Tier 0; ≥2 ⇒ T1; ≥4 ⇒ T2; ≥6 ⇒ T3. Requiere SOSTENER la coherencia varios ticks para abrir
+//     (2s a accruePerSec=1). 1 jugador solo moviéndose (movers<minMovers) NUNCA abre; 2 en rumbos opuestos (c≈0) NUNCA abre — premia MARCHAR JUNTOS con rumbo común sostenido.
+//   · PASSIVE COMPARTIDO (convoy): TODO jugador presente en una zona en Marcha (tier≥1) recibe el MISMO Δ del tier vigente (REUSA el canal RESTED_XP restedMult). Emergente, sin binding:
+//     NO per-hero, NO clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (0 estado nuevo).
+//   · PRECEDENCIA NO-stack / MÁXIMO ÚNICO: CONVOY_MARCH es la MÁS BAJA del canal restedMult (última fuente, tras CAS-2355 BATTLE_SYNC) ⇒ CEDE (return 0) a STANDINGS > MENTOR > SOUL >
+//     PULSE > CONGREGATION > WAYFARER > DIVERSE_COMPANY > LONG_WATCH > FRONTIER_SPREAD > INFLUX_SURGE > BATTLE_SYNC ⇒ se aplica el MAYOR pasivo vigente, NUNCA doble-dip. FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten.
+//   · INDICADOR $0-arte: badge de texto "Marcha: <zona> T<n>" (reusa la fila de badges + glifo procedural ⇉ = flechas paralelas en el rumbo común del convoy), 0 arte nuevo.
+// HARD-GATED: enabled:false ⇒ tickConvoy jamás corre (Date.now nunca se llama), G.convoy/G.convoyServer NUNCA se crean, convoyMul RETURN 0, convoyTag ""
+// ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL emerge del movimiento existente, 0 hotkey/input nuevo). Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const CONVOY_MARCH = {
+  enabled: true,             // LIVE (CAS-2359 flip false→true, EVO#58; Gate CEO APPROVED byte-verify LIVE 310253B 9/9 flags served true 0-regr; config-only 1-línea, reversible, mirror INFLUX_SURGE/FRONTIER_SPREAD/LONG_WATCH/BATTLE_SYNC).
+  channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY/LONG_WATCH/FRONTIER_SPREAD/INFLUX_SURGE/BATTLE_SYNC (ver convoyMul). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Marcha (mirror INFLUX_SURGE/FRONTIER_SPREAD/CONGREGATION.zones — reusa las zonas de caza).
+  minSpeed: 0.5,             // rapidez mínima (px/tick) para contar como EN MOVIMIENTO: por debajo el jugador está QUIETO y NO cuenta para la coherencia. CEO balance knob.
+  minMovers: 3,              // K: nº mínimo de jugadores en movimiento coherente para sostener un convoy. <K ⇒ NO abre (1 solo moviéndose nunca abre). CEO balance knob.
+  cThreshold: 0.6,           // umbral de coherencia direccional c∈[0,1]: el convoy sólo acumula si c≥este valor (rumbo común); rumbos dispersos/opuestos (c bajo) NO acumulan. CEO balance knob.
+  halfLifeSec: 20,           // vida-media del DECAY determinista (sin RNG) del `march` al FRENAR/DIVERGIR el convoy: cae a la mitad cada 20s (el rumbo es instantáneo ⇒ decay ágil). Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capMarch: 12,              // techo del `march` proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  accruePerSec: 1,           // `march` acumulado por segundo de convoy coherente sostenido (con tiers 2/4/6 ⇒ 2s/4s/6s de marcha sostenida para T1/T2/T3). CEO balance knob.
+  // TABLA de tiers: umbral de `march` sostenido (min inclusivo) → boost restedMult. Tier vigente = el más alto cuyo `min` ≤ march. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — convoy naciente (≥2s de marcha coherente sostenida): pasivo suave.
+    { min: 4, boost: 0.10 },   // Tier 2 — convoy firme (≥4s): pasivo medio.
+    { min: 6, boost: 0.15 },   // Tier 3 — gran marcha/migración (≥6s): pasivo pleno. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

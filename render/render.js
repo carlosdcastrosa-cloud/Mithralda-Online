@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -379,6 +379,9 @@ export function createRenderer(ctx){
     // CAS-2355: badge "Sincronía" — el nº de jugadores DISTINTOS server-authoritative de la zona con gesta/kill en la ventana deslizante + tier/passive derivados
     // (sim.syncVM, autoridad en sim) ⇒ MISMA sincronía/tier/buff para todos los clientes con el mismo snapshot. Resalta si la zona está en Sincronía. Cosmético puro.
     if(BATTLE_SYNC.enabled) renderSyncBadge();
+    // CAS-2356: badge "Marcha" — el `march` sostenido server-authoritative de la zona (coherencia direccional de los vectores de velocidad de los presentes en movimiento) + tier/passive
+    // derivados (sim.convoyVM, autoridad en sim) ⇒ MISMO march/tier/buff para todos los clientes con el mismo snapshot. Resalta si la zona está en Marcha. Cosmético puro.
+    if(CONVOY_MARCH.enabled) renderConvoyBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3675,6 +3678,40 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + nº de jugadores sincronizados
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" ×"+count):(w.syncable?(count+""):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2356: badge "Marcha" ($0 arte, render-only, DARK). Autoridad en sim (convoyVM). Glifo ⇉ procedural = flechas PARALELAS en el rumbo común del convoy (más flechas encendidas
+  // según el tier = marcha más sostenida/coherente); resalta cuando el héroe está en una zona en Marcha (recibe el passive compartido). Muestra tier + march LIVE. Cosmético (no lee/escribe RNG ni save).
+  function renderConvoyBadge(){
+    const w=sim.convoyVM&&sim.convoyVM(); if(!w) return;                   // pre-primer-tick (G.convoy null) ⇒ march 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+340, sw=14, sh=14;                             // bajo la Sincronía (@+318); gap anti-solape (CAS-2263)
+    const tier=w.tier|0, here=tier>0, march=Math.round(w.march||0);
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(3.0+tier*0.5))):0.55;
+    const glyph=here?"#8fe0a0":"#8a9bb0";                                 // marcha=verde-avance, inerte=gris
+    const zn=w.zone?STR.zoneName(w.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⇉ flechas: fondo + hasta 3 chevrons PARALELOS apuntando al rumbo común; se "encienden" (tier) = coherencia sostenida del convoy, procedural
+    ctx.beginPath(); ctx.arc(cx,cy,sw*0.44,0,6.28);
+    ctx.fillStyle=here?"rgba(40,110,70,0.5)":"rgba(74,84,100,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.78)"; ctx.stroke();
+    const lit=here?Math.min(3,tier):0, ah=sw*0.20;                        // nº de chevrons "encendidos" (T1⇒1, T2⇒2, T3⇒3)
+    ctx.lineWidth=1.6; ctx.lineCap="round"; ctx.lineJoin="round";
+    for(let ai=0;ai<3;ai++){ const on=ai<lit; const ax=cx-sw*0.24+ai*(sw*0.20);   // de izq a der (avance del convoy →)
+      ctx.strokeStyle=on?glyph:"rgba(120,160,140,0.30)";
+      ctx.beginPath(); ctx.moveTo(ax-ah*0.9,cy-ah); ctx.lineTo(ax+ah*0.4,cy); ctx.lineTo(ax-ah*0.9,cy+ah); ctx.stroke(); }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Marcha: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#c6f0d2":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + march (marcha sostenida)
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" "+march):(w.convoyable?(march+""):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();

@@ -387,6 +387,12 @@ export function createGame(canvas, ctx, getView){
       // el snapshot {zona→{id→últimoKillMs}}; sync({kills:{zona:{ids,atMs}}}) registra la gesta de cada jugador; sync({kill:{zone,id,atMs}}) UNA gesta; sync({toZone}) teleporta; sync({leave})
       // aleja; sync({clear}) limpia. Convergencia byte-a-byte (MISMO snapshot+reloj ⇒ MISMA sincronía/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de coordinación, sin input.js).
       sync:(p)=>simDev.sync(p),
+      // CAS-2356: MARCHA / CONVOY MARCH OBSERVABLE hook (DARK, CONVOY_MARCH). convoy() lee el `march` sostenido server-authoritative por zona (coherencia direccional de los vectores de
+      // velocidad de los presentes en movimiento) + tier/passive derivados; convoy({enabled}) flip in-memory; convoy({nowMs}) fija el reloj compartido (decay); convoy({push}) el server empuja
+      // el snapshot {zona→{march,atMs}}; convoy({movement:{zona:{vels,dt}}}) el server computa la coherencia (convoyCoherence) y acumula/decae (diferenciadores: quietos/opuestos⇒0);
+      // convoy({coherenceProbe:{vels}}) devuelve la función PURA; convoy({march,zone,atMs}) empuja UNA zona; convoy({toZone}) teleporta; convoy({leave}) aleja; convoy({clear}) limpia.
+      // Convergencia byte-a-byte (MISMO snapshot+reloj ⇒ MISMO march/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL emerge del movimiento, sin input.js).
+      convoy:(p)=>simDev.convoy(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
