@@ -2538,6 +2538,41 @@ export const WAYFARER_ROAM = {
   ],
 };
 
+// CAS-2370: FUEGO CONCENTRADO / FOCUS FIRE (DARK, FOCUS_FIRE) — EVO mecánica #62. EJE FRESCO; reusa el canal goldFind de #60 con de-stacking máximo-único (extensión ANTICIPADA por KINSHIP_BOND).
+//   NOTA de NUMERACIÓN: co-asignada con CAS-2369 (Trotamundos / WAYFARER_ROAM) que reclama #61 y ya está construida DARK (más avanzada, meta canónica del arco). FOCUS_FIRE renumera a #62 para
+//   evitar colisión; ambas coexisten DARK y se SERIALIZAN para el flip (1 arco valida a la vez). Pendiente confirmación CTO/CEO del split #61(Wayfarer)/#62(Focus).
+//   (A) EJE FRESCO = CONCENTRACIÓN DE OBJETIVO (focus-fire): cuántos jugadores DISTINTOS concentran su ataque sobre el MISMO enemigo A LA VEZ, de forma SOSTENIDA. server-authoritative, 0-RNG:
+//       por zona por tick el server toma las ASIGNACIONES { jugador → objetivo } de los presentes en combate, las agrupa por objetivo y toma el MÁXIMO nº de atacantes DISTINTOS sobre un único
+//       objetivo (`focusConcentration(assignments)` = { members, conc } PURA). Mientras conc≥minFocus se sostiene ACUMULA `focus` (accruePerSec·dt) con DECAY vida-media; al dispersarse decae. 0 input.js.
+//   (B) CANAL = `goldFind` (REUSA el de KINSHIP_BOND #60; NO restedMult/XP, NO wardRegen/HP). Un fuego concentrado abierto (tier≥1) da +boost de oro al recoger monedas en la zona: los despojos de
+//       una presa abatida en concentración son más ricos. PRECEDENCIA máximo-único DENTRO de goldFind: FOCUS_FIRE es la fuente MÁS NUEVA ⇒ CEDE (return 0) a KINSHIP_BOND (aplica el MAYOR, 0 doble-conteo).
+//   · DIFERENCIADORES (ortogonalidad OBLIGATORIA — el eje usa ASIGNACIÓN DE OBJETIVO, no posiciones/velocidad/headcount):
+//       ≠ KINSHIP_BOND (#60, proximidad pareada): usa OBJETIVOS, no posiciones ⇒ jugadores DISPERSOS (lejos, 0 pares) todos sobre el MISMO objetivo ⇒ FOCUS abre, KINSHIP cerrado (OPUESTO). Y amontonados
+//         sobre objetivos DISTINTOS ⇒ KINSHIP abre (pares altos), FOCUS cerrado (conc 1). Respuestas OPUESTAS al mismo agrupamiento ⇒ ⊥. (Comparten canal goldFind ⇒ de-stack máximo-único, jamás doblan.)
+//       ≠ BATTLE_SYNC (#57, correlación temporal de GESTAS/kills en ventana): FOCUS = atacantes CONCURRENTES sobre un objetivo VIVO (sin kill); 3 sobre un jefe que aún no muere ⇒ FOCUS abre, SYNC cerrado.
+//         Y 3 matando cada uno su propio mob en la ventana ⇒ SYNC abre, FOCUS cerrado (objetivos distintos ⇒ conc 1). OPUESTO.
+//       ≠ CONGREGATION (#51, headcount): N presentes atacando objetivos DISTINTOS ⇒ conc 1 < minFocus ⇒ NO abre (Cong abre por headcount). Hace falta OBJETIVO COMPARTIDO, no sólo presencia.
+//       ≠ CONVOY_MARCH (#58, coherencia de velocidad): ignora el movimiento ⇒ QUIETOS martillando un objetivo ⇒ FOCUS abre, Convoy cerrado (sin rumbo).  1 solo ⇒ conc 1 ⇒ NO abre. 1 tick efímero ⇒ decae ⇒ NO.
+//   · TIERS por UMBRAL de `focus` sostenido: <2 ⇒ T0; ≥2 ⇒ T1; ≥4 ⇒ T2; ≥6 ⇒ T3 (2s/4s/6s de concentración sostenida). Determinista, monótono.
+//   · INDICADOR $0-arte: reusa la fila de badges de recuperación (glifo procedural ⊙ = retícula/objetivo concentrado), 0 arte nuevo. NO nueva moneda: sólo un mult sobre el oro YA existente en el pickup.
+// HARD-GATED: enabled:false ⇒ tickFocus jamás corre (Date.now nunca se llama), G.focus/G.focusServer NUNCA se crean, focusMul RETURN 0 (pickup de oro byte-idéntico), focusTag "" ⇒ sim + save.v1 +
+// worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL emerge de las asignaciones de objetivo existentes). Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const FOCUS_FIRE = {
+  enabled: false,            // DARK (EVO#62). Reversible 1-línea false→true (flip vía CTO tras CEO Gate + post-flip QA LIVE). SERIALIZADO tras el arco vigente (anti-stacking: 1 mecánica valida a la vez).
+  channel: "goldFind",       // canal del passive — REUSA goldFind (bono de oro) de KINSHIP_BOND #60. NO restedMult (XP), NO wardRegen (HP). Máximo-único DENTRO de goldFind: FOCUS_FIRE cede a KINSHIP_BOND. CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza que pueden sostener un fuego concentrado (mirror KINSHIP_BOND.zones — reusa las zonas de caza).
+  minFocus: 2,               // nº mínimo de jugadores DISTINTOS concentrando fuego sobre el MISMO objetivo para acumular. 1 solo ⇒ conc 1 < 2 ⇒ nunca; objetivos dispersos ⇒ conc 1 ⇒ nunca. CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `focus` al dispersarse la concentración: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capFocus: 12,              // techo del `focus` proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  accruePerSec: 1,           // `focus` acumulado por segundo de concentración sostenida (con tiers 2/4/6 ⇒ 2s/4s/6s para T1/T2/T3). CEO balance knob.
+  // TABLA de tiers: umbral de `focus` sostenido (min inclusivo) → boost del canal goldFind (fracción extra de oro al recoger). Tier vigente = el más alto cuyo `min` ≤ focus. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — fuego naciente (≥2s de concentración): +5% oro.
+    { min: 4, boost: 0.10 },   // Tier 2 — fuego firme (≥4s): +10% oro.
+    { min: 6, boost: 0.15 },   // Tier 3 — descarga concentrada (≥6s): +15% oro. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
