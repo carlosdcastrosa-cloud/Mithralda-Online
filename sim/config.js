@@ -2299,7 +2299,7 @@ export const LONG_WATCH = {
 // HARD-GATED: enabled:false ⇒ tickFrontier jamás corre (Date.now nunca se llama), G.frontier/G.frontierServer NUNCA se crean, frontierMul RETURN 0, frontierTag ""
 // ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey). Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const FRONTIER_SPREAD = {
-  enabled: false,            // DARK (EVO#55). Ship apagado; el flip false→true es un umbrella aparte (CTO) tras QA + CEO Gate. Mirror LONG_WATCH/WAYFARER_TRAIL/CONGREGATION en su fase DARK.
+  enabled: true,             // CAS-2348 LIVE FLIP (EVO#55, CEO Gate APPROVED; QA DARK 14/14 ×2 build c4a549ae2fa1). false→true (config-only 1-línea, reversible true→false = DARK). Mirror LONG_WATCH/WAYFARER_TRAIL/CONGREGATION/DIVERSE_COMPANY/WORLD_PULSE/SOUL_RECOVERY flips.
   channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY/LONG_WATCH (ver frontierMul). CEO balance knob.
   cellSize: 128,             // lado del bucket COARSE en px (4 tiles de 32px) — MISMO grid que WAYFARER_TRAIL.cellSize (reuso). Sub-celda = unidad de cobertura. CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Expedición (mirror CONGREGATION/WORLD_PULSE/LONG_WATCH.zones — reusa las zonas de caza).
