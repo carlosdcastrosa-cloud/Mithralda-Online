@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -376,6 +376,9 @@ export function createRenderer(ctx){
     // CAS-2352: badge "Afluencia" — el surge server-authoritative de la zona (llegadas acumuladas EDGE-triggered) + tier/passive derivados
     // (sim.influxVM, autoridad en sim) ⇒ MISMO surge/tier/buff para todos los clientes con el mismo snapshot. Resalta si la zona está en Afluencia. Cosmético puro.
     if(INFLUX_SURGE.enabled) renderInfluxBadge();
+    // CAS-2355: badge "Sincronía" — el nº de jugadores DISTINTOS server-authoritative de la zona con gesta/kill en la ventana deslizante + tier/passive derivados
+    // (sim.syncVM, autoridad en sim) ⇒ MISMA sincronía/tier/buff para todos los clientes con el mismo snapshot. Resalta si la zona está en Sincronía. Cosmético puro.
+    if(BATTLE_SYNC.enabled) renderSyncBadge();
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3637,6 +3640,41 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + surge (llegadas acumuladas)
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" "+surge):(w.influxable?(surge+""):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2355: badge "Sincronía" ($0 arte, render-only, DARK). Autoridad en sim (syncVM). Glifo ⇌ procedural = dos espadas/flechas cruzadas sincronizadas (más arcos encendidos
+  // según el tier = más jugadores coordinados); resalta cuando el héroe está en una zona en Sincronía (recibe el passive compartido). Muestra tier + nº sincronizados LIVE. Cosmético (no lee/escribe RNG ni save).
+  function renderSyncBadge(){
+    const w=sim.syncVM&&sim.syncVM(); if(!w) return;                       // pre-primer-tick (G.sync null) ⇒ count 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+318, sw=14, sh=14;                             // bajo la Afluencia (@+296); gap anti-solape (CAS-2263)
+    const tier=w.tier|0, here=tier>0, count=w.count|0;
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(3.0+tier*0.5))):0.55;
+    const glyph=here?"#f0b878":"#8a9bb0";                                 // sincronía=ámbar-batalla, inerte=gris
+    const zn=w.zone?STR.zoneName(w.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⇌ espadas cruzadas: fondo + hasta 3 pares de trazos cruzados; se "encienden" (tier) = intensidad de la coordinación, procedural
+    ctx.beginPath(); ctx.arc(cx,cy,sw*0.44,0,6.28);
+    ctx.fillStyle=here?"rgba(120,80,30,0.5)":"rgba(74,84,100,0.5)"; ctx.fill();
+    ctx.lineWidth=1.5; ctx.strokeStyle="rgba(0,0,0,0.78)"; ctx.stroke();
+    const lit=here?Math.min(3,tier):0, aw=sw*0.30;                        // nº de aspas "encendidas" (T1⇒1, T2⇒2, T3⇒3)
+    ctx.lineWidth=1.6; ctx.lineCap="round"; ctx.lineJoin="round";
+    // dos diagonales cruzadas (X) que se refuerzan por tier
+    for(let ai=0;ai<3;ai++){ const on=ai<lit; const sc=aw*(1-ai*0.24);
+      ctx.strokeStyle=on?glyph:"rgba(180,150,120,0.28)";
+      ctx.beginPath(); ctx.moveTo(cx-sc,cy-sc); ctx.lineTo(cx+sc,cy+sc); ctx.moveTo(cx+sc,cy-sc); ctx.lineTo(cx-sc,cy+sc); ctx.stroke(); }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Sincronía: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#f6dcc0":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + nº de jugadores sincronizados
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" ×"+count):(w.syncable?(count+""):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=glyph; ctx.fillText(st,bx+104,ty);
     ctx.restore();

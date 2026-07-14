@@ -382,6 +382,11 @@ export function createGame(canvas, ctx, getView){
       // todos nuevos⇒|now|); influx({zone,surge,atMs}) empuja UNA zona; influx({toZone}) teleporta; influx({leave}) aleja; influx({clear}) limpia. Convergencia byte-a-byte (MISMO
       // snapshot+reloj ⇒ MISMO surge/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de afluencia, sin input.js).
       influx:(p)=>simDev.influx(p),
+      // CAS-2355: SINCRONÍA DE BATALLA / BATTLE SYNCHRONY OBSERVABLE hook (DARK, BATTLE_SYNC). sync() lee la coordinación server-authoritative por zona (nº de jugadores DISTINTOS con
+      // gesta/kill en la ventana deslizante corta) + tier/passive derivados; sync({enabled}) flip in-memory; sync({nowMs}) fija el reloj compartido (ventana); sync({push}) el server empuja
+      // el snapshot {zona→{id→últimoKillMs}}; sync({kills:{zona:{ids,atMs}}}) registra la gesta de cada jugador; sync({kill:{zone,id,atMs}}) UNA gesta; sync({toZone}) teleporta; sync({leave})
+      // aleja; sync({clear}) limpia. Convergencia byte-a-byte (MISMO snapshot+reloj ⇒ MISMA sincronía/passive en N clientes). SOLO lectura / drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de coordinación, sin input.js).
+      sync:(p)=>simDev.sync(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
