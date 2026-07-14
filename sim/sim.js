@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2680,6 +2680,18 @@ function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
   h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
 }
 
+// CAS-2362: tick del CORDÓN DE GUARDIA (canal FRESCO wardRegen — regen de HP fuera de combate). Un Cordón abierto (tier≥1) en la zona de caza del héroe CREA regen de HP a
+// regenPct×(1+boost del tier)×HPmax/s (santuario móvil), enganchado en el MISMO chokepoint de curación que tickSafeZone (mhp*rate*dt vía pactHeal, respeta la pausa post-daño
+// _safeRegenPauseT — sólo LEE, nunca la escribe). kind DISTINTO a safeRegen (SAFEZONE/TERRITORY) y canal ⊥ a restedMult ⇒ 0 doble-conteo por construcción. 0 RNG, 0 campo nuevo
+// (sólo muta h.hp). GATED: WARDING_RING.enabled false ⇒ return inmediato ⇒ HP intacto ⇒ byte-idéntico a HEAD (mismo patrón anti-CAS-2220 que tickSafeZone).
+function wardRegenTick(h,dt){ if(!WARDING_RING.enabled||!h||h.dead) return;
+  if((h._safeRegenPauseT||0)>0) return;                          // no te curas mientras te pegan (reusa la pausa de SAFEZONE; sólo LECTURA ⇒ 0 estado nuevo)
+  const boost=wardMul(h,WARDING_RING.channel||"wardRegen"); if(boost<=0) return;   // sin Cordón abierto en la zona del héroe ⇒ 0 regen (gate del canal wardRegen)
+  const mhp=heroMaxHp(h); if(h.hp<=0 || h.hp>=mhp) return;       // muerto o a tope ⇒ nada que regenerar
+  const rate=Math.max(0,+WARDING_RING.regenPct||0)*(1+boost);    // regen base del Cordón acelerado por el boost del tier vigente
+  h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
+}
+
 // CAS-2255: tick de ACUMULACIÓN del pool de Descanso (Rested XP). Mientras el héroe está DENTRO de la SAFEZONE, el
 // pool crece a RESTED_XP.accrualPerSec×dt hasta el tope poolCap (unidades de XP bonus). El GASTO vive en el chokepoint
 // gainXP (fuera de la zona). 100% aritmética determinista, 0 RNG, sin wall-clock local (usa dt de sim ⇒ MMORPG/server-
@@ -3765,6 +3777,78 @@ export function convoyVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
   const march=convoyable?convoyMarchVal(z):0, tier=convoyable?convoyTier(march):0;
   return { enabled:!!CONVOY_MARCH.enabled, zone:z, convoyable, march:+march.toFixed(2), tier, tierCount:(CONVOY_MARCH.tiers||[]).length,
     boostKind:CONVOY_MARCH.channel||"restedMult", boost: h?convoyMul(h,CONVOY_MARCH.channel||"restedMult"):0 }; }
+
+// ============================================================================
+// CAS-2362: CORDÓN DE GUARDIA / WARDING RING (DARK, WARDING_RING) — EVO mecánica #59. Canal FRESCO wardRegen (regen de HP, ⊥ restedMult) + eje FRESCO COBERTURA ANGULAR (distribución
+// de RUMBOS de las posiciones alrededor del centroide). server-authoritative: el server toma las posiciones de los presentes, calcula el centroide, cuenta cuántos SECTORES angulares
+// distintos ocupan los del anillo (fuera de ringRadius) ⇒ cobertura∈[0,1]; mientras ≥minMembers logren cover≥coverThreshold ACUMULA un `ward` sostenido con DECAY, empuja { zona →
+// { ward, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. wardCoverage(positions) = CÓMPUTO server-side de la cobertura angular = { members, onRing, sectors, cover }. Función
+// PURA (0 RNG, 0 side-effect). Casos borde: 1 jugador ⇒ centroide en él ⇒ onRing 0/cover 0 (NO abre); N AMONTONADOS (dentro de ringRadius) ⇒ onRing 0/cover 0 (NO abre, ≠ Congregación);
+// N en LÍNEA ⇒ 2 sectores ⇒ cover baja (NO abre, ≠ Expedición área); N REPARTIDOS en rumbos ⇒ muchos sectores ⇒ cover alta (abre si onRing≥minMembers). Funciona con QUIETOS (≠ Convoy velocidad).
+export function wardCoverage(positions){
+  const S=Math.max(1,(WARDING_RING.sectors|0)||8), rMin=Math.max(0,+WARDING_RING.ringRadius||0);
+  const pts=Array.isArray(positions)?positions.filter(p=>p && isFinite(+p.x) && isFinite(+p.y)):[];
+  const members=pts.length;
+  if(members===0) return { members:0, onRing:0, sectors:0, cover:0 };
+  let sx=0, sy=0; for(const p of pts){ sx+=(+p.x); sy+=(+p.y); }
+  const cx=sx/members, cy=sy/members;                                   // centroide = media de las posiciones presentes
+  const occ={}; let occN=0, onRing=0;
+  for(const p of pts){ const dx=(+p.x)-cx, dy=(+p.y)-cy, d=Math.sqrt(dx*dx+dy*dy);
+    if(d<=rMin) continue;                                               // en el NÚCLEO (no define un rumbo) ⇒ no es parte del anillo (amontonamiento ⇒ onRing 0)
+    onRing++;
+    let a=Math.atan2(dy,dx); if(a<0) a+=2*Math.PI;                      // rumbo ∈ [0,2π)
+    let s=Math.floor(a/((2*Math.PI)/S)); if(s>=S) s=S-1; if(s<0) s=0;   // sector angular
+    if(!occ[s]){ occ[s]=1; occN++; } }
+  const cover=occN/S;
+  return { members, onRing, sectors:occN, cover: Math.max(0, Math.min(1, cover)) }; }
+// ¿el estado de posición de una zona SOSTIENE un Cordón este tick? (onRing≥minMembers Y cover≥coverThreshold). Puro sobre el resultado de wardCoverage.
+function wardSustains(wc){ if(!wc) return false; return (wc.onRing|0)>=(WARDING_RING.minMembers|0) && (+wc.cover||0)>=(+WARDING_RING.coverThreshold||0); }
+// wardTier(ward) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ ward. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function wardTier(ward){ const T=WARDING_RING.tiers||[]; ward=+ward||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && ward>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost del canal wardRegen del tier vigente (0 si Tier 0). Puro. El gate global lo cubre wardMul; aquí sólo la TABLA determinista.
+function wardBoost(ward){ const t=wardTier(ward); return t>0 ? (+WARDING_RING.tiers[t-1].boost||0) : 0; }
+// `ward` sostenido PROYECTADO de una zona leído del snapshot reflejado en G.ward.ward (ya proyectado al `now` por tickWard). 0 si sin snapshot / zona ausente. Puro.
+function wardVal(zone){ const g=G.ward; if(!g||!g.ward||!zone) return 0; return +g.ward[zone]||0; }
+function wardOpen(zone){ return wardTier(wardVal(zone))>0; }
+// wardMul(h,kind) = el passive COMPARTIDO de los presentes en una zona con Cordón (tier≥1), en el canal FRESCO wardRegen (regen de HP). PRECEDENCIA máximo-único DENTRO del canal:
+// WARDING_RING es (por ahora) la ÚNICA fuente ⇒ máximo-único trivial (documentado para que futuras del arco de-stackeen aquí). ORTOGONAL a restedMult (seam gainXP) y a safeRegen
+// (SAFEZONE/TERRITORY, kind distinto) ⇒ jamás dobla con NINGÚN canal previo. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function wardMul(h,kind){ if(!WARDING_RING.enabled||!h) return 0;
+  if(kind!==(WARDING_RING.channel||"wardRegen")) return 0;
+  const z=zoneOf(world,h.x,h.y); if(!z || (WARDING_RING.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de cordón ⇒ 0
+  return wardBoost(wardVal(z));   // el boost del tier vigente por el `ward` server-authoritative de esa zona
+}
+// tick del CORDÓN (mirror tickConvoy): REFLEJA el snapshot server-authoritative { zona → { ward, atMs } } (empujado por el server, cacheado en G.wardServer) y lo PROYECTA al `now`
+// compartido hacia G.ward.ward aplicando el DECAY determinista por vida-media (ward_now = ward·0.5^(max(0,now−atMs)/halfLife), 0 RNG, techo capWard). SIN estado per-hero, SIN clave
+// serializada. OFF ⇒ NUNCA se invoca (Date.now nunca se llama) ⇒ G.ward/G.wardServer NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real.
+function tickWard(nowArg){ if(!WARDING_RING.enabled) return; const now=(nowArg!=null?+nowArg:(G.wardNow!=null?+G.wardNow:Date.now()));
+  const src=G.wardServer||{}, ward={}, hl=Math.max(1,(WARDING_RING.halfLifeSec|0))*1000, cap=Math.max(0,(WARDING_RING.capWard|0));
+  for(const z of (WARDING_RING.zones||[])){ const raw=src[z]; if(!raw) continue;
+    const base=Math.max(0,+raw.ward||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let w=base * Math.pow(0.5, dtMs/hl); if(cap>0) w=Math.min(cap,w);   // DECAE determinista por vida-media hacia el `now` compartido (0 RNG)
+    if(w>0) ward[z]=w; }
+  G.ward={ ward, nowMs:now }; }
+// helper server-side: ACUMULA `add` unidades de cordón en una zona sobre el `ward` proyectado al `atMs` (mirror del acumulador con decay). Puro sobre G.wardServer; devuelve el nuevo raw.
+function wardAccrue(zone, add, atMs){ if((WARDING_RING.zones||[]).indexOf(zone)<0) return null; add=Math.max(0,+add||0);
+  const src=G.wardServer||(G.wardServer={}), raw=src[zone], hl=Math.max(1,(WARDING_RING.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.ward||0):0, prevAt=raw?(+raw.atMs||0):atMs, dtMs=Math.max(0,atMs-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl);   // proyecta el ward previo al instante de esta acumulación
+  src[zone]={ ward:projected+add, atMs }; return src[zone]; }
+// helper server-side: dado el set de posiciones {x,y} de una zona y el dt, computa la cobertura angular y ACUMULA accruePerSec·dt si el Cordón se sostiene (onRing≥K y cover≥umbral),
+// o SÓLO decae (add 0). Devuelve { wc, add, raw }. Puro salvo la escritura en G.wardServer (mismo patrón que convoyStep). Prueba diferenciadores: amontonados/línea/1-solo ⇒ 0 ⇒ decae.
+function wardStep(zone, positions, dtSec, atMs){ if((WARDING_RING.zones||[]).indexOf(zone)<0) return null;
+  const wc=wardCoverage(positions), add=wardSustains(wc) ? (Math.max(0,+WARDING_RING.accruePerSec||0)*Math.max(0,+dtSec||0)) : 0;
+  const raw=wardAccrue(zone, add, atMs); return { wc, add, raw }; }
+// glifo del Cordón para el badge (mirror convoyTag): ◯ (anillo de guardia) si la zona del héroe está en Cordón (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function wardTag(h){ h=h||G.hero; if(!WARDING_RING.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(WARDING_RING.zones||[]).indexOf(z)<0) return ""; return wardOpen(z) ? "◯" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su `ward` sostenido LIVE server-authoritative, tier vigente y passive efectivo (canal wardRegen). 0 sim/RNG/side-effect.
+export function wardVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const wardable=!!(z && (WARDING_RING.zones||[]).indexOf(z)>=0);
+  const ward=wardable?wardVal(z):0, tier=wardable?wardTier(ward):0;
+  return { enabled:!!WARDING_RING.enabled, zone:z, wardable, ward:+ward.toFixed(2), tier, tierCount:(WARDING_RING.tiers||[]).length,
+    boostKind:WARDING_RING.channel||"wardRegen", boost: h?wardMul(h,WARDING_RING.channel||"wardRegen"):0 }; }
 
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
@@ -6173,6 +6257,7 @@ export function update(dtMs){
   tickCombo(h,dt);  // CAS-1831: light-combo chain-window wind-down (arithmetic, no RNG, gated on COMBO.enabled)
   tickStamina(h,dt);// CAS-1841: estamina regen + deny-flash wind-down (arithmetic, no RNG, gated on STAMINA.enabled)
   tickSafeZone(h,dt);// CAS-2242: regen de HP en la Zona Segura de la Ciudad + pausa post-daño (aritmética/geometría, no RNG, gated on SAFEZONE.enabled)
+  wardRegenTick(h,dt);// CAS-2362: Cordón de Guardia — regen de HP (canal FRESCO wardRegen) dentro de un Cordón abierto en la zona de caza (mismo chokepoint pactHeal, kind distinto a safeRegen, ⊥ restedMult; gated ⇒ OFF byte-id)
   tickRestedXP(h,dt);// CAS-2255: acumulación del pool de Descanso mientras el héroe está en la SAFEZONE (aritmética, no RNG, gated on RESTED_XP.enabled ⇒ OFF byte-id)
   tickRecall(h,dt); // CAS-2266: bind al Santuario en zona + enfriar cooldown del Recall + canal (dormido) (aritmética/geometría, no RNG, gated on RECALL.enabled ⇒ OFF byte-id)
   if(WORLD_EVENT.enabled) tickWorldEvent(); // CAS-2284: Toque de Guerra — horario compartido derivado del reloj de pared (transitorio en G.warhorn, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
@@ -6190,6 +6275,7 @@ export function update(dtMs){
   if(INFLUX_SURGE.enabled) tickInflux(); // CAS-2352: Afluencia — refleja el surge server-authoritative { zona → { surge, atMs } } (llegadas acumuladas, EDGE-triggered) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.influx/G.influxServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(BATTLE_SYNC.enabled) tickBattleSync(); // CAS-2355: Sincronía — refleja el snapshot server-authoritative { zona → { id → últimoKillMs } } (gestas/kills co-presentes) y lo proyecta al reloj compartido contando ids DISTINTOS en la ventana deslizante (expira gestas viejas = decay determinista; transitorio en G.sync/G.syncServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(CONVOY_MARCH.enabled) tickConvoy(); // CAS-2356: Marcha — refleja el `march` sostenido server-authoritative { zona → { march, atMs } } (coherencia direccional de los vectores de velocidad de los presentes en movimiento) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.convoy/G.convoyServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(WARDING_RING.enabled) tickWard(); // CAS-2362: Cordón de Guardia — refleja el `ward` sostenido server-authoritative { zona → { ward, atMs } } (cobertura ANGULAR de las posiciones alrededor del centroide) y lo proyecta al reloj compartido con DECAY determinista (transitorio en G.ward/G.wardServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(FRONTIER_SPREAD.enabled) tickFrontier(); // CAS-2347: Expedición — refleja la cobertura server-authoritative { zona → { cover, atMs } } (nº de sub-celdas coarse distintas ocupadas) y la proyecta al reloj compartido con DECAY determinista (transitorio en G.frontier/G.frontierServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
@@ -8016,6 +8102,52 @@ export const dev = {
       nowMs:(G.convoy&&G.convoy.nowMs)||null,                             // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       probe: probe?{ movers:probe.movers, c:+probe.c.toFixed(6) }:null,    // resultado de la función PURA convoyCoherence (byte-verificación de casos borde)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2362: CORDÓN DE GUARDIA / WARDING RING OBSERVABLE hook (DARK, WARDING_RING). Snapshot AUTORITATIVO (sim) del `ward` sostenido server-authoritative { zona → { ward, atMs } }
+  // (cobertura ANGULAR de las posiciones alrededor del centroide) + flip/drivers IN-MEMORY para OBSERVAR en DARK sin server real (disco sigue false, patrón __dev.convoy/influx).
+  // El snapshot+reloj INYECTADOS prueban el determinismo "mismo ward/reloj ⇒ mismo tier/passive" (convergencia byte-idéntica en N clientes, 0 desync) + decay al romperse + diferenciadores.
+  //   ward()                                         → {enabled,channel,zones,tiers,sectors,ringRadius,minMembers,coverThreshold,halfLifeSec,capWard,accruePerSec,regenPct,zone,wardable,ward,tier,tierCount,boost,wardMulRegen,wardRegenRate,tag,precedence,wardMap,gExists,nowMs,probe,hero}
+  //   ward({enabled:true})                           → flip runtime IN-MEMORY de WARDING_RING.enabled (ward/passive sin tocar el disco)
+  //   ward({nowMs})                                  → fija el reloj compartido (decay) y RE-TICKea el snapshot ⇒ ward proyectado a ese instante (0 espera real)
+  //   ward({push:{forest:{ward,atMs}}})              → el server EMPUJA el snapshot crudo de ward por zona ⇒ el cliente lo REFLEJA (proyecta con nowMs)
+  //   ward({positions:{forest:{pts:[{x,y}...],dt}}}) → el server computa la COBERTURA ANGULAR (wardCoverage) y ACUMULA accruePerSec·dt si el Cordón se sostiene (onRing≥K y cover≥umbral), o sólo decae — prueba diferenciadores (amontonados/línea/1-solo ⇒ 0)
+  //   ward({coverageProbe:{positions}})              → devuelve la función PURA wardCoverage(positions) en `probe` (byte-verificación de casos borde SIN tocar el snapshot)
+  //   ward({ward,zone,atMs})                         → conveniencia: empuja el ward de UNA zona (default la del héroe / la 1ª) — 0 hotkey
+  //   ward({toZone})                                 → teleporta el héroe a una tile determinista de esa zona (observa el passive compartido)
+  //   ward({leave:true})                             → aleja el héroe de toda zona (el passive cae a 0)
+  //   ward({clear:true})                             → limpia el snapshot server (todas las zonas vuelven sin cordón)
+  ward(p){
+    let probe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) WARDING_RING.enabled=!!p.enabled;
+      if("nowMs" in p){ G.wardNow=+p.nowMs; tickWard(G.wardNow); }
+      if("push" in p){ G.wardServer=Object.assign({}, G.wardServer||{}, p.push||{}); tickWard(G.wardNow); }   // el server empuja el ward crudo por zona ⇒ refleja+proyecta
+      if("positions" in p && p.positions && typeof p.positions==="object"){ const at=(G.wardNow!=null?+G.wardNow:0);
+        for(const zn in p.positions){ const m=p.positions[zn]||{}; wardStep(zn, m.pts, m.dt, at); } tickWard(G.wardNow); }   // server-side: computa cobertura angular y acumula/decae
+      if("coverageProbe" in p && p.coverageProbe && typeof p.coverageProbe==="object"){ const cp=p.coverageProbe;
+        probe=wardCoverage(cp.positions); }   // función PURA, SIN tocar el snapshot
+      if("ward" in p){ const zn=(typeof p.zone==="string")?p.zone:((G.hero?zoneOf(world,G.hero.x,G.hero.y):null) || ((WARDING_RING.zones||[])[0]));
+        if(zn){ const at=("atMs" in p)?+p.atMs:(G.wardNow!=null?+G.wardNow:0);
+          G.wardServer=Object.assign({}, G.wardServer||{}); G.wardServer[zn]={ ward:+p.ward||0, atMs:at }; tickWard(G.wardNow); } }
+      if(p.clear){ G.wardServer={}; tickWard(G.wardNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((WARDING_RING.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("regenTick" in p && G.hero){ wardRegenTick(G.hero, Math.max(0,+p.regenTick||0)); }   // QA: aplica el regen del Cordón por `regenTick` s en AISLAMIENTO (sin ruido de enemigos/pausa del loop) para byte-verificar el canal wardRegen
+    }
+    const h=G.hero, vm=wardVM(h);
+    const boost=h?wardMul(h,"wardRegen"):0;
+    return { enabled:WARDING_RING.enabled, channel:WARDING_RING.channel||"wardRegen", zones:(WARDING_RING.zones||[]).slice(), tiers:(WARDING_RING.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost})), sectors:WARDING_RING.sectors|0, ringRadius:+WARDING_RING.ringRadius||0, minMembers:WARDING_RING.minMembers|0, coverThreshold:+WARDING_RING.coverThreshold||0, halfLifeSec:WARDING_RING.halfLifeSec|0, capWard:WARDING_RING.capWard|0, accruePerSec:+WARDING_RING.accruePerSec||0, regenPct:+WARDING_RING.regenPct||0,
+      zone:vm.zone, wardable:vm.wardable, ward:vm.ward, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      wardMulRegen: boost,                                                  // knob efectivo del passive (canal wardRegen; prueba: OFF/no-en-zona/tier0 ⇒ 0 ⇒ byte-id)
+      wardRegenRate: +((Math.max(0,+WARDING_RING.regenPct||0)*(1+boost))).toFixed(5),   // tasa de regen efectiva dentro del Cordón (regenPct×(1+boost)); OFF/tier0 ⇒ regenPct×1 pero wardRegenTick gated no corre
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),    // canal restedMult — INDEPENDIENTE: wardRegen NO lo toca (⊥) ⇒ prueba 0 doble-conteo
+      safeRegenBase: +WARDING_RING.regenPct||0,                             // base del canal wardRegen (kind distinto a SAFEZONE.regenPct/safeRegen ⇒ no dobla el regen de ciudad)
+      tag: wardTag(h),                                                      // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / cordón ⇒ ◯)
+      precedence:"wardRegen (canal FRESCO, HP-regen): máximo-único DENTRO del canal (WARDING_RING única fuente por ahora ⇒ trivial; futuras del arco de-stackean aquí). ORTOGONAL a restedMult (seam gainXP) y a safeRegen (SAFEZONE/TERRITORY, kind distinto, zona-ciudad) ⇒ jamás dobla con NINGÚN canal previo",
+      wardMap: (G.ward&&G.ward.ward)?JSON.parse(JSON.stringify(G.ward.ward)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.ward!=null),                                              // prueba byte-id: OFF ⇒ G.ward NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.ward&&G.ward.nowMs)||null,                                  // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      probe: probe?{ members:probe.members, onRing:probe.onRing, sectors:probe.sectors, cover:+probe.cover.toFixed(6) }:null,    // resultado de la función PURA wardCoverage (byte-verificación de casos borde)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y), hp:+(+h.hp).toFixed(2), maxHp:+heroMaxHp(h).toFixed(2) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
   // patrón __dev.sanctuary/quartermaster). El nowMs INYECTADO prueba el determinismo "mismo reloj ⇒ mismo estado" (convergencia).

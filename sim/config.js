@@ -2422,6 +2422,51 @@ export const CONVOY_MARCH = {
   ],
 };
 
+// CAS-2362: CORDÓN DE GUARDIA / WARDING RING (DARK, WARDING_RING) — EVO mecánica #59. DOS pivotes FRESCOS a la vez:
+//   (A) CANAL DE RECOMPENSA FRESCO = `wardRegen` (regen de HP fuera de combate). Las 12+ mecánicas #47–58 alimentaron TODAS el canal `restedMult` (bono XP en el seam de gainXP),
+//       saturado con precedencia máximo-único. #59 abre un canal NUEVO ⇒ las futuras del arco podrán APILAR ENTRE canales (wardRegen ⊥ restedMult) sin ceder. wardRegen es un
+//       MULTIPLICADOR de la tasa de regen de HP, enganchado en el MISMO chokepoint de curación que SAFEZONE.regenPct/templeMul (mhp*rate*dt vía pactHeal), pero con kind DISTINTO
+//       para NO doblarse con el regen del Templo NI con ORDER_TERRITORY (ambos kind "safeRegen", zona-ciudad). Un Cordón abierto CREA regen de HP en una zona de caza (santuario móvil),
+//       cosa que hoy NO existe fuera de la ciudad ⇒ 0 solape con el regen de ciudad. ORTOGONAL a restedMult por CONSTRUCCIÓN (canal/kind/seam distintos) ⇒ 0 doble-conteo aunque
+//       coincida con cualquier tier del arco de XP.
+//   (B) EJE FRESCO = COBERTURA ANGULAR / distribución de RUMBOS alrededor del centroide. Todos los ejes previos: headcount (#51), footfall (#52), variedad de clases (#53), continuidad
+//       temporal (#54), dispersión/cobertura de CELDAS de ÁREA (#55), tasa de llegadas (#56), correlación temporal de gestas (#57), coherencia de VELOCIDAD lineal (#58), reloj (#50).
+//       Aquí importa cómo se DISTRIBUYEN ANGULARMENTE las POSICIONES en torno a su centroide común — la comunidad formando un *anillo de guardia / cordón* que cubre todas las direcciones.
+//   · SERVER-AUTHORITATIVE, 0-RNG: por zona por tick el server toma las posiciones de los presentes, calcula el CENTROIDE (media), y para cada jugador su RUMBO (ángulo) desde el centroide.
+//     Los que caen DENTRO de `ringRadius` del centroide (amontonados en el núcleo) NO definen un rumbo ⇒ NO son parte del anillo. De los que SÍ (los del anillo), cuenta cuántos SECTORES
+//     angulares DISTINTOS (de `sectors`) ocupan ⇒ cobertura = sectoresDistintos/sectors ∈ [0,1]. Anillo bien repartido en todas direcciones ⇒ cobertura ALTA; todos a un lado / en línea ⇒
+//     cobertura BAJA. Cuando ≥minMembers en el anillo logran cobertura ≥coverThreshold de forma SOSTENIDA (acumulador con decay) → tier Cordón → pasivo `wardRegen` a TODOS los presentes.
+//   · CÓMPUTO = función PURA (wardCoverage): dado un set de posiciones {x,y} devuelve { members, onRing, sectors, cover }. Casos borde byte-verificables: 1 jugador ⇒ centroide en él ⇒
+//     onRing 0 / cover 0 (NO abre); N AMONTONADOS (todos dentro de ringRadius del centroide) ⇒ onRing 0 / cover 0 (NO abre, ≠ Congregación headcount); N en LÍNEA por el centroide ⇒ 2 sectores
+//     ⇒ cover baja (NO abre, ≠ Expedición cobertura de ÁREA que SÍ abriría en línea); N REPARTIDOS en rumbos ⇒ muchos sectores ⇒ cover alta. Funciona con jugadores QUIETOS (≠ Convoy velocidad).
+//   · ACUMULADOR SOSTENIDO con DECAY (mirror #58/#56/#55/#54): mientras el anillo se sostiene (onRing≥minMembers Y cover≥coverThreshold) `ward` SUBE (accruePerSec·dt); al romperse (se agrupan
+//     a un lado o se van) NO acumula y DECAE por vida-media halfLifeSec (ward_now = ward·0.5^((now−atMs)/halfLife), 0 RNG, techo capWard). El decay evita corte seco.
+//   · TIERS por UMBRAL de `ward` sostenido proyectado: <2 ⇒ T0; ≥2 ⇒ T1; ≥4 ⇒ T2; ≥6 ⇒ T3. Un Cordón abierto (tier≥1) regenera HP a regenPct×(1+boost del tier)×HPmax/s a los presentes.
+//   · PRECEDENCIA máximo-único DENTRO del canal wardRegen: WARDING_RING es (por ahora) la ÚNICA fuente del canal ⇒ máximo-único trivial; documentado para que futuras del arco de-stackeen aquí.
+//     ORTOGONAL a restedMult (seam gainXP) y a safeRegen (SAFEZONE/TERRITORY, kind distinto, zona-ciudad) ⇒ jamás dobla con NINGÚN canal previo.
+//   · INDICADOR $0-arte: reusa la fila de badges de recuperación (glifo procedural ◯ = anillo de guardia), 0 arte nuevo. NO nueva moneda/balance: sólo un mult sobre un knob de regen YA vivo.
+// HARD-GATED: enabled:false ⇒ tickWard jamás corre (Date.now nunca se llama), wardRegenTick RETURN inmediato, G.ward/G.wardServer NUNCA se crean, wardMul RETURN 0, wardTag ""
+// ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (passive 100% AMBIENTAL emerge de las posiciones existentes, 0 hotkey/input nuevo). Reversible 1-línea. Los NÚMEROS = balance del CEO.
+export const WARDING_RING = {
+  enabled: false,            // DARK por defecto (EVO#59). Flip reversible 1-línea false→true por CEO Gate tras QA PASS (mirror CONVOY_MARCH/INFLUX_SURGE/FRONTIER_SPREAD).
+  channel: "wardRegen",      // canal FRESCO del passive — NO restedMult (XP). Multiplicador de la tasa de regen de HP. ORTOGONAL a restedMult (seam gainXP) y a safeRegen (SAFEZONE/TERRITORY, zona-ciudad). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza que pueden sostener un Cordón (mirror CONVOY_MARCH/INFLUX_SURGE/FRONTIER_SPREAD.zones — reusa las zonas de caza).
+  sectors: 8,                // nº de sectores angulares (compás, 45° c/u) alrededor del centroide para medir la cobertura direccional del anillo. CEO balance knob.
+  ringRadius: 40,            // px: distancia mínima del centroide para contar como parte del ANILLO. Dentro ⇒ estás en el NÚCLEO (no defines rumbo) ⇒ un amontonamiento tiene onRing 0 ⇒ NO abre. CEO balance knob.
+  minMembers: 3,             // K: nº mínimo de jugadores EN EL ANILLO (fuera de ringRadius) para sostener un Cordón. <K ⇒ NO abre (1 solo / 2 opuestos nunca abren). CEO balance knob.
+  coverThreshold: 0.375,     // cobertura angular mínima (fracción de sectores distintos ocupados) sostenida para acumular: 3 repartidos ~120° ⇒ 3/8=0.375 abre; en línea 2/8=0.25 NO; amontonados 0 NO. CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `ward` al romperse el anillo: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capWard: 12,               // techo del `ward` proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  accruePerSec: 1,           // `ward` acumulado por segundo de anillo sostenido (con tiers 2/4/6 ⇒ 2s/4s/6s de cordón sostenido para T1/T2/T3). CEO balance knob.
+  regenPct: 0.03,            // fracción base de HP máx/s regenerada dentro de un Cordón abierto (mirror SAFEZONE.regenPct=0.045; el Cordón CREA regen en la zona de caza, ×(1+boost) por tier). CEO balance knob.
+  // TABLA de tiers: umbral de `ward` sostenido (min inclusivo) → boost del canal wardRegen (mult adicional sobre regenPct). Tier vigente = el más alto cuyo `min` ≤ ward. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — cordón naciente (≥2s de anillo sostenido): regen suave (regenPct×1.05).
+    { min: 4, boost: 0.10 },   // Tier 2 — cordón firme (≥4s): regen medio (regenPct×1.10).
+    { min: 6, boost: 0.15 },   // Tier 3 — gran cordón de guardia (≥6s): regen pleno (regenPct×1.15). CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
