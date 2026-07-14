@@ -2369,7 +2369,7 @@ export const INFLUX_SURGE = {
 // HARD-GATED: enabled:false ⇒ tickBattleSync jamás corre (Date.now nunca se llama), G.sync/G.syncServer/h.syncAt NUNCA se crean, syncMul RETURN 0, syncTag ""
 // ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS a HEAD. SIN tocar input.js (reusa gestas/kills que YA existen, passive 100% AMBIENTAL, 0 hotkey). Reversible 1-línea. Los NÚMEROS = balance del CEO.
 export const BATTLE_SYNC = {
-  enabled: false,            // DARK. Gate CEO flippea enabled:false→true (config-only 1-línea, reversible, mirror INFLUX_SURGE/FRONTIER_SPREAD/LONG_WATCH).
+  enabled: true,             // LIVE (CAS-2357 flip EVO#57, CEO Gate APPROVED). Reversible 1-línea true→false, mirror INFLUX_SURGE/FRONTIER_SPREAD/LONG_WATCH.
   channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER/DIVERSE_COMPANY/LONG_WATCH/FRONTIER_SPREAD/INFLUX_SURGE (ver syncMul). CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden sostener una Sincronía (mirror INFLUX_SURGE/FRONTIER_SPREAD/CONGREGATION.zones — reusa las zonas de caza).
   windowSec: 5,              // ventana deslizante CORTA de la sincronía: una gesta cuenta si su instante cae en [now−windowSec, now]. Más vieja ⇒ expira (decay determinista, 0 RNG). Reloj de pared COMPARTIDO ⇒ misma ventana en N clientes. CEO balance knob.
