@@ -359,6 +359,12 @@ export function createGame(canvas, ctx, getView){
       // aleja de toda celda; wayfarer({clear}) limpia el snapshot. Convergencia byte-a-byte (MISMO snapshot+reloj ⇒ MISMO sendero/pasivo en N clientes). SOLO lectura /
       // drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de traversal, sin input.js).
       wayfarer:(p)=>simDev.wayfarer(p),
+      // CAS-2338: CONFLUENCIA / DIVERSE COMPANY OBSERVABLE hook (DARK, DIVERSE_COMPANY). confluence() lee la composición server-authoritative { zona → { clase →
+      // cuenta } } + diversidad (clases distintas)/tier/passive derivados; confluence({enabled}) flip in-memory; confluence({rosters}) el server EMPUJA el snapshot
+      // de composición ⇒ el cliente lo REFLEJA (convergencia byte-a-byte, MISMA diversidad/tier/buff en N clientes con el MISMO snapshot); confluence({toZone})
+      // teleporta a esa zona (observa el passive compartido); confluence({leave}) aleja de toda zona; confluence({clear}) limpia el snapshot. SOLO lectura /
+      // drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL de composición, sin input.js).
+      confluence:(p)=>simDev.confluence(p),
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

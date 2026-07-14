@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3424,6 +3424,53 @@ export function wayfarerVM(h){ h=h||G.hero; const cell=h?wayfarerCellKey(h.x,h.y
   return { enabled:!!WAYFARER_TRAIL.enabled, cell, tread:+tread.toFixed(3), trodden, threshold:+WAYFARER_TRAIL.threshold||0,
     boostKind:WAYFARER_TRAIL.channel||"restedMult", boost: h?wayfarerMul(h,WAYFARER_TRAIL.channel||"restedMult"):0 }; }
 
+// CAS-2338: CONFLUENCIA / DIVERSE COMPANY — EVO #53, eje FRESCO de COMPOSICIÓN (variedad de clases co-presentes, NO headcount bruto como Congregación #51).
+// El server cuenta la PRESENCIA por clase y zona y EMPUJA el snapshot { zona → { clase → cuenta } }; el cliente sólo lo REFLEJA. La DIVERSIDAD = nº de
+// CLASES DISTINTAS con cuenta>0. Al cruzar umbrales (2/3/4 clases distintas) la zona entra en Confluencia por tiers y da a TODOS los presentes el MISMO
+// passive (canal RESTED_XP). N clones de la MISMA clase (o 1 solo) NO abren nada. Todo DERIVADO del snapshot ⇒ 2 clientes con el mismo snapshot convergen byte-a-byte.
+// confTier(nDistinct) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ diversidad. Determinista, monótono, sin histéresis ⇒ sube/DECAE al cruzar umbral. OFF/sin tiers ⇒ 0.
+function confTier(nDistinct){ const T=DIVERSE_COMPANY.tiers||[]; nDistinct=nDistinct|0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && nDistinct>=(T[i].min|0)) idx=i+1; } return idx; }
+// boost restedMult del tier vigente (0 si Tier 0). Puro. El gate global lo cubre confMul; aquí sólo la TABLA determinista.
+function confBoost(nDistinct){ const t=confTier(nDistinct); return t>0 ? (+DIVERSE_COMPANY.tiers[t-1].boost||0) : 0; }
+// roster { clase → cuenta } de una zona del snapshot reflejado en G.confluence.rosters. {} si sin snapshot / zona ausente. Puro, 0 side-effect.
+function confRoster(zone){ const g=G.confluence; if(!g||!g.rosters||!zone) return {}; return g.rosters[zone]||{}; }
+// DIVERSIDAD = nº de CLASES DISTINTAS co-presentes en la zona (variedad, NO suma de cabezas). Sólo clases con cuenta>0. Puro. 0 si sin snapshot / zona ausente.
+export function confDiversity(zone){ const r=confRoster(zone); let n=0; for(const c in r){ if((r[c]|0)>0) n++; } return n; }
+// confMul(h,kind) = el passive COMPARTIDO de los presentes en una zona en Confluencia (tier≥1), en el canal restedMult (REUSA RESTED_XP), con PRECEDENCIA
+// EXPLÍCITA anti-stacking (DIVERSE_COMPANY es la MÁS BAJA del canal ⇒ MÁXIMO ÚNICO): CEDE (return 0) a STANDINGS, MENTOR, SOUL, PULSE, CONGREGATION y WAYFARER ⇒
+// se aplica el MAYOR (0 doble-dip). FELLOWSHIP(xpGain)/TERRITORY(safeRegen) ⊥ ⇒ coexisten. Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id).
+function confMul(h,kind){ if(!DIVERSE_COMPANY.enabled||!h) return 0;
+  if(kind!==(DIVERSE_COMPANY.channel||"restedMult")) return 0;
+  if(standingsMul(h,kind)>0) return 0;   // precedencia MISMO-CANAL: STANDINGS (colectivo) gana ⇒ CONFLUENCIA cede
+  if(mentorMul(h,kind)>0) return 0;      // precedencia MISMO-CANAL: MENTOR (personal) gana ⇒ cede
+  if(soulMul(h,kind)>0) return 0;        // precedencia MISMO-CANAL: SOUL (recuperación) gana ⇒ cede
+  if(pulseMul(h,kind)>0) return 0;       // precedencia MISMO-CANAL: PULSE (ambiental del reloj) gana ⇒ cede
+  if(congMul(h,kind)>0) return 0;        // precedencia MISMO-CANAL: CONGREGATION (headcount) gana ⇒ cede
+  if(wayfarerMul(h,kind)>0) return 0;    // precedencia MISMO-CANAL: WAYFARER (traversal) gana ⇒ cede (DIVERSE_COMPANY es la MÁS BAJA del canal)
+  const z=zoneOf(world,h.x,h.y); if(!z || (DIVERSE_COMPANY.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona que pueda confluir ⇒ 0
+  return confBoost(confDiversity(z));    // el Δ del tier vigente por el nº de clases distintas server-authoritative de esa zona
+}
+// tick de la CONFLUENCIA (mirror tickCongregation): REFLEJA el snapshot server-authoritative { zona → { clase → cuenta } } (empujado por el server, cacheado
+// en G.confServer) en G.confluence (transitorio, fuera del allowlist de serializeSave). VALIDA a zonas confluibles + clases conocidas + descarta cuentas ≤0.
+// SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca ⇒ G.confluence/G.confServer NUNCA se crean ⇒ byte-id. En Stage-1 el harness/dev-hook empuja el snapshot.
+function tickConfluence(){ if(!DIVERSE_COMPANY.enabled) return;
+  const src=G.confServer||{}, rosters={}, valid=DIVERSE_COMPANY.classes||[];
+  for(const z of (DIVERSE_COMPANY.zones||[])){ const raw=src[z]; if(!raw) continue; const r={};
+    for(const c of valid){ const n=raw[c]|0; if(n>0) r[c]=n; }   // sólo clases conocidas con cuenta>0 (cliente sólo refleja; descarta clases inválidas y ≤0)
+    if(Object.keys(r).length>0) rosters[z]=r; }
+  G.confluence={ rosters }; }
+// glifo de la Confluencia para el badge (mirror congTag/wayfarerTag): ❈ (estrella de corrientes que confluyen) si la zona del héroe está en Confluencia (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0.
+export function confTag(h){ h=h||G.hero; if(!DIVERSE_COMPANY.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(DIVERSE_COMPANY.zones||[]).indexOf(z)<0) return ""; return confTier(confDiversity(z))>0 ? "❈" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su diversidad LIVE server-authoritative, tier vigente y passive efectivo. 0 sim/RNG/side-effect.
+export function confluenceVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const confable=!!(z && (DIVERSE_COMPANY.zones||[]).indexOf(z)>=0);
+  const roster=confable?confRoster(z):{}, diversity=confable?confDiversity(z):0, tier=confable?confTier(diversity):0;
+  return { enabled:!!DIVERSE_COMPANY.enabled, zone:z, confable, diversity, tier, tierCount:(DIVERSE_COMPANY.tiers||[]).length,
+    classes:Object.keys(roster), roster:Object.assign({},roster),
+    boostKind:DIVERSE_COMPANY.channel||"restedMult", boost: h?confMul(h,DIVERSE_COMPANY.channel||"restedMult"):0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4462,7 +4509,7 @@ function gainXP(n){ const h=G.hero; if(n<=0) return;
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
   // 100% determinista, 0 RNG. Gated: OFF ⇒ h.restedPool nunca existe ⇒ rama muerta ⇒ byte-idéntico a HEAD.
   if(RESTED_XP.enabled && (h.restedPool||0)>0 && !inSafeZone(h.x,h.y)){
-    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; wayfarerMul CEDE a standings/mentor/soul/pulse/cong ⇒ MÁXIMO ÚNICO, 0 stacking)
+    const rMult=RESTED_XP.xpMult + sanctuaryRewardMul(h,"restedMult") + standingsMul(h,"restedMult") + mentorMul(h,"restedMult") + soulMul(h,"restedMult") + pulseMul(h,"restedMult") + congMul(h,"restedMult") + wayfarerMul(h,"restedMult") + confMul(h,"restedMult");   // CAS-2278/2305/2322/2325/2329/2332/2335/2338: reward Intendente + pasivo LÍDER (Clasificación) + boost del PROTÉGÉ (Mentor) + pasivo del RECUPERADOR/CAÍDO (Vestigio) + passive del PULSO ambiental + passive de CONGREGACIÓN (headcount) + passive del SENDERO TRILLADO (tránsito agregado) + passive de CONFLUENCIA (composición diversa) suben el mult de Descanso (todos gated ⇒ OFF = RESTED_XP.xpMult exacto; confMul CEDE a standings/mentor/soul/pulse/cong/wayfarer ⇒ MÁXIMO ÚNICO, 0 stacking)
     const bonus=Math.min(h.restedPool, Math.round(n*(rMult-1)));
     if(bonus>0){ n+=bonus; h.restedPool-=bonus; }
   }
@@ -5843,6 +5890,7 @@ export function update(dtMs){
   if(WORLD_PULSE.enabled) tickPulse(); // CAS-2329: Pulso del Mundo — zona-en-Pulso ambiental del reloj COMPARTIDO (transitorio en G.pulse, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
   if(CONGREGATION.enabled) tickCongregation(); // CAS-2332: Congregación — refleja el headcount server-authoritative por zona (transitorio en G.congregation/G.congServer, SIN estado per-hero/serializado, gated ⇒ OFF nunca se crea ⇒ byte-id)
   if(WAYFARER_TRAIL.enabled) tickWayfarer(); // CAS-2335: Sendero Trillado — refleja el tread server-authoritative por celda coarse + DECAY determinista por vida-media (transitorio en G.wayfarer/G.wayfarerServer, SIN estado per-hero/serializado, gated ⇒ OFF Date.now nunca se llama ⇒ byte-id)
+  if(DIVERSE_COMPANY.enabled) tickConfluence(); // CAS-2338: Confluencia — refleja la composición server-authoritative { zona → { clase → cuenta } } por zona (diversidad = clases distintas; transitorio en G.confluence/G.confServer, SIN estado per-hero/serializado, gated ⇒ OFF nunca se crea ⇒ byte-id)
   tickLock(h,dt);   // CAS-1847: lock debounce + auto-clear del objetivo muerto/fuera-de-rango (geometría pura, no RNG, gated on LOCK_ON.enabled)
   tickFlask(h,dt);  // CAS-1854: canal del Estus + refill de zona (aritmética/timing, no RNG, gated on FLASK.enabled)
   tickThrow(h,dt);  // CAS-1920: refill de arrojadizos por zona + cooldown/windup wind-down (aritmética/timing, no RNG, gated on THROWABLES.enabled)
@@ -7436,6 +7484,36 @@ export const dev = {
       cells: (G.wayfarer&&G.wayfarer.cells)?Object.assign({},G.wayfarer.cells):null,   // snapshot server-authoritative reflejado+decaído (convergencia byte-a-byte entre clientes)
       gExists:(G.wayfarer!=null),                                            // prueba byte-id: OFF ⇒ G.wayfarer NUNCA se crea (0 estado nuevo, 0 clave serializada)
       nowMs:(G.wayfarerNow!=null?+G.wayfarerNow:null),
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2338: CONFLUENCIA / DIVERSE COMPANY OBSERVABLE hook (DARK, DIVERSE_COMPANY). Snapshot AUTORITATIVO (sim) de la composición server-authoritative
+  // { zona → { clase → cuenta } } + flip/drivers IN-MEMORY para OBSERVAR en DARK sin server real (disco sigue false, patrón __dev.congregation). El snapshot
+  // INYECTADO prueba el determinismo "misma composición ⇒ mismo nº de clases distintas ⇒ mismo tier/passive" (convergencia byte-idéntica en N clientes, 0 desync).
+  //   confluence()                            → {enabled,zones,classes,tiers,zone,confable,diversity,tier,tierCount,roster,classesPresent,boostKind,boost,confMulRested,restedXpMult,peer muls,tag,precedence,rosters,gExists,hero}
+  //   confluence({enabled:true})              → flip runtime IN-MEMORY de DIVERSE_COMPANY.enabled (tier/passive sin tocar el disco)
+  //   confluence({rosters:{forest:{mage:1,druid:1}}}) → el server EMPUJA el snapshot de composición ⇒ el cliente lo REFLEJA (cruzar umbral de diversidad arriba/abajo)
+  //   confluence({toZone:"forest"})           → teleporta el héroe a una tile de esa zona (observa el passive compartido) — conveniencia de PRUEBA (0 hotkey)
+  //   confluence({leave:true})                → aleja el héroe de toda zona (el passive cae a 0)
+  //   confluence({clear:true})                → limpia el snapshot server (todas las zonas vuelven sin composición)
+  confluence(p){
+    if(p && typeof p==="object"){
+      if("enabled" in p) DIVERSE_COMPANY.enabled=!!p.enabled;
+      if("rosters" in p){ G.confServer=Object.assign({}, p.rosters||{}); tickConfluence(); }   // el server empuja la composición ⇒ refleja
+      if(p.clear){ G.confServer={}; tickConfluence(); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((DIVERSE_COMPANY.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+    }
+    const h=G.hero, vm=confluenceVM(h);
+    const rMult=RESTED_XP.xpMult + (h?sanctuaryRewardMul(h,"restedMult"):0) + (h?standingsMul(h,"restedMult"):0) + (h?mentorMul(h,"restedMult"):0) + (h?soulMul(h,"restedMult"):0) + (h?pulseMul(h,"restedMult"):0) + (h?congMul(h,"restedMult"):0) + (h?wayfarerMul(h,"restedMult"):0) + (h?confMul(h,"restedMult"):0);   // mult efectivo (mirror gainXP; prueba precedencia: CONFLUENCIA cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER)
+    return { enabled:DIVERSE_COMPANY.enabled, zones:(DIVERSE_COMPANY.zones||[]).slice(), classes:(DIVERSE_COMPANY.classes||[]).slice(), tiers:(DIVERSE_COMPANY.tiers||[]).map(t=>({min:t.min|0,boost:+t.boost})),
+      zone:vm.zone, confable:vm.confable, diversity:vm.diversity, tier:vm.tier, tierCount:vm.tierCount, roster:vm.roster, classesPresent:vm.classes,
+      boostKind:vm.boostKind, boost:vm.boost,
+      confMulRested: h?confMul(h,"restedMult"):0,                             // knob efectivo del passive (prueba: OFF/no-en-zona/tier0/cedido ⇒ 0 ⇒ byte-id)
+      restedXpMult:+rMult.toFixed(4),                                        // mult efectivo (prueba precedencia: CONFLUENCIA cede si standings/mentor/soul/pulse/cong/wayfarer aportan)
+      standingsMulRested: h?standingsMul(h,"restedMult"):0, mentorMulRested: h?mentorMul(h,"restedMult"):0, soulMulRested: h?soulMul(h,"restedMult"):0, pulseMulRested: h?pulseMul(h,"restedMult"):0, congMulRested: h?congMul(h,"restedMult"):0, wayfarerMulRested: h?wayfarerMul(h,"restedMult"):0,
+      tag: confTag(h),                                                       // glifo SERVIDO (prueba: OFF/tier0 ⇒ "" / confluencia ⇒ ❈)
+      precedence:"restedMult: max(standings_colectivo > mentor_personal > soul_recuperacion > pulse_ambiental > congregation_headcount > wayfarer_traversal > diverse_company_composicion) ⇒ CONFLUENCIA cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER (mismo canal, MÁXIMO ÚNICO, 0 doble-dip); fellowship(xpGain)/territory(safeRegen) canales ⊥ coexisten",
+      rosters: (G.confluence&&G.confluence.rosters)?JSON.parse(JSON.stringify(G.confluence.rosters)):null,   // snapshot server-authoritative reflejado (convergencia byte-a-byte entre clientes)
+      gExists:(G.confluence!=null),                                          // prueba byte-id: OFF ⇒ G.confluence NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,

@@ -2213,6 +2213,37 @@ export const WAYFARER_TRAIL = {
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de referencia para el helper de PRUEBA (teleport determinista, mirror CONGREGATION/WORLD_PULSE.zones). NO gatea el passive: el gate es la CELDA trillada, esté donde esté.
 };
 
+// CAS-2338: CONFLUENCIA / DIVERSE COMPANY (DARK, DIVERSE_COMPANY) — EVO mecánica #53. Eje FRESCO: variedad de COMPOSICIÓN (NO densidad bruta).
+// Congregación (#51) premia el HEADCOUNT bruto por zona (cuánta gente). Confluencia premia la MEZCLA: cuántos ARQUETIPOS/CLASES DISTINTAS co-existen
+// en la misma zona a la vez. Un grupo heterogéneo (guerrero+mago+druida) "confluye" y el mundo compartido recompensa a TODOS los presentes; N clones de
+// la MISMA clase (o 1 jugador solo) NO abren nada. Emergente del grupo diverso. Diseño Stage-1, 100% DETERMINISTA (0 RNG) y server-authority-ready.
+//   · SERVER-AUTHORITATIVE (fuente de verdad de composición): el server cuenta la PRESENCIA por clase y zona y EMPUJA el snapshot { zona → { clase → cuenta } };
+//     el cliente sólo lo REFLEJA (0 confianza; NO añade su propia clase — el server ya la cuenta). En Stage-1 el snapshot se inyecta por hook (mismo patrón
+//     que CONGREGATION inyecta el headcount) ⇒ 2 clientes con el MISMO snapshot convergen byte-a-byte (mismo nº de clases distintas ⇒ mismo tier/buff, 0 desync).
+//     Cualquier desync de diversidad/tier/buff = sev-1.
+//   · DIVERSIDAD = nº de CLASES DISTINTAS con cuenta>0 (variedad, NO suma). Tiers por UMBRAL de diversidad (deterministas, 0 RNG): <2 clases ⇒ Tier 0 (sin
+//     efecto); ≥2 ⇒ T1; ≥3 ⇒ T2; ≥4 ⇒ T3. El tier DECAE de forma determinista al caer la diversidad bajo umbral (una clase se va) ⇒ función pura, sin histéresis.
+//   · PASSIVE COMPARTIDO (composición): TODO jugador presente en una zona en Confluencia (tier≥1) recibe el MISMO Δ del tier vigente (REUSA el canal RESTED_XP
+//     restedMult). Emergente, sin binding: NO per-hero, NO clave serializada ⇒ byte-id OFF por CONSTRUCCIÓN (0 estado nuevo).
+//   · PRECEDENCIA NO-stack / MÁXIMO ÚNICO: DIVERSE_COMPANY es la MÁS BAJA del canal restedMult (8ª y última fuente) ⇒ CEDE (return 0) a STANDINGS > MENTOR >
+//     SOUL > PULSE > CONGREGATION > WAYFARER ⇒ se aplica el MAYOR pasivo vigente, NUNCA doble-dip. FELLOWSHIP(xpGain)/TERRITORY(safeRegen) canales ⊥ ⇒ coexisten. Guard explícito (ver confMul).
+//   · INDICADOR $0-arte: badge de texto "Confluencia: <zona> T<n> ×N" (reusa la fila de badges + glifo procedural, como Congregación/Sendero Trillado), 0 arte nuevo.
+// HARD-GATED: enabled:false ⇒ tickConfluence jamás corre, G.confluence/G.confServer NUNCA se crean, confMul RETURN 0, confTag "" ⇒ sim + save.v1 +
+// worldFingerprint BYTE-IDÉNTICOS a HEAD (0 estado nuevo, 0 clave serializada). SIN tocar input.js (passive 100% AMBIENTAL, 0 hotkey nuevo).
+// Reversible en 1 línea (enabled:false→true + redeploy overlay consistente-HEAD: config+sim+game+render). Los NÚMEROS = decisión de BALANCE del CEO.
+export const DIVERSE_COMPANY = {
+  enabled: false,            // DARK (EVO#53, ship DARK). Reversible 1-línea false→true (mirror CONGREGATION/WAYFARER_TRAIL/WORLD_PULSE).
+  channel: "restedMult",     // canal ÚNICO del passive — REUSA RESTED_XP. Precedencia: la MÁS BAJA del canal ⇒ cede a STANDINGS/MENTOR/SOUL/PULSE/CONGREGATION/WAYFARER (ver confMul). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas que pueden confluir (mirror CONGREGATION/WORLD_PULSE.zones — reusa las zonas de caza).
+  classes: ["warrior","paladin","mage","druid","priest"],     // arquetipos/clases DISTINTAS que cuentan para la diversidad (mirror CLASS_LIST). El server cuenta cuántas DISTINTAS co-presentes por zona.
+  // TABLA de tiers: umbral de CLASES DISTINTAS (min, inclusivo) → boost restedMult. Tier vigente = el más alto cuyo `min` ≤ diversidad (determinista, monótono).
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — dúo diverso (≥2 clases distintas): pasivo suave.
+    { min: 3, boost: 0.10 },   // Tier 2 — banda mixta (≥3): pasivo medio.
+    { min: 4, boost: 0.15 },   // Tier 3 — compañía plena (≥4): pasivo pleno. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
