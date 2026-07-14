@@ -1,0 +1,4 @@
+{ "class":"priest",
+  "base":"https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/8ae064c0-a7d9-41ea-88dd-8e936e3a1376/",
+  "anim": { "walk":   {"down":["c85ad3d1-1332-4305-a58b-f6b266c124fd",6],"up":["89a27168-3b34-4005-8641-9ecc104f95c6",6],"side":["df0388e0-9589-4965-aaf3-8c1f21c4b51f",6]},
+            "attack": {"down":["c4bb145d-e491-4650-a2c3-ea7425075a08",8],"up":["5a48ffe5-9a81-43c8-abfc-a4b1f74bf6a7",8],"side":["dac3d03d-cfe9-4a05-bfeb-9d618819de8a",8]} } }

@@ -1,0 +1,4 @@
+{ "class":"druid",
+  "base":"https://backblaze.pixellab.ai/file/pixellab-characters/3222372a-afd8-4fcd-b8d6-f6dd4738a627/81e176fe-1d33-4a8c-9497-88c91772448c/",
+  "anim": { "walk":   {"down":["4465c8a4-9293-4bc9-b423-3e8b41bb1f16",6],"up":["8ef82a40-f14c-4392-8454-90a9474da822",6],"side":["168281ee-e6fe-47e4-b791-4db2676ec031",6]},
+            "attack": {"down":["560b6b83-017c-4dfe-b9f0-f24378feb66a",8],"up":["77c0d60c-02ac-4011-b84c-60f525aabe06",8],"side":["537ee814-a829-4792-a4f4-5ed69e6dc2b6",8]} } }
