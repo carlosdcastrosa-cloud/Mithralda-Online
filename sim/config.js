@@ -2629,7 +2629,7 @@ export const TRAILCRAFT = {
 // HARD-GATED: enabled:false ⇒ tickDelve jamás corre (Date.now nunca se llama), G.delve/G.delveServer/G.delveMarks NUNCA se crean, delveCritBonusPct RETURN 0 ⇒ el seam de crit queda BYTE-IDÉNTICO a HEAD
 // (el `srand` de crit se consume EXACTAMENTE igual que sin la feature ⇒ RNG intacto), delveTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% AMBIENTAL emerge del descenso). Reversible 1-línea. NÚMEROS = balance del CEO.
 export const DELVE = {
-  enabled: false,            // DARK (EVO#64, CAS-2380). Reversible 1-línea false→true tras QA DARK PASS + CEO Gate. byte-neutro OFF.
+  enabled: true,             // LIVE (EVO#64) — flip CAS-2387 (CTO) tras QA DARK PASS 18/18 ×2 (CAS-2380, build c4a549ae2fa1) + CEO Gate. Reversible 1-línea true→false + re-run overlay. anti-stacking: 1 arco valida a la vez. ERUDITION #65 sigue DARK (serializado, se flipa después).
   channel: "critChance",     // canal FRESCO del passive — sube la PROBABILIDAD de crítico (precisión ofensiva), NO daño/oro/HP/rareza. ⊥ goldFind/restedMult/wardRegen/oocMitigation/lootQuality. CAP DURO. CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo de crit aplica (mirror TRAILCRAFT.zones/WAYFARER_ROAM.zones — la ciudad/SAFEZONE fuera). Sus bandas ZONE_TIER = {1,3,2,5,6,4} ⇒ 6 bandas DISTINTAS alcanzables (>minBands/T3-req 5). depthBandOf cubre las 7 bandas del mundo.
   windowSec: 30,             // ventana deslizante (s) para contar BANDAS de profundidad distintas alcanzadas. CEO balance knob.
