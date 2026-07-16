@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -402,6 +402,7 @@ export function createRenderer(ctx){
     if(ENCOUNTER_VARIANT_SURGE.enabled) renderVariantSurgeBadge(); // CAS-2456: Variante de Encuentro Activa — badge de PRESENCIA de una variante de comportamiento de encuentro (mobs con e.variant) en radio (canal socketFind, sub-cap variantSocketCap); resalta si el héroe combate dentro de un encuentro de variante, donde el forrajeo rinde reagentes de engarce. Cosmético puro.
     if(ARENA_HAZARD_SURGE.enabled) renderHazardSurgeBadge(); // CAS-2464: Hazard de Arena Activo — badge de PRESENCIA/TIPO de un hazard ambiental activo (G.hazards en fase active) en radio (canal healPotency, sub-cap hazardMoteCap); resalta si el héroe combate dentro de un peligro de arena activo, donde el forrajeo rinde brasas restaurativas. Cosmético puro.
     if(BOSS_ENRAGE_SURGE.enabled) renderEnrageSurgeBadge(); // CAS-2468: Fase de Enfurecimiento de Jefe — badge de PRESENCIA/INTENSIDAD de un jefe/campeón ENFURECIDO (e.enraged) en radio (canal trophyFind, sub-cap enrageTrophyCap); resalta si el héroe combate mientras un jefe cruzó su umbral de furia, donde el forrajeo rinde trofeos de guerra. Cosmético puro.
+    if(SPOILS_FIELD_SURGE.enabled) renderSpoilsFieldBadge(); // CAS-2477: Campo de Botín Denso — badge de PRESENCIA/DENSIDAD de un campo de botín en el suelo (drops NO recogidos de G.drops) en radio (canal salvageFind, sub-cap spoilsSalvageCap); resalta si el héroe remata sobre un suelo enterrado en despojos, donde el forrajeo rinde esquirlas de chatarra. Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -4416,6 +4417,41 @@ export function createRenderer(ctx){
     // estado a la derecha: +trofeos de forrajeo por kill + score de furia; si sin furia, "—"
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st2=here?("+"+trophies+" Tro s"+score):"—";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+120,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+120,ty);
+    ctx.restore();
+  }
+
+  // CAS-2477: badge de CAMPO DE BOTÍN DENSO (SPOILS_FIELD_SURGE). Refleja el VM PURO (sim.spoilsFieldVM, autoridad en sim) ⇒ MISMO score/tier/chatarra para todos los clientes con el mismo estado de sim.
+  function renderSpoilsFieldBadge(){
+    const k=sim.spoilsFieldVM&&sim.spoilsFieldVM(); if(!k) return;         // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+802, sw=14, sh=14;                            // bajo la Fase de Enfurecimiento (@+780); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, salvage=k.salvage|0, score=k.score|0;
+    const pulse=here?(0.74+0.24*Math.sin(G.t*(2.4+tier*0.6))):0.55;
+    const glyph=here?"#c9d67a":"#8a9bb0";                                // botín cerca=verde-chatarra (despojos/salvage), suelo limpio=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ◆ botín: un rombo cuyo brillo/tamaño sube con el tier (más/mayor-valor de despojos = rombo más marcado)
+    const litA=here?Math.min(1,0.4+tier*0.3):0.24; const r=sh*0.46;
+    ctx.globalAlpha=pulse*(here?0.95:litA);
+    ctx.strokeStyle=here?glyph:"rgba(150,160,176,0.42)"; ctx.lineWidth=1.6; ctx.lineJoin="round"; ctx.lineCap="round";
+    const rr=r*(here?(0.92+tier*0.05):0.82);
+    ctx.beginPath();
+    ctx.moveTo(cx,cy-rr); ctx.lineTo(cx+rr*0.72,cy); ctx.lineTo(cx,cy+rr); ctx.lineTo(cx-rr*0.72,cy);
+    ctx.closePath(); ctx.stroke();
+    if(here){ ctx.globalAlpha=pulse*Math.min(1,0.35+tier*0.35); ctx.fillStyle=glyph;   // núcleo de botín: crece con el tier
+      const cr=rr*(0.32+tier*0.10); ctx.beginPath();
+      ctx.moveTo(cx,cy-cr); ctx.lineTo(cx+cr*0.72,cy); ctx.lineTo(cx,cy+cr); ctx.lineTo(cx-cr*0.72,cy); ctx.closePath(); ctx.fill(); }
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Botín: "+(here?("T"+tier):"—");
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#e6f0b0":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: +chatarra de forrajeo por kill + score de densidad; si suelo limpio, "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st2=here?("+"+salvage+" Cha s"+score):"—";
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+120,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+120,ty);
     ctx.restore();
