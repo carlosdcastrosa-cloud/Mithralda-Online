@@ -2647,6 +2647,36 @@ export const DELVE = {
   ],
 };
 
+// CAS-2381: ERUDICIÓN / LOREKEEPER (DARK, ERUDITION) — EVO mecánica #65 (serializa tras #64 DELVE; el título de la issue dice "#64" pero DELVE aterrizó #64 primero — mismo patrón de colisión que #61/#62). EJE FRESCO + CANAL REUSADO, ⊥/OPUESTO a todo lo enviado #47-64:
+//   (A) EJE FRESCO = DIVERSIDAD DE PRESAS / BESTIARY BREADTH (variedad CUALITATIVA de FOES abatidos). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas de kill
+//       { pid → [{k,t}] } (k = TIPO/especie de enemigo abatido, e.type), computa `loreVariety(marks,now,win)` = nº de TIPOS de enemigo DISTINTOS en la ventana (PURA), y mientras variety≥minVariety
+//       ACUMULA `erudition` (accruePerSec·dt) con DECAY vida-media (familia acumulador tick/accrue/step #55-64). El decay es half-life determinista (0-RNG). "El erudito cataloga bestias distintas".
+//   (B) CANAL REUSADO = `xpGain` (multiplicador de experiencia por el ÚNICO chokepoint gainXP). El arco de canales FRESCOS saturó restedMult/goldFind/wardRegen/oocMitigation/lootQuality/critChance; xpGain
+//       es un canal PRE-arco (FELLOWSHIP_BOND #47 LIVE). ERUDITION lo REUSA con PRECEDENCIA máximo-único (de-stack): si FELLOWSHIP tiene vínculo activo (fellowMul>0) ⇒ ERUDITION CEDE (return 0 ⇒ aplica el MAYOR,
+//       0 doble-dip). Mirror EXACTO de FOCUS_FIRE #62 cediendo a KINSHIP #60 en goldFind. Con erudición abierta (tier≥1) y sin vínculo Hermandad, la XP de cada kill se multiplica por (1+boost) en gainXP.
+//   · DIFERENCIADORES: OPUESTO a FOCUS_FIRE #62 (concentración en UN objetivo) — Erudición premia la VARIEDAD de presas. Distinto de Trailcraft #63 (variedad de TERRENO/bioma) — aquí es variedad de ENEMIGO
+//     (a QUIÉN matas, no DÓNDE pisas). Distinto de BOUNTY/EMISSARY (cuentan kills de UN tipo objetivo) — Erudición cuenta TIPOS DISTINTOS. Matar el MISMO tipo repetido ⇒ variety 1 < minVariety ⇒ NUNCA abre
+//     (hay que diversificar la caza); abatir 3 tipos distintos ⇒ abre. INDIVIDUAL (per-pid). 1-tick efímero: variety≥minVariety 1 tick (dt=0.5) ⇒ erudition≈0.5 < 2 ⇒ T0 (permanencia sostenida).
+//   · TIERS por UMBRAL de `erudition` sostenido → boost de xpGain: <2 ⇒ T0 (×1); ≥2 ⇒ T1 (+5%); ≥4 ⇒ T2 (+10%); ≥6 ⇒ T3 (+15%). Determinista, monótono.
+// HARD-GATED: enabled:false ⇒ tickErudition jamás corre (Date.now nunca se llama), G.lore/G.loreServer/G.loreMarks NUNCA se crean, eruditionMul RETURN 0 ⇒ gainXP BYTE-IDÉNTICO a HEAD (n·(1+fellow+0)=n·(1+fellow));
+// eruditionTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% emerge del combate/kills). Reversible 1-línea. NÚMEROS = balance del CEO.
+export const ERUDITION = {
+  enabled: false,            // DARK (EVO#65, CAS-2381). Reversible 1-línea false→true tras QA DARK PASS + CEO Gate. byte-neutro OFF.
+  channel: "xpGain",         // canal REUSADO (multiplicador de XP por el chokepoint gainXP). De-stack máximo-único: ERUDITION cede a FELLOWSHIP_BOND (#47, más antigua). ⊥ goldFind/restedMult/wardRegen/oocMitigation/lootQuality/critChance (seams distintos). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo aplica (mirror TRAILCRAFT.zones/KINSHIP_BOND.zones — la ciudad/SAFEZONE fuera). El mul xpGain SE zone-gatea aquí (mirror kinshipMul/focusMul): el bono de XP aplica mientras cazas en la naturaleza (donde ocurren los kills).
+  windowSec: 30,             // ventana deslizante (s) para contar TIPOS de enemigo distintos abatidos. CEO balance knob.
+  minVariety: 3,             // nº mínimo de TIPOS de enemigo DISTINTOS en la ventana para ACUMULAR erudition. Matar SIEMPRE el mismo tipo ⇒ variety 1 < 3 ⇒ nunca (hay que diversificar la caza). CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `erudition` al dejar de diversificar la caza: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capLore: 12,               // techo del `erudition` proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  accruePerSec: 1,           // `erudition` acumulado por segundo con variedad sostenida (con tiers 2/4/6 ⇒ 2s/4s/6s para T1/T2/T3). CEO balance knob.
+  // TABLA de tiers: umbral de `erudition` sostenido (min inclusivo) → `boost` = fracción de subida del multiplicador xpGain (0 = sin efecto). Tier vigente = el más alto cuyo `min` ≤ erudition. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — saber naciente (≥2s de variedad): +5% XP.
+    { min: 4, boost: 0.10 },   // Tier 2 — saber firme (≥4s): +10% XP.
+    { min: 6, boost: 0.15 },   // Tier 3 — saber maestro (≥6s): +15% XP. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

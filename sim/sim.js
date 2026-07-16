@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4190,6 +4190,77 @@ export function delveVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
   return { enabled:!!DELVE.enabled, zone:z, band:(h?delveBandOf(h.x,h.y):0), delvable, delve:+dv.toFixed(2), bands, tier, tierCount:(DELVE.tiers||[]).length,
     boostKind:DELVE.channel||"critChance", critPct, critCapPct:DELVE.critCapPct|0 }; }
 
+// CAS-2381: ERUDICIÓN / LOREKEEPER (DARK, ERUDITION) — EVO mecánica #65. EJE FRESCO DIVERSIDAD DE PRESAS / BESTIARY BREADTH (nº de TIPOS de enemigo DISTINTOS abatidos) + canal REUSADO xpGain (multiplicador de XP
+// por el ÚNICO chokepoint gainXP; de-stack máximo-único: ERUDITION cede a FELLOWSHIP_BOND #47). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas de kill { pid → [{k,t}] }
+// (k = TIPO/especie de enemigo abatido, e.type), computa `loreVariety(marks,now,win)` = nº de TIPOS DISTINTOS en la ventana (PURA), y mientras variety≥minVariety ACUMULA `erudition` (accruePerSec·dt) con DECAY
+// vida-media (familia acumulador tick/accrue/step #55-64). OPUESTO a Focus (#62, concentración en 1 objetivo); distinto de Trailcraft (#63, variedad de TERRENO) — aquí es variedad de ENEMIGO (a QUIÉN matas).
+// Matar SIEMPRE el mismo tipo ⇒ variety 1 < minVariety ⇒ NUNCA acumula; abatir K tipos distintos ⇒ variety K. Casos borde byte-verificables: [] ⇒ 0; 1 marca ⇒ variety 1 (NO abre); N marcas MISMO tipo ⇒ variety 1;
+// K tipos distintos ⇒ variety K; marca fuera de ventana ⇒ no cuenta; 1-tick dt=0.5 con variety≥min ⇒ erudition≈0.5 < 2 ⇒ Tier 0 (permanencia).
+// loreVariety(marks, now, windowMs): nº de TIPOS de enemigo DISTINTOS (m.k) con t dentro de la ventana [now−windowMs, now]. Función PURA (0 RNG, 0 side-effect). marks = [{k,t}]. Vacías / fuera de ventana ⇒ no cuentan.
+export function loreVariety(marks, now, windowMs){ if(!Array.isArray(marks)||!marks.length) return 0; const lo=(+now||0)-Math.max(0,+windowMs||0);
+  const seen=Object.create(null); let n=0;
+  for(const m of marks){ if(!m) continue; const t=+m.t||0; if(t<lo || t>(+now||0)) continue; const k=String(m.k); if(k==="") continue; if(!(k in seen)){ seen[k]=1; n++; } } return n; }
+// ¿la variedad de este tick SOSTIENE la erudición? (variety≥minVariety). Puro.
+function loreSustains(variety){ return (+variety||0)>=(ERUDITION.minVariety|0); }
+// eruditionTier(lore) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ lore. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function eruditionTier(lore){ const T=ERUDITION.tiers||[]; lore=+lore||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && lore>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost del canal xpGain del tier vigente (0 si Tier 0). Puro. El gate global + de-stack lo cubre eruditionMul; aquí sólo la TABLA determinista.
+function eruditionBoostFor(lore){ const t=eruditionTier(lore); return t>0 ? (+ERUDITION.tiers[t-1].boost||0) : 0; }
+// pid del jugador LOCAL (el que aplica el pasivo a sí mismo). Transitorio G.loreSelf (inyectable por el harness para 2-cliente); default "self". SIN estado per-hero/serializado. Mirror trailSelfPid.
+function loreSelfPid(){ return (G.loreSelf!=null)?String(G.loreSelf):"self"; }
+// `erudition` PROYECTADO de un pid leído del snapshot reflejado en G.lore.lore (ya proyectado al `now` por tickErudition). 0 si sin snapshot / pid ausente. Puro.
+function eruditionVal(pid){ const g=G.lore; if(!g||!g.lore) return 0; return +g.lore[pid!=null?String(pid):loreSelfPid()]||0; }
+function eruditionOpen(){ return eruditionTier(eruditionVal(loreSelfPid()))>0; }
+// eruditionMul(h,kind) = el boost del canal REUSADO xpGain del jugador LOCAL con erudición abierta (tier≥1). PRECEDENCIA máximo-único DENTRO del canal xpGain: FELLOWSHIP_BOND (#47, más antigua) gana ⇒ si
+// fellowMul(h,"xpGain")>0 ⇒ ERUDITION CEDE (return 0 ⇒ aplica el MAYOR, 0 doble-dip). Mirror EXACTO de focusMul cediendo a kinshipMul en goldFind. ORTOGONAL a goldFind/restedMult/wardRegen/oocMitigation/lootQuality/critChance
+// (seams distintos). Zone-gate a zonas de caza (mirror kinshipMul/focusMul: la XP viene de kills que ocurren en el mundo abierto ⇒ el bono aplica mientras cazas en la naturaleza). Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0 (byte-id: gainXP intacto).
+function eruditionMul(h,kind){ if(!ERUDITION.enabled||!h) return 0;
+  if(kind!==(ERUDITION.channel||"xpGain")) return 0;
+  const z=zoneOf(world,h.x,h.y); if(!z || (ERUDITION.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de caza ⇒ 0 (ciudad/SAFEZONE quedan fuera)
+  if(fellowMul(h,"xpGain")>0) return 0;        // precedencia MISMO-CANAL xpGain: FELLOWSHIP_BOND (más antigua) gana ⇒ ERUDITION cede (aplica el MAYOR)
+  return eruditionBoostFor(eruditionVal(loreSelfPid()));
+}
+// tick de la ERUDICIÓN (mirror tickTrailcraft): REFLEJA el snapshot server-authoritative { pid → { lore, atMs } } (empujado por el server, cacheado en G.loreServer) y lo PROYECTA al `now` compartido aplicando el
+// DECAY determinista por vida-media (lore_now = lore·0.5^(max(0,now−atMs)/halfLife), 0 RNG, techo capLore). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca (Date.now nunca se llama) ⇒ G.lore/G.loreServer
+// NUNCA se crean ⇒ byte-id. nowArg permite al harness inyectar el reloj sin tocar Date.now real.
+function tickErudition(nowArg){ if(!ERUDITION.enabled) return; const now=(nowArg!=null?+nowArg:(G.loreNow!=null?+G.loreNow:Date.now()));
+  const src=G.loreServer||{}, lore={}, hl=Math.max(1,(ERUDITION.halfLifeSec|0))*1000, cap=Math.max(0,(ERUDITION.capLore|0));
+  for(const pid in src){ const raw=src[pid]; if(!raw) continue;
+    const base=Math.max(0,+raw.lore||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let w=base * Math.pow(0.5, dtMs/hl); if(cap>0) w=Math.min(cap,w);   // DECAE determinista por vida-media hacia el `now` compartido (0 RNG)
+    if(w>0) lore[pid]=w; }
+  G.lore={ lore, nowMs:now }; }
+// helper server-side: ACUMULA `add` unidades de erudición para un pid sobre el `lore` proyectado al `atMs` (mirror trailcraftAccrue, keyed pid). Puro sobre G.loreServer; devuelve el nuevo raw.
+function eruditionAccrue(pid, add, atMs){ pid=(pid!=null?String(pid):loreSelfPid()); add=Math.max(0,+add||0);
+  const src=G.loreServer||(G.loreServer={}), raw=src[pid], hl=Math.max(1,(ERUDITION.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.lore||0):0, prevAt=raw?(+raw.atMs||0):atMs, dtMs=Math.max(0,atMs-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl);   // proyecta la erudición previa al instante de esta acumulación
+  src[pid]={ lore:projected+add, atMs:(+atMs||0) }; return src[pid]; }
+// helper server-side: REGISTRA una marca de kill (k = tipo de enemigo + t) para un pid y PODA las marcas fuera de la ventana [atMs−windowSec, atMs]. Puro salvo la escritura en G.loreMarks. Mirror trailMark (tipo de enemigo, no bioma).
+function loreMark(pid, kind, atMs){ pid=(pid!=null?String(pid):loreSelfPid()); const src=G.loreMarks||(G.loreMarks={});
+  const win=Math.max(0,(ERUDITION.windowSec|0))*1000, lo=(+atMs||0)-win;
+  let arr=(src[pid]||[]).filter(m=>m && (+m.t||0)>=lo);   // poda las marcas expiradas de la ventana
+  arr.push({ k:String(kind==null?"":kind), t:(+atMs||0) }); src[pid]=arr; return arr; }
+// helper server-side: dado un array de kills {k,t} (o solo tipos), REGISTRA cada marca. Puro salvo la escritura en G.loreMarks. Mirror trailPathStep (tipos de kill, no posiciones).
+function lorePathStep(pid, kills, atMs){ if(!Array.isArray(kills)) return null; let last=null;
+  for(let i=0;i<kills.length;i++){ const p=kills[i]||{}; const t=(p.t!=null?+p.t:(+atMs||0)); last=loreMark(pid, (p.k!=null?p.k:p), t); } return last; }
+// helper server-side: dado el dt de un tick, computa la variedad ACTUAL del pid (loreVariety sobre sus marcas en la ventana) y ACUMULA accruePerSec·dt si la erudición se sostiene (variety≥minVariety), o SÓLO decae
+// (add 0). Devuelve { variety, add, raw }. Mismo patrón que trailStep. Prueba diferenciadores: 1 tipo ⇒ variety 1 ⇒ decae; K tipos ⇒ variety K≥min ⇒ acumula; 1-tick ⇒ lore ínfimo (permanencia).
+function loreStep(pid, dtSec, atMs){ pid=(pid!=null?String(pid):loreSelfPid()); const win=Math.max(0,(ERUDITION.windowSec|0))*1000;
+  const marks=(G.loreMarks&&G.loreMarks[pid])||[], variety=loreVariety(marks, atMs, win);
+  const add=loreSustains(variety) ? (Math.max(0,+ERUDITION.accruePerSec||0)*Math.max(0,+dtSec||0)) : 0;
+  const raw=eruditionAccrue(pid, add, atMs); return { variety, add, raw }; }
+// glifo de la erudición para el badge (mirror trailcraftTag): 📖→ carácter procedural ✎ (pluma del erudito) si el jugador local en zona de caza tiene erudición abierta (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0 / fuera de zona.
+export function eruditionTag(h){ h=h||G.hero; if(!ERUDITION.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(ERUDITION.zones||[]).indexOf(z)<0) return ""; return eruditionOpen() ? "✎" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su `erudition` LIVE server-authoritative, tier vigente y boost efectivo del canal xpGain (tras de-stack con FELLOWSHIP). 0 sim/RNG/side-effect.
+export function eruditionVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const learnable=!!(z && (ERUDITION.zones||[]).indexOf(z)>=0);
+  const lore=eruditionVal(loreSelfPid()), tier=learnable?eruditionTier(lore):0;
+  return { enabled:!!ERUDITION.enabled, zone:z, learnable, lore:+lore.toFixed(2), tier, tierCount:(ERUDITION.tiers||[]).length,
+    boostKind:ERUDITION.channel||"xpGain", boost: learnable ? (h?eruditionMul(h,ERUDITION.channel||"xpGain"):0) : 0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -5227,7 +5298,7 @@ export function dismissVictory(){ if(G.scene!=="victory") return; G.victory=null
   if(h){ h.dead=false; h.vx=h.vy=0; h.iframe=0.6; } G.scene="play"; beginRun(); }
 function gainXP(n){ const h=G.hero; if(n<=0) return;
   n=Math.round(n*(1+metaLvl("t2_xpGain")*T2_MAP.t2_xpGain.per)); // CAS-1565: Erudición meta XP boost (read-live at the single XP chokepoint)
-  n=Math.round(n*(1+fellowMul(h,"xpGain")));                      // CAS-2316: pasivo de HERMANDAD forjada (Compañeros de Ruta) — canal xpGain NUEVO, gated ⇒ OFF/sin forjar ⇒ ×1 exacto (byte-id)
+  n=Math.round(n*(1+fellowMul(h,"xpGain")+eruditionMul(h,"xpGain")));  // CAS-2316/2381: canal xpGain — HERMANDAD forjada (Compañeros de Ruta #47) + ERUDICIÓN (Lorekeeper #65, variedad de presas). De-stack máximo-único: ERUDITION cede a FELLOWSHIP ⇒ SÓLO uno ≠0 (0 doble-dip). Ambos gated ⇒ OFF ⇒ suma 0 ⇒ n·(1+0)=n byte-id
   // CAS-2255: GASTO del pool de Descanso (Rested XP). El bono se consume proporcional a la XP ganada FUERA del santuario:
   // por cada `n` de XP base ganada cazando, se otorga hasta base×(xpMult-1) de bonus, acotado por el pool restante, y el
   // pool se drena en la misma cantidad. Sólo se gasta fuera de la SAFEZONE (la XP dentro de la ciudad no consume descanso).
@@ -8758,6 +8829,63 @@ export const dev = {
       probe: probe,                                                       // resultado de la función PURA delveBands (byte-verificación de casos borde)
       bandProbe: bandProbe,                                               // resultado de depthBandOf (ZONE_TIER.tier de una posición)
       critPicked,                                                         // resultado del critTick sintético { base, delveBonus, cap, total, capped } (prueba del seam critChance en aislamiento)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2381: ERUDICIÓN / LOREKEEPER OBSERVABLE hook (DARK, ERUDITION — eje DIVERSIDAD DE PRESAS/bestiary breadth + canal REUSADO xpGain con de-stack a FELLOWSHIP). Sólo lectura + drivers de PRUEBA gateados
+  // (0 hotkey — passive AMBIENTAL emerge del combate/kills, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO erudition/tier/boost en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
+  //   erudition()                                       → snapshot {enabled,channel,zones,tiers,...,self,zone,lore,tier,boost,xpGainMul,peer muls ⊥,tag,loreMap,gExists,nowMs,probe,xpPicked,hero}
+  //   erudition({enabled})                              → flip runtime IN-MEMORY de ERUDITION.enabled (sin tocar el disco)
+  //   erudition({self})                                 → fija el pid LOCAL (el que aplica el pasivo a sí mismo) — 2-cliente
+  //   erudition({nowMs})                                → fija el reloj compartido G.loreNow (proyecta el decay a ese instante)
+  //   erudition({push})                                 → el server empuja el snapshot crudo { pid → { lore, atMs } } ⇒ refleja+proyecta
+  //   erudition({marks:{pid:[{k,t}]}})                  → fija las marcas crudas de kill (tipo de enemigo) por pid (para computar la variedad)
+  //   erudition({kills:{pid:[{k,t}]}})                  → server-side: REGISTRA cada marca de kill (diferenciador Focus: matar el MISMO tipo ⇒ variety 1 ⇒ NO abre; tipos distintos ⇒ abre)
+  //   erudition({step:{pid:{dt}}})                      → server-side: computa la variedad actual del pid y ACUMULA accruePerSec·dt si variety≥minVariety (o sólo decae) — prueba el acumulador+permanencia
+  //   erudition({varietyProbe:{marks,now,windowMs}})    → devuelve la función PURA loreVariety (byte-verificación de casos borde) SIN tocar el snapshot
+  //   erudition({lore,pid,atMs})                        → empuja el lore crudo (acumulador) de UN pid
+  //   erudition({xpTick:{base}})                        → aplica EXACTAMENTE el seam gainXP (mult xpGain = 1+fellowMul+eruditionMul, de-stack) a una XP base ⇒ byte-verifica el canal en aislamiento (OFF ⇒ paid==base·(1+fellow))
+  //   erudition({toZone}) / ({leave}) / ({clear})       → teleporta a la zona / aleja de toda zona / limpia el snapshot+marcas server
+  erudition(p){
+    let probe=null, xpPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) ERUDITION.enabled=!!p.enabled;
+      if("self" in p) G.loreSelf=(p.self!=null?String(p.self):null);
+      if("nowMs" in p){ G.loreNow=+p.nowMs; tickErudition(G.loreNow); }
+      if("push" in p){ G.loreServer=Object.assign({}, G.loreServer||{}, p.push||{}); tickErudition(G.loreNow); }   // el server empuja el lore crudo por pid ⇒ refleja+proyecta
+      if("marks" in p && p.marks && typeof p.marks==="object"){ G.loreMarks=Object.assign({}, G.loreMarks||{}); for(const pid in p.marks){ G.loreMarks[pid]=(p.marks[pid]||[]).map(m=>({ k:String((m&&m.k)==null?"":m.k), t:(+(m&&m.t)||0) })); } }   // fija marcas crudas de kill por pid
+      if("kills" in p && p.kills && typeof p.kills==="object"){ const at=(G.loreNow!=null?+G.loreNow:0);
+        for(const pid in p.kills){ lorePathStep(pid, p.kills[pid], at); } }   // server-side: registra marcas de kill (tipo de enemigo)
+      if("step" in p && p.step && typeof p.step==="object"){ const at=(G.loreNow!=null?+G.loreNow:0);
+        for(const pid in p.step){ const s=p.step[pid]||{}; loreStep(pid, s.dt, at); } tickErudition(G.loreNow); }   // server-side: computa variedad y acumula/decae
+      if("varietyProbe" in p && p.varietyProbe && typeof p.varietyProbe==="object"){ const vp=p.varietyProbe;
+        probe=loreVariety(vp.marks, (vp.now!=null?+vp.now:(G.loreNow!=null?+G.loreNow:0)), vp.windowMs); }   // función PURA, SIN tocar el snapshot
+      if("lore" in p){ const pid=(p.pid!=null?String(p.pid):loreSelfPid()); const at=("atMs" in p)?+p.atMs:(G.loreNow!=null?+G.loreNow:0);
+        G.loreServer=Object.assign({}, G.loreServer||{}); G.loreServer[pid]={ lore:+p.lore||0, atMs:at }; tickErudition(G.loreNow); }
+      if(p.clear){ G.loreServer={}; G.loreMarks={}; tickErudition(G.loreNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((ERUDITION.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("xpTick" in p && p.xpTick && typeof p.xpTick==="object"){ const base=Math.max(0,Math.round(+p.xpTick.base||0));
+        const fb=(G.hero?fellowMul(G.hero,"xpGain"):0), eb=(G.hero?eruditionMul(G.hero,"xpGain"):0);   // de-stack: si fb>0 ⇒ eb==0 (aplica el MAYOR)
+        const paid=Math.round(base*(1+fb+eb));   // MISMA lógica que el seam gainXP (n·(1+fellow+erudition))
+        xpPicked={ base, fellowBonus:+fb.toFixed(6), eruditionBonus:+eb.toFixed(6), mult:+(1+fb+eb).toFixed(6), paid }; }   // OFF/tier0 ⇒ eb 0 ⇒ paid==round(base·(1+fellow)) byte-id
+    }
+    const h=G.hero, vm=eruditionVM(h);
+    return { enabled:ERUDITION.enabled, channel:ERUDITION.channel||"xpGain", zones:(ERUDITION.zones||[]).slice(), tiers:(ERUDITION.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost||0})), windowSec:ERUDITION.windowSec|0, minVariety:ERUDITION.minVariety|0, halfLifeSec:ERUDITION.halfLifeSec|0, capLore:ERUDITION.capLore|0, accruePerSec:+ERUDITION.accruePerSec||0,
+      self:loreSelfPid(), zone:vm.zone, learnable:vm.learnable, lore:vm.lore, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      xpGainMul: h?eruditionMul(h,"xpGain"):0,                             // boost EFECTIVO del jugador local (canal xpGain tras de-stack; prueba: OFF/tier0/con-vínculo-Hermandad ⇒ 0 ⇒ byte-id)
+      fellowXpMul: h?fellowMul(h,"xpGain"):0,                              // canal xpGain de FELLOWSHIP (MISMO canal) — prueba de-stack: si >0 ⇒ eruditionMul cede a 0
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE: xpGain (mult) NO lo toca (⊥, restedMult drena pool) ⇒ prueba 0 doble-conteo
+      goldFindMul: h?(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")):0,  // canal goldFind — INDEPENDIENTE: xpGain NO lo toca (⊥)
+      wardRegenMul: h?wardMul(h,"wardRegen"):0,                            // canal wardRegen — INDEPENDIENTE: xpGain NO lo toca (⊥)
+      oocMitigMul: h?wayRoamMul(h,"oocMitigation"):0,                      // canal oocMitigation (Wayfarer) — INDEPENDIENTE
+      lootQualityFloor: (typeof trailcraftFloor==="function")?(trailcraftFloor()||""):"",   // canal lootQuality (Trailcraft) — INDEPENDIENTE
+      critBonusPct: (typeof delveCritBonusPct==="function")?delveCritBonusPct():0,   // canal critChance (Delve) — INDEPENDIENTE
+      tag: eruditionTag(h),                                              // glifo SERVIDO (prueba: OFF/tier0/fuera-de-zona ⇒ "" / erudición abierta ⇒ ✎)
+      precedence:"xpGain (canal REUSADO, multiplicador de XP por el chokepoint gainXP): PRECEDENCIA máximo-único DENTRO del canal ⇒ ERUDITION (#65) CEDE a FELLOWSHIP_BOND (#47, más antigua): si fellowMul(xpGain)>0 ⇒ eruditionMul=0 (aplica el MAYOR, 0 doble-dip). Mirror EXACTO de FOCUS_FIRE→KINSHIP en goldFind. ORTOGONAL a goldFind (tryPickup/oro), restedMult (pool de Descanso), wardRegen (regen HP), oocMitigation (damageHero), lootQuality (rollGearInst/rareza) y critChance (crit) ⇒ jamás dobla con NINGÚN otro canal; INDIVIDUAL + CUALITATIVO por TIPO de presa (OPUESTO a Focus concentración en 1 objetivo)",
+      loreMap: (G.lore&&G.lore.lore)?JSON.parse(JSON.stringify(G.lore.lore)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.lore!=null),                                            // prueba byte-id: OFF ⇒ G.lore NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.lore&&G.lore.nowMs)||null,                              // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      probe: probe,                                                       // resultado de la función PURA loreVariety (byte-verificación de casos borde)
+      xpPicked,                                                           // resultado del xpTick sintético { base, fellowBonus, eruditionBonus, mult, paid } (prueba del seam xpGain en aislamiento)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
