@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4093,6 +4093,33 @@ export function zoneEventVM(h){ h=h||G.hero; const on=!!ZONE_EVENT_SURGE.enabled
     cap:Math.max(0,ZONE_EVENT_SURGE.eventGemCap|0), radius:+ZONE_EVENT_SURGE.radius||0,
     tag: zoneEventTag(h) }; }
 
+// CAS-2456: VARIANTE DE ENCUENTRO ACTIVA (ENCOUNTER_VARIANT_SURGE) — EJE PRESENCIA/TIPO DE VARIANTE DE COMPORTAMIENTO server-auth + canal FRESCO socketFind (recompensa de reagentes de engarce por forrajeo DENTRO de un encuentro de variante). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Las variantes (e.variant/e.variantTint) = estado de sim REPLICADO horneado determinista por-posición al spawn (maybeVariant/applyVariant, enemyVariantRng ISOLADO off-srand, subsistema ENCOUNTER_VARIANTS/CAS-2071).
+// variantWeight(e) = peso de variante de un mob VIVO = variantWeights[e.variant] (Bastión→2, Acechador/Frágil→1; sin variante/neutral/boss→0 — maybeVariant excluye boss/élite/campeón/afijado ⇒ ⊥ #74 afijo y ⊥ #73 apex). PURO (lectura de e.variant replicado). Muerto/sin hp ⇒ 0.
+function variantWeight(e){ if(!e||e.dead||!(e.hp>0)||!e.variant) return 0; const W=ENCOUNTER_VARIANT_SURGE.variantWeights||{}; return (+W[e.variant]||1); }
+// variantSurgeScore(h) = suma del peso de variante de TODOS los mobs-variante VIVOS dentro de ENCOUNTER_VARIANT_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (variantes+posiciones = estado replicado). 0 si no hay variantes cerca. Vecindad = radio (⊥ apex que mide distancia a UN jefe; ⊥ evento que lee POIs).
+function variantSurgeScore(h){ h=h||G.hero; if(!h) return 0; const R=+ENCOUNTER_VARIANT_SURGE.radius||0, R2=R*R; let s=0;
+  for(const e of (G.enemies||[])){ const w=variantWeight(e); if(w<=0) continue; const dx=h.x-e.x, dy=h.y-e.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// variantSurgeTier(score) = índice del tier de variante vigente (0 = sin variantes cerca / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS variante = tier ALTO. LUT determinista pura.
+function variantSurgeTier(score){ const T=ENCOUNTER_VARIANT_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// variantSurgeSocketBonus(score) = nº de reagentes de engarce del tier vigente, acotado por el sub-cap propio variantSocketCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta socketFind.
+function variantSurgeSocketBonus(score){ if(!ENCOUNTER_VARIANT_SURGE.enabled) return 0;
+  if((ENCOUNTER_VARIANT_SURGE.channel||"socketFind")!=="socketFind") return 0;   // seguridad: ENCOUNTER_VARIANT_SURGE SÓLO alimenta socketFind (si el knob se re-apunta, no contribuye)
+  const t=variantSurgeTier(score); if(t<=0) return 0;
+  const raw=+ENCOUNTER_VARIANT_SURGE.tiers[t-1].sockets||0, cap=Math.max(0,ENCOUNTER_VARIANT_SURGE.variantSocketCap|0);
+  return cap>0 ? Math.min(cap, raw) : raw; }
+// variantSurgeForageSockets(h, tpl) = los reagentes de engarce por un kill DENTRO de un encuentro de variante = variantSurgeSocketBonus(score actual). 0 si OFF / sin variante cerca / sin tpl. PURO — el seam decide banca a h.socketShards vía grantSocket.
+function variantSurgeForageSockets(h, tpl){ if(!ENCOUNTER_VARIANT_SURGE.enabled||!tpl) return 0; return variantSurgeSocketBonus(variantSurgeScore(h||G.hero)); }
+// variantSurgeTag(h) = glifo del badge de VARIANTE DE ENCUENTRO (❖) si el héroe tiene una variante activa en radio (tier>0). PURO. "" si OFF / sin variantes cerca.
+export function variantSurgeTag(h){ h=h||G.hero; if(!ENCOUNTER_VARIANT_SURGE.enabled||!h) return "";
+  return variantSurgeTier(variantSurgeScore(h))>0 ? "❖" : ""; }
+// View-model PURO para el HUD/badge: el tier de variante, el score de variantes, los reagentes efectivos por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function variantSurgeVM(h){ h=h||G.hero; const on=!!ENCOUNTER_VARIANT_SURGE.enabled&&!!h;
+  const score=on?variantSurgeScore(h):0, tier=on?variantSurgeTier(score):0, sockets=on?variantSurgeSocketBonus(score):0;
+  return { enabled:!!ENCOUNTER_VARIANT_SURGE.enabled, channel:ENCOUNTER_VARIANT_SURGE.channel||"socketFind",
+    score, tier, tierCount:(ENCOUNTER_VARIANT_SURGE.tiers||[]).length, sockets,
+    cap:Math.max(0,ENCOUNTER_VARIANT_SURGE.variantSocketCap|0), radius:+ENCOUNTER_VARIANT_SURGE.radius||0,
+    tag: variantSurgeTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5588,6 +5615,13 @@ function killEnemy(e){
   if(ZONE_EVENT_SURGE.enabled && !tpl.neutral){ const gb=zoneEventForageGems(G.hero, tpl);
     if(gb>0){ grantEventGem(gb);
       floater(e.x,e.y-72,"+"+gb+" Gema","#b79cff",{small:true}); } }
+  // CAS-2456 ENCOUNTER_VARIANT_SURGE seam: FORRAJEO DENTRO DE UN ENCUENTRO DE VARIANTE. Al matar un mob no-neutral mientras hay mob(s)-variante VIVO(s) (e.variant, score≥umbral) dentro del radio del HÉROE, el
+  // héroe cosecha reagentes de engarce = variantSurgeForageSockets(hero,tpl) (flat por tier de intensidad, sub-cap variantSocketCap), banca a h.socketShards vía grantSocket (0 RNG). e.dead=true ya está fijado arriba
+  // ⇒ variantWeight(e)=0 ⇒ el mob recién muerto NO auto-cuenta su variante. GATED ⇒ enabled:false ⇒ rama muerta: 0 reagentes, 0 floater, 0 grantSocket ⇒ killEnemy byte-idéntico al HEAD. Canal FRESCO socketFind
+  // (fuente ÚNICA, sub-cap variantSocketCap) — NINGUNA de las 17 flags #59-#75 lo toca; reagentes transitorios ⇒ fuera del save + fingerprint.
+  if(ENCOUNTER_VARIANT_SURGE.enabled && !tpl.neutral){ const sb=variantSurgeForageSockets(G.hero, tpl);
+    if(sb>0){ grantSocket(sb);
+      floater(e.x,e.y-84,"+"+sb+" Engarce","#7fe0c0",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -6792,6 +6826,8 @@ function grantFlask(n){ const h=G.hero; if(!h||n<=0||!FLASK.enabled) return; h.f
 
 // CAS-2450: banca esquirlas de gema (canal gemFind de ZONE_EVENT_SURGE). Moneda TRANSITORIA NUEVA (h.eventGems — init por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantMats para el trickle de forrajeo DENTRO de un evento de zona activo. STATELESS: h.eventGems NO se serializa ⇒ no es clave de save.
 function grantEventGem(n){ const h=G.hero; if(!h||n<=0) return; h.eventGems=(h.eventGems|0)+(n|0); }
+// CAS-2456: banca reagentes de engarce (canal socketFind de ENCOUNTER_VARIANT_SURGE). Moneda TRANSITORIA NUEVA (h.socketShards — init por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantEventGem para el trickle de forrajeo DENTRO de un encuentro de variante. STATELESS: h.socketShards NO se serializa ⇒ no es clave de save.
+function grantSocket(n){ const h=G.hero; if(!h||n<=0) return; h.socketShards=(h.socketShards|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9603,6 +9639,56 @@ export const dev = {
       gExists:(G.zoneEventSurge!=null),                                    // prueba byte-id: STATELESS ⇒ G.zoneEventSurge NUNCA se crea (0 estado nuevo, 0 clave serializada)
       activeEventCount:activeEventCount,                                  // nº de POIs de evento activos en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), eventGems:(h.eventGems|0) }:null }; },
+  // CAS-2456: VARIANTE DE ENCUENTRO ACTIVA OBSERVABLE hook (DARK, ENCOUNTER_VARIANT_SURGE — eje PRESENCIA/TIPO DE VARIANTE DE COMPORTAMIENTO server-auth [Σ variantWeights sobre e.variant de los mobs VIVOS en radio del héroe, leídos de G.enemies] + canal
+  // FRESCO socketFind [recompensa de reagentes de engarce por forrajeo DENTRO de un encuentro de variante, NINGUNA flag previa lo toca] con sub-cap variantSocketCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — la variante
+  // EMERGE del estado del mundo/spawn). Convergencia byte-a-byte: MISMO snapshot (G.enemies + e.variant + posición del héroe) ⇒ MISMO score/tier/sockets/forageSockets en N clientes.
+  //   variantSurge()                                  → snapshot {enabled,channel,radius,tiers,cap,score,tier,sockets,forageSocketsPreview,peer channels ⊥,tag,gExists,variantMobCount,hero}
+  //   variantSurge({enabled})                         → flip runtime IN-MEMORY de ENCOUNTER_VARIANT_SURGE.enabled (sin tocar el disco)
+  //   variantSurge({tp:{tx,ty}})                      → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ la variante se evalúa contra los mobs REALes de G.enemies en radio
+  //   variantSurge({scoreProbe:{score}})              → LUT PURA score→tier→sockets (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   variantSurge({spawnVariant:{tx,ty,variant}})    → inyecta un mob-variante de PRUEBA REAL (spawnEnemy + applyVariant) en el tile (tx,ty); devuelve idx + peso
+  //   variantSurge({variantProbe:true})               → score REAL + lista de mobs-variante vivos en radio + su {x,y,variant,weight} (byte-verifica la lectura server-auth de G.enemies)
+  variantSurge(p){
+    let scoreProbe=null, spawnVariant=null, variantProbe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) ENCOUNTER_VARIANT_SURGE.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=variantSurgeTier(score);   // LUT PURA score→tier→sockets (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+ENCOUNTER_VARIANT_SURGE.tiers[t-1].sockets||0):0, cap=Math.max(0,ENCOUNTER_VARIANT_SURGE.variantSocketCap|0);
+        scoreProbe={ score, tier:t, sockets:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnVariant && typeof p.spawnVariant==="object"){ const tx=p.spawnVariant.tx|0, ty=p.spawnVariant.ty|0, id=(p.spawnVariant.variant||"stalker");   // mob-variante de PRUEBA REAL (spawnEnemy + applyVariant, mirror del path natural maybeVariant) para observar la señal REAL en G.enemies
+        const e=applyVariant(spawnEnemy("orc", tx*TS+TS/2, ty*TS+TS/2), id);
+        spawnVariant={ idx:G.enemies.indexOf(e), x:+e.x.toFixed(1), y:+e.y.toFixed(1), variant:e.variant||null, weight:variantWeight(e) }; }
+      if(p.variantProbe){ const h=G.hero, R=+ENCOUNTER_VARIANT_SURGE.radius||0, R2=R*R, mobs=[]; let sc=0;   // lectura REAL server-auth: mobs-variante vivos en radio del héroe
+        if(h){ for(const e of (G.enemies||[])){ const w=variantWeight(e); if(w<=0) continue; const dx=h.x-e.x, dy=h.y-e.y; if(dx*dx+dy*dy<=R2){ sc+=w; mobs.push({ x:+e.x.toFixed(1), y:+e.y.toFixed(1), variant:e.variant, weight:w }); } } }
+        variantProbe={ score:sc, count:mobs.length, mobs }; }
+    }
+    const h=G.hero, vm=variantSurgeVM(h);
+    let variantMobCount=0; for(const e of (G.enemies||[])){ if(variantWeight(e)>0) variantMobCount++; }
+    return { enabled:ENCOUNTER_VARIANT_SURGE.enabled, channel:ENCOUNTER_VARIANT_SURGE.channel||"socketFind",
+      radius:vm.radius, tiers:(ENCOUNTER_VARIANT_SURGE.tiers||[]).map(t=>({min:+t.min||0,sockets:+t.sockets||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, sockets:vm.sockets,
+      forageSocketsPreview: h?variantSurgeForageSockets(h, {xp:100}):0,     // preview: reagentes de engarce forrajeados por un kill con la variante actual (expone el canal socketFind)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      gemForagePreview: h?zoneEventForageGems(h, {xp:100}):0,               // canal gemFind (ZONE_EVENT_SURGE #75) — INDEPENDIENTE ⊥
+      tag: variantSurgeTag(h),                                            // glifo SERVIDO (OFF/sin variante ⇒ "" / variante cerca ⇒ ❖)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→sockets (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnVariant: spawnVariant,                                         // mob-variante de PRUEBA inyectado (G.enemies) — idx + peso
+      variantProbe: variantProbe,                                         // lectura REAL server-auth: mobs-variante vivos en radio (score + lista)
+      precedence:"socketFind (canal FRESCO — recompensa de reagentes de engarce por forrajeo DENTRO de un encuentro de variante): NINGUNA de las 17 flags #59-#75 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind #60/#62, lootQuality #63/#68, xpGain #65, essenceFind #72, matFind #73, flaskPotency #74, gemFind #75) está LLENA ⇒ pivota a una moneda FRESCA, reagentes de engarce (h.socketShards, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio variantSocketCap, 0 doble-dip (ningún otro seam banca socketShards). EJE = PRESENCIA/TIPO DE VARIANTE DE COMPORTAMIENTO server-auth: variantSurgeScore(hero)=Σ variantWeights[e.variant] sobre los mobs VIVOS con variante de G.enemies en radio (subsistema ENCOUNTER_VARIANTS/CAS-2071). ⊥ #75 (evento de zona = POIs en G.zoneEvents.pois; esto = modificador de comportamiento sobre los MOBS), ⊥ #74 (afijo = CALIDAD estática de UN mob leída de mobAffixes(e), subsistema MOB_AFFIX, id-set disjunto; variante = PATRÓN DINÁMICO del encuentro leído de e.variant, subsistema ENCOUNTER_VARIANTS — y maybeVariant NO se apila sobre un cuerpo afijado ⇒ SIN solape de portador), ⊥ #73 (apex = DISTANCIA a UN jefe; esto = presencia de variantes), ⊥ #72 (escasez = AUSENCIA de mobs; esto = PRESENCIA de un patrón de variante), ⊥ #69 (force-ratio = ENGANCHADOS). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind (seams distintos).",
+      gExists:(G.variantSurge!=null),                                    // prueba byte-id: STATELESS ⇒ G.variantSurge NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      variantMobCount:variantMobCount,                                   // nº de mobs-variante vivos en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), socketShards:(h.socketShards|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
