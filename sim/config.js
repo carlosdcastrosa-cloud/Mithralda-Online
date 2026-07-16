@@ -2661,7 +2661,7 @@ export const DELVE = {
 // HARD-GATED: enabled:false ⇒ tickErudition jamás corre (Date.now nunca se llama), G.lore/G.loreServer/G.loreMarks NUNCA se crean, eruditionMul RETURN 0 ⇒ gainXP BYTE-IDÉNTICO a HEAD (n·(1+fellow+0)=n·(1+fellow));
 // eruditionTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% emerge del combate/kills). Reversible 1-línea. NÚMEROS = balance del CEO.
 export const ERUDITION = {
-  enabled: false,            // DARK (EVO#65, CAS-2381). Reversible 1-línea false→true tras QA DARK PASS + CEO Gate. byte-neutro OFF.
+  enabled: true,             // LIVE (EVO#65, CAS-2390 flip CTO) tras QA DARK PASS 19/19 ×2 (CAS-2381, build c4a549ae2fa1) + CEO Gate. Serializado tras #64 DELVE LIVE&verificado (build f4c877cf5725, DELVE:true). Reversible 1-línea true→false + re-run overlay. anti-stacking: 1 arco valida a la vez. Canal xpGain de-stack cede a FELLOWSHIP #47.
   channel: "xpGain",         // canal REUSADO (multiplicador de XP por el chokepoint gainXP). De-stack máximo-único: ERUDITION cede a FELLOWSHIP_BOND (#47, más antigua). ⊥ goldFind/restedMult/wardRegen/oocMitigation/lootQuality/critChance (seams distintos). CEO balance knob.
   zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo aplica (mirror TRAILCRAFT.zones/KINSHIP_BOND.zones — la ciudad/SAFEZONE fuera). El mul xpGain SE zone-gatea aquí (mirror kinshipMul/focusMul): el bono de XP aplica mientras cazas en la naturaleza (donde ocurren los kills).
   windowSec: 30,             // ventana deslizante (s) para contar TIPOS de enemigo distintos abatidos. CEO balance knob.
