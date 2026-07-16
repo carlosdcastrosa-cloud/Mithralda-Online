@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3977,6 +3977,39 @@ export function shadowStalkVM(h){ h=h||G.hero; const on=!!SHADOW_STALK.enabled&&
     hunterAggro:+hunterAggro, hunterAggroEff:+(hunterAggro*(1-mit)).toFixed(2), hunterDist:+hunterD.toFixed(2),
     tag: shadowStalkTag(h) }; }
 
+// CAS-2432: PRESIÓN POR ESCASEZ DE RECURSOS (SCARCITY_EDGE) — EJE ESCASEZ/AGOTAMIENTO del mundo compartido + canal FRESCO essenceFind (multiplicador de recompensa de esencia por forrajeo). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth.
+// scarcityZoneCap(zone) = Σ sp.max sobre los spawners de la ZONA = capacidad de spawn autoritativa de esa zona. PURO (lectura de world.spawners). 0 si la zona no tiene spawners (ciudad/field).
+function scarcityZoneCap(zone){ let cap=0; for(const s of (world&&world.spawners||[])){ if(!s||s.zone!==zone) continue; cap+=(s.max|0); } return cap; }
+// scarcityZoneAlive(zone) = nº de mobs VIVOS no-jefe cuya posición cae en la ZONA. Cuenta el estado de sim replicado (posiciones deterministas). Excluye jefes (la escasez es de mobs de forrajeo, no del jefe) y neutrales. PURO.
+function scarcityZoneAlive(zone){ let n=0; for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0||e.isBoss) continue; if(e.tpl&&e.tpl.neutral&&!e.hostile) continue; if(zoneOf(world,e.x,e.y)===zone) n++; } return n; }
+// scarcityDepletion(zone) = fracción de la capacidad de spawn de la zona actualmente VACÍA = 1 - vivos/cap ∈ [0,1]. Cap < minZoneCap ⇒ 0 (zonas de cap ínfimo no cuentan). PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot.
+function scarcityDepletion(zone){ const cap=scarcityZoneCap(zone); if(cap < Math.max(1,SCARCITY_EDGE.minZoneCap|0)) return 0;
+  const alive=scarcityZoneAlive(zone); const dep=1-alive/cap; return dep<0?0:(dep>1?1:dep); }
+// scarcityTier(dep) = índice del tier de agotamiento vigente (0 = zona rica / sin ventaja) = el MÁS ALTO cuya `min` de agotamiento se alcanza. LUT determinista pura.
+function scarcityTier(dep){ const T=SCARCITY_EDGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(dep>=(+T[i].min||0)) t=i+1; } return t; }
+// scarcityMul(zone) = fracción del xp del mob concedida como esencia de forrajeo, acotada por el sub-cap propio scarcityEssCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). NO gateado internamente salvo enabled (el seam decide dónde aplica).
+function scarcityMul(zone){ if(!SCARCITY_EDGE.enabled) return 0;
+  if((SCARCITY_EDGE.channel||"essenceFind")!=="essenceFind") return 0;   // seguridad: SCARCITY_EDGE SÓLO alimenta essenceFind (si el knob se re-apunta, no contribuye)
+  const dep=scarcityDepletion(zone); const t=scarcityTier(dep); if(t<=0) return 0;
+  const raw=+SCARCITY_EDGE.tiers[t-1].mul||0, cap=Math.max(0,+SCARCITY_EDGE.scarcityEssCap||0);
+  return cap>0 ? Math.min(cap, raw) : raw; }
+// scarcityForageEssence(zone, tpl) = la esencia de forrajeo por un kill en la zona = round(scarcityMul(zone) * tpl.xp). El xp del mob = proxy determinista de su "valor". 0 si OFF / zona rica / sin xp. PURO — el seam decide banca a meta.
+function scarcityForageEssence(zone, tpl){ if(!SCARCITY_EDGE.enabled||!tpl) return 0; const mul=scarcityMul(zone); if(mul<=0) return 0;
+  const xp=+tpl.xp||0; return Math.round(mul*xp); }
+// scarcityTag(h) = glifo del badge de ESCASEZ (⧗) si el héroe está en una zona AGOTADA (tier>0). PURO. "" si OFF / zona rica / sin zona.
+export function scarcityTag(h){ h=h||G.hero; if(!SCARCITY_EDGE.enabled||!h) return "";
+  return scarcityTier(scarcityDepletion(zoneOf(world,h.x,h.y)))>0 ? "⧗" : ""; }
+// View-model PURO para el HUD/badge: el tier de agotamiento de la zona del héroe, la depletion, el mul efectivo, el sub-cap, cap/vivos de la zona. 0 sim/RNG/side-effect.
+export function scarcityVM(h){ h=h||G.hero; const on=!!SCARCITY_EDGE.enabled&&!!h;
+  const zone=h?zoneOf(world,h.x,h.y):null;
+  const cap=on?scarcityZoneCap(zone):0, alive=on?scarcityZoneAlive(zone):0;
+  const dep=on?scarcityDepletion(zone):0, tier=on?scarcityTier(dep):0, mul=on?scarcityMul(zone):0;
+  return { enabled:!!SCARCITY_EDGE.enabled, channel:SCARCITY_EDGE.channel||"essenceFind",
+    zone, zoneCap:+cap, zoneAlive:+alive, depletion:+dep.toFixed(4),
+    tier, tierCount:(SCARCITY_EDGE.tiers||[]).length, mul:+mul.toFixed(4),
+    cap:Math.max(0,+SCARCITY_EDGE.scarcityEssCap||0), minZoneCap:Math.max(1,SCARCITY_EDGE.minZoneCap|0),
+    tag: scarcityTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5442,6 +5475,14 @@ function killEnemy(e){
   // collapsed final frame) then fades. Presentation-only — rewards/drops already resolved above.
   if(e.tpl.richAnim){ G.corpses.push({ sprite:e.tpl.sprite, x:e.x, y:e.y, size:e.tpl.size, isBoss:!!e.isBoss, champion:!!e.champion,
     fl:(e.facing!==undefined)?Math.cos(e.facing)<0:false, gaitPhase:e.gaitPhase||0, t:0 }); }
+  // CAS-2432 SCARCITY_EDGE seam: FORRAJEO por escasez. Al matar un mob no-neutral en una zona AGOTADA (depletion≥tier.min),
+  // el héroe forrajea un bono de esencia = round(scarcityMul(zona)*tpl.xp), banca a meta.essence (como RIPOSTE/goblin/bloodstain,
+  // 0 RNG). e.dead=true ya está fijado arriba ⇒ scarcityZoneAlive lo excluye ⇒ la depletion refleja el estado POST-kill (matar el
+  // último mob agota la zona al máximo). GATED ⇒ enabled:false ⇒ rama muerta: 0 esencia, 0 floater, 0 draw ⇒ killEnemy byte-idéntico
+  // al HEAD. Canal FRESCO essenceFind (fuente ÚNICA, sub-cap scarcityEssCap) — NINGUNA de las 13 flags #59-#71 lo toca.
+  if(SCARCITY_EDGE.enabled && !tpl.neutral){ const eb=scarcityForageEssence(zone, tpl);
+    if(eb>0){ ensureMeta().essence=(ensureMeta().essence|0)+eb; G.metaDirty=true;
+      floater(e.x,e.y-34,"+"+eb+" Esencia","#8fe0ff",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9260,6 +9301,50 @@ export const dev = {
       wallScan: wallScan,                                                // conteo de world.wallSet/blockSet + tile de muestra oclusor (teleport a cobertura REAL)
       precedence:"detectRadius (canal FRESCO — radio de detección/adquisición del mob): NINGUNA de las 12 flags #59-#70 lo toca (todas son stat-buffs del HÉROE); es un DEBUFF de percepción del ENEMIGO ⇒ fuente ÚNICA, máximo-único trivial, sub-cap propio stealthStalkCap, 0 doble-dip. EJE = SIGILO/LÍNEA-DE-VISIÓN server-auth: LOS mob→héroe derivada por raycast de grid Bresenham sobre world.wallSet/blockSet (capa OCLUSORA, ⊥ a #70 que lee world.terr del tile DEL HÉROE). NO force-ratio (⊥ LastStand) ni clima (⊥ Tempest) ni tiempo (⊥ Nocturne) ni tempo (⊥ Cadence) ni aliados (⊥ Kinship) ni territorio. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd (seams distintos).",
       gExists:(G.shadowStalk!=null),                                     // prueba byte-id: STATELESS ⇒ G.shadowStalk NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS) }:null }; },
+  // CAS-2432: PRESIÓN POR ESCASEZ DE RECURSOS OBSERVABLE hook (DARK, SCARCITY_EDGE — eje ESCASEZ/AGOTAMIENTO del mundo compartido server-auth [spawn-cap de la zona vs mobs vivos] + canal FRESCO
+  // essenceFind [multiplicador de recompensa de esencia por forrajeo, NINGUNA flag previa lo toca] con sub-cap scarcityEssCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — la escasez EMERGE
+  // del estado del mundo). Convergencia byte-a-byte: MISMO snapshot (world.spawners + G.enemies) ⇒ MISMA depletion/tier/mul/forageEssence en N clientes.
+  //   scarcity()                              → snapshot {enabled,channel,tiers,cap,minZoneCap,zone,zoneCap,zoneAlive,depletion,tier,mul,forageEssPreview,peer channels ⊥,tag,gExists,hero}
+  //   scarcity({enabled})                     → flip runtime IN-MEMORY de SCARCITY_EDGE.enabled (sin tocar el disco)
+  //   scarcity({tp:{tx,ty}})                  → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ la zona/escasez se evalúa contra world.spawners/G.enemies REAL
+  //   scarcity({depProbe:{dep}})              → LUT PURA depletion→tier→mul (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   scarcity({zoneProbe:{zone}})            → escasez REAL de una zona: {cap,alive,depletion,tier,mul} (byte-verifica cap/vivos server-auth sin mover nada)
+  //   scarcity({forageProbe:{zone,xp}})       → math del canal: round(scarcityMul(zone)*xp) (byte-verifica el bono de forrajeo por kill)
+  scarcity(p){
+    let depProbe=null, zoneProbe=null, forageProbe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) SCARCITY_EDGE.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.depProbe && typeof p.depProbe==="object"){ const dep=Math.max(0,Math.min(1,+p.depProbe.dep||0)), t=scarcityTier(dep);   // LUT PURA dep→tier→mul (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+SCARCITY_EDGE.tiers[t-1].mul||0):0, cap=Math.max(0,+SCARCITY_EDGE.scarcityEssCap||0);
+        depProbe={ dep:+dep.toFixed(4), tier:t, mul:+(cap>0?Math.min(cap,raw):raw).toFixed(4) }; }
+      if(p.zoneProbe && typeof p.zoneProbe==="object"){ const z=p.zoneProbe.zone; const cap=scarcityZoneCap(z), alive=scarcityZoneAlive(z), dep=scarcityDepletion(z);   // escasez REAL server-auth de la zona
+        let tile=null; for(const s of (world&&world.spawners||[])){ if(s&&s.zone===z&&s.rect){ tile={ tx:(s.rect.x+(s.rect.w>>1))|0, ty:(s.rect.y+(s.rect.h>>1))|0 }; break; } }   // tile de MUESTRA (centro del rect del spawner) para teleportar el héroe a la zona
+        zoneProbe={ zone:z, cap:+cap, alive:+alive, depletion:+dep.toFixed(4), tier:scarcityTier(dep), mul:+scarcityMul(z).toFixed(4), tile }; }
+      if(p.forageProbe && typeof p.forageProbe==="object"){ const z=p.forageProbe.zone, xp=+p.forageProbe.xp||0, mul=scarcityMul(z);   // math del canal: esencia de forrajeo por kill
+        forageProbe={ zone:z, xp:+xp, mul:+mul.toFixed(4), essence:Math.round(mul*xp) }; }
+    }
+    const h=G.hero, vm=scarcityVM(h);
+    return { enabled:SCARCITY_EDGE.enabled, channel:SCARCITY_EDGE.channel||"essenceFind",
+      tiers:(SCARCITY_EDGE.tiers||[]).map(t=>({min:+t.min||0,mul:+t.mul||0})), cap:vm.cap, minZoneCap:vm.minZoneCap,
+      zone:vm.zone, zoneCap:vm.zoneCap, zoneAlive:vm.zoneAlive, depletion:vm.depletion,
+      tier:vm.tier, tierCount:vm.tierCount, mul:vm.mul,
+      forageEssPreview: h?scarcityForageEssence(vm.zone, {xp:100}):0,     // preview: esencia forrajeada por un mob de xp=100 en la zona actual (expone el canal essenceFind)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                  // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                             // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                   // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                     // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,            // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      tag: scarcityTag(h),                                               // glifo SERVIDO (OFF/zona rica ⇒ "" / zona agotada ⇒ ⧗)
+      depProbe: depProbe,                                                // LUT PURA dep→tier→mul (byte-verificación de la TABLA + sub-cap, world-independiente)
+      zoneProbe: zoneProbe,                                              // escasez REAL server-auth de una zona (cap/vivos/depletion/tier/mul)
+      forageProbe: forageProbe,                                          // resultado del bono de forrajeo (round(mul*xp))
+      precedence:"essenceFind (canal FRESCO — multiplicador de recompensa de ESENCIA/meta-moneda por forrajeo): NINGUNA de las 13 flags #59-#71 lo toca. La familia recompensa-de-forrajeo tiene goldFind (#60/#62), lootQuality (#63/#68), xpGain (#65) OCUPADOS ⇒ ESENCIA es el ÚNICO libre. Fuente ÚNICA ⇒ máximo-único trivial, sub-cap propio scarcityEssCap, 0 doble-dip (esencia de arena/bossrush/pactos/uniques/NG+ vive en OTROS seams). EJE = ESCASEZ/AGOTAMIENTO del mundo compartido server-auth: depletion(zona)=1-mobsVivosNoJefe/Σsp.max — el MISMO estado que el loop de spawn usa en count<sp.max (⊥ a #69 que cuenta enemigos ENGANCHADOS al héroe; esto cuenta AUSENCIA vs capacidad de la ZONA). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius (seams distintos).",
+      gExists:(G.scarcity!=null),                                        // prueba byte-id: STATELESS ⇒ G.scarcity NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).

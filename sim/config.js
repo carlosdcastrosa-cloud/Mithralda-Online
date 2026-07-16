@@ -2832,6 +2832,25 @@ export const SHADOW_STALK = {
   ],
 };
 
+// CAS-2432: PRESIÓN POR ESCASEZ DE RECURSOS (DARK, SCARCITY_EDGE) — EVO mecánica #72 (serializa tras #71 SHADOW_STALK LIVE&closed). EJE FRESCO **ESCASEZ / AGOTAMIENTO DE RECURSOS DEL MUNDO COMPARTIDO** (server-auth, MMORPG-native: contención por spawns compartidos entre jugadores concurrentes).
+//  · PRE-FLIGHT HARD GATE (escalera del issue):
+//    (1) Estado server-authoritative REAL de escasez — SÍ existe: cada `world.spawners[i]` tiene `max` (capacidad de spawn de la zona, server-side) y el nº de mobs VIVOS no-jefe se cuenta determinista sobre `G.enemies` (posiciones = estado de sim replicado). El loop de spawn YA usa `count < sp.max` (sim.js:7133) como su gate de repoblación ⇒ la DENSIDAD/AGOTAMIENTO es estado autoritativo, NO cosmético. `depletion(zona) = 1 - mobsVivosNoJefe(zona)/Σ sp.max(zona)` ∈ [0,1] = fracción de la capacidad de spawn de la zona actualmente VACÍA (=exprimida por caza previa / otros jugadores). PURA/determinista ⇒ MISMO valor para todo observador del mismo snapshot. Zona sin spawners (ciudad/field) ⇒ cap 0 ⇒ depletion 0 ⇒ sin ventaja.
+//    (2) Canal `essenceFind` (multiplicador de recompensa de ESENCIA / meta-moneda por forrajeo) — NINGUNA de las 13 flags #59-#71 lo toca: la FAMILIA de recompensa-de-forrajeo tiene goldFind (#60/#62), lootQuality (#63/#68), xpGain (#65) TODOS ocupados; ESENCIA es el ÚNICO miembro libre. ⊥ wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius. Fuente ÚNICA ⇒ máximo-único trivial, sub-cap propio scarcityEssCap, 0 doble-dip (la esencia de arena/bossrush/pactos/uniques/NG+ vive en OTROS seams; este bono es un trickle FRESCO per-kill en zona exprimida, aditivo a meta.essence como RIPOSTE/goblin/bloodstain).
+//    (3) STATELESS: 0 acumulador per-pid, 0 `G.scarcity*`, 0 clave serializada nueva (banca a la meta.essence EXISTENTE, igual que RIPOSTE/goblin/bloodstain). depletion = función PURA del snapshot (world.spawners + G.enemies) ⇒ convergencia byte-a-byte, 0 desync. NO es stat de combate ⇒ NO entra al worldFingerprint.
+//  · ⊥ a las 13 LIVE #59-#71: NO LOS/sigilo (#71 lee la capa OCLUSORA entre mob y héroe), NO material-de-terreno (#70 lee world.terr del tile del héroe), NO force-ratio (#69 cuenta enemigos ENGANCHADOS al héroe; esto cuenta AUSENCIA de mobs vs capacidad de la ZONA — señal inversa y de fuente distinta: spawner-cap, no aggro), NO clima/tiempo/tempo/social/kinship/territorial/crowd.
+//  · APLICACIÓN — un solo seam: el TAIL de killEnemy. Al matar un mob no-neutral en una zona AGOTADA, el héroe FORRAJEA un bono de esencia = round(scarcityMul(zona) * tpl.xp) (el xp del mob = proxy determinista de su "valor"; scarcityMul acotado por scarcityEssCap). BYTE-NEUTRO OFF: enabled:false ⇒ la rama entera es CÓDIGO MUERTO ⇒ 0 esencia, 0 floater, 0 draw de RNG ⇒ killEnemy byte-idéntico al HEAD.
+export const SCARCITY_EDGE = {
+  enabled: false,            // DARK (EVO#72). OFF byte-neutral: rama muerta ⇒ 0 esencia + 0 RNG ⇒ estado byte-idéntico al HEAD. Flip false→true SÓLO tras QA DARK PASS + CEO Gate. anti-stacking: 1 arco valida a la vez.
+  channel: "essenceFind",    // canal FRESCO (multiplicador de recompensa de ESENCIA por forrajeo) — NINGUNA de las 13 flags #59-#71 lo usa. Familia recompensa-de-forrajeo: goldFind/lootQuality/xpGain OCUPADOS ⇒ esencia es el ÚNICO libre. Fuente ÚNICA ⇒ máximo-único trivial, sub-cap propio. ⊥ wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius. CEO balance knob.
+  scarcityEssCap: 0.12,      // SUB-CAP DURO PROPIO del bono de forrajeo como FRACCIÓN del xp del mob (0..1) — acota la esencia por kill aunque la tabla se re-tunee. = max(tiers.mul)=0.12 ⇒ neutral con la tabla actual. CEO balance knob.
+  minZoneCap: 3,             // capacidad de spawn MÍNIMA de la zona (Σ sp.max) para que la escasez cuente — zonas de cap ínfimo (ciudad/field sin spawners de caza) NO disparan el bono aunque estén "vacías". CEO balance knob.
+  // TABLA de tiers por AGOTAMIENTO de la zona (fracción de la capacidad de spawn actualmente VACÍA) → `mul` = fracción del xp del mob concedida como esencia de forrajeo (bajo scarcityEssCap). Tier vigente = el MÁS ALTO cuya `min` de agotamiento se alcanza. Zona llena/rica (depletion < 0.50) ⇒ Tier 0 ⇒ +0 (sin ventaja: campear la zona rica no da forrajeo). Determinista, LUT pura.
+  tiers: [
+    { min: 0.50, mul: 0.06 },  // Tier 1 — zona medio-exprimida (≥50% de la capacidad vacía): +6% del xp del mob como esencia. "las sobras".
+    { min: 0.80, mul: 0.12 },  // Tier 2 — zona casi-agotada (≥80% vacía): +12% del xp del mob como esencia. "rebuscar en lo exprimido". CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
