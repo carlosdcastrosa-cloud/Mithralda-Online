@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -399,6 +399,7 @@ export function createRenderer(ctx){
     if(APEX_PROXIMITY.enabled) renderApexBadge(); // CAS-2439: Proximidad a Amenaza Apex — badge de PROXIMIDAD a un depredador apex vivo (canal matFind, sub-cap apexMatCap); resalta si el héroe tiene un jefe/campeón vivo dentro del radio de amenaza, donde el forrajeo rinde mena extra. Cosmético puro.
     if(MOB_AFFIX_DANGER.enabled) renderAffixDangerBadge(); // CAS-2445: Peligro por Afijo de Mob — badge de PELIGRO por afijos de mobs en radio (canal flaskPotency, sub-cap dangerFlaskCap); resalta si el héroe tiene mobs afijados (encantados/modificados) cerca, donde el forrajeo rinde cargas de Estus extra. Cosmético puro.
     if(ZONE_EVENT_SURGE.enabled) renderZoneEventBadge(); // CAS-2450: Participación en Evento de Zona — badge de PARTICIPACIÓN en eventos de zona activos (POIs) en radio (canal gemFind, sub-cap eventGemCap); resalta si el héroe está dentro de un world-event activo, donde el forrajeo rinde esquirlas de gema. Cosmético puro.
+    if(ENCOUNTER_VARIANT_SURGE.enabled) renderVariantSurgeBadge(); // CAS-2456: Variante de Encuentro Activa — badge de PRESENCIA de una variante de comportamiento de encuentro (mobs con e.variant) en radio (canal socketFind, sub-cap variantSocketCap); resalta si el héroe combate dentro de un encuentro de variante, donde el forrajeo rinde reagentes de engarce. Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -4317,6 +4318,37 @@ export function createRenderer(ctx){
     // estado a la derecha: +gemas de forrajeo por kill + score de eventos; si sin evento, "—"
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st2=here?("+"+gems+" Gema s"+score):"—";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+120,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+120,ty);
+    ctx.restore();
+  }
+
+  // CAS-2456: badge de VARIANTE DE ENCUENTRO ACTIVA (ENCOUNTER_VARIANT_SURGE). Refleja el VM PURO (sim.variantSurgeVM, autoridad en sim) ⇒ MISMO score/tier/sockets para todos los clientes con el mismo estado de sim.
+  function renderVariantSurgeBadge(){
+    const k=sim.variantSurgeVM&&sim.variantSurgeVM(); if(!k) return;        // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+736, sw=14, sh=14;                             // bajo la Participación en Evento (@+714); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, sockets=k.sockets|0, score=k.score|0;
+    const pulse=here?(0.74+0.22*Math.sin(G.t*(2.2+tier*0.6))):0.55;
+    const glyph=here?"#7fe0c0":"#8a9bb0";                                 // variante activa cerca=verde-jade (engarce), sin variante=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ❖ variante/mutación: un rombo con un rombo interior (patrón anidado del encuentro) cuyo brillo sube con el tier
+    const litA=here?Math.min(1,0.4+tier*0.3):0.24; const r=sh*0.4;
+    ctx.globalAlpha=pulse*(here?0.95:litA);
+    ctx.strokeStyle=here?glyph:"rgba(150,160,176,0.42)"; ctx.lineWidth=1.6; ctx.lineJoin="round"; ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(cx,cy-r); ctx.lineTo(cx+r,cy); ctx.lineTo(cx,cy+r); ctx.lineTo(cx-r,cy); ctx.closePath(); ctx.stroke();
+    if(here){ ctx.globalAlpha=pulse*Math.min(1,0.35+tier*0.35); ctx.strokeStyle=glyph; ctx.lineWidth=1.2;   // rombo interior: crece con el tier (más variantes = patrón más marcado)
+      const ir=r*(0.34+tier*0.16); ctx.beginPath(); ctx.moveTo(cx,cy-ir); ctx.lineTo(cx+ir,cy); ctx.lineTo(cx,cy+ir); ctx.lineTo(cx-ir,cy); ctx.closePath(); ctx.stroke(); }
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Variante: "+(here?("T"+tier):"—");
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#c8f4e6":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: +reagentes de forrajeo por kill + score de variantes; si sin variante, "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st2=here?("+"+sockets+" Eng s"+score):"—";
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+120,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+120,ty);
     ctx.restore();
