@@ -2609,6 +2609,74 @@ export const TRAILCRAFT = {
   ],
 };
 
+// CAS-2380: DELVE / DESCENSO (DARK, DELVE) — EVO mecánica #64. EJE FRESCO + CANAL FRESCO, ambos ⊥/OPUESTOS a todo lo enviado #47-63:
+//   (A) EJE FRESCO = PROFUNDIDAD / DESCENSO VERTICAL (nº de BANDAS de profundidad DISTINTAS alcanzadas). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas
+//       de banda { pid → [{d,t}] } (d = BANDA de profundidad, derivada de ZONE_TIER[zoneOf].tier — 1..7, la elevación/zona-Z del mundo), computa `delveBands(marks,now,win)` = nº de BANDAS
+//       DISTINTAS en la ventana (PURA), y mientras bands≥minBands ACUMULA `delve` (accruePerSec·dt) con DECAY vida-media (familia acumulador tick/accrue/step #55-63). Empuja { pid → { delve, bands, atMs } };
+//       el cliente REFLEJA + PROYECTA al `now` compartido. El TIER exige DOS umbrales: `delve`≥min (PERMANENCIA — 1-tick no basta) Y `bands`≥bandsReq (el EJE — nº de bandas). ⇒ tier MONÓTONO por nº de bandas.
+//   (B) CANAL FRESCO = `critChance` (precisión ofensiva): con delve abierto (tier≥1) el server SUMA un bono de `critChance` (%) al golpe del héroe LOCAL, como TÉRMINO AISLADO en el seam de crit de killEnemy.
+//       CAP DURO ABSOLUTO (critCapPct=50% = 0.5 abs) sobre el critChance TOTAL (base+delve) ⇒ corta runaway; NUNCA reduce el crit base (sólo AÑADE hasta el cap). ⊥ goldFind (Kinship/Focus) ⊥ restedMult (XP)
+//       ⊥ wardRegen (HP) ⊥ oocMitigation (Wayfarer) ⊥ lootQuality (Trailcraft, rareza) ⇒ 0 doble-conteo, 0 runaway (NO move-speed). Único DENTRO de critChance (documentado para que futuras del arco de-stackeen aquí).
+//   · DIFERENCIADORES (ortogonalidad OBLIGATORIA — el eje usa PROFUNDIDAD/bandas verticales, no diversidad/amplitud/densidad):
+//       ≠ TRAILCRAFT (#63, DIVERSIDAD CUALITATIVA = nº de TIPOS de bioma DISTINTOS): dos zonas de MISMA banda (swamp/arena tier-4, o forest/…) suman +2 a la variedad de Trailcraft pero SÓLO +1 a las bandas de
+//         Delve ⇒ ejes ORTOGONALES. Recorrer 4 biomas del MISMO tier ⇒ Trailcraft alto, Delve bands 1 < minBands ⇒ NUNCA abre. DESCENDER forest(1)→ruins(2)→caves(3)→abyss(5) ⇒ Delve abre, Trailcraft también pero por otro eje.
+//       ≠ WAYFARER_ROAM (#61, AMPLITUD horizontal = celdas coarse distintas): Delve es VERTICAL (bandas de profundidad), NO área/distancia recorrida. Dar vueltas en 1 banda cubriendo muchas celdas ⇒ Wayfarer alto, Delve 0.
+//       ≠ KINSHIP (#60, densidad sedentaria pareada) / CONGREGATION (#51, headcount): no es sobre otros jugadores; es la profundidad de descenso PROPIA de UN jugador.
+//       ≠ posición ABSOLUTA: estar quieto en la banda MÁS profunda (abyss) ⇒ bands 1 < minBands ⇒ NO abre (el mérito es DESCENDER por VARIAS bandas, no estar hondo). Bajar y volver a la MISMA banda ⇒ bands no crece ⇒ NO sube tier.
+//       ≠ 1-tick efímero: bands≥minBands 1 tick (dt=0.5) ⇒ delve≈accruePerSec·0.5 < 2 ⇒ Tier 0 (permanencia). Decae vida-media al dejar de descender.
+//   · TIERS por (delve≥min ∧ bands≥bandsReq) → bono de critChance (%). Determinista, monótono por nº de bandas. Ver tabla.
+//   · INDICADOR $0-arte: badge procedural ⏷ (escalera descendente), 0 arte nuevo. NO nueva stat: sólo SUMA al critChance YA existente del seam de crit, con CAP DURO.
+// HARD-GATED: enabled:false ⇒ tickDelve jamás corre (Date.now nunca se llama), G.delve/G.delveServer/G.delveMarks NUNCA se crean, delveCritBonusPct RETURN 0 ⇒ el seam de crit queda BYTE-IDÉNTICO a HEAD
+// (el `srand` de crit se consume EXACTAMENTE igual que sin la feature ⇒ RNG intacto), delveTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% AMBIENTAL emerge del descenso). Reversible 1-línea. NÚMEROS = balance del CEO.
+export const DELVE = {
+  enabled: true,             // LIVE (EVO#64) — flip CAS-2387 (CTO) tras QA DARK PASS 18/18 ×2 (CAS-2380, build c4a549ae2fa1) + CEO Gate. Reversible 1-línea true→false + re-run overlay. anti-stacking: 1 arco valida a la vez. ERUDITION #65 sigue DARK (serializado, se flipa después).
+  channel: "critChance",     // canal FRESCO del passive — sube la PROBABILIDAD de crítico (precisión ofensiva), NO daño/oro/HP/rareza. ⊥ goldFind/restedMult/wardRegen/oocMitigation/lootQuality. CAP DURO. CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo de crit aplica (mirror TRAILCRAFT.zones/WAYFARER_ROAM.zones — la ciudad/SAFEZONE fuera). Sus bandas ZONE_TIER = {1,3,2,5,6,4} ⇒ 6 bandas DISTINTAS alcanzables (>minBands/T3-req 5). depthBandOf cubre las 7 bandas del mundo.
+  windowSec: 30,             // ventana deslizante (s) para contar BANDAS de profundidad distintas alcanzadas. CEO balance knob.
+  minBands: 2,               // nº mínimo de BANDAS DISTINTAS en la ventana para ACUMULAR delve. Quedarse en 1 banda (aunque sea la MÁS profunda) ⇒ bands 1 < 2 ⇒ nunca (no por posición absoluta). CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `delve` al dejar de descender: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capDelve: 12,              // techo del `delve` proyectado (evita crecimiento ilimitado; el tier lo cierra el nº de bandas). CEO balance knob.
+  accruePerSec: 1,           // `delve` acumulado por segundo con bands≥minBands sostenido (con min 2/4/6 ⇒ 2s/4s/6s para la PERMANENCIA de T1/T2/T3). CEO balance knob.
+  critCapPct: 50,            // CAP DURO ABSOLUTO del critChance TOTAL (base+delve) en % (≤ 0.5 abs). Corta runaway; el bono de delve NUNCA reduce el crit base — sólo AÑADE hasta el cap. CEO balance knob.
+  // TABLA de tiers: un tier está vigente si `delve`≥min (PERMANENCIA/decay) Y `bands`≥bandsReq (EJE profundidad). Tier vigente = el más alto que cumple AMBOS. Determinista, monótono por nº de bandas.
+  // `min` CRECE por tier ⇒ el decay vida-media del `delve` BAJA el tier gradualmente (T3→T2→T1→T0); `bands` es el TECHO (5+ bandas para T3). Con accruePerSec 1: sostener descenso ≥6s ⇒ delve≥6.
+  tiers: [
+    { min: 2, bands: 2, critPct: 8 },    // Tier 1 — descenso incipiente (≥2 bandas distintas, delve sostenido ≥2s): +8% crit.
+    { min: 4, bands: 3, critPct: 15 },   // Tier 2 — descenso firme (3-4 bandas, delve≥4): +15% crit.
+    { min: 6, bands: 5, critPct: 25 },   // Tier 3 — descenso profundo (5+ bandas, delve≥6): +25% crit (tope 50 abs). CEO balance knobs.
+  ],
+};
+
+// CAS-2381: ERUDICIÓN / LOREKEEPER (DARK, ERUDITION) — EVO mecánica #65 (serializa tras #64 DELVE; el título de la issue dice "#64" pero DELVE aterrizó #64 primero — mismo patrón de colisión que #61/#62). EJE FRESCO + CANAL REUSADO, ⊥/OPUESTO a todo lo enviado #47-64:
+//   (A) EJE FRESCO = DIVERSIDAD DE PRESAS / BESTIARY BREADTH (variedad CUALITATIVA de FOES abatidos). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas de kill
+//       { pid → [{k,t}] } (k = TIPO/especie de enemigo abatido, e.type), computa `loreVariety(marks,now,win)` = nº de TIPOS de enemigo DISTINTOS en la ventana (PURA), y mientras variety≥minVariety
+//       ACUMULA `erudition` (accruePerSec·dt) con DECAY vida-media (familia acumulador tick/accrue/step #55-64). El decay es half-life determinista (0-RNG). "El erudito cataloga bestias distintas".
+//   (B) CANAL REUSADO = `xpGain` (multiplicador de experiencia por el ÚNICO chokepoint gainXP). El arco de canales FRESCOS saturó restedMult/goldFind/wardRegen/oocMitigation/lootQuality/critChance; xpGain
+//       es un canal PRE-arco (FELLOWSHIP_BOND #47 LIVE). ERUDITION lo REUSA con PRECEDENCIA máximo-único (de-stack): si FELLOWSHIP tiene vínculo activo (fellowMul>0) ⇒ ERUDITION CEDE (return 0 ⇒ aplica el MAYOR,
+//       0 doble-dip). Mirror EXACTO de FOCUS_FIRE #62 cediendo a KINSHIP #60 en goldFind. Con erudición abierta (tier≥1) y sin vínculo Hermandad, la XP de cada kill se multiplica por (1+boost) en gainXP.
+//   · DIFERENCIADORES: OPUESTO a FOCUS_FIRE #62 (concentración en UN objetivo) — Erudición premia la VARIEDAD de presas. Distinto de Trailcraft #63 (variedad de TERRENO/bioma) — aquí es variedad de ENEMIGO
+//     (a QUIÉN matas, no DÓNDE pisas). Distinto de BOUNTY/EMISSARY (cuentan kills de UN tipo objetivo) — Erudición cuenta TIPOS DISTINTOS. Matar el MISMO tipo repetido ⇒ variety 1 < minVariety ⇒ NUNCA abre
+//     (hay que diversificar la caza); abatir 3 tipos distintos ⇒ abre. INDIVIDUAL (per-pid). 1-tick efímero: variety≥minVariety 1 tick (dt=0.5) ⇒ erudition≈0.5 < 2 ⇒ T0 (permanencia sostenida).
+//   · TIERS por UMBRAL de `erudition` sostenido → boost de xpGain: <2 ⇒ T0 (×1); ≥2 ⇒ T1 (+5%); ≥4 ⇒ T2 (+10%); ≥6 ⇒ T3 (+15%). Determinista, monótono.
+// HARD-GATED: enabled:false ⇒ tickErudition jamás corre (Date.now nunca se llama), G.lore/G.loreServer/G.loreMarks NUNCA se crean, eruditionMul RETURN 0 ⇒ gainXP BYTE-IDÉNTICO a HEAD (n·(1+fellow+0)=n·(1+fellow));
+// eruditionTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% emerge del combate/kills). Reversible 1-línea. NÚMEROS = balance del CEO.
+export const ERUDITION = {
+  enabled: false,            // DARK (EVO#65, CAS-2381). Reversible 1-línea false→true tras QA DARK PASS + CEO Gate. byte-neutro OFF.
+  channel: "xpGain",         // canal REUSADO (multiplicador de XP por el chokepoint gainXP). De-stack máximo-único: ERUDITION cede a FELLOWSHIP_BOND (#47, más antigua). ⊥ goldFind/restedMult/wardRegen/oocMitigation/lootQuality/critChance (seams distintos). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo aplica (mirror TRAILCRAFT.zones/KINSHIP_BOND.zones — la ciudad/SAFEZONE fuera). El mul xpGain SE zone-gatea aquí (mirror kinshipMul/focusMul): el bono de XP aplica mientras cazas en la naturaleza (donde ocurren los kills).
+  windowSec: 30,             // ventana deslizante (s) para contar TIPOS de enemigo distintos abatidos. CEO balance knob.
+  minVariety: 3,             // nº mínimo de TIPOS de enemigo DISTINTOS en la ventana para ACUMULAR erudition. Matar SIEMPRE el mismo tipo ⇒ variety 1 < 3 ⇒ nunca (hay que diversificar la caza). CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `erudition` al dejar de diversificar la caza: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capLore: 12,               // techo del `erudition` proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  accruePerSec: 1,           // `erudition` acumulado por segundo con variedad sostenida (con tiers 2/4/6 ⇒ 2s/4s/6s para T1/T2/T3). CEO balance knob.
+  // TABLA de tiers: umbral de `erudition` sostenido (min inclusivo) → `boost` = fracción de subida del multiplicador xpGain (0 = sin efecto). Tier vigente = el más alto cuyo `min` ≤ erudition. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.05 },   // Tier 1 — saber naciente (≥2s de variedad): +5% XP.
+    { min: 4, boost: 0.10 },   // Tier 2 — saber firme (≥4s): +10% XP.
+    { min: 6, boost: 0.15 },   // Tier 3 — saber maestro (≥6s): +15% XP. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
