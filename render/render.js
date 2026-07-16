@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -394,6 +394,7 @@ export function createRenderer(ctx){
     if(TEMPEST_SURGE.enabled) renderTempestBadge(); // CAS-2404: Vendaval / Tempestad — badge de condición meteorológica (canal lootQuality, share-cap con Trailcraft); resalta si el jugador está en zona expuesta CON tormenta activa (intensidad shard-wide del reloj compartido). Cosmético puro.
     if(LAST_STAND.enabled) renderLastStandBadge(); // CAS-2409: Última Resistencia / Aguante — badge de ratio de fuerza (canal wardRegen, share-cap con Warding Ring); resalta si el héroe está SUPERADO EN NÚMERO (≥umbral de enemigos enganchados dentro de engageRadius). Cosmético puro.
     if(FIRM_FOOTING.enabled) renderFirmFootingBadge(); // CAS-2415: Terreno Firme / Pisada Firme — badge del MATERIAL de terreno bajo el héroe (canal atkspd, share-cap global ATKSPD_TOTAL_CAP); resalta si el héroe pisa terreno FIRME (piedra/adoquín/hierba). Cosmético puro.
+    if(SHADOW_STALK.enabled) renderShadowStalkBadge(); // CAS-2426: Acecho / Sigilo — badge de OCULTAMIENTO / línea-de-visión (canal detectRadius, sub-cap stealthStalkCap); resalta si el héroe está OCULTO tras cobertura que rompe la LOS del cazador más cercano. Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -4159,6 +4160,39 @@ export function createRenderer(ctx){
     // estado a la derecha: bono de atkspd del tier; si no abre, "—"
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("+"+bonus+" vel"):"—";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2426: badge de ACECHO / SIGILO (SHADOW_STALK). Refleja el VM PURO (sim.shadowStalkVM, autoridad en sim) ⇒ MISMO tier/mit para todos los clientes con el mismo estado de sim.
+  // Glifo procedural 🌒 (luna en sombra / ocultamiento) — el brillo sube con el tier de cobertura. Muestra el canal FRESCO detectRadius (reducción del radio de detección del cazador más cercano) — cosmético puro, 0 sim/RNG. Label "Sigilo:" ÚNICO.
+  function renderShadowStalkBadge(){
+    const k=sim.shadowStalkVM&&sim.shadowStalkVM(); if(!k) return;         // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+626, sw=14, sh=14;                             // bajo el Terreno (@+604); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, pct=Math.round((k.mit||0)*100);
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(2.0+tier*0.5))):0.55;
+    const glyph=here?"#a9b8ff":"#8a9bb0";                                 // oculto=índigo/sombra, a la vista=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // 🌒 disco lunar con mordida de sombra (creciente); el brillo sube con el tier
+    const litA=here?Math.min(1,0.4+tier*0.3):0.24;
+    const r=sh*0.36;
+    ctx.globalAlpha=pulse*(here?0.95:litA);
+    ctx.strokeStyle=here?glyph:"rgba(150,160,176,0.42)"; ctx.lineWidth=1.6; ctx.lineJoin="round"; ctx.lineCap="round";
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,6.283); ctx.stroke();             // disco
+    ctx.globalAlpha=pulse*litA;                                          // mordida de sombra (creciente) — arco interno desplazado
+    ctx.beginPath(); ctx.arc(cx+r*0.42,cy,r*0.92,0,6.283); ctx.stroke();
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Sigilo: "+(here?("T"+tier):"—");
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#c8d2ff":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: % de reducción del radio de detección; si no abre, "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("-"+pct+"% det"):"—";
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
     ctx.restore();

@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -3927,6 +3927,56 @@ export function firmFootingVM(h){ h=h||G.hero;
     cap:Math.max(0,+FIRM_FOOTING.firmFootingCap||0), atkspdTotal:+total, atkspdCap:ATKSPD_TOTAL_CAP,
     tag: firmFootingTag(h) }; }
 
+// CAS-2426: ACECHO / SIGILO (SHADOW_STALK) — EJE SIGILO/LÍNEA-DE-VISIÓN + canal FRESCO detectRadius (radio de detección del mob). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth.
+// stealthStalkOccluders(ax,ay,bx,by) = nº de tiles OCLUSORES (world.wallSet ∪ world.blockSet) que la línea de grid (raycast Bresenham) de (ax,ay) a (bx,by) atraviesa, EXCLUYENDO los tiles-extremo (donde están las entidades). = "espesor de cobertura" entre mob y héroe. PURO: función de world.wallSet/blockSet + coords (0 RNG/estado/side-effect). Fuera de mundo / sin sets ⇒ 0 (LOS despejada). Determinista ⇒ MISMO conteo para todo observador del mismo snapshot.
+function stealthStalkOccluders(ax,ay,bx,by){ if(!world||(!world.wallSet&&!world.blockSet)) return 0;
+  const sx0=Math.floor(ax/TS), sy0=Math.floor(ay/TS), tx1=Math.floor(bx/TS), ty1=Math.floor(by/TS);
+  let tx=sx0, ty=sy0; const dx=Math.abs(tx1-tx), dy=Math.abs(ty1-ty), stepx=tx<tx1?1:-1, stepy=ty<ty1?1:-1;
+  let err=dx-dy, occ=0, guard=0;
+  const ws=world.wallSet, bs=world.blockSet;
+  while(guard++<1024){
+    const isEnd=(tx===sx0&&ty===sy0)||(tx===tx1&&ty===ty1);   // los tiles-extremo (mob/héroe) NO cuentan — sólo cobertura ENTRE ellos
+    if(!isEnd && tx>=0&&ty>=0&&tx<MAP_W&&ty<MAP_H){ const idx=ty*MAP_W+tx; if((ws&&ws.has(idx))||(bs&&bs.has(idx))) occ++; }
+    if(tx===tx1&&ty===ty1) break;
+    const e2=2*err; if(e2>-dy){ err-=dy; tx+=stepx; } if(e2<dx){ err+=dx; ty+=stepy; }
+  }
+  return occ; }
+// stealthStalkTier(occ) = índice del tier de OCULTAMIENTO vigente (0 = LOS despejada / sin ventaja) = el MÁS ALTO cuya `min` de oclusores se alcanza. LUT determinista pura.
+function stealthStalkTier(occ){ const T=SHADOW_STALK.tiers||[]; occ=occ|0;
+  let t=0; for(let i=0;i<T.length;i++){ if(occ>=(T[i].min|0)) t=i+1; } return t; }
+// stealthStalkMit(ax,ay,bx,by) = fracción de reducción del radio de detección que gana el héroe por estar OCULTO de (ax,ay) [mob] — acotada por el sub-cap propio stealthStalkCap. 0 si LOS despejada. PURO (0 RNG/estado). NO gateado por enabled (los gates viven en el seam/VM).
+function stealthStalkMit(ax,ay,bx,by){ const occ=stealthStalkOccluders(ax,ay,bx,by); const t=stealthStalkTier(occ); if(t<=0) return 0;
+  const raw=+SHADOW_STALK.tiers[t-1].mit||0, cap=Math.max(0,+SHADOW_STALK.stealthStalkCap||0);
+  return raw>cap?cap:raw; }
+// stealthStalkAggro(aggroBase,e,h,d) = el radio de detección/adquisición EFECTIVO del mob `e` hacia el héroe `h`. Gated ⇒ OFF ⇒ aggroBase EXACTO (byte-id: máquina de estados del enemigo idéntica al HEAD; el raycast NUNCA corre). Si el héroe está más lejos que el radio base ⇒ aggroBase (concealment irrelevante, 0 raycast — sólo perf). Si LOS despejada ⇒ aggroBase. Si oculto ⇒ aggroBase*(1-mit). PURO/determinista.
+function stealthStalkAggro(aggroBase,e,h,d){ if(!SHADOW_STALK.enabled||!e||!h) return aggroBase;
+  if((SHADOW_STALK.channel||"detectRadius")!=="detectRadius") return aggroBase;   // seguridad: SHADOW_STALK SÓLO alimenta detectRadius (si el knob se re-apunta, no contribuye)
+  if(d>=aggroBase) return aggroBase;   // fuera del radio base ⇒ no adquiriría igual ⇒ 0 raycast (perf, behavior-idéntico para la adquisición)
+  const mit=stealthStalkMit(e.x,e.y,h.x,h.y); if(mit<=0) return aggroBase;
+  return aggroBase*(1-mit); }
+// glifo del badge: "" si OFF/LOS-despejada, 🌒 si el héroe está OCULTO de AL MENOS un mob vivo dentro de su radio base. PURO lectura (0 sim/RNG). Cosmético.
+export function shadowStalkTag(h){ h=h||G.hero; if(!SHADOW_STALK.enabled||!h) return "";
+  return shadowStalkBestTier(h)>0 ? "🌒" : ""; }
+// shadowStalkBestTier(h) = el tier de ocultamiento MÁS ALTO que el héroe tiene frente a CUALQUIER mob vivo (no-neutral) dentro de su radio base de aggro. = "cuán oculto estás del cazador más cercano que podría verte". PURO. 0 si OFF / a la vista de todos / sin mobs cerca.
+function shadowStalkBestTier(h){ h=h||G.hero; if(!SHADOW_STALK.enabled||!h||!G.enemies) return 0;
+  let best=0; for(const e of G.enemies){ if(!e||e.dead||e.hp<=0) continue; if(e.tpl&&e.tpl.neutral&&!e.hostile) continue;
+    const aggroBase=e.hostile?300:(e.tpl?e.tpl.aggro:0); const d=Math.hypot(h.x-e.x,h.y-e.y); if(d>=aggroBase) continue;
+    const t=stealthStalkTier(stealthStalkOccluders(e.x,e.y,h.x,h.y)); if(t>best) best=t; }
+  return best; }
+// View-model PURO para el HUD/badge: el mejor tier de ocultamiento vigente, la mitigación efectiva, el sub-cap y el radio base del cazador más cercano. 0 sim/RNG/side-effect.
+export function shadowStalkVM(h){ h=h||G.hero; const on=!!SHADOW_STALK.enabled&&!!h;
+  const tier=on?shadowStalkBestTier(h):0;
+  // mit efectiva del cazador que da el mejor tier (para el HUD) — re-derivado del mismo predicado
+  let mit=0, hunterAggro=0, hunterD=0;
+  if(on&&G.enemies){ let best=0; for(const e of G.enemies){ if(!e||e.dead||e.hp<=0) continue; if(e.tpl&&e.tpl.neutral&&!e.hostile) continue;
+      const ab=e.hostile?300:(e.tpl?e.tpl.aggro:0); const d=Math.hypot(h.x-e.x,h.y-e.y); if(d>=ab) continue;
+      const t=stealthStalkTier(stealthStalkOccluders(e.x,e.y,h.x,h.y)); if(t>best){ best=t; mit=stealthStalkMit(e.x,e.y,h.x,h.y); hunterAggro=ab; hunterD=d; } } }
+  return { enabled:!!SHADOW_STALK.enabled, channel:SHADOW_STALK.channel||"detectRadius",
+    tier, tierCount:(SHADOW_STALK.tiers||[]).length, mit:+mit.toFixed(4),
+    cap:Math.max(0,+SHADOW_STALK.stealthStalkCap||0),
+    hunterAggro:+hunterAggro, hunterAggroEff:+(hunterAggro*(1-mit)).toFixed(2), hunterDist:+hunterD.toFixed(2),
+    tag: shadowStalkTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -7248,7 +7298,8 @@ function updateEnemies(dt){ const h=G.hero;
     if(Math.abs(e.knockX)>1||Math.abs(e.knockY)>1){ moveEnt(e,e.knockX*dt,e.knockY*dt,e.tpl.size*0.6); e.knockX*=0.82; e.knockY*=0.82; }
     const espd=e.tpl.spd*((e.slowT>0)?(e.slow||1):1); // frost slow scales chase speed
     const d=Math.hypot(h.x-e.x,h.y-e.y);
-    const aggro=e.hostile?300:e.tpl.aggro;
+    // CAS-2426 SHADOW_STALK seam: radio de detección EFECTIVO — reducido si la LOS mob→héroe está rota (héroe oculto). OFF ⇒ stealthStalkAggro devuelve el base EXACTO (e.hostile?300:e.tpl.aggro) ⇒ byte-idéntico al HEAD, 0 raycast.
+    const aggro=stealthStalkAggro((e.hostile?300:e.tpl.aggro), e, h, d);
     // CAS-1681: a Duende del Tesoro flees the hero instead of running the normal AI (never chases/
     // attacks). Only ever true for an event goblin, which exists solely when ZONE_EVENTS.enabled → a
     // normal run never evaluates true here and stays byte-identical.
@@ -9165,6 +9216,50 @@ export const dev = {
       scan: scan,                                                        // histograma world.terr + tiles de muestra por material (teleport a terreno REAL conocido)
       precedence:"atkspd (canal FRESCO — velocidad de ataque): entra al sink sumado heroAtkspd (CAS-197) bajo el TECHO GLOBAL ATKSPD_TOTAL_CAP ⇒ SHARE-CAP/de-stack automático min(cap, base+firmFooting), 0 doble-dip. EJE = MATERIAL DE TERRENO server-auth bajo el héroe (world.terr), dimensión ESPACIAL fina que CRUZA zonas (⊥ gates de zona-región). NO tiempo (⊥ Nocturne) ni clima (⊥ Tempest) ni tempo (⊥ Cadence) ni densidad-de-enemigos (⊥ LastStand) ni aliados (⊥ Kinship) ni profundidad (⊥ Delve) ni conocimiento (⊥ Erudition). ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult (seams distintos).",
       gExists:(G.firmFooting!=null),                                     // prueba byte-id: STATELESS ⇒ G.firmFooting NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS) }:null }; },
+  // CAS-2426: ACECHO / SIGILO OBSERVABLE hook (DARK, SHADOW_STALK — eje SIGILO/LÍNEA-DE-VISIÓN server-auth [LOS derivada por raycast de grid sobre world.wallSet/blockSet] + canal FRESCO detectRadius [radio de detección del mob, NINGUNA flag previa lo toca] con sub-cap; ⊥ material-de-terreno/force-ratio/clima/tiempo/tempo/social/territorial). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — el ocultamiento EMERGE de la geometría, sin input.js). Convergencia byte-a-byte: MISMO snapshot ⇒ MISMO occ/tier/mit/aggroEff en N clientes.
+  //   shadowStalk()                                → snapshot {enabled,channel,tiers,cap,tier,mit,hunterAggro,hunterAggroEff,peer channels ⊥,tag,gExists,hero}
+  //   shadowStalk({enabled})                       → flip runtime IN-MEMORY de SHADOW_STALK.enabled (sin tocar el disco)
+  //   shadowStalk({tp:{tx,ty}})                    → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ la LOS se evalúa contra world.wallSet/blockSet REAL (prueba el eje con la geometría auténtica, no fabricada)
+  //   shadowStalk({losProbe:{ax,ay,bx,by}})        → función PURA stealthStalkOccluders/Tier/Mit para (ax,ay)→(bx,by) en px (byte-verifica el raycast+tabla SIN mover nada)
+  //   shadowStalk({radiusProbe:{base}})            → math del canal: aggroEff = base*(1-mit) del cazador que da el mejor tier (byte-verifica la reducción del radio de detección)
+  //   shadowStalk({wallScan:true})                 → SÓLO LECTURA: nº de tiles en world.wallSet/blockSet + 1 tile de MUESTRA oclusor {tx,ty} (para teleportar junto a cobertura REAL y probar el eje sin coords hardcodeadas)
+  shadowStalk(p){
+    let losProbe=null, radiusProbe=null, wallScan=null, tierProbe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) SHADOW_STALK.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.tierProbe && typeof p.tierProbe==="object"){ const occ=p.tierProbe.occ|0, t=stealthStalkTier(occ);   // LUT PURA occ→tier→mit (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+SHADOW_STALK.tiers[t-1].mit||0):0, cap=Math.max(0,+SHADOW_STALK.stealthStalkCap||0);
+        tierProbe={ occ, tier:t, mit:+(raw>cap?cap:raw).toFixed(4) }; }
+      if(p.losProbe && typeof p.losProbe==="object"){ const q=p.losProbe, ax=+q.ax||0, ay=+q.ay||0, bx=+q.bx||0, by=+q.by||0;
+        const occ=stealthStalkOccluders(ax,ay,bx,by); losProbe={ ax,ay,bx,by, occluders:occ, tier:stealthStalkTier(occ), mit:+stealthStalkMit(ax,ay,bx,by).toFixed(4) }; }
+      if(p.radiusProbe && typeof p.radiusProbe==="object"){ const base=+p.radiusProbe.base||0, h2=G.hero, mit=(h2?shadowStalkVM(h2).mit:0);
+        radiusProbe={ base:+base, mit:+mit, cap:Math.max(0,+SHADOW_STALK.stealthStalkCap||0), aggroEff:+(base*(1-mit)).toFixed(2) }; }
+      if(p.wallScan){ const ws=world&&world.wallSet, bs=world&&world.blockSet; let sample=null;   // SÓLO LECTURA — 0 mutación de estado
+        if(ws){ for(const idx of ws){ sample={ tx:idx%MAP_W, ty:Math.floor(idx/MAP_W), from:"wallSet" }; break; } }
+        if(!sample && bs){ for(const idx of bs){ sample={ tx:idx%MAP_W, ty:Math.floor(idx/MAP_W), from:"blockSet" }; break; } }
+        wallScan={ wallCount:ws?ws.size:0, blockCount:bs?bs.size:0, sample }; }
+    }
+    const h=G.hero, vm=shadowStalkVM(h);
+    return { enabled:SHADOW_STALK.enabled, channel:SHADOW_STALK.channel||"detectRadius",
+      tiers:(SHADOW_STALK.tiers||[]).map(t=>({min:t.min|0,mit:+t.mit||0})), cap:vm.cap,
+      tier:vm.tier, tierCount:vm.tierCount, mit:vm.mit,
+      hunterAggro:vm.hunterAggro, hunterAggroEff:vm.hunterAggroEff, hunterDist:vm.hunterDist,   // radio base vs efectivo del cazador más cercano — expone la reducción del canal detectRadius
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                  // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                             // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                   // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                     // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      tag: shadowStalkTag(h),                                            // glifo SERVIDO (OFF/a la vista ⇒ "" / oculto ⇒ 🌒)
+      tierProbe: tierProbe,                                              // LUT PURA occ→tier→mit (byte-verificación de la TABLA de tiers, world-independiente)
+      losProbe: losProbe,                                                // resultado de stealthStalkOccluders/Tier/Mit (byte-verificación del raycast+tabla sobre geometría REAL)
+      radiusProbe: radiusProbe,                                          // resultado de la reducción del radio (aggroEff=base*(1-mit))
+      wallScan: wallScan,                                                // conteo de world.wallSet/blockSet + tile de muestra oclusor (teleport a cobertura REAL)
+      precedence:"detectRadius (canal FRESCO — radio de detección/adquisición del mob): NINGUNA de las 12 flags #59-#70 lo toca (todas son stat-buffs del HÉROE); es un DEBUFF de percepción del ENEMIGO ⇒ fuente ÚNICA, máximo-único trivial, sub-cap propio stealthStalkCap, 0 doble-dip. EJE = SIGILO/LÍNEA-DE-VISIÓN server-auth: LOS mob→héroe derivada por raycast de grid Bresenham sobre world.wallSet/blockSet (capa OCLUSORA, ⊥ a #70 que lee world.terr del tile DEL HÉROE). NO force-ratio (⊥ LastStand) ni clima (⊥ Tempest) ni tiempo (⊥ Nocturne) ni tempo (⊥ Cadence) ni aliados (⊥ Kinship) ni territorio. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd (seams distintos).",
+      gExists:(G.shadowStalk!=null),                                     // prueba byte-id: STATELESS ⇒ G.shadowStalk NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
