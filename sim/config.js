@@ -2771,6 +2771,28 @@ export const TEMPEST_SURGE = {
   ],
 };
 
+// CAS-2409: ÚLTIMA RESISTENCIA / AGUANTE (DARK, LAST_STAND) — EVO mecánica #69 (serializa tras #68 TEMPEST LIVE). EJE FRESCO **RATIO DE FUERZA / SUPERADO EN NÚMERO (local force-ratio / outnumbered)** + CANAL REUSADO wardRegen (SHARE-CAP con Warding Ring #59). ⊥/DISTINTO a todo lo enviado #47-68:
+//  · NO acumulador personal en el tiempo (⊥ Cadence #67 = kill-meter decayente): es un RATIO INSTANTÁNEO de la amenaza que te rodea AHORA MISMO.
+//  · NO condición de reloj — día/noche (⊥ Nocturne #66) ni clima (⊥ Tempest #68): depende de los ENEMIGOS que te enganchan RIGHT NOW, no del reloj.
+//  · NO vínculos/aliados (⊥ Kinship #60 = cuenta ALIADOS): cuenta ENEMIGOS que te enganchan.
+//  · NO foco de objetivo único (⊥ Focus Fire #62 = TÚ concentrado en 1 enemigo): es MUCHOS enemigos concentrados en TI.
+// server-authoritative, 0-RNG, 0-timer, STATELESS (0 acumulador per-pid, 0 G.lastStand*, 0 marca, 0 clave serializada). El conteo de "superado en número" = función PURA del estado de sim determinista
+// (enemigos ALIVE no-neutrales en estado de ENGANCHE {chase/windup/strike/recover/shield} dentro de engageRadius del héroe) ⇒ MISMO ratio para todo observador de ese héroe (convergencia byte-a-byte, 0 desync).
+// Canal REUSADO wardRegen (regen de HP — MISMO seam que Warding Ring #59, tema "atrincherarse y aguantar"): SHARE-CAP de-stack ⇒ boost combinado min(lastStandWardCap, wardBoost + lastStandBoost) ⇒ 0 doble-dip
+// más allá del techo (mismo patrón que Tempest lootQuality vs Trailcraft y Cadence critChance vs Delve). BYTE-NEUTRO OFF: con enabled:false, la derivación NUNCA corre y wardRegenBoost DELEGA a wardMul() ⇒ seam byte-id al LIVE de Warding Ring.
+// NOTA balance (CEO): el seam wardRegenTick respeta la pausa post-daño `_safeRegenPauseT` (no te curas MIENTRAS te pegan). Estar superado en número suele implicar recibir golpes ⇒ el regen materializa en los RESPIROS entre golpes ("recupérate mientras aguantas la línea"). CEO decide si Última Resistencia debe ignorar esa pausa (design/balance, no lo cambio unilateralmente).
+export const LAST_STAND = {
+  enabled: true,             // DARK (EVO#69, CAS-2409) — flag PRESENTE pero OFF. NO flip live en esta tarea. Reversible 1-línea false→true tras QA DARK + CEO Gate. anti-stacking: 1 arco valida a la vez.
+  channel: "wardRegen",      // canal REUSADO (regen de HP — MISMO seam que WARDING_RING #59). De-stack por SHARE-CAP con Warding Ring: boost combinado min(lastStandWardCap, wardBoost + lastStandBoost) ⇒ 0 doble-dip. ⊥ goldFind/restedMult/oocMitigation/critChance/xpGain/vamp/lootQuality (seams distintos). CEO balance knob.
+  engageRadius: 220,         // px: radio alrededor del héroe dentro del cual un enemigo ENGANCHADO (aggro sobre el héroe) cuenta como "encima de ti". ~rango de aggro; enemigos enganchados fuera del radio no cuentan. CEO balance knob.
+  lastStandWardCap: 0.15,    // TECHO DURO del boost de wardRegen COMBINADO (wardBoost + lastStandBoost) — SHARE-CAP con Warding Ring ⇒ 0 doble-dip. = max(WARDING_RING.tiers.boost)=0.15 ⇒ con Warding a tope, Última Resistencia no añade (ya en el techo); con Warding ausente, aporta hasta su propio tier. CEO balance knob.
+  // TABLA de tiers: umbral de ENEMIGOS ENGANCHADOS (min inclusivo) → `boost` = mult adicional sobre regenPct del canal wardRegen. Tier vigente = el más alto cuyo `min` ≤ conteo. Determinista, monótono por CONTEO (ratio instantáneo, NO permanencia per-pid). OFF/sin tiers ⇒ 0.
+  tiers: [
+    { min: 3, boost: 0.06 },   // Tier 1 — superado en número (≥3 enganchados): +6% a la tasa de regen (regenPct×1.06). "aguanta la línea".
+    { min: 5, boost: 0.12 },   // Tier 2 — rodeado / última resistencia (≥5 enganchados): +12% (regenPct×1.12). CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
