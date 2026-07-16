@@ -389,7 +389,7 @@ export function createRenderer(ctx){
     if(TRAILCRAFT.enabled) renderTrailcraftBadge(); // CAS-2377: Sendero — badge de variedad (canal lootQuality); resalta si el jugador tiene un sendero abierto (nº de tipos de bioma distintos pisados en la ventana). Cosmético puro.
     if(DELVE.enabled) renderDelveBadge(); // CAS-2380: Descenso — badge de profundidad (canal critChance); resalta si el jugador tiene un descenso abierto (nº de bandas de profundidad distintas alcanzadas). Cosmético puro.
     if(ERUDITION.enabled) renderEruditionBadge(); // CAS-2381: Erudición — badge de variedad de presas (canal xpGain); resalta si el jugador tiene erudición abierta (nº de tipos de enemigo distintos abatidos en la ventana). Cosmético puro.
-    if(NOCTURNE_HUNT.enabled) renderNocturneBadge(); // CAS-2393: Nocturne — badge de caza nocturna (canal goldFind); resalta si el jugador tiene una caza nocturna abierta (nº de kills hechos de noche en la ventana). Cosmético puro.
+    if(NOCTURNE_HUNT.enabled) renderNocturneBadge(); // CAS-2393/2394: Nocturne — badge de caza nocturna (canal `vamp`/lifesteal); resalta si el jugador tiene una caza nocturna abierta (nº de kills hechos de noche en la ventana). Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3983,7 +3983,7 @@ export function createRenderer(ctx){
   }
 
   // CAS-2393: badge de CAZA NOCTURNA (NOCTURNE_HUNT). Refleja el VM PURO (sim.nocturneVM, autoridad en sim) ⇒ MISMO nocturne/tier/boost para todos los clientes con el mismo snapshot. Glifo procedural ☾ (luna
-  // creciente) — el brillo sube con el tier. Muestra el estado del canal REUSADO goldFind (bono de oro tras de-stack con Camaradería/Fuego) — cosmético puro, 0 sim/RNG. Label "Nocturno:" (con colon) ÚNICO (no colisiona).
+  // creciente) — el brillo sube con el tier. Muestra el estado del canal REUSADO `vamp` (robo de vida / lifesteal, share-cap con el Vampírico) — cosmético puro, 0 sim/RNG. Label "Nocturno:" (con colon) ÚNICO (no colisiona).
   function renderNocturneBadge(){
     const k=sim.nocturneVM&&sim.nocturneVM(); if(!k) return;               // pre-primer-tick (G.nocturne null) ⇒ noct 0 ⇒ tier 0
     const a=badgeRowAnchor();
@@ -4010,7 +4010,7 @@ export function createRenderer(ctx){
     const ty=cy, tx=bx+sw+5, lbl="Nocturno: "+zn;
     ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
     ctx.fillStyle=here?"#cfe0f5":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
-    // estado a la derecha (dentro de [bx, bx+104]): tier + bono de oro%
+    // estado a la derecha (dentro de [bx, bx+104]): tier + robo de vida% (lifesteal añadida, sobre el share-cap)
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" +"+boostPct+"%"):(k.huntable?(lv+""):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);

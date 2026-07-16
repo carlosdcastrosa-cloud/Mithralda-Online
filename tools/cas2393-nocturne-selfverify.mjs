@@ -1,20 +1,21 @@
-// CAS-2393 — GE self-verify for NOCTURNE / CAZADOR NOCTURNO (DARK, NOCTURNE_HUNT.enabled:false). EVO mecánica #66 (serializa tras #65 ERUDITION LIVE) — EJE FRESCO + CANAL REUSADO, ⊥/OPUESTOS a #47-65.
+// CAS-2393/2394 — self-verify for NOCTURNE / CAZADOR NOCTURNO (DARK, NOCTURNE_HUNT.enabled:false). EVO mecánica #66 (serializa tras #65 ERUDITION LIVE) — EJE FRESCO + CANAL REUSADO, ⊥/OPUESTOS a #47-65.
+// CAS-2394 (CEO decisión): repunte de canal goldFind→`vamp` (lifesteal). El EJE TEMPORAL es IDÉNTICO al build goldFind; SÓLO cambia el canal + su de-stack (precedencia máximo-único → SHARE-CAP con el Vampírico).
 // (A) EJE FRESCO = FASE TEMPORAL / CAZA NOCTURNA (nº de kills hechos DE NOCHE en la ventana). server-authoritative, 0-RNG, INDIVIDUAL (per-pid): el PRIMER eje del arco anclado al RELOJ (fase día/noche), NO al espacio
 //     (Delve/Trailcraft/Wayfarer), presa (Erudition) ni otros jugadores (Kinship/Focus). El server registra marcas de kill { pid → [{n,t}] } (n=1 si el kill cayó de NOCHE, derivado de la FASE del reloj COMPARTIDO en el
 //     instante del kill, isNightAt(t)), computa `nightTally(marks,now,win)` = nº de marcas NOCTURNAS (n===1) en la ventana (PURA), y mientras tally≥minKills ACUMULA `nocturne` (accruePerSec·dt) con DECAY vida-media.
-// (B) CANAL REUSADO = `goldFind` (bono de oro por el chokepoint tryPickup). De-stack máximo-único: si KINSHIP_BOND (#60) O FOCUS_FIRE (#62) están abiertos (goldFind>0) ⇒ NOCTURNE CEDE (0 ⇒ el MAYOR). 3ª fuente de goldFind.
+// (B) CANAL REUSADO = `vamp` (robo de vida / lifesteal por el chokepoint del golpe melee del héroe). De-stack por SHARE-CAP con el Vampírico existente (Sed de Sangre/afijo): lifesteal EFECTIVA = min(vampCap≤0.5, base+boost).
 //
 // ★ DIFERENCIADOR (checks 8/9, no-negociable): OPUESTO a Erudition (#65, DIVERSIDAD de presas). Matar el MISMO tipo N× de NOCHE ⇒ tally N ⇒ ABRE (Erudition NO abriría — exige tipos distintos). Cazar de DÍA (n=0) ⇒
 // tally 0 ⇒ NUNCA abre (eje puramente TEMPORAL). INDIVIDUAL (1 solo jugador basta). Permanencia: 1-tick dt=0.5 con tally≥min ⇒ nocturne≈0.5 < 2 ⇒ Tier 0 (NO abre).
 //
-// ★ DE-STACK (check 13, no-negociable): KINSHIP O FOCUS abierto ⇒ su goldFind>0 ⇒ nocturneMul CEDE a 0 (máximo-único, 0 doble-dip). Sin vínculo/fuego ⇒ NOCTURNE aplica. ★ ORTOGONALIDAD (check 14): abrir caza nocturna
-// (goldFindMul≠0) NO cambia restedMult/xpGain/wardRegen/oocMitigation/lootQuality/critChance.
+// ★ SHARE-CAP (check 13, no-negociable): la lifesteal EFECTIVA del seam melee = min(vampCap≤0.5, baseLifesteal + boostNocturno). base 0 ⇒ eff = boost (Nocturne aplica solo); base alto ⇒ SUMA capada al techo (0 doble-dip más
+// allá del cap). OFF ⇒ nv 0 ⇒ eff===base (byte-id). ★ ORTOGONALIDAD (check 14): abrir caza nocturna (vampMul≠0) NO cambia goldFind/restedMult/xpGain/wardRegen/oocMitigation/lootQuality/critChance.
 //
 // North Star (check 18, no-negociable) = CONVERGENCIA 2-CLIENTE REAL: DOS páginas puppeteer independientes, MISMO snapshot {pid→noct} + MISMO reloj (nowMs) ⇒ ven noct + tier + boost IDÉNTICOS byte-a-byte (0 desync).
 // El acumulador decae por vida-media CONVERGE. El noct es per-JUGADOR: A y B leen noct INDEPENDIENTES del MISMO snapshot; A SALE de la zona ⇒ su boost cae a 0 (zone-gate) PERO el noctMap server-auth + el Δ de B quedan INTACTOS.
 //
-// Observado vía __dev.nocturne (flip NOCTURNE_HUNT.enabled IN-MEMORY + inyección snapshot {pid→noct} / marks / kills / step / tallyProbe / phaseProbe + phaseOverride/nowMs/self/toZone/leave drivers + goldTick para el seam goldFind)
-// + __dev.kinship + __dev.focus (goldFind ⇒ de-stack) + __dev.convoy (restedMult) + __dev.fellowship (xpGain) + __dev.ward (wardRegen) + __dev.wayfarerRoam (oocMitigation) para la ortogonalidad + __dev.saveBlob/worldFingerprint. Badge vía instrumentación de ctx.fillText (cuenta "Nocturno:").
+// Observado vía __dev.nocturne (flip NOCTURNE_HUNT.enabled IN-MEMORY + inyección snapshot {pid→noct} / marks / kills / step / tallyProbe / phaseProbe + phaseOverride/nowMs/self/toZone/leave drivers + vampHit para el seam melee lifesteal)
+// + __dev.kinship + __dev.focus (goldFind — ahora ⊥) + __dev.convoy (restedMult) + __dev.fellowship (xpGain) + __dev.ward (wardRegen) + __dev.wayfarerRoam (oocMitigation) para la ortogonalidad + __dev.saveBlob/worldFingerprint. Badge vía instrumentación de ctx.fillText (cuenta "Nocturno:").
 //
 // Checks:
 //   1  boots to play, __dev.nocturne + arc hooks + __BUILD, 0 JS err.
@@ -27,12 +28,12 @@
 //   8  ★ ACUMULADOR = función del TALLY (step): kills de DÍA (tally 0)⇒add 0 (nunca abre, TEMPORAL); kills de NOCHE sostenidos⇒acumula; 1-tick dt=0.5⇒noct ínfimo < 2 (permanencia).
 //   9  ★ DIFERENCIADOR: matar el MISMO tipo de NOCHE⇒tally sube⇒abre (OPUESTO Erudition); cazar de DÍA⇒tally 0⇒NO abre (TEMPORAL); derivación de fase isNightAt PURA (override 0.9⇒noche, 0.5⇒día, 0.1⇒noche).
 //  10  ★ DECAY determinista 0-RNG por VIDA-MEDIA: noct 6 (T3); avanzar `now` +25s (halfLife) ⇒ noct 3 (T1). Reloj compartido.
-//  11  PASSIVE individual (canal goldFind): noct≥umbral + héroe EN zona de caza ⇒ boost>0 + tier≥1; leave (fuera de zona) ⇒ boost 0 + tier 0.
-//  12  ★ CANAL REUSADO goldFind wired + MULTIPLICADOR DE ORO: seam tryPickup g·(1+kinship+focus+nocturne); goldTick base ⇒ paid==round(base·(1+boost)) abierto; OFF ⇒ paid==round(base·(1+kinship+focus)) byte-id.
-//  13  ★ DE-STACK máximo-único: KINSHIP O FOCUS abierto ⇒ su goldFind>0 ⇒ nocturneMul CEDE a 0 (0 doble-dip). Sin vínculo/fuego ⇒ NOCTURNE aplica.
-//  14  ★ ORTOGONALIDAD goldFind ⊥ restedMult ⊥ xpGain ⊥ wardRegen ⊥ oocMitigation ⊥ lootQuality ⊥ critChance (0 doble-conteo): abrir caza nocturna NO cambia los otros; activar CONVOY/FELLOWSHIP/WARD/WAYFARER NO cambia el goldFindMul.
+//  11  PASSIVE individual (canal vamp): noct≥umbral + héroe EN zona de caza ⇒ vampMul>0 + tier≥1; leave (fuera de zona) ⇒ vampMul 0 + tier 0.
+//  12  ★ CANAL REUSADO vamp wired + SEAM MELEE LIFESTEAL: seam hitEnemy eff=min(vampCap, base+nocturne); vampHit dmg+base=0 ⇒ eff==boost + heal==round(dmg·boost) abierto; OFF ⇒ eff==base ⇒ byte-id.
+//  13  ★ SHARE-CAP con el Vampírico: base 0 ⇒ eff=boost (Nocturne solo); base bajo ⇒ eff=base+boost; base alto ⇒ eff=vampCap (SUMA capada, capped=true, 0 doble-dip más allá del techo).
+//  14  ★ ORTOGONALIDAD vamp ⊥ goldFind ⊥ restedMult ⊥ xpGain ⊥ wardRegen ⊥ oocMitigation ⊥ lootQuality ⊥ critChance (0 doble-conteo): abrir caza nocturna NO cambia los otros; activar KINSHIP/CONVOY/FELLOWSHIP/WARD/WAYFARER NO cambia el vampMul.
 //  15  ★ 0-REGRESIÓN: los 18 flags del arco ya LIVE siguen served enabled:true; NOCTURNE_HUNT served false (DARK #66).
-//  16  ★ NOCTURNE 6 zonas: el pasivo aplica en las 6 zonas de NOCTURNE_HUNT.zones (noct≥6 ⇒ T3, boost>0) broken=[].
+//  16  ★ NOCTURNE 6 zonas: el pasivo aplica en las 6 zonas de NOCTURNE_HUNT.zones (noct≥6 ⇒ T3, vampMul>0) broken=[].
 //  17  render badge "Nocturno:" se DIBUJA con la feature ON (ctx.fillText "Nocturno:" count>0) y NO con OFF (count 0) + fps.
 //  18  ★ NORTH STAR — CONVERGENCIA 2-CLIENTE REAL: 2 páginas, MISMO snapshot+reloj ⇒ noct/tier/boost IDÉNTICOS byte-a-byte; el acumulador decae CONVERGE; noct per-pid (A vs B independientes); A sale de zona ⇒ boost=0 PERO noctMap + Δ_B INTACTOS.
 //   0  no JS errors during run.
@@ -90,7 +91,7 @@ async function installNoct(page) {
       for (const z of zones) {
         window.__dev.nocturne({ clear: true, nowMs: window.__NNOW });
         const s = window.__dev.nocturne({ nowMs: window.__NNOW, self: "self", noct, pid: "self", atMs: window.__NNOW, toZone: z });
-        if (s.zone === z && s.huntable) return { zone: z, noct: s.noct, tier: s.tier, boost: s.boost, goldFindMul: s.goldFindMul };
+        if (s.zone === z && s.huntable) return { zone: z, noct: s.noct, tier: s.tier, boost: s.boost, vampMul: s.vampMul };
       }
       return null;
     };
@@ -117,8 +118,8 @@ try {
   // 2 byte-id OFF fresh boot: enabled false + G.nocturne never created (read BEFORE any inject)
   const dark = await page.evaluate(() => window.__dev.nocturne());
   ok("2 byte-id OFF (fresh boot): NOCTURNE_HUNT.enabled false AND G.nocturne NUNCA se crea (gExists false, tick jamás corrió)",
-     dark.enabled === false && dark.gExists === false && dark.tier === 0 && dark.noct === 0 && dark.boost === 0 && dark.goldFindMul === 0 && dark.tag === "" && dark.noctMap === null,
-     `enabled=${dark.enabled} gExists=${dark.gExists} tier=${dark.tier} noct=${dark.noct} boost=${dark.boost} goldFindMul=${dark.goldFindMul} tag="${dark.tag}" map=${JSON.stringify(dark.noctMap)}`);
+     dark.enabled === false && dark.gExists === false && dark.tier === 0 && dark.noct === 0 && dark.boost === 0 && dark.vampMul === 0 && dark.channel === "vamp" && dark.tag === "" && dark.noctMap === null,
+     `enabled=${dark.enabled} gExists=${dark.gExists} tier=${dark.tier} noct=${dark.noct} boost=${dark.boost} vampMul=${dark.vampMul} channel=${dark.channel} tag="${dark.tag}" map=${JSON.stringify(dark.noctMap)}`);
 
   // 3 save OFF has no 'nocturne'/'nocturneServer'/'nocturneMarks' key
   const saveOff = await page.evaluate(() => JSON.stringify(window.__dev.saveBlob()));
@@ -233,61 +234,70 @@ try {
   ok("10 ★ DECAY determinista 0-RNG por VIDA-MEDIA: noct 6 (T3); +25s (1 half-life) ⇒ noct 3 (T1)",
      !decay.bad && near(decay.base, 6) && decay.baseT === 3 && near(decay.dec, 3, 0.02) && decay.decT === 1, JSON.stringify(decay));
 
-  // 11 passive isolated (goldFind channel): in-zone noct≥threshold ⇒ boost>0 + tier≥1; leave ⇒ 0
+  // 11 passive isolated (vamp channel): in-zone noct≥threshold ⇒ vampMul>0 + tier≥1; leave ⇒ 0
   const pass = await page.evaluate((NOW) => {
-    const w = window.__npick(4); if (!w) return { bad: true };                 // noct 4 ⇒ Tier 2 ⇒ boost 0.12
+    const w = window.__npick(4); if (!w) return { bad: true };                 // noct 4 ⇒ Tier 2 ⇒ boost 0.12 (lifesteal)
     const inz = window.__dev.nocturne({ nowMs: NOW, toZone: w.zone });
     const out = window.__dev.nocturne({ leave: true });
-    return { zone: w.zone, inBoost: inz.boost, inTier: inz.tier, inMul: inz.goldFindMul, outBoost: out.boost, outTier: out.tier, outMul: out.goldFindMul };
+    return { zone: w.zone, inBoost: inz.boost, inTier: inz.tier, inMul: inz.vampMul, outBoost: out.boost, outTier: out.tier, outMul: out.vampMul };
   }, NOW);
-  ok("11 PASSIVE individual (canal goldFind, aislado): héroe EN zona con noct≥umbral ⇒ boost==0.12 (T2) + tier≥1 + goldFindMul>0; leave (fuera de zona) ⇒ boost 0 + tier 0 + goldFindMul 0",
+  ok("11 PASSIVE individual (canal vamp, aislado): héroe EN zona con noct≥umbral ⇒ boost==0.12 (T2) + tier≥1 + vampMul>0; leave (fuera de zona) ⇒ boost 0 + tier 0 + vampMul 0",
      !pass.bad && near(pass.inBoost, 0.12) && pass.inTier === 2 && near(pass.inMul, 0.12) && pass.outBoost === 0 && pass.outTier === 0 && pass.outMul === 0, JSON.stringify(pass));
 
-  // 12 ★ REUSED CHANNEL goldFind wired + GOLD MULTIPLY
+  // 12 ★ REUSED CHANNEL vamp wired + MELEE LIFESTEAL SEAM
   const simSrc = await page.evaluate(async () => { const r = await fetch("sim/sim.js"); return await r.text(); });
   const seamWired = /function nocturneMul/.test(simSrc) &&
-    /const gf=kinshipMul\(h,"goldFind"\)\+focusMul\(h,"goldFind"\)\+nocturneMul\(h,"goldFind"\)/.test(simSrc) &&
-    /if\(kinshipMul\(h,"goldFind"\)>0 \|\| focusMul\(h,"goldFind"\)>0\) return 0;/.test(simSrc);
-  const gold = await page.evaluate((NOW) => {
-    const w = window.__npick(6); if (!w) return { bad: true };                 // noct 6 ⇒ T3 ⇒ boost 0.20
+    /function nocturneVampSteal\(h, base\)/.test(simSrc) &&
+    /const eff=nocturneVampSteal\(h, bb\.lifesteal\|\|0\);/.test(simSrc) &&                       // el seam melee usa la lifesteal EFECTIVA (share-cap)
+    /const gf=kinshipMul\(h,"goldFind"\)\+focusMul\(h,"goldFind"\); if\(gf>0\)/.test(simSrc) &&    // goldFind YA NO referencia nocturne (repunte CAS-2394)
+    !/nocturneMul\(h,"goldFind"\)/.test(simSrc);                                                   // 0 rastro de nocturne en goldFind
+  const vamp = await page.evaluate((NOW) => {
+    const w = window.__npick(6); if (!w) return { bad: true };                 // noct 6 ⇒ T3 ⇒ boost 0.20 (lifesteal)
     window.__dev.nocturne({ nowMs: NOW, toZone: w.zone });
-    const on = window.__dev.nocturne({ goldTick: { base: 1000 } }).goldPicked;  // paid = 1000·(1+0.20) = 1200
+    const on = window.__dev.nocturne({ vampHit: { dmg: 1000, base: 0 } }).vampHit;   // eff=min(0.5, 0+0.20)=0.20 ⇒ heal round(1000·0.20)=200
     window.__dev.nocturne({ enabled: false });
-    const off = window.__dev.nocturne({ goldTick: { base: 1000 } }).goldPicked; // OFF ⇒ nb 0 ⇒ paid == 1000·(1+kinship+focus)
+    const off = window.__dev.nocturne({ vampHit: { dmg: 1000, base: 0.3 } }).vampHit; // OFF ⇒ nv 0 ⇒ eff===base 0.3 (byte-id) ⇒ heal round(1000·0.3)=300
     const offTag = window.__dev.nocturne().tag;
     window.__dev.nocturne({ enabled: true });
     return { zone: w.zone, on, off, offTag };
   }, NOW);
-  const goldOk = !gold.bad && gold.on && near(gold.on.nocturneBonus, 0.20) && gold.on.paid === 1200 &&
-    gold.off && gold.off.nocturneBonus === 0 && gold.off.paid === Math.round(1000 * (1 + gold.off.kinshipBonus + gold.off.focusBonus)) && gold.offTag === "";
-  ok("12 ★ CANAL REUSADO goldFind wired + MULTIPLICADOR DE ORO: seam tryPickup g·(1+kinship+focus+nocturne); T3 goldTick base 1000 ⇒ paid 1200 (+20%); OFF ⇒ nocturneBonus 0 ⇒ paid==base·(1+kinship+focus) byte-id + tag \"\"",
-     seamWired && goldOk, `wired=${seamWired} on=${JSON.stringify(gold.on)} off=${JSON.stringify(gold.off)} offTag="${gold.offTag}"`);
+  const vampOk = !vamp.bad && vamp.on && near(vamp.on.nocturneBonus, 0.20) && near(vamp.on.eff, 0.20) && vamp.on.heal === 200 && vamp.on.capped === false &&
+    vamp.off && vamp.off.nocturneBonus === 0 && near(vamp.off.eff, 0.3) && vamp.off.heal === 300 && vamp.offTag === "";
+  ok("12 ★ CANAL REUSADO vamp wired + SEAM MELEE LIFESTEAL: seam hitEnemy eff=min(vampCap, base+nocturne); T3 vampHit dmg1000 base0 ⇒ eff 0.20 heal 200; OFF ⇒ nocturneBonus 0 ⇒ eff===base 0.3 heal 300 byte-id + tag \"\"",
+     seamWired && vampOk, `wired=${seamWired} on=${JSON.stringify(vamp.on)} off=${JSON.stringify(vamp.off)} offTag="${vamp.offTag}"`);
 
-  // 13 ★ DE-STACK máximo-único: KINSHIP or FOCUS open ⇒ nocturneMul cedes to 0
-  const dstack = await page.evaluate((NOW) => {
-    const w = window.__npick(6); if (!w) return { bad: true };                 // noct 6 ⇒ T3 ⇒ boost 0.20 (sin vínculo/fuego)
-    const zone = w.zone;
-    window.__dev.nocturne({ nowMs: NOW, toZone: zone });
-    const before = window.__dev.nocturne({ nowMs: NOW, toZone: zone });        // sin KINSHIP/FOCUS ⇒ nocturneMul 0.20
-    // abre KINSHIP en la MISMA zona: kinshipMul(goldFind)>0 ⇒ NOCTURNE cede
-    window.__dev.kinship({ enabled: true }); window.__dev.kinship({ clear: true, nowMs: NOW });
-    window.__dev.kinship({ nowMs: NOW, push: { [zone]: { kinship: 6, atMs: NOW } }, toZone: zone });
-    const kx = window.__dev.nocturne({ nowMs: NOW, toZone: zone });            // kinship abierto ⇒ nocturneMul CEDE a 0
-    window.__dev.kinship({ enabled: false });
-    return { zone, beforeMul: before.goldFindMul, beforeKin: before.kinshipGoldMul, afterMul: kx.goldFindMul, afterKin: kx.kinshipGoldMul };
-  }, NOW);
-  const dstackOk = !dstack.bad && near(dstack.beforeMul, 0.20) && dstack.beforeKin === 0 &&    // sin vínculo ⇒ NOCTURNE aplica
-    dstack.afterKin > 0 && dstack.afterMul === 0;                                              // KINSHIP abierto ⇒ NOCTURNE cede ⇒ SÓLO kinship ≠0 (0 doble-dip)
-  ok("13 ★ DE-STACK máximo-único: sin vínculo ⇒ nocturneMul 0.20 (aplica); KINSHIP abierto (kinshipMul>0) ⇒ nocturneMul CEDE a 0 ⇒ SÓLO uno ≠0 (0 doble-dip, mirror FOCUS→KINSHIP)",
-     dstackOk, JSON.stringify(dstack));
-
-  // 14 ★ ORTHOGONALITY goldFind ⊥ restedMult ⊥ xpGain ⊥ wardRegen ⊥ oocMitigation ⊥ lootQuality ⊥ critChance (0 double-count)
-  const orth = await page.evaluate((NOW) => {
+  // 13 ★ SHARE-CAP con el Vampírico existente: eff = min(vampCap≤0.5, baseLifesteal + boostNocturno)
+  const scap = await page.evaluate((NOW) => {
     const w = window.__npick(6); if (!w) return { bad: true };                 // noct 6 ⇒ T3 ⇒ boost 0.20
     const zone = w.zone;
+    window.__dev.nocturne({ nowMs: NOW, toZone: zone });
+    const cap = window.__dev.nocturne().vampCap;
+    const hit = (base) => window.__dev.nocturne({ vampHit: { dmg: 1000, base } }).vampHit;
+    return {
+      zone, cap,
+      solo:  hit(0),      // base 0 ⇒ Nocturne SOLO ⇒ eff 0.20 (no capped)
+      add:   hit(0.1),    // base 0.1 + 0.20 = 0.30 < cap ⇒ eff 0.30 (suma, no capped)
+      cap45: hit(0.45),   // base 0.45 + 0.20 = 0.65 > cap ⇒ eff = cap 0.50 (SUMA capada, capped=true — 0 doble-dip)
+      cap50: hit(0.5),    // base ya en cap ⇒ Nocturne no añade ⇒ eff 0.50 (capped)
+    };
+  }, NOW);
+  const scapOk = !scap.bad && near(scap.cap, 0.5) &&
+    near(scap.solo.eff, 0.20) && scap.solo.capped === false && scap.solo.heal === 200 &&
+    near(scap.add.eff, 0.30) && scap.add.capped === false && scap.add.heal === 300 &&
+    near(scap.cap45.eff, 0.50) && scap.cap45.capped === true && scap.cap45.heal === 500 &&        // NO 0.65 ⇒ no double-dip
+    near(scap.cap50.eff, 0.50) && scap.cap50.capped === true;                                     // base ya en cap ⇒ Nocturne no añade
+  ok("13 ★ SHARE-CAP con Vampírico: base0⇒eff 0.20 (Nocturne solo); base0.1⇒eff 0.30 (suma); base0.45+0.20⇒eff CAPADO a 0.50 (NO 0.65, capped=true, 0 doble-dip); base0.5⇒eff 0.50 (Nocturne no añade)",
+     scapOk, JSON.stringify(scap));
+
+  // 14 ★ ORTHOGONALITY vamp ⊥ goldFind ⊥ restedMult ⊥ xpGain ⊥ wardRegen ⊥ oocMitigation ⊥ lootQuality ⊥ critChance (0 double-count)
+  const orth = await page.evaluate((NOW) => {
+    const w = window.__npick(6); if (!w) return { bad: true };                 // noct 6 ⇒ T3 ⇒ vampMul 0.20
+    const zone = w.zone;
     const a = window.__dev.nocturne({ nowMs: NOW, toZone: zone });
-    const goldBefore = a.goldFindMul, restedBefore = a.restedXpMult, xpBefore = a.xpGainMul, wardBefore = a.wardRegenMul, oocBefore = a.oocMitigMul, lootBefore = a.lootQualityFloor, critBefore = a.critBonusPct;
-    // activa CONVOY (restedMult) + FELLOWSHIP (xpGain) + WARD (wardRegen) + WAYFARER (oocMitigation) ⇒ SUS canales suben pero el goldFindMul (nocturne) NO cambia (⊥)
+    const vampBefore = a.vampMul, goldBefore = a.goldFindMul, restedBefore = a.restedXpMult, xpBefore = a.xpGainMul, wardBefore = a.wardRegenMul, oocBefore = a.oocMitigMul, lootBefore = a.lootQualityFloor, critBefore = a.critBonusPct;
+    // activa KINSHIP (goldFind) + CONVOY (restedMult) + FELLOWSHIP (xpGain) + WARD (wardRegen) + WAYFARER (oocMitigation) ⇒ SUS canales suben pero el vampMul (nocturne) NO cambia (⊥; repunte CAS-2394 ⇒ goldFind ahora AJENO)
+    window.__dev.kinship({ enabled: true }); window.__dev.kinship({ clear: true, nowMs: NOW });
+    window.__dev.kinship({ nowMs: NOW, push: { [zone]: { kinship: 6, atMs: NOW } }, toZone: zone });
     window.__dev.convoy({ enabled: true }); window.__dev.convoy({ clear: true, nowMs: NOW });
     window.__dev.convoy({ nowMs: NOW, push: { [zone]: { march: 6, atMs: NOW } }, toZone: zone });
     window.__dev.fellowship({ enabled: true, nowMs: NOW }); window.__dev.fellowship({ kill: { n: 100000 } });
@@ -296,16 +306,17 @@ try {
     window.__dev.wayfarerRoam({ enabled: true, self: "self" }); window.__dev.wayfarerRoam({ clear: true, nowMs: NOW });
     window.__dev.wayfarerRoam({ nowMs: NOW, self: "self", push: { self: [{ c: "0,0", t: NOW }, { c: "1,0", t: NOW }, { c: "2,0", t: NOW }, { c: "3,0", t: NOW }] }, toZone: zone });
     const b = window.__dev.nocturne({ nowMs: NOW, toZone: zone });
-    window.__dev.convoy({ enabled: false }); window.__dev.fellowship({ enabled: false }); window.__dev.ward({ enabled: false }); window.__dev.wayfarerRoam({ enabled: false });
-    return { zone, channel: a.channel, goldBefore, restedBefore, xpBefore, wardBefore, oocBefore, lootBefore, critBefore,
-      goldAfter: b.goldFindMul, restedAfter: b.restedXpMult, xpAfter: b.xpGainMul, wardAfter: b.wardRegenMul, oocAfter: b.oocMitigMul, lootAfter: b.lootQualityFloor, critAfter: b.critBonusPct };
+    window.__dev.kinship({ enabled: false }); window.__dev.convoy({ enabled: false }); window.__dev.fellowship({ enabled: false }); window.__dev.ward({ enabled: false }); window.__dev.wayfarerRoam({ enabled: false });
+    return { zone, channel: a.channel, vampBefore, goldBefore, restedBefore, xpBefore, wardBefore, oocBefore, lootBefore, critBefore,
+      vampAfter: b.vampMul, goldAfter: b.goldFindMul, restedAfter: b.restedXpMult, xpAfter: b.xpGainMul, wardAfter: b.wardRegenMul, oocAfter: b.oocMitigMul, lootAfter: b.lootQualityFloor, critAfter: b.critBonusPct };
   }, NOW);
-  const orthOk = !orth.bad && orth.channel === "goldFind" && near(orth.goldBefore, 0.20) &&
-    near(orth.goldAfter, orth.goldBefore) &&                          // activar 4 pasivos NO cambia el goldFindMul (nocturne ⊥ a todos)
-    orth.xpAfter > 0 && orth.wardAfter > 0 && orth.oocAfter > 0 &&    // FELLOWSHIP/WARD/WAYFARER sí aportan en SUS canales y NO tocan goldFind
+  const orthOk = !orth.bad && orth.channel === "vamp" && near(orth.vampBefore, 0.20) &&
+    near(orth.vampAfter, orth.vampBefore) &&                          // activar 5 pasivos NO cambia el vampMul (nocturne ⊥ a todos)
+    orth.goldAfter > 0 && orth.xpAfter > 0 && orth.wardAfter > 0 && orth.oocAfter > 0 &&   // KINSHIP(goldFind)/FELLOWSHIP/WARD/WAYFARER sí aportan en SUS canales y NO tocan vamp
+    orth.goldBefore === 0 &&                                          // sin KINSHIP ⇒ goldFind 0 (nocturne ya NO lo alimenta, repunte CAS-2394)
     near(orth.restedBefore, orth.restedAfter) &&                      // restedMult (Convoy — cede a fuentes ambientales) sin cambio por nocturne (⊥)
     orth.lootBefore === orth.lootAfter && orth.critBefore === orth.critAfter;   // lootQuality + critChance intactos (⊥)
-  ok("14 ★ ORTOGONALIDAD goldFind ⊥ restedMult ⊥ xpGain ⊥ wardRegen ⊥ oocMitigation ⊥ lootQuality ⊥ critChance (0 doble-conteo): abrir caza nocturna NO toca los otros; activar CONVOY/FELLOWSHIP/WARD/WAYFARER NO cambia el goldFindMul; canal='goldFind'",
+  ok("14 ★ ORTOGONALIDAD vamp ⊥ goldFind ⊥ restedMult ⊥ xpGain ⊥ wardRegen ⊥ oocMitigation ⊥ lootQuality ⊥ critChance (0 doble-conteo): abrir caza nocturna NO toca los otros; activar KINSHIP/CONVOY/FELLOWSHIP/WARD/WAYFARER NO cambia el vampMul; canal='vamp'; goldFind SIN nocturne (0 antes de KINSHIP)",
      orthOk, JSON.stringify(orth));
 
   // 15 ★ 0-REGRESSION: los 18 flags del arco siguen LIVE served; NOCTURNE served false (DARK)
@@ -325,11 +336,11 @@ try {
     for (const z of zones) {
       window.__dev.nocturne({ clear: true, nowMs: NOW });
       const s = window.__dev.nocturne({ nowMs: NOW, self: "self", noct: 6, pid: "self", atMs: NOW, toZone: z });
-      if (!(s.zone === z && s.huntable && s.tier === 3 && Math.abs(s.boost - 0.20) < 1e-6 && s.goldFindMul > 0)) broken.push(z);
+      if (!(s.zone === z && s.huntable && s.tier === 3 && Math.abs(s.boost - 0.20) < 1e-6 && s.vampMul > 0)) broken.push(z);
     }
     return { zones, broken };
   }, NOW);
-  ok("16 ★ NOCTURNE 6 zonas: las 6 zonas de NOCTURNE_HUNT.zones hospedan el pasivo (noct≥6 ⇒ T3, boost 0.20, goldFindMul>0) broken=[]",
+  ok("16 ★ NOCTURNE 6 zonas: las 6 zonas de NOCTURNE_HUNT.zones hospedan el pasivo (noct≥6 ⇒ T3, boost 0.20, vampMul>0) broken=[]",
      zonesRes.zones.length === 6 && zonesRes.broken.length === 0, `zones=${JSON.stringify(zonesRes.zones)} broken=${JSON.stringify(zonesRes.broken)}`);
 
   // 17 render badge "Nocturno:" drawn ON / not OFF + fps
@@ -392,7 +403,7 @@ try {
       return { rA, rB, mapEq: JSON.stringify(rA.map) === JSON.stringify(rB.map) };
     })();
     // A leaves zone ⇒ boost 0 (zone-gate) PERO noctMap + B intact
-    const aLeaves = await page.evaluate(() => { const s = window.__dev.nocturne({ leave: true }); return { boost: s.boost, mul: s.goldFindMul, tier: s.tier, map: s.noctMap, noct: s.noct }; });
+    const aLeaves = await page.evaluate(() => { const s = window.__dev.nocturne({ leave: true }); return { boost: s.boost, mul: s.vampMul, tier: s.tier, map: s.noctMap, noct: s.noct }; });
     const bIntact = await pageB.evaluate(({ zone, NOW }) => { const s = window.__dev.nocturne({ nowMs: NOW, self: "B", toZone: zone }); return { boost: s.boost, tier: s.tier, noct: s.noct }; }, { zone, NOW });
     return { zone, shared, decayed, indep, aLeaves, bIntact };
   })();
