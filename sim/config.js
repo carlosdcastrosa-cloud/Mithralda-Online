@@ -2677,6 +2677,47 @@ export const ERUDITION = {
   ],
 };
 
+// CAS-2393: NOCTURNE / CAZADOR NOCTURNO (DARK, NOCTURNE_HUNT) — EVO mecánica #66 (serializa tras #65 ERUDITION LIVE). EJE FRESCO + CANAL REUSADO, ⊥/OPUESTO a todo lo enviado #47-65:
+//   (A) EJE FRESCO = FASE TEMPORAL / CAZA NOCTURNA (nº de kills hechos DURANTE LA NOCHE en la ventana). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). Es el PRIMER eje del arco anclado al RELOJ (fase día/noche),
+//       NO al espacio (Delve profundidad / Trailcraft bioma / Wayfarer amplitud), ni a la presa (Erudition tipo), ni a otros jugadores (Kinship/Focus). El server registra marcas de kill { pid → [{n,t}] } (n=1 si el kill
+//       cayó de NOCHE, 0 si de día — derivado de la FASE del reloj COMPARTIDO en el instante del kill, isNightAt(t)), computa `nightTally(marks,now,win)` = nº de marcas NOCTURNAS (n===1) en la ventana (PURA), y mientras
+//       tally≥minKills ACUMULA `nocturne` (accruePerSec·dt) con DECAY vida-media (familia acumulador tick/accrue/step #55-65). Los kills DIURNOS (n=0) NUNCA cuentan ⇒ cazar de día jamás abre (eje puramente TEMPORAL).
+//   (B) CANAL REUSADO = `goldFind` (bono de oro por el chokepoint tryPickup). El arco de canales FRESCOS saturó restedMult/goldFind/wardRegen/oocMitigation/lootQuality/critChance/xpGain; goldFind lo REUSA con
+//       PRECEDENCIA máximo-único (de-stack): si KINSHIP_BOND (#60) O FOCUS_FIRE (#62) están abiertos (su goldFind>0) ⇒ NOCTURNE CEDE (return 0 ⇒ aplica el MAYOR, 0 doble-dip). Mirror de FOCUS→KINSHIP (3ª fuente de goldFind:
+//       KINSHIP gana > FOCUS > NOCTURNE). Con caza nocturna abierta (tier≥1) y sin vínculo/fuego ⇒ el oro recogido en la zona se multiplica por (1+boost). "El cazador nocturno cobra mejor botín bajo la luna".
+//   · DIFERENCIADORES (ortogonalidad OBLIGATORIA — el eje usa la FASE del reloj, no espacio/presa/densidad):
+//       ≠ ERUDITION (#65, DIVERSIDAD de presas): NOCTURNE cuenta CUÁNDO matas (de noche), NO a QUIÉN. Matar el MISMO tipo repetido de NOCHE ⇒ tally sube ⇒ ABRE (OPUESTO a Erudition, que exige tipos distintos y NO abriría).
+//       ≠ DELVE (#64, profundidad) / TRAILCRAFT (#63, bioma) / WAYFARER (#61, amplitud): esos son ESPACIALES; NOCTURNE es TEMPORAL. Quieto de noche matando ⇒ ABRE (Wayfarer necesita amplitud ⇒ NO). Misma zona/banda ⇒ irrelevante.
+//       ≠ FOCUS (#62) / KINSHIP (#60): no depende de otros jugadores ni objetivos; es la fase del reloj del kill PROPIO de UN jugador.
+//       ≠ 1-tick efímero: tally≥minKills 1 tick (dt=0.5) ⇒ nocturne≈0.5 < 2 ⇒ Tier 0 (permanencia sostenida). Decae vida-media al amanecer / dejar de cazar de noche.
+//   · TIERS por UMBRAL de `nocturne` sostenido → boost de goldFind: <2 ⇒ T0 (×1); ≥2 ⇒ T1 (+6%); ≥4 ⇒ T2 (+12%); ≥6 ⇒ T3 (+20%). Determinista, monótono.
+//   · INDICADOR $0-arte: badge procedural ☾ (luna creciente), 0 arte nuevo. NO nueva stat: sólo SUMA al goldFind YA existente del seam tryPickup, con de-stack.
+// HARD-GATED: enabled:false ⇒ tickNocturne jamás corre (Date.now nunca se llama), G.nocturne/G.nocturneServer/G.nocturneMarks NUNCA se crean, nocturneMul RETURN 0 ⇒ tryPickup BYTE-IDÉNTICO a HEAD
+// (gf=kinship+focus+0 ⇒ oro intacto), nocturneTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% emerge del combate/kills nocturnos). Reversible 1-línea. NÚMEROS = balance del CEO.
+export const NOCTURNE_HUNT = {
+  enabled: false,            // DARK (EVO#66) — flip CEO/CTO a true tras QA DARK PASS ×2 + CEO Gate. Serializado tras #65 ERUDITION LIVE&verificado. Reversible 1-línea false→true + re-run overlay. anti-stacking: 1 arco valida a la vez.
+  channel: "goldFind",       // canal REUSADO (bono de oro por el chokepoint tryPickup). De-stack máximo-único: NOCTURNE (#66, más nueva) CEDE a KINSHIP_BOND (#60) y FOCUS_FIRE (#62). ⊥ restedMult/wardRegen/oocMitigation/lootQuality/critChance/xpGain (seams distintos). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo aplica (mirror ERUDITION.zones/KINSHIP_BOND.zones — la ciudad/SAFEZONE fuera). El bono de oro SE zone-gatea aquí (mirror kinshipMul/focusMul).
+  // Reloj compartible DETERMINISTA (mirror DAYNIGHT/WEATHER/SAFEZONE, MMORPG-safe): la fase día/noche de un kill se deriva de su timestamp del reloj COMPARTIDO. Alineado con los valores de DAYNIGHT para que la
+  // ventana nocturna coincida con el tramo oscuro visible (crepúsculo→noche→pre-amanecer), pero NOCTURNE_HUNT es AUTÓNOMA (no depende de render). CEO balance knobs.
+  cycleSeconds: 1200,        // duración de un ciclo día/noche completo (s) — mirror DAYNIGHT.cycleSeconds.
+  epochMs: 0,                // epoch del reloj compartible determinista (mirror DAYNIGHT.epochMs), MMORPG-safe.
+  nightStart: 0.78,          // inicio de la ventana NOCTURNA (fase 0..1, 0=medianoche): crepúsculo. Night si phase>=nightStart || phase<nightEnd (envuelve la medianoche). Mirror del tramo oscuro de DAYNIGHT. CEO balance knob.
+  nightEnd: 0.28,            // fin de la ventana NOCTURNA (fase): amanecer. CEO balance knob.
+  phaseOverride: null,       // fija una fase 0..1 para pruebas/screenshots deterministas (mirror DAYNIGHT.phaseOverride); null = reloj real. QA lo inyecta in-memory para forzar noche/día.
+  windowSec: 30,             // ventana deslizante (s) para contar kills nocturnos. CEO balance knob.
+  minKills: 3,               // nº mínimo de kills NOCTURNOS en la ventana para ACUMULAR nocturne. Cazar de día (n=0) ⇒ tally 0 < 3 ⇒ nunca (eje puramente temporal). CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `nocturne` al amanecer/dejar de cazar de noche: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capNocturne: 12,           // techo del `nocturne` proyectado (evita crecimiento ilimitado; el tier máx satura mucho antes). CEO balance knob.
+  accruePerSec: 1,           // `nocturne` acumulado por segundo con tally≥minKills sostenido (con tiers 2/4/6 ⇒ 2s/4s/6s para T1/T2/T3). CEO balance knob.
+  // TABLA de tiers: umbral de `nocturne` sostenido (min inclusivo) → `boost` = fracción de subida del multiplicador goldFind (0 = sin efecto). Tier vigente = el más alto cuyo `min` ≤ nocturne. Determinista, monótono.
+  tiers: [
+    { min: 2, boost: 0.06 },   // Tier 1 — cazador incipiente (≥2s de caza nocturna sostenida): +6% oro.
+    { min: 4, boost: 0.12 },   // Tier 2 — cazador firme (≥4s): +12% oro.
+    { min: 6, boost: 0.20 },   // Tier 3 — señor de la noche (≥6s): +20% oro. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

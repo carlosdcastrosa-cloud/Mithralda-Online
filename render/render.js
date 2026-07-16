@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -389,6 +389,7 @@ export function createRenderer(ctx){
     if(TRAILCRAFT.enabled) renderTrailcraftBadge(); // CAS-2377: Sendero — badge de variedad (canal lootQuality); resalta si el jugador tiene un sendero abierto (nº de tipos de bioma distintos pisados en la ventana). Cosmético puro.
     if(DELVE.enabled) renderDelveBadge(); // CAS-2380: Descenso — badge de profundidad (canal critChance); resalta si el jugador tiene un descenso abierto (nº de bandas de profundidad distintas alcanzadas). Cosmético puro.
     if(ERUDITION.enabled) renderEruditionBadge(); // CAS-2381: Erudición — badge de variedad de presas (canal xpGain); resalta si el jugador tiene erudición abierta (nº de tipos de enemigo distintos abatidos en la ventana). Cosmético puro.
+    if(NOCTURNE_HUNT.enabled) renderNocturneBadge(); // CAS-2393: Nocturne — badge de caza nocturna (canal goldFind); resalta si el jugador tiene una caza nocturna abierta (nº de kills hechos de noche en la ventana). Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -3976,6 +3977,42 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + bono de XP%
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" +"+boostPct+"%"):(k.learnable?(lv+""):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2393: badge de CAZA NOCTURNA (NOCTURNE_HUNT). Refleja el VM PURO (sim.nocturneVM, autoridad en sim) ⇒ MISMO nocturne/tier/boost para todos los clientes con el mismo snapshot. Glifo procedural ☾ (luna
+  // creciente) — el brillo sube con el tier. Muestra el estado del canal REUSADO goldFind (bono de oro tras de-stack con Camaradería/Fuego) — cosmético puro, 0 sim/RNG. Label "Nocturno:" (con colon) ÚNICO (no colisiona).
+  function renderNocturneBadge(){
+    const k=sim.nocturneVM&&sim.nocturneVM(); if(!k) return;               // pre-primer-tick (G.nocturne null) ⇒ noct 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+516, sw=14, sh=14;                             // bajo la Erudición (@+494); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, lv=Math.round(k.noct||0), boostPct=Math.round((k.boost||0)*100);
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(2.6+tier*0.5))):0.55;
+    const glyph=here?"#a9c0e6":"#8a9bb0";                                 // caza nocturna=azul-luna, inerte=gris
+    const zn=k.zone?STR.zoneName(k.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ☾ luna creciente: un arco exterior + un arco interior desfasado que talla la creciente; el brillo sube con el tier, procedural
+    const litA=here?Math.min(1,0.35+tier*0.22):0.22;
+    const R=sh*0.42;
+    ctx.lineWidth=1.8; ctx.lineCap="round"; ctx.strokeStyle=here?glyph:"rgba(150,164,190,0.42)"; ctx.globalAlpha=pulse*litA;
+    ctx.beginPath(); ctx.arc(cx, cy, R, Math.PI*0.32, Math.PI*1.68); ctx.stroke();          // arco exterior de la luna (creciente izquierda)
+    ctx.beginPath(); ctx.arc(cx+R*0.55, cy, R*0.92, Math.PI*0.55, Math.PI*1.45, true); ctx.stroke();  // arco interior que talla la creciente
+    // 3 estrellas (hitos de caza nocturna): puntos junto a la luna; encendidos = tier vigente
+    ctx.globalAlpha=pulse;
+    const stars=[[cx+R*1.15,cy-R*0.7],[cx+R*1.35,cy+R*0.1],[cx+R*1.05,cy+R*0.85]];
+    for(let i=0;i<stars.length;i++){ const lit=here && i<tier; ctx.fillStyle=lit?glyph:"rgba(80,92,120,0.5)";
+      ctx.beginPath(); ctx.arc(stars[i][0],stars[i][1],1.3,0,6.28); ctx.fill(); }
+    // micro-label
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Nocturno: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#cfe0f5":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + bono de oro%
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" +"+boostPct+"%"):(k.huntable?(lv+""):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
     ctx.restore();

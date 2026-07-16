@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4261,6 +4261,79 @@ export function eruditionVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):nul
   return { enabled:!!ERUDITION.enabled, zone:z, learnable, lore:+lore.toFixed(2), tier, tierCount:(ERUDITION.tiers||[]).length,
     boostKind:ERUDITION.channel||"xpGain", boost: learnable ? (h?eruditionMul(h,ERUDITION.channel||"xpGain"):0) : 0 }; }
 
+// CAS-2393: NOCTURNE / CAZADOR NOCTURNO (DARK, NOCTURNE_HUNT) — EVO mecánica #66. EJE FRESCO FASE TEMPORAL / CAZA NOCTURNA (nº de kills hechos DE NOCHE en la ventana) + canal REUSADO goldFind (bono de oro por el
+// chokepoint tryPickup; de-stack máximo-único: NOCTURNE cede a KINSHIP #60 y FOCUS #62). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra marcas de kill { pid → [{n,t}] } (n=1 si el kill cayó de
+// NOCHE, derivado de la FASE del reloj COMPARTIDO en el instante del kill), computa `nightTally(marks,now,win)` = nº de marcas NOCTURNAS (n===1) en la ventana (PURA), y mientras tally≥minKills ACUMULA `nocturne`
+// (accruePerSec·dt) con DECAY vida-media (familia acumulador tick/accrue/step #55-65). Los kills DIURNOS (n=0) NUNCA cuentan ⇒ cazar de día jamás abre. TIERS por UMBRAL de `nocturne` sostenido (permanencia).
+// nocturnePhaseAt(t): fase 0..1 del ciclo día/noche (0=medianoche) desde el reloj COMPARTIDO (mirror render worldPhase pero en sim/server-auth). phaseOverride (config o G.nocturnePhaseOverride del harness) fija la fase. PURA.
+function nocturnePhaseAt(t){ const ov=(G.nocturnePhaseOverride!=null)?+G.nocturnePhaseOverride:((typeof NOCTURNE_HUNT.phaseOverride==="number")?NOCTURNE_HUNT.phaseOverride:null);
+  if(ov!=null) return ((ov%1)+1)%1;
+  const cyc=Math.max(1,(NOCTURNE_HUNT.cycleSeconds||1200)); const x=((+t||0)/1000 - (NOCTURNE_HUNT.epochMs||0)/1000)/cyc; return ((x%1)+1)%1; }
+// isNightAt(t): ¿el instante t cae en la ventana NOCTURNA? night si phase>=nightStart || phase<nightEnd (envuelve la medianoche; s>e). PURA, 0 RNG. Mirror del tramo oscuro de DAYNIGHT (crepúsculo→noche→pre-amanecer).
+function isNightAt(t){ const ph=nocturnePhaseAt(t), s=+NOCTURNE_HUNT.nightStart, e=+NOCTURNE_HUNT.nightEnd;
+  if(!(s>=0)||!(e>=0)) return false; return (s<=e) ? (ph>=s && ph<e) : (ph>=s || ph<e); }
+// nightTally(marks, now, windowMs): nº de marcas de kill NOCTURNO (m.n===1) con t dentro de la ventana [now−windowMs, now]. Función PURA (0 RNG, 0 side-effect). marks = [{n,t}]. Marcas diurnas (n=0)/fuera de ventana ⇒ no cuentan.
+export function nightTally(marks, now, windowMs){ if(!Array.isArray(marks)||!marks.length) return 0; const lo=(+now||0)-Math.max(0,+windowMs||0); let n=0;
+  for(const m of marks){ if(!m) continue; const t=+m.t||0; if(t<lo || t>(+now||0)) continue; if((+m.n||0)===1) n++; } return n; }
+// ¿el nº de kills nocturnos de este tick SOSTIENE la caza? (tally≥minKills). Puro.
+function nocturneSustains(tally){ return (+tally||0)>=(NOCTURNE_HUNT.minKills|0); }
+// nocturneTier(noct) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ noct. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function nocturneTier(noct){ const T=NOCTURNE_HUNT.tiers||[]; noct=+noct||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && noct>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost del canal goldFind del tier vigente (0 si Tier 0). Puro. El gate global + de-stack lo cubre nocturneMul; aquí sólo la TABLA determinista.
+function nocturneBoostFor(noct){ const t=nocturneTier(noct); return t>0 ? (+NOCTURNE_HUNT.tiers[t-1].boost||0) : 0; }
+// pid del jugador LOCAL (el que aplica el pasivo a sí mismo). Transitorio G.nocturneSelf (inyectable por el harness para 2-cliente); default "self". SIN estado per-hero/serializado. Mirror loreSelfPid.
+function nocturneSelfPid(){ return (G.nocturneSelf!=null)?String(G.nocturneSelf):"self"; }
+// `nocturne` PROYECTADO de un pid leído del snapshot reflejado en G.nocturne.noct (ya proyectado al `now` por tickNocturne). 0 si sin snapshot / pid ausente. Puro.
+function nocturneVal(pid){ const g=G.nocturne; if(!g||!g.noct) return 0; return +g.noct[pid!=null?String(pid):nocturneSelfPid()]||0; }
+function nocturneOpen(){ return nocturneTier(nocturneVal(nocturneSelfPid()))>0; }
+// nocturneMul(h,kind) = el boost del canal REUSADO goldFind del jugador LOCAL con caza nocturna abierta (tier≥1). PRECEDENCIA máximo-único DENTRO del canal goldFind: KINSHIP_BOND (#60) y FOCUS_FIRE (#62, más antiguas)
+// ganan ⇒ si kinshipMul(goldFind)>0 O focusMul(goldFind)>0 ⇒ NOCTURNE CEDE (return 0 ⇒ aplica el MAYOR, 0 doble-dip). Mirror de FOCUS→KINSHIP (3ª fuente de goldFind). ORTOGONAL a restedMult/wardRegen/oocMitigation/lootQuality/critChance/xpGain
+// (seams distintos). Puro (0 RNG/estado/side-effect). Gated ⇒ OFF ⇒ 0. Zona-gate: sólo en zonas de caza (SAFEZONE/ciudad fuera). Devuelve el boost del tier vigente o 0 si cerrado/cede.
+function nocturneMul(h,kind){ if(!NOCTURNE_HUNT.enabled||!h) return 0;
+  if(kind!==(NOCTURNE_HUNT.channel||"goldFind")) return 0;
+  const z=zoneOf(world,h.x,h.y); if(!z || (NOCTURNE_HUNT.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de caza ⇒ 0 (ciudad/SAFEZONE fuera)
+  if(kinshipMul(h,"goldFind")>0 || focusMul(h,"goldFind")>0) return 0;   // precedencia MISMO-CANAL goldFind: KINSHIP (#60) y FOCUS (#62) ganan ⇒ NOCTURNE cede (aplica el MAYOR)
+  return nocturneBoostFor(nocturneVal(nocturneSelfPid())); }
+// tick de la CAZA NOCTURNA (mirror tickErudition): REFLEJA el snapshot server-authoritative { pid → { noct, atMs } } (empujado por el server, cacheado en G.nocturneServer) y lo PROYECTA al `now` compartido aplicando el
+// DECAY determinista por vida-media (noct_now = noct·0.5^(max(0,now−atMs)/halfLife), 0 RNG, techo capNocturne). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca ⇒ G.nocturne/G.nocturneServer NUNCA se crean ⇒ byte-id.
+function tickNocturne(nowArg){ if(!NOCTURNE_HUNT.enabled) return; const now=(nowArg!=null?+nowArg:(G.nocturneNow!=null?+G.nocturneNow:Date.now()));
+  const src=G.nocturneServer||{}, noct={}, hl=Math.max(1,(NOCTURNE_HUNT.halfLifeSec|0))*1000, cap=Math.max(0,(NOCTURNE_HUNT.capNocturne|0));
+  for(const pid in src){ const raw=src[pid]; if(!raw) continue;
+    const base=Math.max(0,+raw.noct||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let w=base * Math.pow(0.5, dtMs/hl); if(cap>0) w=Math.min(cap,w);
+    if(w>0) noct[pid]=w; }
+  G.nocturne={ noct, nowMs:now }; }
+// helper server-side: ACUMULA `add` unidades de caza nocturna para un pid sobre el `nocturne` proyectado al `atMs` (mirror eruditionAccrue, keyed pid). Puro sobre G.nocturneServer; devuelve el nuevo raw.
+function nocturneAccrue(pid, add, atMs){ pid=(pid!=null?String(pid):nocturneSelfPid()); add=Math.max(0,+add||0);
+  const src=G.nocturneServer||(G.nocturneServer={}), raw=src[pid], hl=Math.max(1,(NOCTURNE_HUNT.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.noct||0):0, prevAt=raw?(+raw.atMs||0):atMs, dtMs=Math.max(0,atMs-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl);
+  src[pid]={ noct:projected+add, atMs:(+atMs||0) }; return src[pid]; }
+// helper server-side: REGISTRA una marca de kill (n=1 si isNightAt(atMs), 0 si día; + t) para un pid y PODA las marcas fuera de la ventana [atMs−windowSec, atMs]. Puro salvo la escritura en G.nocturneMarks. Mirror loreMark (fase de noche, no tipo).
+function nocturneMark(pid, atMs){ pid=(pid!=null?String(pid):nocturneSelfPid()); const src=G.nocturneMarks||(G.nocturneMarks={});
+  const win=Math.max(0,(NOCTURNE_HUNT.windowSec|0))*1000, lo=(+atMs||0)-win;
+  let arr=(src[pid]||[]).filter(m=>m && (+m.t||0)>=lo);   // poda las marcas expiradas de la ventana
+  arr.push({ n:isNightAt(atMs)?1:0, t:(+atMs||0) }); src[pid]=arr; return arr; }
+// helper server-side: dado un array de kills {t} (timestamps), REGISTRA cada marca (deriva la fase de noche del propio t). Puro salvo la escritura en G.nocturneMarks. Mirror lorePathStep (kills, fase de noche por t).
+function nocturneKillStep(pid, kills, atMs){ if(!Array.isArray(kills)) return null; let last=null;
+  for(let i=0;i<kills.length;i++){ const p=kills[i]||{}; const t=(p.t!=null?+p.t:(+atMs||0)); last=nocturneMark(pid, t); } return last; }
+// helper server-side: dado el dt de un tick, computa el tally ACTUAL del pid (nightTally sobre sus marcas en la ventana) y ACUMULA accruePerSec·dt si la caza nocturna se sostiene (tally≥minKills), o SÓLO decae
+// (add 0). Devuelve { tally, add, raw }. Mismo patrón que loreStep. Prueba diferenciadores: kills de día ⇒ tally 0 ⇒ decae; K kills de noche ⇒ tally K≥min ⇒ acumula; 1-tick ⇒ nocturne ínfimo (permanencia).
+function nocturneStep(pid, dtSec, atMs){ pid=(pid!=null?String(pid):nocturneSelfPid()); const win=Math.max(0,(NOCTURNE_HUNT.windowSec|0))*1000;
+  const marks=(G.nocturneMarks&&G.nocturneMarks[pid])||[], tally=nightTally(marks, atMs, win);
+  const add=nocturneSustains(tally) ? (Math.max(0,+NOCTURNE_HUNT.accruePerSec||0)*Math.max(0,+dtSec||0)) : 0;
+  const raw=nocturneAccrue(pid, add, atMs); return { tally, add, raw }; }
+// glifo de la caza nocturna para el badge (mirror eruditionTag): ☾ (luna creciente) si el jugador local en zona de caza tiene una caza nocturna abierta (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0 / fuera de zona.
+export function nocturneTag(h){ h=h||G.hero; if(!NOCTURNE_HUNT.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(NOCTURNE_HUNT.zones||[]).indexOf(z)<0) return ""; return nocturneOpen() ? "☾" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su `nocturne` LIVE server-authoritative, tier vigente y boost efectivo del canal goldFind (tras de-stack con Kinship/Focus). 0 sim/RNG/side-effect.
+export function nocturneVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const huntable=!!(z && (NOCTURNE_HUNT.zones||[]).indexOf(z)>=0);
+  const noct=nocturneVal(nocturneSelfPid()), tier=huntable?nocturneTier(noct):0;
+  return { enabled:!!NOCTURNE_HUNT.enabled, zone:z, huntable, noct:+noct.toFixed(2), tier, tierCount:(NOCTURNE_HUNT.tiers||[]).length,
+    boostKind:NOCTURNE_HUNT.channel||"goldFind", boost: huntable ? (h?nocturneMul(h,NOCTURNE_HUNT.channel||"goldFind"):0) : 0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -5873,7 +5946,7 @@ export function tryPickup(){
   const h=G.hero;
   for(const d of G.drops){ if(d.taken) continue; if(dist2(h.x,h.y,d.x,d.y)<CFG.pickRange*CFG.pickRange){
     if(d.kind==="gold"){ let g=d.amt||ri(3,8);
-      const gf=kinshipMul(h,"goldFind")+focusMul(h,"goldFind"); if(gf>0) g=Math.round(g*(1+gf));   // CAS-2361/2370: canal goldFind — un vínculo (Camaradería #60) O un fuego concentrado (Fuego Concentrado #62) abierto en la zona da +boost de oro. Máximo-único: FOCUS cede a KINSHIP ⇒ SÓLO uno ≠0 (0 doble-conteo). Ambos gated ⇒ OFF ⇒ gf 0 ⇒ g intacto ⇒ byte-id
+      const gf=kinshipMul(h,"goldFind")+focusMul(h,"goldFind")+nocturneMul(h,"goldFind"); if(gf>0) g=Math.round(g*(1+gf));   // CAS-2361/2370/2393: canal goldFind — un vínculo (Camaradería #60) O un fuego concentrado (#62) O una caza nocturna (Cazador Nocturno #66) abierto da +boost de oro. Máximo-único: NOCTURNE cede a FOCUS cede a KINSHIP ⇒ SÓLO uno ≠0 (0 doble-conteo). Todos gated ⇒ OFF ⇒ gf 0 ⇒ g intacto ⇒ byte-id
       h.gold+=g; audio.sfx.coin(); floater(h.x,h.y-26,"+"+g+" oro",C_GOLD); }
     else if(d.kind==="potionhp"){ h.potHP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de vida")); }
     else if(d.kind==="potionmp"){ h.potMP++; audio.sfx.pickup(); toast(STR.pickedUp("poción de maná")); }
@@ -8886,6 +8959,69 @@ export const dev = {
       nowMs:(G.lore&&G.lore.nowMs)||null,                              // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       probe: probe,                                                       // resultado de la función PURA loreVariety (byte-verificación de casos borde)
       xpPicked,                                                           // resultado del xpTick sintético { base, fellowBonus, eruditionBonus, mult, paid } (prueba del seam xpGain en aislamiento)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2393: NOCTURNE / CAZADOR NOCTURNO OBSERVABLE hook (DARK, NOCTURNE_HUNT — eje FASE TEMPORAL/CAZA NOCTURNA + canal REUSADO goldFind con de-stack a KINSHIP #60 y FOCUS #62). Sólo lectura + drivers de PRUEBA
+  // gateados (0 hotkey — passive AMBIENTAL emerge del combate/kills nocturnos, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO nocturne/tier/boost en N clientes. INDIVIDUAL (per-pid, mirror erudition).
+  //   nocturne()                                        → snapshot {enabled,channel,zones,tiers,...,self,zone,noct,tier,boost,goldFindMul,peer muls ⊥,tag,noctMap,gExists,nowMs,tallyProbe,phaseProbe,goldPicked,hero}
+  //   nocturne({enabled})                               → flip runtime IN-MEMORY de NOCTURNE_HUNT.enabled (sin tocar el disco)
+  //   nocturne({self})                                  → fija el pid LOCAL (el que aplica el pasivo a sí mismo) — 2-cliente
+  //   nocturne({phaseOverride})                         → fija la fase día/noche IN-MEMORY (0..1) para forzar noche/día determinista (null = reloj real)
+  //   nocturne({nowMs})                                 → fija el reloj compartido G.nocturneNow (proyecta el decay a ese instante)
+  //   nocturne({push})                                  → el server empuja el snapshot crudo { pid → { noct, atMs } } ⇒ refleja+proyecta
+  //   nocturne({marks:{pid:[{n,t}]}})                   → fija las marcas crudas de kill (n=noche 1/0) por pid (para computar el tally)
+  //   nocturne({kills:{pid:[{t}]}})                     → server-side: REGISTRA cada marca de kill derivando n=isNightAt(t) (diferenciador Erudition: kills de DÍA ⇒ tally 0 ⇒ NO abre; kills de NOCHE ⇒ abre aunque sean el MISMO tipo)
+  //   nocturne({step:{pid:{dt}}})                       → server-side: computa el tally actual del pid y ACUMULA accruePerSec·dt si tally≥minKills (o sólo decae) — prueba el acumulador+permanencia
+  //   nocturne({tallyProbe:{marks,now,windowMs}})       → devuelve la función PURA nightTally (byte-verificación de casos borde) SIN tocar el snapshot
+  //   nocturne({phaseProbe:t})                          → devuelve { phase, night } de isNightAt/nocturnePhaseAt para un t (byte-verifica la derivación de la fase)
+  //   nocturne({noct,pid,atMs})                         → empuja el nocturne crudo (acumulador) de UN pid directamente
+  //   nocturne({goldTick:{base}})                       → aplica EXACTAMENTE el seam tryPickup (mult goldFind = 1+kinship+focus+nocturne, de-stack) a un oro base ⇒ byte-verifica el canal en aislamiento (OFF ⇒ paid==base·(1+kinship+focus))
+  //   nocturne({toZone}) / ({leave}) / ({clear})        → teleporta a la zona / aleja de toda zona / limpia el snapshot+marcas server
+  nocturne(p){
+    let probe=null, phaseProbe=null, goldPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) NOCTURNE_HUNT.enabled=!!p.enabled;
+      if("self" in p) G.nocturneSelf=(p.self!=null?String(p.self):null);
+      if("phaseOverride" in p) G.nocturnePhaseOverride=(p.phaseOverride!=null?+p.phaseOverride:null);
+      if("nowMs" in p){ G.nocturneNow=+p.nowMs; tickNocturne(G.nocturneNow); }
+      if("push" in p){ G.nocturneServer=Object.assign({}, G.nocturneServer||{}, p.push||{}); tickNocturne(G.nocturneNow); }   // el server empuja el nocturne crudo por pid ⇒ refleja+proyecta
+      if("marks" in p && p.marks && typeof p.marks==="object"){ G.nocturneMarks=Object.assign({}, G.nocturneMarks||{}); for(const pid in p.marks){ G.nocturneMarks[pid]=(p.marks[pid]||[]).map(m=>({ n:((+(m&&m.n)||0)===1?1:0), t:(+(m&&m.t)||0) })); } }   // fija marcas crudas de kill (n=noche) por pid
+      if("kills" in p && p.kills && typeof p.kills==="object"){ const at=(G.nocturneNow!=null?+G.nocturneNow:0);
+        for(const pid in p.kills){ nocturneKillStep(pid, p.kills[pid], at); } }   // server-side: registra marcas de kill (deriva n=isNightAt(t) por cada t)
+      if("step" in p && p.step && typeof p.step==="object"){ const at=(G.nocturneNow!=null?+G.nocturneNow:0);
+        for(const pid in p.step){ const s=p.step[pid]||{}; nocturneStep(pid, s.dt, at); } tickNocturne(G.nocturneNow); }   // server-side: computa el tally y acumula/decae
+      if("tallyProbe" in p && p.tallyProbe && typeof p.tallyProbe==="object"){ const tp=p.tallyProbe;
+        probe=nightTally(tp.marks, (tp.now!=null?+tp.now:(G.nocturneNow!=null?+G.nocturneNow:0)), tp.windowMs); }   // función PURA, SIN tocar el snapshot
+      if("phaseProbe" in p){ const t=+p.phaseProbe||0; phaseProbe={ phase:+nocturnePhaseAt(t).toFixed(6), night:isNightAt(t) }; }   // deriva fase→noche de un t (PURA)
+      if("noct" in p){ const pid=(p.pid!=null?String(p.pid):nocturneSelfPid()); const at=("atMs" in p)?+p.atMs:(G.nocturneNow!=null?+G.nocturneNow:0);
+        G.nocturneServer=Object.assign({}, G.nocturneServer||{}); G.nocturneServer[pid]={ noct:+p.noct||0, atMs:at }; tickNocturne(G.nocturneNow); }
+      if(p.clear){ G.nocturneServer={}; G.nocturneMarks={}; tickNocturne(G.nocturneNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((NOCTURNE_HUNT.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("goldTick" in p && p.goldTick && typeof p.goldTick==="object"){ const base=Math.max(0,Math.round(+p.goldTick.base||0));
+        const kb=(G.hero?kinshipMul(G.hero,"goldFind"):0), fb=(G.hero?focusMul(G.hero,"goldFind"):0), nb=(G.hero?nocturneMul(G.hero,"goldFind"):0);   // de-stack: si kb/fb>0 ⇒ nb==0 (aplica el MAYOR)
+        const gf=kb+fb+nb, paid=Math.round(base*(1+gf));   // MISMA lógica que el seam tryPickup (g·(1+kinship+focus+nocturne))
+        goldPicked={ base, kinshipBonus:+kb.toFixed(6), focusBonus:+fb.toFixed(6), nocturneBonus:+nb.toFixed(6), mult:+(1+gf).toFixed(6), paid }; }   // OFF/tier0/con-vínculo-o-fuego ⇒ nb 0 ⇒ paid==round(base·(1+kinship+focus)) byte-id
+    }
+    const h=G.hero, vm=nocturneVM(h);
+    return { enabled:NOCTURNE_HUNT.enabled, channel:NOCTURNE_HUNT.channel||"goldFind", zones:(NOCTURNE_HUNT.zones||[]).slice(), tiers:(NOCTURNE_HUNT.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost||0})), windowSec:NOCTURNE_HUNT.windowSec|0, minKills:NOCTURNE_HUNT.minKills|0, halfLifeSec:NOCTURNE_HUNT.halfLifeSec|0, capNocturne:NOCTURNE_HUNT.capNocturne|0, accruePerSec:+NOCTURNE_HUNT.accruePerSec||0, nightStart:+NOCTURNE_HUNT.nightStart, nightEnd:+NOCTURNE_HUNT.nightEnd, phaseOverride:(G.nocturnePhaseOverride!=null?+G.nocturnePhaseOverride:NOCTURNE_HUNT.phaseOverride),
+      self:nocturneSelfPid(), zone:vm.zone, huntable:vm.huntable, noct:vm.noct, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, boost:vm.boost,
+      goldFindMul: h?nocturneMul(h,"goldFind"):0,                          // boost EFECTIVO del jugador local (canal goldFind tras de-stack; prueba: OFF/tier0/con-vínculo-o-fuego ⇒ 0 ⇒ byte-id)
+      kinshipGoldMul: h?kinshipMul(h,"goldFind"):0,                        // canal goldFind de KINSHIP (MISMO canal) — prueba de-stack: si >0 ⇒ nocturneMul cede a 0
+      focusGoldMul: h?focusMul(h,"goldFind"):0,                            // canal goldFind de FOCUS (MISMO canal) — prueba de-stack: si >0 ⇒ nocturneMul cede a 0
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE: goldFind NO lo toca (⊥) ⇒ prueba 0 doble-conteo
+      xpGainMul: h?(fellowMul(h,"xpGain")+eruditionMul(h,"xpGain")):0,     // canal xpGain (Fellowship/Erudition) — INDEPENDIENTE: goldFind NO lo toca (⊥)
+      wardRegenMul: h?wardMul(h,"wardRegen"):0,                            // canal wardRegen — INDEPENDIENTE
+      oocMitigMul: h?wayRoamMul(h,"oocMitigation"):0,                      // canal oocMitigation (Wayfarer) — INDEPENDIENTE
+      lootQualityFloor: (typeof trailcraftFloor==="function")?(trailcraftFloor()||""):"",   // canal lootQuality (Trailcraft) — INDEPENDIENTE
+      critBonusPct: (typeof delveCritBonusPct==="function")?delveCritBonusPct():0,   // canal critChance (Delve) — INDEPENDIENTE
+      tag: nocturneTag(h),                                                // glifo SERVIDO (prueba: OFF/tier0/fuera-de-zona ⇒ "" / caza nocturna abierta ⇒ ☾)
+      precedence:"goldFind (canal REUSADO, bono de oro por el chokepoint tryPickup): PRECEDENCIA máximo-único DENTRO del canal ⇒ NOCTURNE (#66) CEDE a KINSHIP_BOND (#60) y FOCUS_FIRE (#62, más antiguas): si kinshipMul(goldFind)>0 O focusMul(goldFind)>0 ⇒ nocturneMul=0 (aplica el MAYOR, 0 doble-dip). 3ª fuente de goldFind (KINSHIP>FOCUS>NOCTURNE). ORTOGONAL a restedMult (pool de Descanso), xpGain (gainXP), wardRegen (regen HP), oocMitigation (damageHero), lootQuality (rollGearInst/rareza) y critChance (crit) ⇒ jamás dobla con NINGÚN otro canal; INDIVIDUAL + TEMPORAL por FASE del kill (OPUESTO a Erudition diversidad de presas)",
+      noctMap: (G.nocturne&&G.nocturne.noct)?JSON.parse(JSON.stringify(G.nocturne.noct)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.nocturne!=null),                                         // prueba byte-id: OFF ⇒ G.nocturne NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.nocturne&&G.nocturne.nowMs)||null,                        // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      probe: probe,                                                       // resultado de la función PURA nightTally (byte-verificación de casos borde)
+      phaseProbe,                                                         // resultado de { phase, night } de isNightAt/nocturnePhaseAt para un t
+      goldPicked,                                                         // resultado del goldTick sintético { base, kinshipBonus, focusBonus, nocturneBonus, mult, paid } (prueba del seam goldFind en aislamiento)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
