@@ -2719,6 +2719,30 @@ export const NOCTURNE_HUNT = {
   ],
 };
 
+// CAS-2400: CADENCIA / ÍMPETU DE COMBATE (DARK, CADENCE_RUSH) — EVO mecánica #67 (serializa tras #66 NOCTURNE LIVE). EJE FRESCO TEMPO/CADENCIA DE MATANZA + CANAL REUSADO critChance (SHARE-CAP con Delve). ⊥/DISTINTO a todo lo enviado #47-66:
+//   - EJE FRESCO **TEMPO/RITMO DE MATANZA** (con qué RAPIDEZ EN SUCESIÓN peleas): un **combo-meter rodante server-authoritative** que SUBE `bumpPerKill` en CADA kill y DECAE por vida-media continua (mirror decay Nocturne/Delve, reloj COMPARTIDO ⇒ mismo meter en N clientes, sin timer client-local).
+//     El RATE emerge del balance bump-vs-decay: matar RÁPIDO (muchos bumps antes de que decaigan) ⇒ el meter TREPA sobre los umbrales de tier; una PAUSA lo deja decaer. NO es CUÁNDO (Nocturne fase temporal) ni A QUIÉN (Focus/Erudition) ni DÓNDE (Trailcraft/Delve/Wayfarer) ni SOCIAL (Kinship) — es CUÁN RÁPIDO EN SUCESIÓN.
+//     Distinto a Nocturne #66 (que cuenta kills-de-noche en una VENTANA fija con gate minKills+fase): Cadencia NO tiene ventana-conteo ni gate de fase — cada kill BUMPEA el meter directo y el tempo sale del bump-vs-decay. Half-life CORTO (6s ≪ 25s de Nocturne/Delve) ⇒ sensible al RATE (hay que seguir matando para sostenerlo).
+//   - CANAL REUSADO `critChance` (precisión ofensiva, el 6º canal — MISMO que Delve #64): SUMA % de crítico como TÉRMINO AISLADO, con DOBLE cap: (1) CAP DURO propio `cadenceCritCap` (≤0.35 abs) y (2) **SHARE-CAP con el bono de crit de Delve** — el bono COMBINADO delve+cadence se capa a `cadenceCritCap` ⇒ Cadencia sólo toma el margen que deja Delve (0 doble-dip más allá del techo; mismo patrón share-cap que Nocturne `vamp` vs Vampírico). ⊥ goldFind/restedMult/wardRegen/oocMitigation/lootQuality/xpGain (seams distintos).
+// HARD-GATED: enabled:false ⇒ tickCadence jamás corre (Date.now nunca se llama), G.cadence/G.cadenceServer NUNCA se crean, cadenceCritBonusPct RETURN 0 ⇒ el bloque nuevo del seam de crit queda BYTE-IDÉNTICO a HEAD (el srand de crit se consume igual). Reversible en 1 línea. anti-stacking: 1 arco valida a la vez.
+export const CADENCE_RUSH = {
+  enabled: false,            // DARK (EVO#67) — flag presente pero OFF; NO se flipa en esta tarea. Reversible 1-línea false→true tras QA DARK + CEO Gate (serializado tras #66 NOCTURNE LIVE&verificado). anti-stacking: 1 arco valida a la vez.
+  channel: "critChance",     // canal REUSADO (6º, precisión ofensiva) — MISMO que Delve #64. De-stack por SHARE-CAP: el bono combinado delve+cadence se capa a cadenceCritCap ⇒ 0 doble-dip. ⊥ goldFind/restedMult/wardRegen/oocMitigation/lootQuality/xpGain (seams distintos). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el bono de crit APLICA (mirror DELVE.zones/NOCTURNE_HUNT.zones — la ciudad/SAFEZONE fuera). El meter acumula por kill; la APLICACIÓN del crit se zone-gatea aquí.
+  // Reloj/decay COMPARTIDO DETERMINISTA (mirror tickNocturne/tickDelve, MMORPG-safe): el meter proyectado de un pid = raw·0.5^(dt/halfLife) al `now` del reloj compartido ⇒ mismo decay en N clientes (0 RNG, 0 timer client-local).
+  bumpPerKill: 1,            // cuánto SUBE el meter por cada kill (evento server-auth del stream de kills). CEO balance knob.
+  halfLifeSec: 6,            // vida-media del DECAY determinista (sin RNG) del meter: cae a la mitad cada 6s. CORTO a propósito ⇒ el meter mide el TEMPO RECIENTE (rate), no un total histórico. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capCadence: 10,            // techo del meter proyectado (evita crecimiento ilimitado; el tier máx satura antes). CEO balance knob.
+  cadenceCritCap: 35,        // CAP DURO propio del bono de crit de Cadencia en % (≤0.35 abs) Y techo del bono COMBINADO delve+cadence (SHARE-CAP): min(cadenceCritCap, delveBonus+cadenceBonus) ⇒ 0 doble-dip. Anti-runaway. CEO balance knob.
+  critCapPct: 50,            // CAP DURO ABSOLUTO del critChance TOTAL (base+bonos) en % (≤0.5 abs) — MISMO 50 que Delve; el bono de cadencia NUNCA reduce el crit base (sólo AÑADE hasta el tope). CEO balance knob.
+  // TABLA de tiers: un tier está vigente si el meter `cad` ≥ min (umbral de tempo sostenido). Tier vigente = el más alto que cumple. Determinista, monótono por meter. El `critPct` máx (25) ≤ cadenceCritCap (35).
+  tiers: [
+    { min: 2, critPct: 8 },     // Tier 1 — ímpetu incipiente (≥2 kills recientes sostenidos, meter≥2): +8% crit.
+    { min: 4, critPct: 15 },    // Tier 2 — ímpetu firme (meter≥4): +15% crit.
+    { min: 6, critPct: 25 },    // Tier 3 — ímpetu desatado (meter≥6): +25% crit (≤ cadenceCritCap 35, share-cap con Delve). CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

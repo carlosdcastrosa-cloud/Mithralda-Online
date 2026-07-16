@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4337,6 +4337,57 @@ export function nocturneVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null
   return { enabled:!!NOCTURNE_HUNT.enabled, zone:z, huntable, noct:+noct.toFixed(2), tier, tierCount:(NOCTURNE_HUNT.tiers||[]).length,
     boostKind:NOCTURNE_HUNT.channel||"vamp", boost: huntable ? (h?nocturneMul(h,NOCTURNE_HUNT.channel||"vamp"):0) : 0 }; }
 
+// CAS-2400: CADENCIA / ÍMPETU DE COMBATE (DARK, CADENCE_RUSH) — EVO mecánica #67. EJE FRESCO TEMPO/CADENCIA DE MATANZA (con qué RAPIDEZ EN SUCESIÓN peleas) + canal REUSADO `critChance` (precisión ofensiva, MISMO canal
+// que Delve #64; SHARE-CAP con el bono de crit de Delve ⇒ el bono COMBINADO se capa a cadenceCritCap ≤0.35). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server empuja un COMBO-METER rodante { pid → { cad, atMs } }:
+// cada kill BUMPEA el meter (+bumpPerKill), y el meter DECAE por vida-media continua (mirror decay Nocturne/Delve). El RATE emerge del balance bump-vs-decay: matar RÁPIDO ⇒ los bumps ganan al decay ⇒ el meter TREPA sobre los umbrales
+// de tier; una PAUSA lo deja decaer. NO hay ventana-conteo ni gate de fase (a diferencia de Nocturne) — el tempo sale directo del meter. Half-life CORTO (6s) ⇒ sensible al RATE. TIERS por UMBRAL de meter sostenido. OFF ⇒ byte-id.
+// cadenceSelfPid(): pid del jugador LOCAL (el que aplica el pasivo a sí mismo). Transitorio G.cadenceSelf (inyectable por el harness para 2-cliente); default "self". SIN estado per-hero/serializado. Mirror nocturneSelfPid.
+function cadenceSelfPid(){ return (G.cadenceSelf!=null)?String(G.cadenceSelf):"self"; }
+// `cad` (meter) PROYECTADO de un pid leído del snapshot reflejado en G.cadence.cad (ya proyectado al `now` por tickCadence). 0 si sin snapshot / pid ausente. Puro.
+function cadenceVal(pid){ const g=G.cadence; if(!g||!g.cad) return 0; return +g.cad[pid!=null?String(pid):cadenceSelfPid()]||0; }
+// cadenceTier(cad) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ cad. Determinista, monótono, sin histéresis. OFF/sin tiers ⇒ 0.
+function cadenceTier(cad){ const T=CADENCE_RUSH.tiers||[]; cad=+cad||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && cad>=(+T[i].min||0)) idx=i+1; } return idx; }
+// bono de critChance (%) del canal critChance del tier vigente (0 si Tier 0). Puro. El gate global lo cubre cadenceCritBonusPct; el share-cap con Delve lo aplica el seam de crit; aquí sólo la TABLA determinista.
+function cadenceCritStepFor(cad){ const t=cadenceTier(cad); return t>0 ? (+CADENCE_RUSH.tiers[t-1].critPct||0) : 0; }
+function cadenceCritStep(pid){ pid=(pid!=null?pid:cadenceSelfPid()); return cadenceCritStepFor(cadenceVal(pid)); }
+function cadenceOpen(){ return cadenceTier(cadenceVal(cadenceSelfPid()))>0; }
+// cadenceCritBonusPct() = el bono de critChance (%) que el jugador LOCAL con ímpetu abierto (tier≥1) SUMA a su golpe EN una zona de caza. Canal REUSADO critChance. TÉRMINO AISLADO — el CAP DURO propio y el SHARE-CAP con Delve los aplica
+// el seam de crit (killEnemy). OFF/tier0/fuera-de-zona ⇒ 0 ⇒ el bloque nuevo del seam NO cambia critPct ⇒ el srand de crit se consume EXACTAMENTE igual ⇒ RNG byte-idéntico. Puro (0 RNG/estado/side-effect).
+function cadenceCritBonusPct(){ if(!CADENCE_RUSH.enabled) return 0; const h=G.hero; if(!h) return 0;
+  const z=zoneOf(world,h.x,h.y); if(!z || (CADENCE_RUSH.zones||[]).indexOf(z)<0) return 0;   // el héroe NO está en una zona de caza ⇒ 0 (ciudad/SAFEZONE fuera)
+  return cadenceCritStep(cadenceSelfPid()); }                                                  // tier 0 ⇒ 0 ⇒ crit sin cambio (byte-id vs baseline)
+// cadenceCritCapPct() = techo DURO del bono de crit de Cadencia y del bono COMBINADO delve+cadence (SHARE-CAP). Mismo patrón que nocturneVampCap. Puro. Default 35 (≤0.35 abs) si mal configurado.
+function cadenceCritCapPct(){ const c=+CADENCE_RUSH.cadenceCritCap; return (c>0&&c<=100)?c:35; }
+// tick del ÍMPETU (mirror tickNocturne/tickDelve): REFLEJA el snapshot server-authoritative { pid → { cad, atMs } } (empujado por el server, cacheado en G.cadenceServer) y lo PROYECTA al `now` compartido aplicando el DECAY
+// determinista por vida-media (cad_now = cad·0.5^(max(0,now−atMs)/halfLife), 0 RNG, techo capCadence). SIN estado per-hero, SIN clave serializada. OFF ⇒ NUNCA se invoca ⇒ G.cadence/G.cadenceServer NUNCA se crean ⇒ byte-id.
+function tickCadence(nowArg){ if(!CADENCE_RUSH.enabled) return; const now=(nowArg!=null?+nowArg:(G.cadenceNow!=null?+G.cadenceNow:Date.now()));
+  const src=G.cadenceServer||{}, cad={}, hl=Math.max(1,(CADENCE_RUSH.halfLifeSec|0))*1000, cap=Math.max(0,(CADENCE_RUSH.capCadence|0));
+  for(const pid in src){ const raw=src[pid]; if(!raw) continue;
+    const base=Math.max(0,+raw.cad||0), atMs=+raw.atMs||0, dtMs=Math.max(0,now-atMs);
+    let w=base * Math.pow(0.5, dtMs/hl); if(cap>0) w=Math.min(cap,w);
+    if(w>0) cad[pid]=w; }
+  G.cadence={ cad, nowMs:now }; }
+// helper server-side: un KILL (evento del stream server-auth) BUMPEA el meter de un pid: proyecta el meter previo al `atMs` (decay) y SUMA bumpPerKill, con techo capCadence. Puro sobre G.cadenceServer; devuelve el nuevo raw.
+// ESTE es el diferenciador de RATE: dos kills muy juntos ⇒ apenas hay decay entre bumps ⇒ el meter TREPA; dos kills muy separados ⇒ el decay se come el bump previo ⇒ el meter se queda ~bumpPerKill (no acumula). Mirror nocturneAccrue.
+function cadenceBump(pid, atMs){ pid=(pid!=null?String(pid):cadenceSelfPid()); const src=G.cadenceServer||(G.cadenceServer={}), raw=src[pid], hl=Math.max(1,(CADENCE_RUSH.halfLifeSec|0))*1000;
+  const prevBase=raw?Math.max(0,+raw.cad||0):0, prevAt=raw?(+raw.atMs||0):(+atMs||0), dtMs=Math.max(0,(+atMs||0)-prevAt);
+  const projected=prevBase*Math.pow(0.5, dtMs/hl), cap=Math.max(0,(CADENCE_RUSH.capCadence|0));
+  let cad=projected+Math.max(0,+CADENCE_RUSH.bumpPerKill||0); if(cap>0) cad=Math.min(cap,cad);
+  src[pid]={ cad, atMs:(+atMs||0) }; return src[pid]; }
+// helper server-side: dado un array de kills {t} (timestamps), BUMPEA el meter en cada uno (deriva el decay del propio t). Puro salvo la escritura en G.cadenceServer. Mirror nocturneKillStep pero SIN gate de fase (todo kill cuenta al tempo).
+function cadenceKillStep(pid, kills, atMs){ if(!Array.isArray(kills)) return null; let last=null;
+  for(let i=0;i<kills.length;i++){ const p=kills[i]||{}; const t=(p.t!=null?+p.t:(+atMs||0)); last=cadenceBump(pid, t); } return last; }
+// glifo del ímpetu para el badge (mirror nocturneTag/delveTag): ⏩ (avance rápido/tempo) si el jugador local en zona de caza tiene un ímpetu abierto (tier≥1). Puro, 0 sim/RNG. "" si OFF / tier 0 / fuera de zona.
+export function cadenceTag(h){ h=h||G.hero; if(!CADENCE_RUSH.enabled||!h) return ""; const z=zoneOf(world,h.x,h.y);
+  if(!z||(CADENCE_RUSH.zones||[]).indexOf(z)<0) return ""; return cadenceOpen() ? "⏩" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, su `cad` (meter) LIVE server-authoritative, tier vigente y bono efectivo del canal critChance (bono CRUDO del tier; el share-cap con Delve lo aplica el seam). 0 sim/RNG/side-effect.
+export function cadenceVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const rushable=!!(z && (CADENCE_RUSH.zones||[]).indexOf(z)>=0);
+  const cad=cadenceVal(cadenceSelfPid()), tier=rushable?cadenceTier(cad):0, critPct=rushable?cadenceCritStepFor(cad):0;
+  return { enabled:!!CADENCE_RUSH.enabled, zone:z, rushable, cad:+cad.toFixed(2), tier, tierCount:(CADENCE_RUSH.tiers||[]).length,
+    boostKind:CADENCE_RUSH.channel||"critChance", critPct, cadenceCritCap:cadenceCritCapPct(), critCapPct:CADENCE_RUSH.critCapPct|0 }; }
+
 // CAS-2278: knobs REUTILIZADOS con el bono del Intendente. GATED vía sanctuaryRewardMul ⇒ OFF/0-rewards ⇒ valor base exacto (byte-id).
 function recallCooldownSec(h){ return RECALL.cooldownSec * (1 - sanctuaryRewardMul(h,"recallCd") - oathMul(h,"recallCd") - ledgerMul(h,"recallCd")); }   // CAS-2295/2300: + pasivo Juramento + pasivo Libro (gated ⇒ OFF ×base exacto)
 function restedCapFor(h){ return RESTED_XP.poolCap * (1 + sanctuaryRewardMul(h,"restedCap") + oathMul(h,"restedCap") + ledgerMul(h,"restedCap")); }         // CAS-2295/2300: idem
@@ -4892,6 +4943,15 @@ function hitEnemy(e,dmg,ang,opt){
   // CAS-2380: DELVE (DARK) — canal FRESCO critChance: un descenso abierto (nº de BANDAS de profundidad distintas alcanzadas) SUMA critChance como TÉRMINO AISLADO, con CAP DURO absoluto (critCapPct=50 = 0.5 abs).
   // OFF/tier0/fuera-de-zona ⇒ delveCritBonusPct()=0 ⇒ el bloque no cambia critPct ⇒ el srand de crit se consume EXACTAMENTE igual que sin la feature ⇒ RNG byte-idéntico. El cap NUNCA reduce el crit base (sólo AÑADE hasta el tope).
   if(DELVE.enabled){ const db=delveCritBonusPct(); if(db>0){ const cap=Math.max(0,+DELVE.critCapPct||0); const room=Math.max(0,cap-critPct); critPct+=Math.min(db,room); } }
+  // CAS-2400: CADENCE_RUSH (DARK) — canal REUSADO critChance: un ímpetu abierto (combo-meter de tempo de matanza) SUMA critChance como TÉRMINO AISLADO, con DOBLE cap: (1) SHARE-CAP con el bono de crit de Delve — el bono
+  // COMBINADO delve+cadence se capa a cadenceCritCap ⇒ Cadencia sólo toma el margen que deja Delve (0 doble-dip más allá del techo, mirror share-cap Nocturne vamp) — y (2) el cap ABSOLUTO del crit total (base+bonos).
+  // OFF/tier0/fuera-de-zona ⇒ cadenceCritBonusPct()=0 ⇒ el bloque se salta ⇒ critPct sin cambio ⇒ el srand de crit se consume EXACTAMENTE igual ⇒ RNG byte-idéntico. El bono NUNCA reduce el crit base (sólo AÑADE hasta el tope).
+  if(CADENCE_RUSH.enabled){ const cb=cadenceCritBonusPct(); if(cb>0){
+      const db=DELVE.enabled?delveCritBonusPct():0;                 // el bono de Delve YA aplicado arriba (share partner del canal critChance)
+      const shareCap=cadenceCritCapPct();                           // techo del bono COMBINADO delve+cadence (≤35 = 0.35 abs)
+      const eff=Math.max(0, Math.min(shareCap, db+cb) - db);        // SHARE-CAP: sólo el margen que deja Delve bajo el techo combinado ⇒ 0 doble-dip (si db≥shareCap ⇒ eff 0, Cadencia cede)
+      const abs=Math.max(0,+CADENCE_RUSH.critCapPct||0), room=Math.max(0, abs-critPct);   // cap ABSOLUTO del crit total (base+bonos), mismo 50 que Delve
+      if(eff>0&&room>0) critPct+=Math.min(eff,room); } }
   let crit=false, riposted=false;
   // CAS-210: a live RIPOSTE window (armed by a perfect dodge) converts THIS hit into a
   // guaranteed crushing counter — forced crit × riposteMult — and is spent immediately. No
@@ -9026,6 +9086,58 @@ export const dev = {
       probe: probe,                                                       // resultado de la función PURA nightTally (byte-verificación de casos borde)
       phaseProbe,                                                         // resultado de { phase, night } de isNightAt/nocturnePhaseAt para un t
       vampHit,                                                            // resultado del vampHit sintético { dmg, base, nocturneBonus, cap, eff, heal, capped } (prueba del seam melee lifesteal + share-cap en aislamiento)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2400: CADENCIA / ÍMPETU DE COMBATE OBSERVABLE hook (DARK, CADENCE_RUSH — eje TEMPO/CADENCIA DE MATANZA + canal REUSADO critChance con SHARE-CAP vs Delve). Sólo lectura + drivers de PRUEBA gateados
+  // (0 hotkey — passive AMBIENTAL emerge del combo-meter de kills, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO cad/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror delve/nocturne).
+  //   cadence()                                         → snapshot {enabled,channel,zones,tiers,...,self,zone,cad,tier,critPct,cadenceCritCap,critBonusPct,peer muls ⊥,tag,cadMap,gExists,nowMs,critPicked,hero}
+  //   cadence({enabled})                                → flip runtime IN-MEMORY de CADENCE_RUSH.enabled (sin tocar el disco)
+  //   cadence({self})                                   → fija el pid LOCAL (el que aplica el pasivo a sí mismo) — 2-cliente
+  //   cadence({nowMs})                                  → fija el reloj compartido G.cadenceNow (proyecta el decay a ese instante)
+  //   cadence({push})                                   → el server empuja el snapshot crudo { pid → { cad, atMs } } ⇒ refleja+proyecta
+  //   cadence({kills:{pid:[{t}]}})                      → server-side: BUMPEA el meter en cada kill (diferenciador RATE: kills MUY juntos ⇒ el meter TREPA; kills MUY separados ⇒ el decay se los come ⇒ ~bumpPerKill, no acumula)
+  //   cadence({cad,pid,atMs})                           → empuja el meter crudo de UN pid directamente
+  //   cadence({critTick:{base}})                        → devuelve base/delve/cadence/total critPct (base sintético + bonos con SHARE-CAP delve+cadence + cap abs) ⇒ byte-verifica el seam critChance en aislamiento (OFF ⇒ total==base)
+  //   cadence({toZone}) / ({leave}) / ({clear})         → teleporta a la zona / aleja de toda zona / limpia el snapshot server
+  cadence(p){
+    let critPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) CADENCE_RUSH.enabled=!!p.enabled;
+      if("self" in p) G.cadenceSelf=(p.self!=null?String(p.self):null);
+      if("nowMs" in p){ G.cadenceNow=+p.nowMs; tickCadence(G.cadenceNow); }
+      if("push" in p){ G.cadenceServer=Object.assign({}, G.cadenceServer||{}, p.push||{}); tickCadence(G.cadenceNow); }   // el server empuja el meter crudo por pid ⇒ refleja+proyecta
+      if("kills" in p && p.kills && typeof p.kills==="object"){ const at=(G.cadenceNow!=null?+G.cadenceNow:0);
+        for(const pid in p.kills){ cadenceKillStep(pid, p.kills[pid], at); } tickCadence(G.cadenceNow); }   // server-side: bumpea el meter en cada kill (decay por el propio t)
+      if("cad" in p){ const pid=(p.pid!=null?String(p.pid):cadenceSelfPid()); const at=("atMs" in p)?+p.atMs:(G.cadenceNow!=null?+G.cadenceNow:0);
+        G.cadenceServer=Object.assign({}, G.cadenceServer||{}); G.cadenceServer[pid]={ cad:Math.max(0,+p.cad||0), atMs:at }; tickCadence(G.cadenceNow); }
+      if(p.clear){ G.cadenceServer={}; tickCadence(G.cadenceNow); }
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((CADENCE_RUSH.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("critTick" in p){ const base=(p.critTick && p.critTick.base!=null)?(+p.critTick.base||0):0;   // base sintético del crit del héroe (talents+milestones+boons)
+        let total=base; const db=DELVE.enabled?delveCritBonusPct():0, absCap=Math.max(0,(+DELVE.critCapPct||0));
+        if(DELVE.enabled && db>0){ const room=Math.max(0,absCap-total); total+=Math.min(db,room); }   // MISMA lógica que el seam killEnemy (Delve primero, término aislado + cap abs)
+        const cb=cadenceCritBonusPct(); let cadenceEff=0;
+        if(CADENCE_RUSH.enabled && cb>0){ const shareCap=cadenceCritCapPct(); cadenceEff=Math.max(0, Math.min(shareCap, db+cb) - db);   // SHARE-CAP con Delve (0 doble-dip más allá del techo combinado)
+          const abs=Math.max(0,(+CADENCE_RUSH.critCapPct||0)), room=Math.max(0, abs-total); const add=Math.min(cadenceEff, room); if(add>0) total+=add; else cadenceEff=Math.max(0,room); }
+        critPicked={ base, delveBonus:db, cadenceBonus:cb, cadenceEff:+cadenceEff.toFixed(6), shareCap:cadenceCritCapPct(), absCap, total:+total.toFixed(6), capped:(CADENCE_RUSH.enabled&&cb>0&&(db+cb)>cadenceCritCapPct()) }; }   // OFF/tier0 ⇒ total==base byte-id; capped=true ⇒ el share-cap recortó (0 doble-dip)
+    }
+    const h=G.hero, vm=cadenceVM(h);
+    return { enabled:CADENCE_RUSH.enabled, channel:CADENCE_RUSH.channel||"critChance", zones:(CADENCE_RUSH.zones||[]).slice(), tiers:(CADENCE_RUSH.tiers||[]).map(t=>({min:+t.min||0,critPct:+t.critPct||0})), bumpPerKill:+CADENCE_RUSH.bumpPerKill||0, halfLifeSec:CADENCE_RUSH.halfLifeSec|0, capCadence:CADENCE_RUSH.capCadence|0, cadenceCritCap:cadenceCritCapPct(), critCapPct:CADENCE_RUSH.critCapPct|0,
+      self:cadenceSelfPid(), zone:vm.zone, rushable:vm.rushable, cad:vm.cad, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, critPct:vm.critPct,
+      critBonusPct: cadenceCritBonusPct(),                                 // bono CRUDO del jugador local (canal critChance, pre share-cap; prueba: OFF/no-en-zona/tier0 ⇒ 0 ⇒ crit byte-id)
+      delveCritMul: DELVE.enabled?delveCritBonusPct():0,                   // bono de crit de Delve (share partner del MISMO canal critChance) — prueba el SHARE-CAP (combinado ≤ cadenceCritCap)
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE: critChance NO lo toca (⊥) ⇒ prueba 0 doble-conteo
+      goldFindMul: h?(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")):0,  // canal goldFind — INDEPENDIENTE (⊥)
+      vampMul: h?nocturneMul(h,"vamp"):0,                                  // canal vamp (Nocturne) — INDEPENDIENTE (⊥)
+      xpGainMul: h?(fellowMul(h,"xpGain")+eruditionMul(h,"xpGain")):0,     // canal xpGain (Fellowship/Erudition) — INDEPENDIENTE (⊥)
+      wardRegenMul: h?wardMul(h,"wardRegen"):0,                            // canal wardRegen — INDEPENDIENTE (⊥)
+      oocMitigMul: h?wayRoamMul(h,"oocMitigation"):0,                      // canal oocMitigation (Wayfarer) — INDEPENDIENTE (⊥)
+      lootQualityFloor: (typeof trailcraftFloor==="function")?(trailcraftFloor()||""):"",   // canal lootQuality (Trailcraft) — INDEPENDIENTE (⊥)
+      tag: cadenceTag(h),                                                  // glifo SERVIDO (prueba: OFF/tier0/fuera-de-zona ⇒ "" / ímpetu abierto ⇒ ⏩)
+      precedence:"critChance (canal REUSADO, PRECISIÓN OFENSIVA — MISMO canal que Delve #64): SUMA % de crítico como TÉRMINO AISLADO con SHARE-CAP contra el bono de Delve ⇒ el bono COMBINADO delve+cadence = min(cadenceCritCap≤0.35, delveBonus+cadenceBonus) ⇒ Cadencia cede el margen a Delve, 0 doble-dip más allá del techo (mirror share-cap Nocturne vamp vs Vampírico). Respeta también el cap ABSOLUTO del crit total (base+bonos). ORTOGONAL a goldFind (tryPickup/oro), restedMult (gainXP/XP), vamp (lifesteal), xpGain (gainXP), wardRegen (regen HP), oocMitigation (damageHero) y lootQuality (rollGearInst/rareza) ⇒ jamás dobla con NINGÚN otro canal; INDIVIDUAL + TEMPO (con qué RAPIDEZ EN SUCESIÓN matas — DISTINTO a Nocturne CUÁNDO, Delve DÓNDE/profundidad, Focus/Erudition A QUIÉN)",
+      cadMap: (G.cadence&&G.cadence.cad)?JSON.parse(JSON.stringify(G.cadence.cad)):null,   // snapshot server-authoritative proyectado (convergencia byte-a-byte entre clientes)
+      gExists:(G.cadence!=null),                                          // prueba byte-id: OFF ⇒ G.cadence NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      nowMs:(G.cadence&&G.cadence.nowMs)||null,                          // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
+      critPicked,                                                         // resultado del critTick sintético { base, delveBonus, cadenceBonus, cadenceEff, shareCap, absCap, total, capped } (prueba del seam critChance + SHARE-CAP en aislamiento)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2284: TOQUE DE GUERRA / SANCTUARY WARHORN OBSERVABLE hook (DARK). Snapshot autoritativo (sim) del horario compartido
   // derivado del reloj de pared + flip/drivers IN-MEMORY para OBSERVAR en DARK sin esperar minutos reales (disco sigue false,
