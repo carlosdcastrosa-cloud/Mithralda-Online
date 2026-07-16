@@ -2609,6 +2609,44 @@ export const TRAILCRAFT = {
   ],
 };
 
+// CAS-2380: DELVE / DESCENSO (DARK, DELVE) — EVO mecánica #64. EJE FRESCO + CANAL FRESCO, ambos ⊥/OPUESTOS a todo lo enviado #47-63:
+//   (A) EJE FRESCO = PROFUNDIDAD / DESCENSO VERTICAL (nº de BANDAS de profundidad DISTINTAS alcanzadas). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas
+//       de banda { pid → [{d,t}] } (d = BANDA de profundidad, derivada de ZONE_TIER[zoneOf].tier — 1..7, la elevación/zona-Z del mundo), computa `delveBands(marks,now,win)` = nº de BANDAS
+//       DISTINTAS en la ventana (PURA), y mientras bands≥minBands ACUMULA `delve` (accruePerSec·dt) con DECAY vida-media (familia acumulador tick/accrue/step #55-63). Empuja { pid → { delve, bands, atMs } };
+//       el cliente REFLEJA + PROYECTA al `now` compartido. El TIER exige DOS umbrales: `delve`≥min (PERMANENCIA — 1-tick no basta) Y `bands`≥bandsReq (el EJE — nº de bandas). ⇒ tier MONÓTONO por nº de bandas.
+//   (B) CANAL FRESCO = `critChance` (precisión ofensiva): con delve abierto (tier≥1) el server SUMA un bono de `critChance` (%) al golpe del héroe LOCAL, como TÉRMINO AISLADO en el seam de crit de killEnemy.
+//       CAP DURO ABSOLUTO (critCapPct=50% = 0.5 abs) sobre el critChance TOTAL (base+delve) ⇒ corta runaway; NUNCA reduce el crit base (sólo AÑADE hasta el cap). ⊥ goldFind (Kinship/Focus) ⊥ restedMult (XP)
+//       ⊥ wardRegen (HP) ⊥ oocMitigation (Wayfarer) ⊥ lootQuality (Trailcraft, rareza) ⇒ 0 doble-conteo, 0 runaway (NO move-speed). Único DENTRO de critChance (documentado para que futuras del arco de-stackeen aquí).
+//   · DIFERENCIADORES (ortogonalidad OBLIGATORIA — el eje usa PROFUNDIDAD/bandas verticales, no diversidad/amplitud/densidad):
+//       ≠ TRAILCRAFT (#63, DIVERSIDAD CUALITATIVA = nº de TIPOS de bioma DISTINTOS): dos zonas de MISMA banda (swamp/arena tier-4, o forest/…) suman +2 a la variedad de Trailcraft pero SÓLO +1 a las bandas de
+//         Delve ⇒ ejes ORTOGONALES. Recorrer 4 biomas del MISMO tier ⇒ Trailcraft alto, Delve bands 1 < minBands ⇒ NUNCA abre. DESCENDER forest(1)→ruins(2)→caves(3)→abyss(5) ⇒ Delve abre, Trailcraft también pero por otro eje.
+//       ≠ WAYFARER_ROAM (#61, AMPLITUD horizontal = celdas coarse distintas): Delve es VERTICAL (bandas de profundidad), NO área/distancia recorrida. Dar vueltas en 1 banda cubriendo muchas celdas ⇒ Wayfarer alto, Delve 0.
+//       ≠ KINSHIP (#60, densidad sedentaria pareada) / CONGREGATION (#51, headcount): no es sobre otros jugadores; es la profundidad de descenso PROPIA de UN jugador.
+//       ≠ posición ABSOLUTA: estar quieto en la banda MÁS profunda (abyss) ⇒ bands 1 < minBands ⇒ NO abre (el mérito es DESCENDER por VARIAS bandas, no estar hondo). Bajar y volver a la MISMA banda ⇒ bands no crece ⇒ NO sube tier.
+//       ≠ 1-tick efímero: bands≥minBands 1 tick (dt=0.5) ⇒ delve≈accruePerSec·0.5 < 2 ⇒ Tier 0 (permanencia). Decae vida-media al dejar de descender.
+//   · TIERS por (delve≥min ∧ bands≥bandsReq) → bono de critChance (%). Determinista, monótono por nº de bandas. Ver tabla.
+//   · INDICADOR $0-arte: badge procedural ⏷ (escalera descendente), 0 arte nuevo. NO nueva stat: sólo SUMA al critChance YA existente del seam de crit, con CAP DURO.
+// HARD-GATED: enabled:false ⇒ tickDelve jamás corre (Date.now nunca se llama), G.delve/G.delveServer/G.delveMarks NUNCA se crean, delveCritBonusPct RETURN 0 ⇒ el seam de crit queda BYTE-IDÉNTICO a HEAD
+// (el `srand` de crit se consume EXACTAMENTE igual que sin la feature ⇒ RNG intacto), delveTag "" ⇒ sim + save.v1 + worldFingerprint BYTE-IDÉNTICOS. SIN tocar input.js (passive 100% AMBIENTAL emerge del descenso). Reversible 1-línea. NÚMEROS = balance del CEO.
+export const DELVE = {
+  enabled: false,            // DARK (EVO#64, CAS-2380). Reversible 1-línea false→true tras QA DARK PASS + CEO Gate. byte-neutro OFF.
+  channel: "critChance",     // canal FRESCO del passive — sube la PROBABILIDAD de crítico (precisión ofensiva), NO daño/oro/HP/rareza. ⊥ goldFind/restedMult/wardRegen/oocMitigation/lootQuality. CAP DURO. CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza donde el pasivo de crit aplica (mirror TRAILCRAFT.zones/WAYFARER_ROAM.zones — la ciudad/SAFEZONE fuera). Sus bandas ZONE_TIER = {1,3,2,5,6,4} ⇒ 6 bandas DISTINTAS alcanzables (>minBands/T3-req 5). depthBandOf cubre las 7 bandas del mundo.
+  windowSec: 30,             // ventana deslizante (s) para contar BANDAS de profundidad distintas alcanzadas. CEO balance knob.
+  minBands: 2,               // nº mínimo de BANDAS DISTINTAS en la ventana para ACUMULAR delve. Quedarse en 1 banda (aunque sea la MÁS profunda) ⇒ bands 1 < 2 ⇒ nunca (no por posición absoluta). CEO balance knob.
+  halfLifeSec: 25,           // vida-media del DECAY determinista (sin RNG) del `delve` al dejar de descender: cae a la mitad cada 25s. Reloj de pared COMPARTIDO ⇒ mismo decay en N clientes. CEO balance knob.
+  capDelve: 12,              // techo del `delve` proyectado (evita crecimiento ilimitado; el tier lo cierra el nº de bandas). CEO balance knob.
+  accruePerSec: 1,           // `delve` acumulado por segundo con bands≥minBands sostenido (con min 2/4/6 ⇒ 2s/4s/6s para la PERMANENCIA de T1/T2/T3). CEO balance knob.
+  critCapPct: 50,            // CAP DURO ABSOLUTO del critChance TOTAL (base+delve) en % (≤ 0.5 abs). Corta runaway; el bono de delve NUNCA reduce el crit base — sólo AÑADE hasta el cap. CEO balance knob.
+  // TABLA de tiers: un tier está vigente si `delve`≥min (PERMANENCIA/decay) Y `bands`≥bandsReq (EJE profundidad). Tier vigente = el más alto que cumple AMBOS. Determinista, monótono por nº de bandas.
+  // `min` CRECE por tier ⇒ el decay vida-media del `delve` BAJA el tier gradualmente (T3→T2→T1→T0); `bands` es el TECHO (5+ bandas para T3). Con accruePerSec 1: sostener descenso ≥6s ⇒ delve≥6.
+  tiers: [
+    { min: 2, bands: 2, critPct: 8 },    // Tier 1 — descenso incipiente (≥2 bandas distintas, delve sostenido ≥2s): +8% crit.
+    { min: 4, bands: 3, critPct: 15 },   // Tier 2 — descenso firme (3-4 bandas, delve≥4): +15% crit.
+    { min: 6, bands: 5, critPct: 25 },   // Tier 3 — descenso profundo (5+ bandas, delve≥6): +25% crit (tope 50 abs). CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

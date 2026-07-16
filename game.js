@@ -398,6 +398,7 @@ export function createGame(canvas, ctx, getView){
       wayfarerRoam:(p)=>simDev.wayfarerRoam(p),  // CAS-2369: Trotamundos OBSERVABLE hook (DARK, WAYFARER_ROAM — canal FRESCO oocMitigation + eje amplitud de exploración individual/roaming breadth)
       focus:(p)=>simDev.focus(p),  // CAS-2370: Fuego Concentrado OBSERVABLE hook (DARK, FOCUS_FIRE — canal goldFind reusado + eje concentración de objetivo; de-stack máximo-único con KINSHIP)
       trailcraft:(p)=>simDev.trailcraft(p),  // CAS-2377: Sendero OBSERVABLE hook (DARK, TRAILCRAFT — canal FRESCO lootQuality/rareza + eje diversidad de terreno/variedad cualitativa; OPUESTO a Wayfarer amplitud)
+      delve:(p)=>simDev.delve(p),  // CAS-2380: Descenso OBSERVABLE hook (DARK, DELVE — canal FRESCO critChance/precisión con CAP DURO + eje profundidad/descenso vertical/bandas distintas; ORTOGONAL a Trailcraft diversidad de tipos)
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the
