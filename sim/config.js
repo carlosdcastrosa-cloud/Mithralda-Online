@@ -2793,6 +2793,25 @@ export const LAST_STAND = {
   ],
 };
 
+// CAS-2415: TERRENO FIRME / PISADA FIRME (DARK, FIRM_FOOTING) — EVO mecánica #70 (serializa tras #69 LAST_STAND LIVE&closed). EJE FRESCO **ESPACIAL / POSICIÓN-EN-EL-MUNDO**: el MATERIAL DE TERRENO server-auth del tile bajo el héroe.
+//  · PRE-FLIGHT HARD GATE (escalera del issue): (1) HIGH_GROUND/elevación — NO existe estado de altura/z server-auth en el sim (grep elevation|altitude|\.z = 0) ⇒ DEAD-END, descartado; (2) TERRAIN — `world.terr[ty*MAP_W+tx]` SÍ existe: array de material de tile (T_GRASS/T_DIRT/T_STONE/T_COBBLE/T_SAND/T_WATER/T_ICE/T_SWAMP/T_CALDERA/T_STREET),
+//    determinista, server-auth (poblado por buildWorld/buildTiledWorld, LEÍDO por el sim en solidBlocked water-check sim.js:2236, y HASHEADO en el worldFingerprint sim.js:13633). ⇒ ladder #2 elegida, flag renombrado a FIRM_FOOTING.
+//  · ⊥ a las 11 LIVE #59-#69: NO tiempo (Nocturne #66), NO clima (Tempest #68), NO tempo/ritmo (Cadence #67), NO densidad-de-enemigos (LAST_STAND #69), NO sendero/diversidad (Trailcraft #63), NO profundidad (Delve #64), NO conocimiento (Erudition #65), NO aliados (Kinship #60), NO ward (Warding #59).
+//    DISTINTO de los gates de ZONA (Warding/Congregation/… usan pertenencia a un RECT de zona = región gruesa): FIRM_FOOTING lee el MATERIAL fino del tile, que CRUZA zonas (piedra aparece en caves + calles de ciudad; hierba en forest + field + huecos de ciudad; arena en el arena). Es la dimensión espacial más FINA del jugador.
+//  · server-authoritative, PURO, 0-RNG, 0-timer, STATELESS: 0 acumulador per-pid, 0 G.firmFooting*, 0 marca, 0 clave serializada. El material bajo el héroe = función PURA del snapshot determinista (world.terr + pos del héroe) ⇒ MISMO tier para todo observador de ese héroe (convergencia byte-a-byte, 0 desync). El mismo tile ⇒ mismo tier en N clientes del shard.
+// Canal FRESCO `atkspd` (velocidad de ataque — NINGUNA de las 11 flags lo usa): alimenta el ÚNICO sink sumado heroAtkspd (sim.js:2558, CAS-197) que YA aplica un TECHO DURO GLOBAL ATKSPD_TOTAL_CAP=130 sobre TODAS las fuentes (affixes+talentos+buff+uniques+sets+sockets+Frenesí). ⇒ SHARE-CAP/DE-STACK AUTOMÁTICO:
+// atkspd EFECTIVA = min(ATKSPD_TOTAL_CAP, base + firmFooting) ⇒ 0 doble-dip más allá del techo (patrón min(cap, a+b) realizado como clamp global, mismo espíritu que Tempest lootQuality vs Trailcraft y LastStand wardRegen vs Warding). Además sub-cap PROPIO firmFootingCap por si el tier se re-tunea. BYTE-NEUTRO OFF: con enabled:false el aporte es +0 exacto ⇒ `s` sin cambio ⇒ heroAtkspd byte-idéntico al HEAD (mismo contrato "+0 ⇒ byte-identical" que ya documenta el seam para Frenesí).
+export const FIRM_FOOTING = {
+  enabled: true,             // LIVE (EVO#70, CAS-2421) — flip false→true tras QA DARK PASS (CAS-2419 17/17, CEO Gate APROBADO). Reversible 1-línea true→false + re-run overlay. anti-stacking: 1 arco valida a la vez.
+  channel: "atkspd",         // canal FRESCO (velocidad de ataque, puntos aditivos) — NINGUNA de las 11 flags #59-#69 lo usa. Entra al sink sumado heroAtkspd bajo el TECHO GLOBAL ATKSPD_TOTAL_CAP ⇒ de-stack/share-cap automático (min(cap, base+firm), 0 doble-dip). ⊥ wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult (seams distintos). CEO balance knob.
+  firmFootingCap: 16,        // SUB-CAP DURO PROPIO del aporte de FIRM_FOOTING (puntos de atkspd) — acota el bono de terreno aunque la tabla se re-tunee. = max(tiers.atkspd)=16 ⇒ neutral con la tabla actual; el share-cap GLOBAL vs el resto lo pone ATKSPD_TOTAL_CAP en heroAtkspd. CEO balance knob.
+  // TABLA de tiers por FIRMEZA del material del tile (footing/pisada) → `atkspd` = puntos ADITIVOS al sink heroAtkspd (bajo ATKSPD_TOTAL_CAP). Tier vigente = el MÁS ALTO cuya lista `terr` contiene el material bajo el héroe. Material NO listado (arena/agua/hielo/pantano/caldera = pisada suelta/traicionera) ⇒ Tier 0 ⇒ +0. Determinista, LUT pura.
+  tiers: [
+    { terr: [T_GRASS, T_DIRT], atkspd: 8 },              // Tier 1 — suelo natural firme (hierba/tierra): +8 atkspd. "pie plantado".
+    { terr: [T_STONE, T_COBBLE, T_STREET], atkspd: 16 }, // Tier 2 — piedra/adoquín/calle pavimentada (pisada firmísima): +16 atkspd. CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

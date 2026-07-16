@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2555,7 +2555,8 @@ export function heroAtkspd(h){ h=h||G.hero; if(!h) return 0;
   // CAS-1687: Esmeralda runes (+atkspd from filled sockets) sum in at the same seam, still under the shared cap.
   // CAS-1773: Frenesí adds frenzyStacks*perStack.atkspd (additive) BEFORE the shared cap, so
   // it can't runaway past ATKSPD_TOTAL_CAP. enabled:false ⇒ +0 ⇒ byte-identical.
-  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd+setTotals(h).atkspd+socketTotals(h).atkspd+(FRENZY.enabled?h.frenzyStacks*FRENZY.perStack.atkspd:0);
+  // CAS-2415: Terreno Firme (FIRM_FOOTING #70) suma su bono de atkspd por FIRMEZA del material del tile bajo el héroe (canal FRESCO atkspd) ANTES del techo compartido, así el SHARE-CAP/de-stack lo hace el mismo ATKSPD_TOTAL_CAP (min(cap, base+firm), 0 doble-dip). enabled:false ⇒ +0 ⇒ byte-identical.
+  const s=affixTotals(h).atkspd+(h.tt?h.tt.atkspd:0)+(h.atkspdBuffT>0?h.atkspdBuffAmt:0)+uniqTotals(h).atkspd+setTotals(h).atkspd+socketTotals(h).atkspd+(FRENZY.enabled?h.frenzyStacks*FRENZY.perStack.atkspd:0)+firmFootingAtkspd(h);
   return s>ATKSPD_TOTAL_CAP?ATKSPD_TOTAL_CAP:s; }
 
 // CAS-1773: MEDIDOR DE FRENESÍ decay tick — single source of truth (called from update(dt) and the
@@ -3895,6 +3896,36 @@ export function lastStandVM(h){ h=h||G.hero;
     wardBoost:+wr.toFixed(4), cap:+cap.toFixed(4), combinedBoost:+combined.toFixed(4),
     regenPct:+WARDING_RING.regenPct||0, regenRate:+((Math.max(0,+WARDING_RING.regenPct||0))*(1+combined)).toFixed(5),
     tag: lastStandTag(h) }; }
+
+// CAS-2415: TERRENO FIRME / PISADA FIRME (DARK, FIRM_FOOTING) — EVO mecánica #70. EJE FRESCO ESPACIAL: el MATERIAL de terreno server-auth del tile bajo el héroe (world.terr) + canal FRESCO atkspd (bajo el techo global ATKSPD_TOTAL_CAP ⇒ share-cap/de-stack automático). ⊥ a las 11 LIVE #59-#69.
+// heroTerr(h) = el material (T_*) del tile bajo el héroe, LEÍDO del world.terr server-auth (mismo array que solidBlocked/worldFingerprint). PURO (0 RNG/estado/side-effect). Fuera de mapa / sin world ⇒ -1 (⇒ Tier 0). Determinista ⇒ mismo material para todo observador del mismo snapshot.
+function heroTerr(h){ h=h||G.hero; if(!h||!world||!world.terr) return -1;
+  const tx=Math.floor(h.x/TS), ty=Math.floor(h.y/TS);
+  if(tx<0||ty<0||tx>=MAP_W||ty>=MAP_H) return -1;
+  return world.terr[ty*MAP_W+tx]|0; }
+// firmFootingTier(terr) = índice del tier vigente (0 = sin ventaja) = el MÁS ALTO cuya lista `terr` contiene el material. LUT determinista pura. Material no listado (arena/agua/hielo/pantano/caldera) ⇒ 0.
+function firmFootingTier(terr){ const T=FIRM_FOOTING.tiers||[]; terr=terr|0;
+  for(let i=T.length-1;i>=0;i--){ const arr=T[i]&&T[i].terr; if(Array.isArray(arr)&&arr.indexOf(terr)>=0) return i+1; } return 0; }
+// atkspd (puntos aditivos) que aporta el tier vigente para un material dado (0 si Tier 0), acotado por el sub-cap propio firmFootingCap. Puro (el gate global lo cubre firmFootingAtkspd/heroAtkspd; aquí sólo la TABLA determinista).
+function firmFootingAtkFor(terr){ const t=firmFootingTier(terr); if(t<=0) return 0;
+  const raw=+FIRM_FOOTING.tiers[t-1].atkspd||0, cap=Math.max(0,+FIRM_FOOTING.firmFootingCap||0);
+  return raw>cap?cap:raw; }
+// firmFootingAtkspd(h) = el bono de atkspd que aporta estar sobre TERRENO FIRME. Gated ⇒ OFF ⇒ 0 (byte-id: +0 en heroAtkspd). Puro (0 RNG/estado/reloj/side-effect). ⊥ a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult.
+function firmFootingAtkspd(h){ if(!FIRM_FOOTING.enabled||!h) return 0;
+  if((FIRM_FOOTING.channel||"atkspd")!=="atkspd") return 0;   // seguridad: FIRM_FOOTING SÓLO alimenta el canal atkspd (si el knob se re-apunta, no contribuye por defecto)
+  return firmFootingAtkFor(heroTerr(h)); }
+export function firmFootingTag(h){ h=h||G.hero; if(!FIRM_FOOTING.enabled||!h) return "";
+  return firmFootingTier(heroTerr(h))>0 ? "⛰" : ""; }
+// View-model PURO para el HUD/badge: el material server-auth bajo el héroe, el tier vigente, el bono de atkspd de FIRM_FOOTING, la atkspd TOTAL (capada) y el techo. 0 sim/RNG/side-effect.
+export function firmFootingVM(h){ h=h||G.hero;
+  const terr=(FIRM_FOOTING.enabled&&h)?heroTerr(h):-1;
+  const tier=(FIRM_FOOTING.enabled&&h)?firmFootingTier(terr):0;
+  const bonus=(FIRM_FOOTING.enabled&&h)?firmFootingAtkFor(terr):0;
+  const total=h?heroAtkspd(h):0;   // atkspd EFECTIVA (Σ fuentes, clamped a ATKSPD_TOTAL_CAP) — expone el share-cap global
+  return { enabled:!!FIRM_FOOTING.enabled, channel:FIRM_FOOTING.channel||"atkspd",
+    terr, tier, tierCount:(FIRM_FOOTING.tiers||[]).length, bonus:+bonus,
+    cap:Math.max(0,+FIRM_FOOTING.firmFootingCap||0), atkspdTotal:+total, atkspdCap:ATKSPD_TOTAL_CAP,
+    tag: firmFootingTag(h) }; }
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -9097,6 +9128,44 @@ export const dev = {
       precedence:"wardRegen (canal REUSADO — MISMO seam que Warding Ring #59): SHARE-CAP de-stack ⇒ boost combinado min(lastStandWardCap, wardBoost + lastStandBoost), 0 doble-dip más allá del techo (mismo patrón que Tempest lootQuality vs Trailcraft y Cadence critChance vs Delve). EJE = RATIO DE FUERZA / SUPERADO EN NÚMERO (conteo instantáneo de enemigos que te enganchan), NO meter personal (⊥ Cadence) ni reloj día/noche/clima (⊥ Nocturne/Tempest) ni aliados (⊥ Kinship) ni foco (⊥ Focus). ORTOGONAL a goldFind/restedMult/oocMitigation/critChance/xpGain/vamp/lootQuality (seams distintos).",
       gExists:(G.lastStand!=null),                                       // prueba byte-id: STATELESS ⇒ G.lastStand NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2415: TERRENO FIRME / PISADA FIRME OBSERVABLE hook (DARK, FIRM_FOOTING — eje ESPACIAL MATERIAL DE TERRENO server-auth + canal FRESCO atkspd bajo el techo global ATKSPD_TOTAL_CAP ⇒ share-cap/de-stack automático). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — passive AMBIENTAL emerge de la posición, sin input.js). Convergencia byte-a-byte: MISMO snapshot ⇒ MISMO material/tier/bono en N clientes.
+  //   firmFooting()                                     → snapshot {enabled,channel,tiers,cap,terr,tier,bonus,atkspdTotal,atkspdCap,peer muls ⊥,tag,gExists,hero}
+  //   firmFooting({enabled})                            → flip runtime IN-MEMORY de FIRM_FOOTING.enabled (sin tocar el disco)
+  //   firmFooting({tp:{tx,ty}})                         → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ heroTerr lo lee del world.terr REAL (prueba el eje con el estado de sim auténtico, no fabricado)
+  //   firmFooting({terrProbe:{terr}})                   → función PURA firmFootingTier(terr)+firmFootingAtkFor(terr) (byte-verificación de la TABLA de tiers/firmeza) SIN mover al héroe
+  //   firmFooting({capProbe:{base}})                    → math del SHARE-CAP GLOBAL: min(ATKSPD_TOTAL_CAP, base + firmFootingAtkspd(hero)) (byte-verifica el de-stack vs el resto del stack de atkspd)
+  //   firmFooting({scan:true})                          → SÓLO LECTURA: histograma de world.terr + 1 tile de MUESTRA por material {tx,ty} (para teleportar a terreno REAL conocido y probar el eje sin coords hardcodeadas)
+  firmFooting(p){
+    let probe=null, capped=null, scan=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) FIRM_FOOTING.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile ⇒ lee terreno REAL
+      if(p.terrProbe && typeof p.terrProbe==="object"){ const tr=p.terrProbe.terr|0; probe={ terr:tr, tier:firmFootingTier(tr), bonus:+firmFootingAtkFor(tr) }; }
+      if(p.capProbe && typeof p.capProbe==="object"){ const base=+p.capProbe.base||0, ff=G.hero?firmFootingAtkspd(G.hero):0;
+        capped={ base:+base, firmFooting:+ff, cap:ATKSPD_TOTAL_CAP, combined:+Math.min(ATKSPD_TOTAL_CAP, base+ff) }; }
+      if(p.scan){ const hist={}, sample={}, terr=world&&world.terr;   // SÓLO LECTURA — 0 mutación de estado
+        if(terr){ for(let ty=0;ty<MAP_H;ty++){ const row=ty*MAP_W; for(let tx=0;tx<MAP_W;tx++){ const t=terr[row+tx]|0; hist[t]=(hist[t]|0)+1; if(sample[t]==null) sample[t]={tx,ty}; } } }
+        scan={ hist, sample }; }
+    }
+    const h=G.hero, vm=firmFootingVM(h);
+    return { enabled:FIRM_FOOTING.enabled, channel:FIRM_FOOTING.channel||"atkspd",
+      tiers:(FIRM_FOOTING.tiers||[]).map(t=>({terr:(t.terr||[]).slice(),atkspd:+t.atkspd||0})), cap:vm.cap,
+      terr:vm.terr, tier:vm.tier, tierCount:vm.tierCount, bonus:vm.bonus,
+      atkspd:h?+firmFootingAtkspd(h):0,                                   // aporte EFECTIVO de FIRM_FOOTING al sink (0 si OFF/Tier 0)
+      atkspdTotal:vm.atkspdTotal, atkspdCap:vm.atkspdCap,                 // atkspd TOTAL (Σ clamped a ATKSPD_TOTAL_CAP) — expone el share-cap global
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                  // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                   // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                     // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      tag: firmFootingTag(h),                                            // glifo SERVIDO (OFF/pisada suelta ⇒ "" / terreno firme ⇒ ⛰)
+      probe: probe,                                                      // resultado de firmFootingTier/AtkFor (byte-verificación de la TABLA por material)
+      capped: capped,                                                    // resultado del SHARE-CAP math (min(ATKSPD_TOTAL_CAP, base+firm), byte-verifica el de-stack global)
+      scan: scan,                                                        // histograma world.terr + tiles de muestra por material (teleport a terreno REAL conocido)
+      precedence:"atkspd (canal FRESCO — velocidad de ataque): entra al sink sumado heroAtkspd (CAS-197) bajo el TECHO GLOBAL ATKSPD_TOTAL_CAP ⇒ SHARE-CAP/de-stack automático min(cap, base+firmFooting), 0 doble-dip. EJE = MATERIAL DE TERRENO server-auth bajo el héroe (world.terr), dimensión ESPACIAL fina que CRUZA zonas (⊥ gates de zona-región). NO tiempo (⊥ Nocturne) ni clima (⊥ Tempest) ni tempo (⊥ Cadence) ni densidad-de-enemigos (⊥ LastStand) ni aliados (⊥ Kinship) ni profundidad (⊥ Delve) ni conocimiento (⊥ Erudition). ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult (seams distintos).",
+      gExists:(G.firmFooting!=null),                                     // prueba byte-id: STATELESS ⇒ G.firmFooting NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
