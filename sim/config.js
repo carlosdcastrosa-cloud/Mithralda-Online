@@ -2771,6 +2771,59 @@ export const TEMPEST_SURGE = {
   ],
 };
 
+// CAS-2409: ÚLTIMA RESISTENCIA / AGUANTE (DARK, LAST_STAND) — EVO mecánica #69 (serializa tras #68 TEMPEST LIVE). EJE FRESCO **RATIO DE FUERZA / SUPERADO EN NÚMERO (local force-ratio / outnumbered)** + CANAL REUSADO wardRegen (SHARE-CAP con Warding Ring #59). ⊥/DISTINTO a todo lo enviado #47-68:
+//  · NO acumulador personal en el tiempo (⊥ Cadence #67 = kill-meter decayente): es un RATIO INSTANTÁNEO de la amenaza que te rodea AHORA MISMO.
+//  · NO condición de reloj — día/noche (⊥ Nocturne #66) ni clima (⊥ Tempest #68): depende de los ENEMIGOS que te enganchan RIGHT NOW, no del reloj.
+//  · NO vínculos/aliados (⊥ Kinship #60 = cuenta ALIADOS): cuenta ENEMIGOS que te enganchan.
+//  · NO foco de objetivo único (⊥ Focus Fire #62 = TÚ concentrado en 1 enemigo): es MUCHOS enemigos concentrados en TI.
+// server-authoritative, 0-RNG, 0-timer, STATELESS (0 acumulador per-pid, 0 G.lastStand*, 0 marca, 0 clave serializada). El conteo de "superado en número" = función PURA del estado de sim determinista
+// (enemigos ALIVE no-neutrales en estado de ENGANCHE {chase/windup/strike/recover/shield} dentro de engageRadius del héroe) ⇒ MISMO ratio para todo observador de ese héroe (convergencia byte-a-byte, 0 desync).
+// Canal REUSADO wardRegen (regen de HP — MISMO seam que Warding Ring #59, tema "atrincherarse y aguantar"): SHARE-CAP de-stack ⇒ boost combinado min(lastStandWardCap, wardBoost + lastStandBoost) ⇒ 0 doble-dip
+// más allá del techo (mismo patrón que Tempest lootQuality vs Trailcraft y Cadence critChance vs Delve). BYTE-NEUTRO OFF: con enabled:false, la derivación NUNCA corre y wardRegenBoost DELEGA a wardMul() ⇒ seam byte-id al LIVE de Warding Ring.
+// NOTA balance (CEO): el seam wardRegenTick respeta la pausa post-daño `_safeRegenPauseT` (no te curas MIENTRAS te pegan). Estar superado en número suele implicar recibir golpes ⇒ el regen materializa en los RESPIROS entre golpes ("recupérate mientras aguantas la línea"). CEO decide si Última Resistencia debe ignorar esa pausa (design/balance, no lo cambio unilateralmente).
+export const LAST_STAND = {
+  enabled: false,            // DARK (EVO#69, CAS-2409) — flag PRESENTE pero OFF. NO flip live en esta tarea. Reversible 1-línea false→true tras QA DARK + CEO Gate. anti-stacking: 1 arco valida a la vez.
+  channel: "wardRegen",      // canal REUSADO (regen de HP — MISMO seam que WARDING_RING #59). De-stack por SHARE-CAP con Warding Ring: boost combinado min(lastStandWardCap, wardBoost + lastStandBoost) ⇒ 0 doble-dip. ⊥ goldFind/restedMult/oocMitigation/critChance/xpGain/vamp/lootQuality (seams distintos). CEO balance knob.
+  engageRadius: 220,         // px: radio alrededor del héroe dentro del cual un enemigo ENGANCHADO (aggro sobre el héroe) cuenta como "encima de ti". ~rango de aggro; enemigos enganchados fuera del radio no cuentan. CEO balance knob.
+  lastStandWardCap: 0.15,    // TECHO DURO del boost de wardRegen COMBINADO (wardBoost + lastStandBoost) — SHARE-CAP con Warding Ring ⇒ 0 doble-dip. = max(WARDING_RING.tiers.boost)=0.15 ⇒ con Warding a tope, Última Resistencia no añade (ya en el techo); con Warding ausente, aporta hasta su propio tier. CEO balance knob.
+  // TABLA de tiers: umbral de ENEMIGOS ENGANCHADOS (min inclusivo) → `boost` = mult adicional sobre regenPct del canal wardRegen. Tier vigente = el más alto cuyo `min` ≤ conteo. Determinista, monótono por CONTEO (ratio instantáneo, NO permanencia per-pid). OFF/sin tiers ⇒ 0.
+  tiers: [
+    { min: 3, boost: 0.06 },   // Tier 1 — superado en número (≥3 enganchados): +6% a la tasa de regen (regenPct×1.06). "aguanta la línea".
+    { min: 5, boost: 0.12 },   // Tier 2 — rodeado / última resistencia (≥5 enganchados): +12% (regenPct×1.12). CEO balance knobs.
+  ],
+};
+
+// CAS-2410: BASTIÓN / DOMINIO DE ZONA (DARK, ZONE_DOMINANCE) — EVO mecánica #69. EJE FRESCO **ESPACIAL/TERRITORIAL: control de zona en disputa (shard-wide territory-control)** + CANAL REUSADO oocMitigation (SHARE-CAP con Trotamundos/Wayfarer #61).
+//  · EJE ⊥/DISTINTO a todo lo enviado #47-68: NO reloj día/noche (⊥ Nocturne #66) NI clima (⊥ Tempest #68) NI meter de kills (⊥ Cadence #67) NI amplitud de exploración (⊥ Trailcraft/Wayfarer #61/#63) NI profundidad (⊥ Delve #64) NI vínculos/headcount (⊥ Kinship/Congregation).
+//    Es TERRITORIAL: CADA period, un hash determinista designa 1 zona "en DISPUTA/dominada" (rotación server-authoritative, mirror WORLD_PULSE.pulseZone) y el CONTROL de esa zona rampa TRIANGULAR 0→1→0 dentro del period (tu bando gana→pico→pierde el control).
+//    Un jugador FÍSICAMENTE dentro de la zona dominada mientras el control ≥ minIntensity obtiene un bono DEFENSIVO/mitigación (aguanta el bastión). Territory-control clásico de MMO: la MISMA zona-dominada + MISMA intensidad para TODO cliente del shard.
+//  · server-authoritative, 0-RNG, 0-timer client-local, STATELESS (0 acumulador per-pid, 0 G.zonedom*, 0 marca, 0 clave serializada). El control-meter = función PURA del reloj de pared COMPARTIDO (Date.now − epochMs mod periodSec, phaseOverride/nowMs para QA)
+//    ⇒ MISMA zona-dominada + MISMA intensidad para todo observador (convergencia byte-a-byte, 0 desync). Responde "¿N jugadores disputando la MISMA zona?": todos los presentes en la zona dominada al mismo instante ven el MISMO control y reciben el MISMO bono (hold compartido).
+//  · ORTOGONAL a WORLD_PULSE (#50): aunque ambos ROTAN una zona por hash, WORLD_PULSE alimenta restedMult (XP, recompensa ambiental) con ventana binaria liveFrac; ZONE_DOMINANCE alimenta oocMitigation (DEFENSA) con rampa TRIANGULAR de control ⇒ canal + intención + forma distintos. Reloj/salt PROPIOS ⇒ zona-dominada ≠ zona-en-Pulso en general.
+// Canal REUSADO oocMitigation (mitigación de daño — MISMO seam `real` de damageHero que Wayfarer #61; tema "atrincherarse y aguantar el bastión"): SHARE-CAP de-stack ⇒ mitigación combinada min(mitCap, wayMit + domMit) ⇒ 0 doble-dip más
+// allá del techo (mismo patrón que Tempest lootQuality vs Trailcraft, Cadence critChance vs Delve, LAST_STAND wardRegen vs Warding). DIFERENCIADOR vs Wayfarer: Wayfarer mitiga sólo el 1er golpe FUERA de combate (roaming breadth); ZONE_DOMINANCE mitiga CADA golpe
+// mientras dominas la zona (hold territorial, dentro Y fuera de combate). BYTE-NEUTRO OFF: con enabled:false la derivación NUNCA corre (Date.now/zoneDomMul nunca se llama) y el SHARE-CAP DELEGA a la mitigación de Wayfarer ⇒ seam `real` byte-id al LIVE de Wayfarer.
+// HARD-GATED (anti-CAS-2220): enabled:false ⇒ zoneDomMul RETURN 0 (antes de tocar el reloj), G.zonedom* NUNCA se crea, tag "", save omite toda clave, worldFingerprint byte-id a HEAD. Reversible en 1 línea (false→true + re-run overlay consistente-HEAD). Los NÚMEROS = decisión de BALANCE del CEO.
+// ⚠️ NOTA #69 (FLAG AL CEO): existe YA un DARK build LAST_STAND (CAS-2409) TAMBIÉN etiquetado "EVO #69" en el canal wardRegen. Dos #69 DARK no pueden flipear a la vez (anti-stacking: 1 arco valida a la vez). El CEO decide cuál avanza a Gate/flip (o renumera). ZONE_DOMINANCE evita wardRegen (ya con Warding LIVE + LastStand DARK) y usa oocMitigation ⇒ share-cap 2-vías limpio.
+export const ZONE_DOMINANCE = {
+  enabled: false,            // DARK (EVO#69, CAS-2410) — flag PRESENTE pero OFF. NO flip live en esta tarea. Reversible 1-línea false→true tras QA DARK + CEO Gate. anti-stacking: 1 arco valida a la vez.
+  channel: "oocMitigation",  // canal REUSADO (mitigación de daño — MISMO seam `real` de damageHero que WAYFARER_ROAM #61). De-stack por SHARE-CAP con Wayfarer: mitigación combinada min(mitCap, wayMit + domMit) ⇒ 0 doble-dip. ⊥ wardRegen/goldFind/restedMult/critChance/xpGain/vamp/lootQuality (seams distintos). CEO balance knob.
+  zones: ["forest","caves","ruins","abyss","frost","swamp"],  // zonas de caza que pueden entrar en DISPUTA (la dominada del period se elige determinista por hash de Knuth; reusa la lista de zonas de caza, mirror WORLD_PULSE.zones). caves INCLUIDA (territorio disputable ⇒ diferenciador vs Tempest, que la excluye por exposición meteorológica).
+  // Reloj compartido DETERMINISTA PROPIO (rotación territorial) — mirror WORLD_PULSE.periodSec/epochMs (reloj de pared COMPARTIDO, MMORPG-safe): period = floor((Date.now − epochMs)/periodSec); la zona dominada = hash(period) mod zones; el control rampa por la FRACCIÓN dentro del period. periodSec≠WORLD_PULSE(240) ⇒ zona-dominada ≠ zona-en-Pulso.
+  periodSec: 300,            // duración de un ciclo de DISPUTA territorial (5 min — corto y OBSERVABLE, desacoplado de WORLD_PULSE(240) y de los relojes día/noche/clima). Reloj de pared COMPARTIDO ⇒ MISMA zona-dominada en N clientes (0 desync). CEO balance knob.
+  epochMs: 0,                // ancla COMPARTIDA del reloj (UTC ms; 0 = epoch Unix). Fija ⇒ mismo period ⇒ misma zona-dominada + misma fase de control en todo cliente. CEO balance knob.
+  phaseOverride: null,       // fija la FRACCIÓN de control 0..1 dentro del period para pruebas/screenshots deterministas (null = reloj real). QA lo inyecta in-memory para forzar pico/decadencia de control sin tocar Date.now real.
+  holdStart: 0.10,           // inicio de la VENTANA DE CONTROL (fracción 0..1 del period): antes ⇒ control 0 (disputa abriéndose, sin dominio). CEO balance knob.
+  holdEnd: 0.90,             // fin de la ventana de control (fracción): después ⇒ control 0 (dominio perdido, la zona vuelve a estar en disputa neutra). CEO balance knob.
+  minIntensity: 0.34,        // control mínimo (0..1) para que el bastión ACTIVE el bono defensivo (T1). Por debajo ⇒ T0 (disputa/control insuficiente, sin mitigación). CEO balance knob.
+  mitCap: 0.15,              // TECHO DURO de la fracción de mitigación COMBINADA (wayMit + domMit) — SHARE-CAP con Wayfarer + cap anti-inmunidad por-fuente. = max(WAYFARER_ROAM.maxMitigation)=0.15 ⇒ con Wayfarer a tope, Bastión no añade (ya en el techo); en combate (Wayfarer no aplica) el Bastión aporta hasta su propio tier. CEO balance knob.
+  // TABLA de tiers: umbral de INTENSIDAD de control (min inclusivo, 0..1) → `mit` = fracción de daño mitigada mientras dominas la zona. Tier vigente = el más alto cuyo `min` ≤ intensidad. Determinista, monótono por INTENSIDAD (control shard-wide, NO permanencia per-pid). Saturado a mitCap (anti-inmunidad).
+  tiers: [
+    { min: 0.34, mit: 0.06 },   // Tier 1 — bastión en disputa (control ≥0.34): −6% al daño recibido mientras dominas la zona. "aguanta el bastión".
+    { min: 0.67, mit: 0.12 },   // Tier 2 — dominio pleno (control ≥0.67, cerca del pico): −12% al daño recibido. CEO balance knobs (≤ mitCap 0.15).
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

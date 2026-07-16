@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, ZONE_DOMINANCE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -2684,9 +2684,9 @@ function tickSafeZone(h,dt){ if(!SAFEZONE.enabled||!h||h.dead) return;
 // regenPct×(1+boost del tier)×HPmax/s (santuario móvil), enganchado en el MISMO chokepoint de curación que tickSafeZone (mhp*rate*dt vía pactHeal, respeta la pausa post-daño
 // _safeRegenPauseT — sólo LEE, nunca la escribe). kind DISTINTO a safeRegen (SAFEZONE/TERRITORY) y canal ⊥ a restedMult ⇒ 0 doble-conteo por construcción. 0 RNG, 0 campo nuevo
 // (sólo muta h.hp). GATED: WARDING_RING.enabled false ⇒ return inmediato ⇒ HP intacto ⇒ byte-idéntico a HEAD (mismo patrón anti-CAS-2220 que tickSafeZone).
-function wardRegenTick(h,dt){ if(!WARDING_RING.enabled||!h||h.dead) return;
+function wardRegenTick(h,dt){ if((!WARDING_RING.enabled && !LAST_STAND.enabled)||!h||h.dead) return;   // CAS-2409: el canal wardRegen ahora tiene 2 contribuyentes (WARDING_RING #59 ⊕ LAST_STAND #69); OFF ambos ⇒ return (con LAST_STAND OFF ⇒ === gate original !WARDING_RING.enabled ⇒ byte-id)
   if((h._safeRegenPauseT||0)>0) return;                          // no te curas mientras te pegan (reusa la pausa de SAFEZONE; sólo LECTURA ⇒ 0 estado nuevo)
-  const boost=wardMul(h,WARDING_RING.channel||"wardRegen"); if(boost<=0) return;   // sin Cordón abierto en la zona del héroe ⇒ 0 regen (gate del canal wardRegen)
+  const boost=wardRegenBoost(h); if(boost<=0) return;            // CAS-2409: boost EFECTIVO del canal wardRegen = SHARE-CAP(WARDING_RING ⊕ LAST_STAND). Con LAST_STAND OFF DELEGA a wardMul() ⇒ byte-id al seam LIVE de Warding Ring.
   const mhp=heroMaxHp(h); if(h.hp<=0 || h.hp>=mhp) return;       // muerto o a tope ⇒ nada que regenerar
   const rate=Math.max(0,+WARDING_RING.regenPct||0)*(1+boost);    // regen base del Cordón acelerado por el boost del tier vigente
   h.hp=Math.min(mhp, h.hp + pactHeal(mhp*rate*dt));
@@ -3850,6 +3850,52 @@ export function wardVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
   return { enabled:!!WARDING_RING.enabled, zone:z, wardable, ward:+ward.toFixed(2), tier, tierCount:(WARDING_RING.tiers||[]).length,
     boostKind:WARDING_RING.channel||"wardRegen", boost: h?wardMul(h,WARDING_RING.channel||"wardRegen"):0 }; }
 
+// CAS-2409: ÚLTIMA RESISTENCIA / AGUANTE (DARK, LAST_STAND) — EVO mecánica #69. EJE FRESCO RATIO DE FUERZA / SUPERADO EN NÚMERO (local force-ratio) + canal REUSADO wardRegen (SHARE-CAP con Warding Ring #59).
+// server-authoritative, 0-RNG, 0-timer, STATELESS. El conteo de "superado en número" = función PURA del estado de sim determinista (enemigos que te ENGANCHAN ahora) ⇒ MISMO ratio para todo observador ⇒ shard-consistente (0 desync).
+// lastStandCount(h) = nº de enemigos ALIVE, NO-neutrales, en estado de ENGANCHE (chase/windup/strike/recover/shield — MISMO predicado que bonfireUnsafe: "en aggro persiguiendo/atacando") dentro de engageRadius del héroe.
+// RATIO INSTANTÁNEO (⊥ Cadence meter-decayente): cuenta a QUIÉNES te enganchan AHORA, sin acumulador temporal. Puro (0 RNG/estado/reloj). OFF ⇒ nunca se llama (short-circuit en wardRegenBoost) ⇒ 0 coste, byte-id.
+function lastStandCount(h){ h=h||G.hero; if(!h) return 0;
+  const r=Math.max(0,+LAST_STAND.engageRadius||0), r2=r*r; let n=0;
+  for(const e of G.enemies){ if(!e||e.dead||e.hp<=0) continue;
+    if(e.tpl&&e.tpl.neutral&&!e.hostile) continue;               // neutrales pacíficos no enganchan ⇒ no cuentan (mismo criterio que la selección de aggro)
+    const engaged=(e.state==="chase"||e.state==="windup"||e.state==="strike"||e.state==="recover"||e.state==="shield");
+    if(!engaged) continue;                                        // sólo los que te ENGANCHAN (aggro activa sobre el héroe) — idle/patrulla/huida no cuentan
+    if(r>0){ const dx=e.x-h.x, dy=e.y-h.y; if(dx*dx+dy*dy>r2) continue; }   // gate de PROXIMIDAD: enganchados pero lejos no "te rodean"
+    n++; }
+  return n; }
+// lastStandTier(count) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ conteo. Determinista, monótono por CONTEO (ratio instantáneo, NO permanencia per-pid). OFF/sin tiers ⇒ 0.
+function lastStandTier(count){ const T=LAST_STAND.tiers||[]; count=count|0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && count>=(+T[i].min||0)) idx=i+1; } return idx; }
+// boost del canal wardRegen que aporta LAST_STAND para un conteo dado (0 si Tier 0). Puro. El gate global lo cubre lastStandMul/wardRegenBoost; aquí sólo la TABLA determinista.
+function lastStandBoostFor(count){ const t=lastStandTier(count); return t>0 ? (+LAST_STAND.tiers[t-1].boost||0) : 0; }
+// lastStandMul(h) = el boost del canal wardRegen aportado por estar SUPERADO EN NÚMERO. Gated ⇒ OFF ⇒ 0 (byte-id). Puro (0 RNG/estado/reloj/side-effect). ⊥ a restedMult/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality.
+function lastStandMul(h){ if(!LAST_STAND.enabled||!h) return 0;
+  if((LAST_STAND.channel||"wardRegen")!=="wardRegen") return 0;  // seguridad: LAST_STAND SÓLO alimenta el canal wardRegen (si el knob se re-apunta, no contribuye por defecto)
+  return lastStandBoostFor(lastStandCount(h)); }
+// wardRegenBoost(h) = boost EFECTIVO del canal wardRegen en el seam wardRegenTick, UNIFICANDO Warding Ring #59 + Last Stand #69 por SHARE-CAP: boost combinado = min(lastStandWardCap, wardBoost + lastStandBoost) ⇒ 0
+// doble-dip más allá del techo (mismo patrón que Tempest lootQuality vs Trailcraft y Cadence critChance vs Delve). BYTE-NEUTRO: con LAST_STAND OFF DEVUELVE wardMul() tal cual (idéntico al seam LIVE de Warding Ring ⇒ 0-regr). Puro.
+function wardRegenBoost(h){ const wr=wardMul(h,WARDING_RING.channel||"wardRegen");   // contribuyente WARDING_RING (0 si OFF / fuera de zona de cordón)
+  if(!LAST_STAND.enabled) return wr;                                                  // LAST_STAND OFF ⇒ ruta byte-IDÉNTICA al LIVE de Warding Ring (delegación pura, 0 iteración de G.enemies)
+  const ls=lastStandMul(h); if(ls<=0) return wr;                                      // no superado en número ⇒ sin cambio (sólo el aporte de Warding Ring)
+  const cap=Math.max(0,+LAST_STAND.lastStandWardCap||0);
+  return Math.min(cap, wr+ls); }                                                      // SHARE-CAP: boost combinado capado ⇒ 0 doble-dip (con Warding a tope 0.15 ⇒ ya en el techo ⇒ Last Stand no añade)
+// glifo de ÚLTIMA RESISTENCIA para el badge (mirror wardTag/tempestTag): ⚔ (superado en número) si el héroe está enganchado por ≥ umbral de enemigos (tier≥1). Puro, 0 sim/RNG. "" si OFF / no superado.
+export function lastStandTag(h){ h=h||G.hero; if(!LAST_STAND.enabled||!h) return "";
+  return lastStandTier(lastStandCount(h))>0 ? "⚔" : ""; }
+// View-model PURO para el HUD/badge: el conteo de enganchados server-authoritative, el tier vigente, el boost de Last Stand y el boost wardRegen EFECTIVO (unificado con Warding Ring por share-cap). 0 sim/RNG/side-effect.
+export function lastStandVM(h){ h=h||G.hero;
+  const count=(LAST_STAND.enabled&&h)?lastStandCount(h):0;
+  const tier=lastStandTier(count), boost=(LAST_STAND.enabled&&h)?lastStandBoostFor(count):0;
+  const wr=h?wardMul(h,WARDING_RING.channel||"wardRegen"):0;     // contribuyente Warding Ring (para exponer el de-stack)
+  const cap=Math.max(0,+LAST_STAND.lastStandWardCap||0);
+  const combined=(LAST_STAND.enabled&&boost>0)?Math.min(cap, wr+boost):wr;   // boost wardRegen EFECTIVO (share-cap)
+  return { enabled:!!LAST_STAND.enabled, channel:LAST_STAND.channel||"wardRegen", engageRadius:+LAST_STAND.engageRadius||0,
+    threshold:(LAST_STAND.tiers&&LAST_STAND.tiers[0]?(LAST_STAND.tiers[0].min|0):0),
+    count, tier, tierCount:(LAST_STAND.tiers||[]).length, boost:+boost.toFixed(4),
+    wardBoost:+wr.toFixed(4), cap:+cap.toFixed(4), combinedBoost:+combined.toFixed(4),
+    regenPct:+WARDING_RING.regenPct||0, regenRate:+((Math.max(0,+WARDING_RING.regenPct||0))*(1+combined)).toFixed(5),
+    tag: lastStandTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -4164,6 +4210,65 @@ export function tempestVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
     boostKind:TEMPEST_SURGE.channel||"lootQuality", steps,
     trailSteps: trailcraftFloorSteps(), cap:(TEMPEST_SURGE.tempestLootCap|0),
     floor: lootQualityFloor()||"" }; }   // piso EFECTIVO combinado (share-cap Trailcraft+Tempest)
+
+// CAS-2410: BASTIÓN / DOMINIO DE ZONA (DARK, ZONE_DOMINANCE) — EVO mecánica #69. EJE FRESCO ESPACIAL/TERRITORIAL (control de zona en disputa, shard-wide) + canal REUSADO oocMitigation (SHARE-CAP con Wayfarer #61).
+// server-authoritative, 0-RNG, STATELESS (0 acumulador per-pid, 0 marca, 0 G.zonedom*). CADA period un hash determinista designa 1 zona DOMINADA (rotación mirror WORLD_PULSE.pulseZone, salt PROPIO) y el CONTROL rampa TRIANGULAR
+// 0→1→0 por la FRACCIÓN dentro del period (tu bando gana→pico→pierde). Un jugador FÍSICAMENTE en la zona dominada con control ≥ minIntensity obtiene mitigación DEFENSIVA (aguanta el bastión). ⊥ Tempest #68 (clima), Nocturne #66 (día/noche),
+// Cadence #67 (meter kills): es TERRITORIAL. ⊥ WORLD_PULSE #50 (que también rota zona) por CANAL (oocMitigation defensa vs restedMult XP) + FORMA (rampa triangular vs ventana liveFrac). HARD-GATED: OFF ⇒ ninguna derivación corre (Date.now/zoneDomMul nunca se llama), G.zonedom* nunca se crea, seam byte-id.
+// reloj de disputa compartido: {period, frac} del reloj de pared COMPARTIDO (mirror pulseScheduleAt con periodSec/epochMs PROPIOS). phaseOverride (config) o G.zoneDomNow (harness) permiten fijar la fracción de control sin tocar Date.now real. OFF ⇒ NUNCA se llama.
+function zoneDomClockNow(){ return (G.zoneDomNow!=null?+G.zoneDomNow:Date.now()); }
+function zoneDomSchedule(nowMs){ const out={ period:0, into:0, frac:0, nextInSec:0 };
+  const periodMs=Math.max(1000,(ZONE_DOMINANCE.periodSec|0)*1000);
+  const elapsed=(+nowMs||0)-(ZONE_DOMINANCE.epochMs||0); if(!(elapsed>=0)) return out;
+  const period=Math.floor(elapsed/periodMs), into=elapsed-period*periodMs;
+  out.period=period>>>0; out.into=into; out.frac=into/periodMs; out.nextInSec=(periodMs-into)/1000; return out; }
+// hash de Knuth por period (mismo mezclador determinista del Libro/Vestigio/Pulso; salt PROPIO "dominion") ⇒ 0 RNG, rotación estable. Mirror pulseHash.
+function zoneDomHash(period, salt){ let s=((period>>>0)*2654435761)>>>0; const t=String(salt||""); for(let i=0;i<t.length;i++){ s=(((s^t.charCodeAt(i))>>>0)*16777619)>>>0; } return s>>>0; }
+// La zona DOMINADA de este period = 1 de ZONE_DOMINANCE.zones elegida por hash (rotación determinista). Mirror pulseZone. null si no hay zonas.
+function zoneDomZoneFor(period){ const Z=ZONE_DOMINANCE.zones||[]; if(!Z.length) return null; return Z[zoneDomHash(period>>>0,"dominion")%Z.length]; }
+// intensidad de CONTROL (0..1) para una fracción de period dada: 0 fuera de [holdStart, holdEnd]; DENTRO, rampa TRIANGULAR (0 en los bordes, 1 en el centro) ⇒ gana→pico→pierde. Función PURA (0 RNG/estado). Shard-wide (misma en N clientes). Mirror tempestIntensity.
+export function zoneDomIntensity(frac){ frac=((+frac||0)%1+1)%1; const s=+ZONE_DOMINANCE.holdStart||0, e=+ZONE_DOMINANCE.holdEnd||0;
+  if(e<=s || frac<s || frac>e) return 0; const span=(e-s)||1, k=(frac-s)/span; return 1 - Math.abs(2*k-1); }   // triangular 0→1→0
+// fracción de control efectiva AL AHORA (phaseOverride fija, o el reloj compartido). 0 si OFF (Date.now nunca se llama).
+function zoneDomFracNow(){ const ov=ZONE_DOMINANCE.phaseOverride; if(typeof ov==="number") return ((ov%1)+1)%1; return zoneDomSchedule(zoneDomClockNow()).frac; }
+function zoneDomIntensityNow(){ if(!ZONE_DOMINANCE.enabled) return 0; return zoneDomIntensity(zoneDomFracNow()); }
+// zoneDomTier(inten) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ intensidad. Determinista, monótono por INTENSIDAD (control shard-wide, NO permanencia per-pid). OFF/sin tiers ⇒ 0. Mirror tempestTier.
+function zoneDomTier(inten){ const T=ZONE_DOMINANCE.tiers||[]; inten=+inten||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && inten>=(+T[i].min||0)) idx=i+1; } return idx; }
+// fracción de mitigación del tier de control vigente (0 si Tier 0), capeada a mitCap (anti-inmunidad). Puro sobre la intensidad.
+function zoneDomMitFor(inten){ const t=zoneDomTier(inten); if(t<=0) return 0; const m=+ZONE_DOMINANCE.tiers[t-1].mit||0; const cap=Math.max(0,+ZONE_DOMINANCE.mitCap||0); return cap>0?Math.min(cap,m):m; }
+// La zona DOMINADA VIVA (control ≥ minIntensity) derivada del reloj compartido (o null si control insuficiente / OFF / sin zonas). PURA. Exportada para render/harness.
+export function zoneDomActiveZone(){ if(!ZONE_DOMINANCE.enabled) return null; const inten=zoneDomIntensityNow(); if(inten < (+ZONE_DOMINANCE.minIntensity||0)) return null;
+  return zoneDomZoneFor(zoneDomSchedule(zoneDomClockNow()).period); }
+// ¿el héroe LOCAL está FÍSICAMENTE dentro de la zona dominada VIVA? Puro. Gate de PRESENCIA del bono territorial.
+function zoneDomHolding(h){ h=h||G.hero; if(!ZONE_DOMINANCE.enabled||!h) return false; const z=zoneDomActiveZone(); if(!z) return false; return zoneOf(world,h.x,h.y)===z; }
+// zoneDomMul(h,kind) = mitigación DEFENSIVA CRUDA del jugador LOCAL por dominar la zona en disputa (canal oocMitigation), ANTES del share-cap. Gated ⇒ OFF ⇒ 0 (byte-id: el daño en damageHero no se toca, Date.now nunca se llama).
+// Puro (0 RNG/estado/side-effect). ⊥ wardRegen/goldFind/restedMult/critChance/xpGain/vamp/lootQuality (seams distintos). Máximo-único DENTRO de oocMitigation lo resuelve el SHARE-CAP con Wayfarer en el seam (oocMitigCombined).
+function zoneDomMul(h,kind){ if(!ZONE_DOMINANCE.enabled||!h) return 0;
+  if(kind!==(ZONE_DOMINANCE.channel||"oocMitigation")) return 0;
+  const inten=zoneDomIntensityNow(); if(inten < (+ZONE_DOMINANCE.minIntensity||0)) return 0;   // control por debajo del umbral ⇒ sin dominio ⇒ 0
+  if(!zoneDomHolding(h)) return 0;                                                               // el héroe NO está en la zona dominada ⇒ 0
+  return zoneDomMitFor(inten); }
+// oocMitigCombined(wayMit, domMit) = mitigación EFECTIVA del canal oocMitigation en el seam `real` de damageHero, UNIFICANDO Wayfarer #61 (OOC, 1er golpe) + Zone Dominance #69 (hold territorial) por SHARE-CAP: min(mitCap, wayMit + domMit)
+// ⇒ 0 doble-dip más allá del techo (mismo patrón que Tempest lootQuality vs Trailcraft, Cadence critChance vs Delve, Last Stand wardRegen vs Warding). BYTE-NEUTRO: con ZONE_DOMINANCE OFF DEVUELVE wayMit tal cual (idéntico al seam LIVE de Wayfarer ⇒ 0-regr). Puro.
+function oocMitigCombined(wayMit, domMit){ wayMit=+wayMit||0; if(!ZONE_DOMINANCE.enabled) return wayMit;   // ZONE OFF ⇒ ruta byte-IDÉNTICA al seam de Wayfarer (delegación pura)
+  domMit=+domMit||0; if(domMit<=0) return wayMit;                                                          // sin dominio de zona ⇒ sin cambio (sólo el aporte de Wayfarer)
+  const cap=Math.max(0,+ZONE_DOMINANCE.mitCap||0); const m=wayMit+domMit; return cap>0?Math.min(cap,m):m; }  // SHARE-CAP: mitigación combinada capada ⇒ 0 doble-dip
+// glifo del Bastión para el badge (mirror tempestTag): ⛨ si el jugador local domina la zona en disputa (tier≥1 y está dentro). Puro, 0 sim/RNG. "" si OFF / control insuficiente / fuera de la zona dominada.
+export function zoneDomTag(h){ h=h||G.hero; if(!ZONE_DOMINANCE.enabled||!h) return ""; return zoneDomHolding(h) ? "⛨" : ""; }
+// View-model PURO para el HUD/badge: la zona dominada, si el héroe la sostiene, la intensidad/fracción de control shard-wide, el tier vigente y la mitigación EFECTIVA (unificada con Wayfarer por share-cap). 0 sim/RNG/side-effect.
+export function zoneDomVM(h){ h=h||G.hero; const hz=h?zoneOf(world,h.x,h.y):null;
+  const sc=ZONE_DOMINANCE.enabled?zoneDomSchedule(zoneDomClockNow()):{period:0,frac:0,nextInSec:0};
+  const frac=ZONE_DOMINANCE.enabled?zoneDomFracNow():0, inten=ZONE_DOMINANCE.enabled?zoneDomIntensity(frac):0;
+  const domZone=zoneDomActiveZone(), holding=!!(domZone && hz===domZone);
+  const tier=holding?zoneDomTier(inten):0, domMit=h?zoneDomMul(h,ZONE_DOMINANCE.channel||"oocMitigation"):0;
+  const wayMit=(WAYFARER_ROAM.enabled&&h)?wayRoamMul(h,"oocMitigation"):0;   // aporte de Wayfarer (para exponer el share-cap)
+  return { enabled:!!ZONE_DOMINANCE.enabled, channel:ZONE_DOMINANCE.channel||"oocMitigation", zones:(ZONE_DOMINANCE.zones||[]).slice(),
+    periodSec:ZONE_DOMINANCE.periodSec|0, holdStart:+ZONE_DOMINANCE.holdStart||0, holdEnd:+ZONE_DOMINANCE.holdEnd||0, minIntensity:+ZONE_DOMINANCE.minIntensity||0, mitCap:+ZONE_DOMINANCE.mitCap||0,
+    heroZone:hz, domZone, holding, period:sc.period>>>0, frac:+(+frac).toFixed(4), intensity:+inten.toFixed(4), contested:(domZone!=null),
+    tier, tierCount:(ZONE_DOMINANCE.tiers||[]).length, boostKind:ZONE_DOMINANCE.channel||"oocMitigation",
+    domMit:+(+domMit).toFixed(4), wayMit:+(+wayMit).toFixed(4), effMit:+oocMitigCombined(wayMit,domMit).toFixed(4),   // mitigación combinada EFECTIVA (share-cap Wayfarer+Dominance)
+    tag: zoneDomTag(h), nextInSec: sc.nextInSec|0 }; }
 
 // CAS-2380: DELVE / DESCENSO (DARK, DELVE) — EVO mecánica #64. EJE FRESCO PROFUNDIDAD/DESCENSO VERTICAL (nº de BANDAS de profundidad DISTINTAS alcanzadas) + canal FRESCO critChance (precisión ofensiva,
 // CAP DURO). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas de banda { pid → [{d,t}] } (d = ZONE_TIER[zoneOf].tier, la elevación/zona-Z del mundo), computa
@@ -7779,9 +7884,16 @@ function damageHero(dmg,ang,infl,src){ const h=G.hero; if(h.dead) return false;
   // CAS-2369: TROTAMUNDOS — canal FRESCO oocMitigation. Un golpe que aterriza estando FUERA de combate (h._roamCombatT<=0) se MITIGA por wayRoamMul (fracción, tier del roaming breadth del jugador);
   // este golpe ARMA la ventana de combate ⇒ los golpes SIGUIENTES (ya en combate) NO se mitigan. DESACOPLADO del movimiento (no toca velocidad ⇒ 0 feedback runaway). ⊥ a restedMult/goldFind/wardRegen.
   // Gated ⇒ OFF ⇒ rama muerta (h._roamCombatT nunca se escribe, wayRoamMul 0) ⇒ `real` intacto ⇒ ruta de daño byte-idéntica a HEAD.
-  if(WAYFARER_ROAM.enabled){
-    if((h._roamCombatT||0)<=0){ const mit=wayRoamMul(h,WAYFARER_ROAM.channel||"oocMitigation"); if(mit>0) real=Math.max(1, real*(1-mit)); }   // sólo el 1er golpe de la refriega (fuera de combate)
-    h._roamCombatT=Math.max(0,+WAYFARER_ROAM.combatWindowSec||0);   // este golpe te mete EN COMBATE ⇒ la ventana se rearma cada hit (transitorio, fuera del allowlist ⇒ save.v1 byte-id)
+  // CAS-2410: BASTIÓN / DOMINIO DE ZONA — canal REUSADO oocMitigation en el MISMO seam `real`. SHARE-CAP con Wayfarer ⇒ mitigación combinada min(mitCap, wayMit+domMit), 0 doble-dip. Wayfarer mitiga sólo el 1er golpe FUERA de
+  // combate (roaming breadth); ZONE_DOMINANCE mitiga CADA golpe mientras dominas la zona en disputa (hold territorial, dentro Y fuera de combate). BYTE-NEUTRO OFF: con ZONE_DOMINANCE OFF el share-cap DELEGA a wayMit ⇒ `real` idéntico
+  // al seam LIVE de Wayfarer (zoneDomMul NUNCA se llama por el short-circuit ⇒ Date.now/G.zonedom intactos). Con AMBOS OFF ⇒ el bloque no corre (igual que HEAD) ⇒ ruta de daño byte-idéntica.
+  if(WAYFARER_ROAM.enabled || ZONE_DOMINANCE.enabled){
+    const oocFirst=(h._roamCombatT||0)<=0;
+    const wayMit=(WAYFARER_ROAM.enabled && oocFirst) ? wayRoamMul(h,WAYFARER_ROAM.channel||"oocMitigation") : 0;   // Wayfarer: sólo el 1er golpe FUERA de combate
+    const domMit=ZONE_DOMINANCE.enabled ? zoneDomMul(h,ZONE_DOMINANCE.channel||"oocMitigation") : 0;              // ZONE_DOMINANCE: hold territorial, TODO golpe mientras dominas la zona (OFF ⇒ short-circuit, no se llama)
+    const mit=oocMitigCombined(wayMit, domMit);   // SHARE-CAP: min(mitCap, wayMit+domMit); ZONE OFF ⇒ ==wayMit (byte-id HEAD)
+    if(mit>0) real=Math.max(1, real*(1-mit));
+    if(WAYFARER_ROAM.enabled) h._roamCombatT=Math.max(0,+WAYFARER_ROAM.combatWindowSec||0);   // este golpe te mete EN COMBATE ⇒ la ventana se rearma cada hit (transitorio, fuera del allowlist ⇒ save.v1 byte-id)
   }
   h.hp-=real; h.hurtFlash=0.18; audio.sfx.hurt(); shakeAdd(6); freeze(4); floater(h.x,h.y-30,"-"+Math.round(real),"#ff7a6a");
   if(SAFEZONE.enabled) h._safeRegenPauseT=SAFEZONE.regenDelay;   // CAS-2242: recibir daño pausa el regen de la Zona Segura (feel). Gated ⇒ OFF nunca crea el campo ⇒ byte-id HEAD
@@ -9004,6 +9116,97 @@ export const dev = {
       lootPicked,                                                         // resultado del lootTick sintético (prueba del seam lootQuality + share-cap en aislamiento, seed fijo)
       precedence:"lootQuality (canal REUSADO — MISMO seam `minR` de rollGearInst que Trailcraft #63): SHARE-CAP de-stack ⇒ pasos combinados min(tempestLootCap, trailSteps+tempestSteps), 0 doble-dip más allá del techo (mismo patrón que Cadence critChance vs Delve). EJE = CONDICIÓN METEOROLÓGICA (world-state shard-wide), NO meter personal (⊥ Cadence) ni fase día/noche (⊥ Nocturne). ORTOGONAL a goldFind/restedMult/wardRegen/oocMitigation/critChance/xpGain/vamp (seams distintos).",
       gExists:(G.tempest!=null),                                          // prueba byte-id: STATELESS ⇒ G.tempest NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2409: ÚLTIMA RESISTENCIA / AGUANTE OBSERVABLE hook (DARK, LAST_STAND — eje RATIO DE FUERZA / SUPERADO EN NÚMERO + canal REUSADO wardRegen con SHARE-CAP vs Warding Ring). Sólo lectura + drivers de PRUEBA
+  // gateados (0 hotkey — el bono emerge de la amenaza que te rodea, sin input.js). STATELESS: el conteo es función PURA de G.enemies+héroe ⇒ MISMO ratio en N clientes con el mismo estado (convergencia byte-a-byte, 0 desync).
+  //   lastStand()                                       → snapshot {enabled,channel,engageRadius,tiers,cap,...,count,tier,boost,wardBoost,combinedBoost,peer muls ⊥,tag,gExists,hero}
+  //   lastStand({enabled})                              → flip runtime IN-MEMORY de LAST_STAND.enabled (sin tocar el disco)
+  //   lastStand({engage:{n,state,dist}})                → EMPUJA n enemigos sintéticos LITERALES (0 srand) en estado de enganche (default "chase") a `dist` px del héroe ⇒ lastStandCount los lee REAL (prueba el eje con el estado de sim auténtico)
+  //   lastStand({clearEngage})                          → quita los enemigos sintéticos (_lsSyn) ⇒ restaura el conteo
+  //   lastStand({boostProbe:{count}})                   → función PURA lastStandBoostFor(count) + tier (byte-verificación de la TABLA de tiers / umbrales) SIN tocar estado
+  //   lastStand({capProbe:{count,wardBoost}})           → math del SHARE-CAP: min(cap, wardBoost + lastStandBoostFor(count)) (byte-verifica el de-stack vs Warding Ring)
+  //   lastStand({hp}) / ({pause})                       → fija G.hero.hp / _safeRegenPauseT (setup del test de regen en aislamiento)
+  //   lastStand({regenTick:{s}})                        → aplica el SEAM REAL wardRegenTick(hero,s) y reporta el delta de HP (byte-verifica que el regen refleja el boost share-capped; OFF ⇒ delega a Warding Ring)
+  lastStand(p){
+    let probe=null, capped=null, regen=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) LAST_STAND.enabled=!!p.enabled;
+      if(p.engage && typeof p.engage==="object" && G.hero){ const n=Math.max(0,p.engage.n|0), st=(typeof p.engage.state==="string")?p.engage.state:"chase", d=(p.engage.dist!=null?+p.engage.dist:24), neu=!!p.engage.neutral;
+        for(let i=0;i<n;i++){ const ang=(i*2.399963); G.enemies.push({ dead:false, hp:100, maxHp:100, x:G.hero.x+Math.cos(ang)*d, y:G.hero.y+Math.sin(ang)*d, state:st, tpl:{size:12,neutral:neu}, hostile:!neu, _lsSyn:true }); } }   // LITERAL ⇒ 0 srand; colocación espiral determinista dentro de engageRadius; neutral+!hostile ⇒ NO cuenta (gate de exclusión)
+      if(p.clearEngage){ for(let i=G.enemies.length-1;i>=0;i--){ if(G.enemies[i]&&G.enemies[i]._lsSyn) G.enemies.splice(i,1); } }
+      if("hp" in p && G.hero){ G.hero.hp=+p.hp; }
+      if("pause" in p && G.hero){ G.hero._safeRegenPauseT=+p.pause||0; }
+      if(p.boostProbe && typeof p.boostProbe==="object"){ const c=p.boostProbe.count|0; probe={ count:c, tier:lastStandTier(c), boost:+lastStandBoostFor(c).toFixed(4) }; }
+      if(p.capProbe && typeof p.capProbe==="object"){ const c=p.capProbe.count|0, wb=+p.capProbe.wardBoost||0, cap=Math.max(0,+LAST_STAND.lastStandWardCap||0);
+        capped={ count:c, wardBoost:+wb.toFixed(4), lastStandBoost:+lastStandBoostFor(c).toFixed(4), cap:+cap.toFixed(4), combined:+Math.min(cap, wb+lastStandBoostFor(c)).toFixed(4) }; }
+      if(p.regenTick && typeof p.regenTick==="object" && G.hero){ const s=Math.max(0,+p.regenTick.s||0), before=+G.hero.hp;
+        wardRegenTick(G.hero, s);   // SEAM REAL (aplica el boost share-capped; respeta _safeRegenPauseT / hp≥mhp)
+        regen={ s, before:+before.toFixed(4), after:+(+G.hero.hp).toFixed(4), delta:+((+G.hero.hp)-before).toFixed(4), boost:+wardRegenBoost(G.hero).toFixed(4) }; }
+    }
+    const h=G.hero, vm=lastStandVM(h);
+    return { enabled:LAST_STAND.enabled, channel:LAST_STAND.channel||"wardRegen", engageRadius:+LAST_STAND.engageRadius||0,
+      tiers:(LAST_STAND.tiers||[]).map(t=>({min:+t.min||0,boost:+t.boost||0})), cap:(+LAST_STAND.lastStandWardCap||0),
+      count:vm.count, tier:vm.tier, tierCount:vm.tierCount, threshold:vm.threshold, boost:vm.boost,
+      wardBoost:vm.wardBoost, combinedBoost:vm.combinedBoost, regenPct:vm.regenPct, regenRate:vm.regenRate,
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                  // boost EFECTIVO del seam (share-cap Warding⊕LastStand); idéntico al que aplica wardRegenTick
+      wardMulRegen: h?+wardMul(h,"wardRegen").toFixed(4):0,               // SÓLO-Warding (para comparar el de-stack: con Last Stand OFF, wardRegenBoost==wardMulRegen ⇒ byte-id)
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                   // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                     // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      tag: lastStandTag(h),                                              // glifo SERVIDO (prueba: OFF/no-superado ⇒ "" / superado en zona ⇒ ⚔)
+      probe: probe,                                                      // resultado de lastStandBoostFor (byte-verificación de la TABLA de tiers)
+      capped: capped,                                                    // resultado del SHARE-CAP math (byte-verifica el de-stack vs Warding Ring)
+      regen: regen,                                                      // resultado del seam REAL wardRegenTick (delta de HP; prueba el regen share-capped en aislamiento)
+      precedence:"wardRegen (canal REUSADO — MISMO seam que Warding Ring #59): SHARE-CAP de-stack ⇒ boost combinado min(lastStandWardCap, wardBoost + lastStandBoost), 0 doble-dip más allá del techo (mismo patrón que Tempest lootQuality vs Trailcraft y Cadence critChance vs Delve). EJE = RATIO DE FUERZA / SUPERADO EN NÚMERO (conteo instantáneo de enemigos que te enganchan), NO meter personal (⊥ Cadence) ni reloj día/noche/clima (⊥ Nocturne/Tempest) ni aliados (⊥ Kinship) ni foco (⊥ Focus). ORTOGONAL a goldFind/restedMult/oocMitigation/critChance/xpGain/vamp/lootQuality (seams distintos).",
+      gExists:(G.lastStand!=null),                                       // prueba byte-id: STATELESS ⇒ G.lastStand NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2410: BASTIÓN / DOMINIO DE ZONA OBSERVABLE hook (DARK, ZONE_DOMINANCE — eje ESPACIAL/TERRITORIAL control de zona en disputa shard-wide + canal REUSADO oocMitigation con SHARE-CAP vs Wayfarer #61). Sólo lectura + drivers
+  // de PRUEBA gateados (0 hotkey — passive TERRITORIAL emerge del reloj de disputa + presencia, sin input.js). STATELESS: la zona dominada + intensidad son función PURA del reloj compartido ⇒ MISMO control en N clientes (convergencia byte-a-byte, 0 desync).
+  //   zonedom()                                         → snapshot {enabled,channel,zones,tiers,mitCap,...,heroZone,domZone,holding,period,frac,intensity,tier,domMit,wayMit,effMit,peer muls ⊥,tag,gExists,hero}
+  //   zonedom({enabled})                                → flip runtime IN-MEMORY de ZONE_DOMINANCE.enabled (sin tocar el disco)
+  //   zonedom({nowMs})                                  → fija el reloj de disputa compartido G.zoneDomNow (period + fracción de control se derivan de él)
+  //   zonedom({phaseOverride}) / ({frac})               → fija ZONE_DOMINANCE.phaseOverride (fuerza pico/decadencia de control determinista; null = reloj real)
+  //   zonedom({intensityProbe:{frac}})                  → devuelve la función PURA zoneDomIntensity(frac) (byte-verificación de la rampa triangular / bordes de ventana) SIN tocar estado
+  //   zonedom({zoneProbe:{period}})                     → devuelve zoneDomZoneFor(period) (rotación determinista por hash) SIN tocar estado
+  //   zonedom({hitTick})                                → devuelve base/way/dom/effMit + real SIN vs CON mitigación del canal oocMitigation (share-cap Wayfarer+Dominance) ⇒ byte-verifica el seam `real` en aislamiento (OFF ⇒ effMit==wayMit)
+  //   zonedom({toDom}) / ({leave})                      → teleporta a la zona DOMINADA actual / aleja de toda zona (prueba el gate de presencia territorial)
+  zonedom(p){
+    let probe=null, zprobe=null, hitPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) ZONE_DOMINANCE.enabled=!!p.enabled;
+      if("nowMs" in p) G.zoneDomNow=+p.nowMs;                                                    // fija el reloj de disputa ⇒ deriva period + fracción de control
+      if("phaseOverride" in p) ZONE_DOMINANCE.phaseOverride=(p.phaseOverride==null?null:+p.phaseOverride);
+      if("frac" in p) ZONE_DOMINANCE.phaseOverride=(p.frac==null?null:+p.frac);                  // alias cómodo
+      if("intensityProbe" in p && p.intensityProbe && typeof p.intensityProbe==="object"){ probe=zoneDomIntensity(+p.intensityProbe.frac||0); }   // función PURA, SIN tocar estado
+      if("zoneProbe" in p && p.zoneProbe && typeof p.zoneProbe==="object"){ zprobe=zoneDomZoneFor((+p.zoneProbe.period||0)>>>0); }                 // rotación determinista por hash
+      if(p.toDom && G.hero){ const zn=zoneDomActiveZone()||((ZONE_DOMINANCE.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }   // dentro de la zona dominada actual
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("hitTick" in p && p.hitTick){ const h2=G.hero;
+        const wayMit=(WAYFARER_ROAM.enabled&&h2)?wayRoamMul(h2,"oocMitigation"):0, domMit=h2?zoneDomMul(h2,ZONE_DOMINANCE.channel||"oocMitigation"):0;
+        const effMit=oocMitigCombined(wayMit, domMit); const base=(typeof p.hitTick==="object"&&p.hitTick.dmg!=null)?(+p.hitTick.dmg||0):100;
+        hitPicked={ base, wayMit:+wayMit.toFixed(4), domMit:+domMit.toFixed(4), effMit:+effMit.toFixed(4),
+          realNoMit:base, realMit:Math.max(1, base*(1-effMit)), mitCap:+ZONE_DOMINANCE.mitCap||0 }; }   // OFF ⇒ effMit==wayMit ⇒ realMit byte-id al seam de Wayfarer; share-cap ⇒ effMit≤mitCap
+    }
+    const h=G.hero, vm=zoneDomVM(h);
+    return { enabled:ZONE_DOMINANCE.enabled, channel:ZONE_DOMINANCE.channel||"oocMitigation", zones:(ZONE_DOMINANCE.zones||[]).slice(),
+      tiers:(ZONE_DOMINANCE.tiers||[]).map(t=>({min:+t.min||0,mit:+t.mit||0})), mitCap:+ZONE_DOMINANCE.mitCap||0,
+      periodSec:ZONE_DOMINANCE.periodSec|0, holdStart:+ZONE_DOMINANCE.holdStart||0, holdEnd:+ZONE_DOMINANCE.holdEnd||0, minIntensity:+ZONE_DOMINANCE.minIntensity||0,
+      heroZone:vm.heroZone, domZone:vm.domZone, holding:vm.holding, contested:vm.contested, period:vm.period, frac:vm.frac, intensity:vm.intensity, tier:vm.tier, tierCount:vm.tierCount,
+      boostKind:vm.boostKind, domMit:vm.domMit, wayMit:vm.wayMit, effMit:vm.effMit,   // mitigación combinada EFECTIVA (share-cap Wayfarer+Dominance)
+      wardRegenBoost: h?wardRegenBoost(h):0,                              // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")):0, // canal goldFind — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,   // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      vampMul: h?nocturneMul(h,"vamp"):0,                                 // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootFloor: lootQualityFloor()||"",                                 // canal lootQuality (Trailcraft/Tempest) — INDEPENDIENTE ⊥
+      tag: zoneDomTag(h),                                                // glifo SERVIDO (prueba: OFF/control-insuficiente/fuera ⇒ "" / dominando ⇒ ⛨)
+      probe: probe,                                                      // resultado de la función PURA zoneDomIntensity (byte-verificación de la rampa/bordes)
+      zoneProbe: zprobe,                                                 // resultado de la rotación determinista por hash zoneDomZoneFor(period)
+      hitPicked,                                                         // resultado del hitTick sintético (prueba del seam oocMitigation + share-cap en aislamiento)
+      precedence:"oocMitigation (canal REUSADO — MISMO seam `real` de damageHero que Wayfarer #61): SHARE-CAP de-stack ⇒ mitigación combinada min(mitCap, wayMit + domMit), 0 doble-dip más allá del techo (mismo patrón que Tempest lootQuality vs Trailcraft y Cadence critChance vs Delve). EJE = ESPACIAL/TERRITORIAL (control de zona en disputa shard-wide, rotación por hash + rampa triangular de control), NO reloj día/noche (⊥ Nocturne) ni clima (⊥ Tempest) ni meter de kills (⊥ Cadence) ni exploración (⊥ Trailcraft/Wayfarer). ⊥ WORLD_PULSE #50 (que también rota zona) por canal (defensa vs XP) + forma (rampa vs liveFrac). ORTOGONAL a wardRegen/goldFind/restedMult/critChance/xpGain/vamp/lootQuality (seams distintos).",
+      gExists:(G.zonedom!=null),                                         // prueba byte-id: STATELESS ⇒ G.zonedom NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).

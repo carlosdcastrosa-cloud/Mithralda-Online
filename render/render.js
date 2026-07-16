@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, ZONE_DOMINANCE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -392,6 +392,8 @@ export function createRenderer(ctx){
     if(NOCTURNE_HUNT.enabled) renderNocturneBadge(); // CAS-2393/2394: Nocturne — badge de caza nocturna (canal `vamp`/lifesteal); resalta si el jugador tiene una caza nocturna abierta (nº de kills hechos de noche en la ventana). Cosmético puro.
     if(CADENCE_RUSH.enabled) renderCadenceBadge(); // CAS-2400: Cadencia / Ímpetu — badge de tempo de matanza (canal critChance, share-cap con Delve); resalta si el jugador tiene un ímpetu abierto (combo-meter de kills en sucesión rápida). Cosmético puro.
     if(TEMPEST_SURGE.enabled) renderTempestBadge(); // CAS-2404: Vendaval / Tempestad — badge de condición meteorológica (canal lootQuality, share-cap con Trailcraft); resalta si el jugador está en zona expuesta CON tormenta activa (intensidad shard-wide del reloj compartido). Cosmético puro.
+    if(LAST_STAND.enabled) renderLastStandBadge(); // CAS-2409: Última Resistencia / Aguante — badge de ratio de fuerza (canal wardRegen, share-cap con Warding Ring); resalta si el héroe está SUPERADO EN NÚMERO (≥umbral de enemigos enganchados dentro de engageRadius). Cosmético puro.
+    if(ZONE_DOMINANCE.enabled) renderZoneDomBadge(); // CAS-2410: Bastión / Dominio de Zona — badge de control territorial (canal oocMitigation, share-cap con Wayfarer); resalta si el héroe DOMINA la zona en disputa (dentro de la zona dominada del period con control ≥ minIntensity). Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -4089,6 +4091,77 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + pasos de piso de rareza; si no abre, la intensidad de tormenta o "—"
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" +"+steps):(k.exposed&&k.storming?(inten+"%"):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2409: badge de ÚLTIMA RESISTENCIA / AGUANTE (LAST_STAND). Refleja el VM PURO (sim.lastStandVM, autoridad en sim) ⇒ MISMO conteo/tier/boost para todos los clientes con el mismo estado de sim.
+  // Glifo procedural ⚔ (aspas cruzadas = superado en número) — el brillo sube con el tier. Muestra el estado del canal REUSADO wardRegen (boost de regen del tier, share-cap con Warding Ring) — cosmético puro, 0 sim/RNG. Label "Resistencia:" ÚNICO.
+  function renderLastStandBadge(){
+    const k=sim.lastStandVM&&sim.lastStandVM(); if(!k) return;             // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+582, sw=14, sh=14;                             // bajo la Tempestad (@+560); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, count=k.count|0, boostPct=Math.round((k.combinedBoost||0)*100);
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(2.4+tier*0.5))):0.55;
+    const glyph=here?"#ffcf8f":"#8a9bb0";                                 // superado=ámbar cálido (atrincherarse/aguantar), inerte=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⚔ dos aspas cruzadas (X); el brillo sube con el tier
+    const litA=here?Math.min(1,0.4+tier*0.3):0.24;
+    ctx.globalAlpha=pulse*(here?0.95:litA);
+    ctx.strokeStyle=here?glyph:"rgba(150,160,176,0.42)"; ctx.lineWidth=1.8; ctx.lineCap="round";
+    const r=sh*0.32;
+    ctx.beginPath(); ctx.moveTo(cx-r,cy-r); ctx.lineTo(cx+r,cy+r); ctx.moveTo(cx+r,cy-r); ctx.lineTo(cx-r,cy+r); ctx.stroke();
+    // pomos de las aspas (2 puntos) — destacan con el tier
+    ctx.globalAlpha=pulse*litA; ctx.fillStyle=here?glyph:"rgba(150,160,176,0.4)";
+    ctx.beginPath(); ctx.arc(cx-r,cy+r,1.4,0,6.28); ctx.arc(cx+r,cy+r,1.4,0,6.28); ctx.fill();
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Resistencia: "+(here?("×"+count):"—");
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#ffe0b0":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: tier + boost de regen efectivo (share-capped); si no abre, el conteo o "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" +"+boostPct+"%"):(count>0?("×"+count):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2410: badge de BASTIÓN / DOMINIO DE ZONA (ZONE_DOMINANCE). Refleja el VM PURO (sim.zoneDomVM, autoridad en sim) ⇒ MISMA zona dominada/intensidad/tier para todos los clientes con el mismo reloj compartido.
+  // Glifo procedural ⛨ (escudo con aspa = control territorial defensivo) — el brillo sube con el tier. Muestra el estado del canal REUSADO oocMitigation (mitigación del tier, share-cap con Wayfarer) — cosmético puro, 0 sim/RNG. Label "Bastión:" ÚNICO.
+  function renderZoneDomBadge(){
+    const k=sim.zoneDomVM&&sim.zoneDomVM(); if(!k) return;                 // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+604, sw=14, sh=14;                             // bajo la Resistencia (@+582); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, inten=Math.round((k.intensity||0)*100), mitPct=Math.round((k.effMit||0)*100);
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(2.4+tier*0.5))):0.55;
+    const glyph=here?"#9fe0b0":"#8a9bb0";                                 // dominio=verde-jade (bastión/atrincherarse), inerte=gris
+    const zn=k.domZone?STR.zoneName(k.domZone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⛨ escudo (contorno) con un aspa vertical de control; el brillo sube con el tier
+    const litA=here?Math.min(1,0.4+tier*0.3):0.24;
+    ctx.globalAlpha=pulse*(here?0.95:litA);
+    ctx.strokeStyle=here?glyph:"rgba(150,164,180,0.42)"; ctx.lineWidth=1.6; ctx.lineJoin="round"; ctx.lineCap="round";
+    const r=sh*0.34, topY=cy-r*1.05;
+    ctx.beginPath();                                                     // silueta de escudo (hombros arriba, punta abajo)
+    ctx.moveTo(cx-r, topY); ctx.lineTo(cx+r, topY); ctx.lineTo(cx+r, cy+r*0.15);
+    ctx.quadraticCurveTo(cx+r, cy+r*0.9, cx, cy+r*1.25); ctx.quadraticCurveTo(cx-r, cy+r*0.9, cx-r, cy+r*0.15); ctx.closePath(); ctx.stroke();
+    // aspa/pala central (línea vertical) — destaca con el tier
+    ctx.globalAlpha=pulse*litA;
+    ctx.beginPath(); ctx.moveTo(cx, topY+1.5); ctx.lineTo(cx, cy+r*0.95); ctx.stroke();
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Bastión: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#c2f0d2":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: tier + mitigación efectiva (share-capped); si no domina, la intensidad de control o "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" −"+mitPct+"%"):(k.contested&&k.intensity>0?(inten+"%"):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
     ctx.restore();
