@@ -176,21 +176,27 @@ try {
      fpBefore === fpAfter, `stable=${fpBefore === fpAfter} len=${fpBefore.length}`);
 
   // ═══ L10 — badge "Sigilo:" render + movimiento/combate sin crash + fps sano ═══
+  // fps se mide en RÉGIMEN PERMANENTE (tras un warmup de 700ms) — el frame-loop no debe medirse justo tras
+  //   operaciones pesadas del harness (worldFingerprint 15.9MB / tp / raycasts) o el 1er segundo sale bajo por warmup, no por el juego.
   const badge = await pageA.evaluate(async () => {
     const cv = document.querySelector("canvas"); const cx = cv.getContext("2d");
     let cnt = 0; const orig = cx.fillText.bind(cx);
     cx.fillText = function (t, x, y) { if (typeof t === "string" && t.indexOf("Sigilo:") >= 0) cnt++; return orig(t, x, y); };
-    let t0 = performance.now(), frames = 0;
+    // warmup: mover + atacar 700ms para estabilizar el rAF loop tras las probes pesadas
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "ArrowRight", key: "ArrowRight", bubbles: true }));
     window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit1", key: "1", bubbles: true }));
-    await new Promise((res) => { const loop = () => { frames++; if (performance.now() - t0 > 1000) return res(); requestAnimationFrame(loop); }; requestAnimationFrame(loop); });
+    await new Promise((res) => setTimeout(res, 700));
+    // medición de RÉGIMEN PERMANENTE (2s en movimiento+combate)
+    cnt = 0; let t0 = performance.now(), frames = 0;
+    await new Promise((res) => { const loop = () => { frames++; if (performance.now() - t0 > 2000) return res(); requestAnimationFrame(loop); }; requestAnimationFrame(loop); });
     window.dispatchEvent(new KeyboardEvent("keyup", { code: "ArrowRight", key: "ArrowRight", bubbles: true }));
     const fps = Math.round(frames / ((performance.now() - t0) / 1000));
     cx.fillText = orig;
     return { badgeCnt: cnt, fps };
   });
-  ok("L10 LIVE render: movimiento (ArrowRight) + combate (Digit1) sin crash; fps sano (≥50); badge \"Sigilo:\" gate presente (enabled:true)",
-     badge.fps >= 50, `badgeCnt=${badge.badgeCnt} fps=${badge.fps}`);
+  // badge "Sigilo:" DIBUJA en LIVE (enabled:true ⇒ count>0) — contraste con DARK (enabled:false ⇒ count 0)
+  ok("L10 LIVE render: movimiento (ArrowRight) + combate (Digit1) sin crash; fps RÉGIMEN PERMANENTE sano (≥55); badge \"Sigilo:\" DIBUJA (enabled:true ⇒ count>0, contraste con DARK count==0)",
+     badge.fps >= 55 && badge.badgeCnt > 0, `badgeCnt=${badge.badgeCnt} fps=${badge.fps}`);
 
   await sleep(250);
   await pageA.screenshot({ path: join(OUT, "selfverify.png") });
