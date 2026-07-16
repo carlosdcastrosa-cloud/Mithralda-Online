@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4120,6 +4120,35 @@ export function variantSurgeVM(h){ h=h||G.hero; const on=!!ENCOUNTER_VARIANT_SUR
     cap:Math.max(0,ENCOUNTER_VARIANT_SURGE.variantSocketCap|0), radius:+ENCOUNTER_VARIANT_SURGE.radius||0,
     tag: variantSurgeTag(h) }; }
 
+// CAS-2464: HAZARD DE ARENA ACTIVO (ARENA_HAZARD_SURGE) — EJE PRESENCIA/TIPO/INTENSIDAD DE HAZARD DE ARENA ACTIVO server-auth + canal FRESCO healPotency (recompensa de brasas restaurativas por forrajeo DENTRO de un hazard activo). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Los hazards (hz.type/hz.phase) = estado de sim REPLICADO plantado determinista por-spawn (maybeSpawnHazard/updateHazards, arenaHazardRng ISOLADO off-srand, subsistema ARENA_HAZARDS/CAS-2094).
+// hazardActive(hz) = un hazard cuenta SÓLO en fase "active" (la ventana que DAÑA; telegraph=aviso, fade=cosmético ⇒ peso 0). PURO (lectura de hz.phase replicado). dead/sin type ⇒ false.
+function hazardActive(hz){ return !!(hz && !hz.dead && hz.phase==="active" && hz.type); }
+// hazardWeight(hz) = peso de un hazard ACTIVO = hazardWeights[hz.type] (magma/poison→2, resto→1; inactivo/telegraph/fade→0). PURO (lectura de hz.type/hz.phase replicados).
+function hazardWeight(hz){ if(!hazardActive(hz)) return 0; const W=ARENA_HAZARD_SURGE.hazardWeights||{}; return (+W[hz.type]||1); }
+// hazardSurgeScore(h) = suma del peso de TODOS los hazards ACTIVOS dentro de ARENA_HAZARD_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (hazards+fases+posiciones = estado replicado). 0 si no hay hazard activo cerca. Vecindad = radio (⊥ apex que mide distancia a UN jefe; ⊥ variante que lee e.variant; ⊥ evento que lee POIs).
+function hazardSurgeScore(h){ h=h||G.hero; if(!h) return 0; const R=+ARENA_HAZARD_SURGE.radius||0, R2=R*R; let s=0;
+  for(const hz of (G.hazards||[])){ const w=hazardWeight(hz); if(w<=0) continue; const dx=h.x-hz.x, dy=h.y-hz.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// hazardSurgeTier(score) = índice del tier de hazard vigente (0 = sin hazard activo cerca / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS/más-intensos hazards = tier ALTO. LUT determinista pura.
+function hazardSurgeTier(score){ const T=ARENA_HAZARD_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// hazardSurgeMoteBonus(score) = nº de brasas restaurativas del tier vigente, acotado por el sub-cap propio hazardMoteCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta healPotency.
+function hazardSurgeMoteBonus(score){ if(!ARENA_HAZARD_SURGE.enabled) return 0;
+  if((ARENA_HAZARD_SURGE.channel||"healPotency")!=="healPotency") return 0;   // seguridad: ARENA_HAZARD_SURGE SÓLO alimenta healPotency (si el knob se re-apunta, no contribuye)
+  const t=hazardSurgeTier(score); if(t<=0) return 0;
+  const raw=+ARENA_HAZARD_SURGE.tiers[t-1].motes||0, cap=Math.max(0,ARENA_HAZARD_SURGE.hazardMoteCap|0);
+  return cap>0 ? Math.min(cap, raw) : raw; }
+// hazardSurgeForageMotes(h, tpl) = las brasas por un kill DENTRO de un hazard activo = hazardSurgeMoteBonus(score actual). 0 si OFF / sin hazard cerca / sin tpl. PURO — el seam decide banca a h.hazardMotes vía grantHazardMote.
+function hazardSurgeForageMotes(h, tpl){ if(!ARENA_HAZARD_SURGE.enabled||!tpl) return 0; return hazardSurgeMoteBonus(hazardSurgeScore(h||G.hero)); }
+// hazardSurgeTag(h) = glifo del badge de HAZARD DE ARENA (▲) si el héroe tiene un hazard activo en radio (tier>0). PURO. "" si OFF / sin hazard cerca.
+export function hazardSurgeTag(h){ h=h||G.hero; if(!ARENA_HAZARD_SURGE.enabled||!h) return "";
+  return hazardSurgeTier(hazardSurgeScore(h))>0 ? "▲" : ""; }
+// View-model PURO para el HUD/badge: el tier de hazard, el score de hazards, las brasas efectivas por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function hazardSurgeVM(h){ h=h||G.hero; const on=!!ARENA_HAZARD_SURGE.enabled&&!!h;
+  const score=on?hazardSurgeScore(h):0, tier=on?hazardSurgeTier(score):0, motes=on?hazardSurgeMoteBonus(score):0;
+  return { enabled:!!ARENA_HAZARD_SURGE.enabled, channel:ARENA_HAZARD_SURGE.channel||"healPotency",
+    score, tier, tierCount:(ARENA_HAZARD_SURGE.tiers||[]).length, motes,
+    cap:Math.max(0,ARENA_HAZARD_SURGE.hazardMoteCap|0), radius:+ARENA_HAZARD_SURGE.radius||0,
+    tag: hazardSurgeTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5622,6 +5651,13 @@ function killEnemy(e){
   if(ENCOUNTER_VARIANT_SURGE.enabled && !tpl.neutral){ const sb=variantSurgeForageSockets(G.hero, tpl);
     if(sb>0){ grantSocket(sb);
       floater(e.x,e.y-84,"+"+sb+" Engarce","#7fe0c0",{small:true}); } }
+  // CAS-2464 ARENA_HAZARD_SURGE seam: FORRAJEO DENTRO DE UN HAZARD DE ARENA ACTIVO. Al matar un mob no-neutral mientras hay hazard(s) en fase `active` (score≥umbral) dentro del radio del HÉROE, el
+  // héroe cosecha brasas restaurativas = hazardSurgeForageMotes(hero,tpl) (flat por tier de intensidad, sub-cap hazardMoteCap), banca a h.hazardMotes vía grantHazardMote (0 RNG). Los hazards NO son mobs
+  // ⇒ matar este mob NO altera G.hazards ⇒ sin auto-conteo. GATED ⇒ enabled:false ⇒ rama muerta: 0 brasas, 0 floater, 0 grantHazardMote ⇒ killEnemy byte-idéntico al HEAD (independiente de ARENA_HAZARDS LIVE).
+  // Canal FRESCO healPotency (fuente ÚNICA, sub-cap hazardMoteCap) — NINGUNA de las 18 flags #59-#76 lo toca; brasas transitorias ⇒ fuera del save + fingerprint.
+  if(ARENA_HAZARD_SURGE.enabled && !tpl.neutral){ const mb=hazardSurgeForageMotes(G.hero, tpl);
+    if(mb>0){ grantHazardMote(mb);
+      floater(e.x,e.y-96,"+"+mb+" Brasa","#ff9a5a",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -6828,6 +6864,8 @@ function grantFlask(n){ const h=G.hero; if(!h||n<=0||!FLASK.enabled) return; h.f
 function grantEventGem(n){ const h=G.hero; if(!h||n<=0) return; h.eventGems=(h.eventGems|0)+(n|0); }
 // CAS-2456: banca reagentes de engarce (canal socketFind de ENCOUNTER_VARIANT_SURGE). Moneda TRANSITORIA NUEVA (h.socketShards — init por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantEventGem para el trickle de forrajeo DENTRO de un encuentro de variante. STATELESS: h.socketShards NO se serializa ⇒ no es clave de save.
 function grantSocket(n){ const h=G.hero; if(!h||n<=0) return; h.socketShards=(h.socketShards|0)+(n|0); }
+// CAS-2464: banca brasas restaurativas (canal healPotency de ARENA_HAZARD_SURGE). Moneda TRANSITORIA NUEVA (h.hazardMotes — init por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantSocket para el trickle de forrajeo DENTRO de un hazard de arena activo. STATELESS: h.hazardMotes NO se serializa ⇒ no es clave de save.
+function grantHazardMote(n){ const h=G.hero; if(!h||n<=0) return; h.hazardMotes=(h.hazardMotes|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9689,6 +9727,59 @@ export const dev = {
       gExists:(G.variantSurge!=null),                                    // prueba byte-id: STATELESS ⇒ G.variantSurge NUNCA se crea (0 estado nuevo, 0 clave serializada)
       variantMobCount:variantMobCount,                                   // nº de mobs-variante vivos en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), socketShards:(h.socketShards|0) }:null }; },
+  // CAS-2464: HAZARD DE ARENA ACTIVO OBSERVABLE hook (DARK, ARENA_HAZARD_SURGE — eje PRESENCIA/TIPO/INTENSIDAD DE HAZARD DE ARENA ACTIVO server-auth [Σ hazardWeights sobre hz.type de los hazards en fase `active` en radio del héroe, leídos de G.hazards] + canal
+  // FRESCO healPotency [recompensa de brasas restaurativas por forrajeo DENTRO de un hazard activo, NINGUNA flag previa lo toca] con sub-cap hazardMoteCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — el hazard
+  // EMERGE del estado del mundo/spawn). Convergencia byte-a-byte: MISMO snapshot (G.hazards + hz.phase + posición del héroe) ⇒ MISMO score/tier/motes/forageMotes en N clientes.
+  //   hazardSurge()                                  → snapshot {enabled,channel,radius,tiers,cap,score,tier,motes,forageMotesPreview,peer channels ⊥,tag,gExists,activeHazardCount,hero}
+  //   hazardSurge({enabled})                         → flip runtime IN-MEMORY de ARENA_HAZARD_SURGE.enabled (sin tocar el disco)
+  //   hazardSurge({tp:{tx,ty}})                      → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ el hazard se evalúa contra los hazards REALes de G.hazards en radio
+  //   hazardSurge({scoreProbe:{score}})              → LUT PURA score→tier→motes (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   hazardSurge({spawnHazard:{tx,ty,type,phase}})  → inyecta un hazard de PRUEBA REAL (mirror del push de maybeSpawnHazard) en el tile (tx,ty), fase active por defecto; devuelve idx + peso
+  //   hazardSurge({hazardProbe:true})                → score REAL + lista de hazards activos en radio + su {x,y,type,phase,weight} (byte-verifica la lectura server-auth de G.hazards)
+  hazardSurge(p){
+    let scoreProbe=null, spawnHazard=null, hazardProbe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) ARENA_HAZARD_SURGE.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=hazardSurgeTier(score);   // LUT PURA score→tier→motes (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+ARENA_HAZARD_SURGE.tiers[t-1].motes||0):0, cap=Math.max(0,ARENA_HAZARD_SURGE.hazardMoteCap|0);
+        scoreProbe={ score, tier:t, motes:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnHazard && typeof p.spawnHazard==="object"){ const tx=p.spawnHazard.tx|0, ty=p.spawnHazard.ty|0, type=(p.spawnHazard.type||"magma"), phase=(p.spawnHazard.phase||"active");   // hazard de PRUEBA REAL (mirror del push natural de maybeSpawnHazard) para observar la señal REAL en G.hazards
+        const def=ARENA_HAZARDS.types[type]||ARENA_HAZARDS.types.magma;
+        const hz={ x:tx*TS+TS/2, y:ty*TS+TS/2, r:ARENA_HAZARDS.radius, type, def, phase, t:0, tickAcc:0 };
+        G.hazards=G.hazards||[]; G.hazards.push(hz);
+        spawnHazard={ idx:G.hazards.indexOf(hz), x:+hz.x.toFixed(1), y:+hz.y.toFixed(1), type:hz.type, phase:hz.phase, weight:hazardWeight(hz) }; }
+      if(p.hazardProbe){ const h=G.hero, R=+ARENA_HAZARD_SURGE.radius||0, R2=R*R, hzs=[]; let sc=0;   // lectura REAL server-auth: hazards activos en radio del héroe
+        if(h){ for(const hz of (G.hazards||[])){ const w=hazardWeight(hz); if(w<=0) continue; const dx=h.x-hz.x, dy=h.y-hz.y; if(dx*dx+dy*dy<=R2){ sc+=w; hzs.push({ x:+hz.x.toFixed(1), y:+hz.y.toFixed(1), type:hz.type, phase:hz.phase, weight:w }); } } }
+        hazardProbe={ score:sc, count:hzs.length, hazards:hzs }; }
+    }
+    const h=G.hero, vm=hazardSurgeVM(h);
+    let activeHazardCount=0; for(const hz of (G.hazards||[])){ if(hazardWeight(hz)>0) activeHazardCount++; }
+    return { enabled:ARENA_HAZARD_SURGE.enabled, channel:ARENA_HAZARD_SURGE.channel||"healPotency",
+      radius:vm.radius, tiers:(ARENA_HAZARD_SURGE.tiers||[]).map(t=>({min:+t.min||0,motes:+t.motes||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, motes:vm.motes,
+      forageMotesPreview: h?hazardSurgeForageMotes(h, {xp:100}):0,          // preview: brasas forrajeadas por un kill con el hazard actual (expone el canal healPotency)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      gemForagePreview: h?zoneEventForageGems(h, {xp:100}):0,               // canal gemFind (ZONE_EVENT_SURGE #75) — INDEPENDIENTE ⊥
+      socketForagePreview: h?variantSurgeForageSockets(h, {xp:100}):0,      // canal socketFind (ENCOUNTER_VARIANT_SURGE #76) — INDEPENDIENTE ⊥
+      tag: hazardSurgeTag(h),                                             // glifo SERVIDO (OFF/sin hazard ⇒ "" / hazard activo cerca ⇒ ▲)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→motes (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnHazard: spawnHazard,                                           // hazard de PRUEBA inyectado (G.hazards) — idx + peso
+      hazardProbe: hazardProbe,                                           // lectura REAL server-auth: hazards activos en radio (score + lista)
+      precedence:"healPotency (canal FRESCO — recompensa de brasas restaurativas por forrajeo DENTRO de un hazard de arena activo): NINGUNA de las 18 flags #59-#76 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind #60/#62, lootQuality #63/#68, xpGain #65, essenceFind #72, matFind #73, flaskPotency #74, gemFind #75, socketFind #76) está LLENA ⇒ pivota a una moneda FRESCA, brasas restaurativas (h.hazardMotes, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio hazardMoteCap, 0 doble-dip (ningún otro seam banca hazardMotes). EJE = PRESENCIA/TIPO/INTENSIDAD DE HAZARD DE ARENA ACTIVO server-auth: hazardSurgeScore(hero)=Σ hazardWeights[hz.type] sobre los hazards en fase `active` de G.hazards en radio (subsistema ARENA_HAZARDS/CAS-2094). ⊥ #76 (variante = modificador de comportamiento sobre los MOBS leído de e.variant/G.enemies; hazard = peligro ambiental de la ARENA leído de G.hazards, independiente de los mobs), ⊥ #75 (evento de zona = POIs en G.zoneEvents.pois; esto = hazard ambiental telegrafiado, otro contenedor), ⊥ #74 (afijo = CALIDAD estática de UN mob leída de mobAffixes(e); un hazard NO es un mob), ⊥ #73 (apex = DISTANCIA a UN jefe; esto = presencia/tipo de hazards), ⊥ #72 (escasez = AUSENCIA de mobs; esto = PRESENCIA de un peligro de arena), ⊥ #69 (force-ratio = ENGANCHADOS). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind/socketFind (seams distintos).",
+      gExists:(G.hazardSurge!=null),                                     // prueba byte-id: STATELESS ⇒ G.hazardSurge NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      activeHazardCount:activeHazardCount,                               // nº de hazards activos en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), hazardMotes:(h.hazardMotes|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
