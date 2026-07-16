@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4149,6 +4149,35 @@ export function hazardSurgeVM(h){ h=h||G.hero; const on=!!ARENA_HAZARD_SURGE.ena
     cap:Math.max(0,ARENA_HAZARD_SURGE.hazardMoteCap|0), radius:+ARENA_HAZARD_SURGE.radius||0,
     tag: hazardSurgeTag(h) }; }
 
+// CAS-2468: FASE DE ENFURECIMIENTO DE JEFE (BOSS_ENRAGE_SURGE) — EJE PRESENCIA/INTENSIDAD DE FASE DE ENFURECIMIENTO DE JEFE server-auth + canal FRESCO trophyFind (recompensa de trofeos de guerra por forrajeo mientras un jefe está ENFURECIDO). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. El enrage (e.enraged) = estado de sim REPLICADO marcado determinista por-daño al cruzar e.hp<=e.maxHp*e.enrageAt (subsistema cambio-de-fase-capstone/CAS-65: acelera spd + aprieta tells + habilita slam-radial). NO cosmético: gobierna la AI de fase-2 REAL del jefe.
+// enrageKind(e) = clase del portador enfurecido para pesar la furia: "boss" (e.isBoss — jefe mayor) o "champion" (capstone de campeón sin isBoss). null si no aplica.
+function enrageKind(e){ if(!e) return null; return e.isBoss ? "boss" : (e.capstone ? "champion" : null); }
+// enrageWeight(e) = peso de un jefe/campeón ENFURECIDO = enrageWeights[kind] (boss→2, champion→1; no-enfurecido/muerto/no-jefe→0). PURO (lectura de e.enraged/e.isBoss/e.capstone replicados). El jefe muerto (e.dead) NO cuenta ⇒ matar al jefe no se auto-recompensa.
+function enrageWeight(e){ if(!e||e.dead||!(e.hp>0)||!e.enraged) return 0; const k=enrageKind(e); if(!k) return 0; const W=BOSS_ENRAGE_SURGE.enrageWeights||{}; return (+W[k]||1); }
+// enrageSurgeScore(h) = suma del peso de furia de TODOS los jefes/campeones ENFURECIDOS dentro de BOSS_ENRAGE_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (e.enraged+posiciones = estado replicado). 0 si no hay furia cerca. Vecindad = radio (⊥ apex #73 que mide DISTANCIA al jefe más cercano SEA CUAL SEA su fase; ⊥ variante #76 que lee e.variant; ⊥ hazard #77 que lee G.hazards).
+function enrageSurgeScore(h){ h=h||G.hero; if(!h) return 0; const R=+BOSS_ENRAGE_SURGE.radius||0, R2=R*R; let s=0;
+  for(const e of (G.enemies||[])){ const w=enrageWeight(e); if(w<=0) continue; const dx=h.x-e.x, dy=h.y-e.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// enrageSurgeTier(score) = índice del tier de furia vigente (0 = sin furia cerca / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS/mayor-clase de furia = tier ALTO. LUT determinista pura.
+function enrageSurgeTier(score){ const T=BOSS_ENRAGE_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// enrageSurgeTrophyBonus(score) = nº de trofeos de guerra del tier vigente, acotado por el sub-cap propio enrageTrophyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta trophyFind.
+function enrageSurgeTrophyBonus(score){ if(!BOSS_ENRAGE_SURGE.enabled) return 0;
+  if((BOSS_ENRAGE_SURGE.channel||"trophyFind")!=="trophyFind") return 0;   // seguridad: BOSS_ENRAGE_SURGE SÓLO alimenta trophyFind (si el knob se re-apunta, no contribuye)
+  const t=enrageSurgeTier(score); if(t<=0) return 0;
+  const raw=+BOSS_ENRAGE_SURGE.tiers[t-1].trophies||0, cap=Math.max(0,BOSS_ENRAGE_SURGE.enrageTrophyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// enrageSurgeForageTrophies(h, tpl) = los trofeos por un kill MIENTRAS un jefe está ENFURECIDO = enrageSurgeTrophyBonus(score actual). 0 si OFF / sin furia cerca / sin tpl. PURO — el seam decide banca a h.enrageTrophies vía grantTrophy.
+function enrageSurgeForageTrophies(h, tpl){ if(!BOSS_ENRAGE_SURGE.enabled||!tpl) return 0; return enrageSurgeTrophyBonus(enrageSurgeScore(h||G.hero)); }
+// enrageSurgeTag(h) = glifo del badge de FASE DE ENFURECIMIENTO (✦) si el héroe tiene un jefe enfurecido en radio (tier>0). PURO. "" si OFF / sin furia cerca.
+export function enrageSurgeTag(h){ h=h||G.hero; if(!BOSS_ENRAGE_SURGE.enabled||!h) return "";
+  return enrageSurgeTier(enrageSurgeScore(h))>0 ? "✦" : ""; }
+// View-model PURO para el HUD/badge: el tier de furia, el score, los trofeos efectivos por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function enrageSurgeVM(h){ h=h||G.hero; const on=!!BOSS_ENRAGE_SURGE.enabled&&!!h;
+  const score=on?enrageSurgeScore(h):0, tier=on?enrageSurgeTier(score):0, trophies=on?enrageSurgeTrophyBonus(score):0;
+  return { enabled:!!BOSS_ENRAGE_SURGE.enabled, channel:BOSS_ENRAGE_SURGE.channel||"trophyFind",
+    score, tier, tierCount:(BOSS_ENRAGE_SURGE.tiers||[]).length, trophies,
+    cap:Math.max(0,BOSS_ENRAGE_SURGE.enrageTrophyCap|0), radius:+BOSS_ENRAGE_SURGE.radius||0,
+    tag: enrageSurgeTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5658,6 +5687,13 @@ function killEnemy(e){
   if(ARENA_HAZARD_SURGE.enabled && !tpl.neutral){ const mb=hazardSurgeForageMotes(G.hero, tpl);
     if(mb>0){ grantHazardMote(mb);
       floater(e.x,e.y-96,"+"+mb+" Brasa","#ff9a5a",{small:true}); } }
+  // CAS-2468 BOSS_ENRAGE_SURGE seam: FORRAJEO MIENTRAS UN JEFE ESTÁ ENFURECIDO. Al matar un mob no-neutral mientras hay jefe(s)/campeón(es) ENFURECIDO(s) (e.enraged, score≥umbral) dentro del radio del HÉROE, el
+  // héroe cosecha trofeos de guerra = enrageSurgeForageTrophies(hero,tpl) (flat por tier de intensidad, sub-cap enrageTrophyCap), banca a h.enrageTrophies vía grantTrophy (0 RNG). e.dead=true ya está fijado arriba
+  // ⇒ enrageWeight(e)=0 ⇒ el jefe recién muerto NO auto-cuenta su furia. GATED ⇒ enabled:false ⇒ rama muerta: 0 trofeos, 0 floater, 0 grantTrophy ⇒ killEnemy byte-idéntico al HEAD (independiente de que CAS-65 enrage esté LIVE).
+  // Canal FRESCO trophyFind (fuente ÚNICA, sub-cap enrageTrophyCap) — NINGUNA de las 19 flags #59-#77 lo toca; trofeos transitorios ⇒ fuera del save + fingerprint.
+  if(BOSS_ENRAGE_SURGE.enabled && !tpl.neutral){ const tb=enrageSurgeForageTrophies(G.hero, tpl);
+    if(tb>0){ grantTrophy(tb);
+      floater(e.x,e.y-108,"+"+tb+" Trofeo","#ffd34d",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -6866,6 +6902,8 @@ function grantEventGem(n){ const h=G.hero; if(!h||n<=0) return; h.eventGems=(h.e
 function grantSocket(n){ const h=G.hero; if(!h||n<=0) return; h.socketShards=(h.socketShards|0)+(n|0); }
 // CAS-2464: banca brasas restaurativas (canal healPotency de ARENA_HAZARD_SURGE). Moneda TRANSITORIA NUEVA (h.hazardMotes — init por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantSocket para el trickle de forrajeo DENTRO de un hazard de arena activo. STATELESS: h.hazardMotes NO se serializa ⇒ no es clave de save.
 function grantHazardMote(n){ const h=G.hero; if(!h||n<=0) return; h.hazardMotes=(h.hazardMotes|0)+(n|0); }
+// CAS-2468: banca trofeos de guerra (canal trophyFind de BOSS_ENRAGE_SURGE). Moneda TRANSITORIA NUEVA (h.enrageTrophies — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantHazardMote para el trickle de forrajeo mientras un jefe está ENFURECIDO. STATELESS: h.enrageTrophies NO se serializa ⇒ no es clave de save.
+function grantTrophy(n){ const h=G.hero; if(!h||n<=0) return; h.enrageTrophies=(h.enrageTrophies|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9780,6 +9818,60 @@ export const dev = {
       gExists:(G.hazardSurge!=null),                                     // prueba byte-id: STATELESS ⇒ G.hazardSurge NUNCA se crea (0 estado nuevo, 0 clave serializada)
       activeHazardCount:activeHazardCount,                               // nº de hazards activos en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), hazardMotes:(h.hazardMotes|0) }:null }; },
+  // CAS-2468: FASE DE ENFURECIMIENTO DE JEFE OBSERVABLE hook (DARK, BOSS_ENRAGE_SURGE — eje PRESENCIA/INTENSIDAD DE FASE DE ENFURECIMIENTO DE JEFE server-auth [Σ enrageWeights[kind] sobre los jefes/campeones VIVOS ENFURECIDOS (e.enraged) en radio del héroe, leídos de G.enemies] + canal
+  // FRESCO trophyFind [recompensa de trofeos de guerra por forrajeo mientras un jefe está ENFURECIDO, NINGUNA flag previa lo toca] con sub-cap enrageTrophyCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — la furia
+  // emerge del daño al jefe, sin input.js). Convergencia byte-a-byte: MISMO snapshot ⇒ MISMO score/tier/trofeos en N clientes.
+  //   enrageSurge()                                    → snapshot {enabled,channel,radius,tiers,cap,score,tier,trophies,forageTrophiesPreview,peer channels ⊥,tag,gExists,enragedCount,hero}
+  //   enrageSurge({enabled})                           → flip runtime IN-MEMORY de BOSS_ENRAGE_SURGE.enabled (sin tocar el disco)
+  //   enrageSurge({tp:{tx,ty}})                        → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ el enrage se evalúa contra los jefes REALes de G.enemies en radio
+  //   enrageSurge({scoreProbe:{score}})                → LUT PURA score→tier→trofeos (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   enrageSurge({spawnEnraged:{tx,ty,kind}})         → inyecta un jefe/campeón ENFURECIDO de PRUEBA REAL (spawnEnemy + capstone + transición de fase CAS-65) en el tile (tx,ty); devuelve idx + peso
+  //   enrageSurge({enrageProbe:true})                  → score REAL + lista de jefes enfurecidos vivos en radio + su {x,y,kind,weight} (byte-verifica la lectura server-auth de G.enemies)
+  enrageSurge(p){
+    let scoreProbe=null, spawnEnraged=null, enrageProbe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) BOSS_ENRAGE_SURGE.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=enrageSurgeTier(score);   // LUT PURA score→tier→trofeos (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+BOSS_ENRAGE_SURGE.tiers[t-1].trophies||0):0, cap=Math.max(0,BOSS_ENRAGE_SURGE.enrageTrophyCap|0);
+        scoreProbe={ score, tier:t, trophies:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnEnraged && typeof p.spawnEnraged==="object"){ const tx=p.spawnEnraged.tx|0, ty=p.spawnEnraged.ty|0, kind=(p.spawnEnraged.kind||"champion"), doEnrage=(p.spawnEnraged.enraged!==false);   // jefe/campeón de PRUEBA REAL (spawnEnemy + capstone, mirror del path natural CAS-65) para observar la señal REAL en G.enemies. enraged:false ⇒ fase-1 tope-de-HP (apex lo VE por distancia pero enrage NO — prueba de que el eje key en la FASE, no en la presencia)
+        const e=spawnEnemy("orc", tx*TS+TS/2, ty*TS+TS/2);
+        if(e){ e.capstone=true; e.isBoss=(kind==="boss"); e.enrageAt=0.5; e.baseSpd=e.tpl.spd; e.enrageSpd=1.35; e.enrageWindup=0.72;
+          if(doEnrage){ e.hp=Math.min(e.hp, e.maxHp*e.enrageAt); e.enraged=true; } else { e.enraged=false; } }   // doEnrage ⇒ cruza el umbral e.hp<=maxHp*enrageAt ⇒ enraged (mirror sim.js:7497); si no, queda en fase-1
+        spawnEnraged={ idx:e?G.enemies.indexOf(e):-1, x:e?+e.x.toFixed(1):0, y:e?+e.y.toFixed(1):0, kind:e?enrageKind(e):null, enraged:!!(e&&e.enraged), weight:e?enrageWeight(e):0 }; }
+      if(p.enrageProbe){ const h=G.hero, R=+BOSS_ENRAGE_SURGE.radius||0, R2=R*R, mobs=[]; let sc=0;   // lectura REAL server-auth: jefes enfurecidos vivos en radio del héroe
+        if(h){ for(const e of (G.enemies||[])){ const w=enrageWeight(e); if(w<=0) continue; const dx=h.x-e.x, dy=h.y-e.y; if(dx*dx+dy*dy<=R2){ sc+=w; mobs.push({ x:+e.x.toFixed(1), y:+e.y.toFixed(1), kind:enrageKind(e), weight:w }); } } }
+        enrageProbe={ score:sc, count:mobs.length, mobs }; }
+    }
+    const h=G.hero, vm=enrageSurgeVM(h);
+    let enragedCount=0; for(const e of (G.enemies||[])){ if(enrageWeight(e)>0) enragedCount++; }
+    return { enabled:BOSS_ENRAGE_SURGE.enabled, channel:BOSS_ENRAGE_SURGE.channel||"trophyFind",
+      radius:vm.radius, tiers:(BOSS_ENRAGE_SURGE.tiers||[]).map(t=>({min:+t.min||0,trophies:+t.trophies||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, trophies:vm.trophies,
+      forageTrophiesPreview: h?enrageSurgeForageTrophies(h, {xp:100}):0,    // preview: trofeos forrajeados por un kill con la furia actual (expone el canal trophyFind)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      gemForagePreview: h?zoneEventForageGems(h, {xp:100}):0,               // canal gemFind (ZONE_EVENT_SURGE #75) — INDEPENDIENTE ⊥
+      socketForagePreview: h?variantSurgeForageSockets(h, {xp:100}):0,      // canal socketFind (ENCOUNTER_VARIANT_SURGE #76) — INDEPENDIENTE ⊥
+      healForagePreview: h?hazardSurgeForageMotes(h, {xp:100}):0,           // canal healPotency (ARENA_HAZARD_SURGE #77) — INDEPENDIENTE ⊥
+      tag: enrageSurgeTag(h),                                             // glifo SERVIDO (OFF/sin furia ⇒ "" / jefe enfurecido cerca ⇒ ✦)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→trofeos (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnEnraged: spawnEnraged,                                         // jefe enfurecido de PRUEBA inyectado (G.enemies) — idx + peso
+      enrageProbe: enrageProbe,                                           // lectura REAL server-auth: jefes enfurecidos vivos en radio (score + lista)
+      precedence:"trophyFind (canal FRESCO — recompensa de trofeos de guerra por forrajeo mientras un jefe está ENFURECIDO): NINGUNA de las 19 flags #59-#77 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind #60/#62, lootQuality #63/#68, xpGain #65, essenceFind #72, matFind #73, flaskPotency #74, gemFind #75, socketFind #76, healPotency #77) está LLENA ⇒ pivota a una moneda FRESCA, trofeos de guerra (h.enrageTrophies, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio enrageTrophyCap, 0 doble-dip (ningún otro seam banca enrageTrophies). EJE = PRESENCIA/INTENSIDAD DE FASE DE ENFURECIMIENTO DE JEFE server-auth: enrageSurgeScore(hero)=Σ enrageWeights[kind] sobre los jefes/campeones VIVOS ENFURECIDOS (e.enraged) de G.enemies en radio (subsistema cambio-de-fase-capstone/CAS-65). ⊥ #77 (hazard = PELIGRO AMBIENTAL de la arena leído de G.hazards; enrage = ESTADO DE FASE de un JEFE leído de e.enraged, otro contenedor), ⊥ #76 (variante = MODIFICADOR DE COMPORTAMIENTO horneado al spawn sobre mobs naturales leído de e.variant [ENCOUNTER_VARIANTS]; enrage = TRANSICIÓN DE FASE POR-DAÑO de un jefe/campeón [CAS-65, e.enraged] — subsistema disjunto, un mob-variante natural NO es capstone ⇒ sin solape de portador), ⊥ #74 (afijo = CALIDAD estática de UN mob; enrage = ESTADO DINÁMICO de fase-2), ⊥ #73 (apex = DISTANCIA al jefe más cercano SEA CUAL SEA su fase; enrage = PRESENCIA DE LA FASE ENFURECIDA en radio, independiente de la distancia exacta ⇒ ejes ortogonales sobre el mismo cuerpo), ⊥ #72 (escasez = AUSENCIA de mobs; esto = PRESENCIA de una fase de furia), ⊥ #69 (force-ratio = ENGANCHADOS). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind/socketFind/healPotency (seams distintos).",
+      gExists:(G.enrageSurge!=null),                                     // prueba byte-id: STATELESS ⇒ G.enrageSurge NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      enragedCount:enragedCount,                                         // nº de jefes enfurecidos vivos en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), enrageTrophies:(h.enrageTrophies|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
