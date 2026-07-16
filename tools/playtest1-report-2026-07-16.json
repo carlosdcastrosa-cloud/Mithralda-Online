@@ -1,0 +1,193 @@
+{
+  "live": "https://carlosdcastrosa-cloud.github.io/Mithralda-Online/index.html?dev",
+  "phases": {
+    "boot": {
+      "httpStatus": 200,
+      "devPresent": true,
+      "scene": "menu",
+      "errors": [
+        "http 404: https://carlosdcastrosa-cloud.github.io/favicon.ico",
+        "console.error: Failed to load resource: the server responded with a status of 404 ()"
+      ]
+    },
+    "classes": [
+      {
+        "cls": "warrior",
+        "ok": true,
+        "hero": {
+          "cls": "warrior",
+          "x": 11872,
+          "y": 9075
+        },
+        "errors": [
+          "http 404: https://carlosdcastrosa-cloud.github.io/favicon.ico",
+          "console.error: Failed to load resource: the server responded with a status of 404 ()"
+        ]
+      },
+      {
+        "cls": "paladin",
+        "ok": true,
+        "hero": {
+          "cls": "paladin",
+          "x": 11872,
+          "y": 9075
+        },
+        "errors": [
+          "http 404: https://carlosdcastrosa-cloud.github.io/favicon.ico",
+          "console.error: Failed to load resource: the server responded with a status of 404 ()"
+        ]
+      },
+      {
+        "cls": "mage",
+        "ok": true,
+        "hero": {
+          "cls": "mage",
+          "x": 11872,
+          "y": 9075
+        },
+        "errors": [
+          "http 404: https://carlosdcastrosa-cloud.github.io/favicon.ico",
+          "console.error: Failed to load resource: the server responded with a status of 404 ()"
+        ]
+      },
+      {
+        "cls": "druid",
+        "ok": true,
+        "hero": {
+          "cls": "druid",
+          "x": 11872,
+          "y": 9075
+        },
+        "errors": [
+          "http 404: https://carlosdcastrosa-cloud.github.io/favicon.ico",
+          "console.error: Failed to load resource: the server responded with a status of 404 ()"
+        ]
+      },
+      {
+        "cls": "priest",
+        "ok": true,
+        "hero": {
+          "cls": "priest",
+          "x": 11872,
+          "y": 9075
+        },
+        "errors": [
+          "http 404: https://carlosdcastrosa-cloud.github.io/favicon.ico",
+          "console.error: Failed to load resource: the server responded with a status of 404 ()"
+        ]
+      }
+    ],
+    "movement": {
+      "start": {
+        "x": 11872,
+        "y": 9075
+      },
+      "perDir": {
+        "right": {
+          "from": {
+            "x": 11872,
+            "y": 9075
+          },
+          "to": {
+            "x": 11920.640000000014,
+            "y": 9075
+          },
+          "moved": 48.64000000001397
+        },
+        "down": {
+          "from": {
+            "x": 11920.640000000014,
+            "y": 9075
+          },
+          "to": {
+            "x": 11920.640000000014,
+            "y": 9147.960000000021
+          },
+          "moved": 72.96000000002095
+        },
+        "left": {
+          "from": {
+            "x": 11920.640000000014,
+            "y": 9147.960000000021
+          },
+          "to": {
+            "x": 11847.679999999993,
+            "y": 9147.960000000021
+          },
+          "moved": 72.96000000002095
+        },
+        "up": {
+          "from": {
+            "x": 11847.679999999993,
+            "y": 9147.960000000021
+          },
+          "to": {
+            "x": 11847.679999999993,
+            "y": 9072.568
+          },
+          "moved": 75.39200000002165
+        }
+      },
+      "finite": true,
+      "afterLongWalk": {
+        "x": 11847.679999999993,
+        "y": 8989.879999999976
+      },
+      "boundedFinite": true
+    },
+    "combat": {
+      "enemiesBefore": 33,
+      "enemiesAfter": 37,
+      "dmgFloaters": 9,
+      "xpFloaters": 2,
+      "sample": [],
+      "hitsLand": true,
+      "killsLand": true,
+      "pass": true,
+      "note": "PASS = clicks produce damage-number floaters via the real heroAttack->hitEnemy path; '+N XP' floaters confirm kills. enemyCount delta is ambient-confounded so not the verdict. Combat-feel (hitstop/strikeflash/perfect-dodge, CAS-20) verified visually in screenshot."
+    },
+    "perf": {
+      "samples": [
+        63,
+        60,
+        59,
+        60,
+        60,
+        60
+      ],
+      "min": 59,
+      "avg": 60,
+      "threshold": 58
+    },
+    "pauseOnBlur": {
+      "before": "play",
+      "afterBlur": "pause",
+      "pass": true
+    },
+    "gameplayErrors": [
+      "http 404: https://carlosdcastrosa-cloud.github.io/favicon.ico",
+      "console.error: Failed to load resource: the server responded with a status of 404 ()"
+    ],
+    "mobile": {
+      "ok": true,
+      "hero": {
+        "cls": "mage",
+        "x": 11872,
+        "y": 9075
+      },
+      "dpr": {
+        "canvasW": 585,
+        "innerW": 390,
+        "devicePixelRatio": 3,
+        "ratio": 1.5
+      },
+      "dprCapped": true,
+      "errors": [
+        "http 404: https://carlosdcastrosa-cloud.github.io/favicon.ico",
+        "console.error: Failed to load resource: the server responded with a status of 404 ()"
+      ]
+    }
+  },
+  "errors": [],
+  "bugs": []
+}
