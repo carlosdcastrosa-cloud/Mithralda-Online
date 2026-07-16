@@ -2851,6 +2851,24 @@ export const SCARCITY_EDGE = {
   ],
 };
 
+// CAS-2439: PROXIMIDAD A AMENAZA APEX (DARK, APEX_PROXIMITY) — EVO mecánica #73 (serializa tras #72 SCARCITY_EDGE LIVE&closed). EJE FRESCO **PROXIMIDAD A UN DEPREDADOR APEX** (server-auth, MMORPG-native: recompensa cazar en la sombra de un jefe/campeón vivo en vez de farmear trash seguro lejos del peligro).
+//  · PRE-FLIGHT HARD GATE (escalera del issue):
+//    (1) Estado server-authoritative REAL — SÍ existe: cada mob apex vivo (`e.isBoss` / `e.champion` / `e.champElite`) lleva posición `e.x,e.y` en `G.enemies` = estado de sim REPLICADO y determinista (el MISMO array que el loop de spawn/IA recorre). `apexNearestDist(h) = min hypot(h−apexVivo)` ∈ [0,∞) = distancia (snapshot) al jefe/campeón vivo MÁS CERCANO en la vecindad del héroe. PURA ⇒ MISMO valor para todo observador del mismo snapshot. Sin apex vivo ⇒ ∞ ⇒ Tier 0 ⇒ sin ventaja. NO cosmético: las posiciones apex son autoridad de sim.
+//    (2) Canal `matFind` (multiplicador de recompensa de MENA / material de forja por forrajeo) — NINGUNA de las 14 flags #59-#72 lo toca: la FAMILIA recompensa-de-forrajeo tiene goldFind (#60/#62), lootQuality (#63/#68), xpGain (#65), essenceFind (#72) TODOS ocupados; MENA/forja es el ÚNICO miembro libre. ⊥ wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind. Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio apexMatCap, 0 doble-dip (la mena de jefes/campeones/daily/ambush vive en OTROS seams; este bono es un trickle FRESCO per-trash-kill cerca de un apex, aditivo a h.mats vía grantMats como el trickle de kill%4).
+//    (3) STATELESS: 0 acumulador per-pid, 0 `G.apex*`, 0 clave serializada nueva (banca a h.mats EXISTENTE desde CAS-237, igual que el trickle de forja). apexNearestDist = función PURA del snapshot (G.enemies + posición del héroe) ⇒ convergencia byte-a-byte, 0 desync. NO es stat de combate ⇒ NO entra al worldFingerprint (la mena se gasta luego en la forja, fuera del loop de sim).
+//  · ⊥/INVERSO a las 14 LIVE #59-#72: INVERSO a #72 (escasez = AUSENCIA de mobs vs cap de la zona; esto = PRESENCIA de un apex CONCRETO cercano), ⊥ #69 (force-ratio cuenta enemigos ENGANCHADOS al héroe; esto = distancia a UN apex vivo, con o sin engage), NO LOS/sigilo (#71) ni material-de-terreno (#70) ni clima/tiempo/tempo/social/kinship/territorial.
+//  · APLICACIÓN — un solo seam: el TAIL de killEnemy. Al matar un mob no-neutral con un apex vivo dentro del radio de amenaza, el héroe FORRAJEA mena extra = apexForageMats(zona,tpl) (flat por tier de proximidad, acotado por apexMatCap), banca a h.mats vía grantMats (0 RNG). El apex ya muerto queda excluido (e.dead=true) ⇒ matar al apex NO se auto-recompensa. BYTE-NEUTRO OFF: enabled:false ⇒ la rama entera es CÓDIGO MUERTO ⇒ 0 mena, 0 floater, 0 grantMats ⇒ killEnemy byte-idéntico al HEAD.
+export const APEX_PROXIMITY = {
+  enabled: false,            // DARK (EVO#73). OFF byte-neutral: rama muerta ⇒ 0 mena + 0 grantMats ⇒ estado byte-idéntico al HEAD. Flip false→true SÓLO tras QA DARK PASS + CEO Gate. anti-stacking: 1 arco valida a la vez.
+  channel: "matFind",        // canal FRESCO (multiplicador de recompensa de MENA/material de forja por forrajeo) — NINGUNA de las 14 flags #59-#72 lo usa. Familia recompensa-de-forrajeo: goldFind/lootQuality/xpGain/essenceFind OCUPADOS ⇒ mena es el ÚNICO libre. Fuente ÚNICA ⇒ máximo-único trivial, sub-cap propio. ⊥ wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind. CEO balance knob.
+  apexMatCap: 2,             // SUB-CAP DURO PROPIO de la mena por kill (nº de mena) — acota el bono aunque la tabla se re-tunee. = max(tiers.mats)=2 ⇒ neutral con la tabla actual. CEO balance knob.
+  // TABLA de tiers por PROXIMIDAD al apex vivo más cercano (distancia en px). CERCA = ALTO RIESGO = tier MÁS ALTO. El tier vigente = el más peligroso (menor `max`) cuya distancia se satisface. Sin apex vivo / lejos (dist > max mayor) ⇒ Tier 0 ⇒ +0 (cazar trash seguro lejos del apex NO da forrajeo). Determinista, LUT pura.
+  tiers: [
+    { max: 480, mats: 1 },   // Tier 1 — apex vivo a ≤480px (en su territorio): +1 mena por kill. "cazando en la sombra del depredador".
+    { max: 240, mats: 2 },   // Tier 2 — apex vivo a ≤240px (a su alcance): +2 mena por kill. "robando en las fauces del apex". CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en

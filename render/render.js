@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -396,6 +396,7 @@ export function createRenderer(ctx){
     if(FIRM_FOOTING.enabled) renderFirmFootingBadge(); // CAS-2415: Terreno Firme / Pisada Firme — badge del MATERIAL de terreno bajo el héroe (canal atkspd, share-cap global ATKSPD_TOTAL_CAP); resalta si el héroe pisa terreno FIRME (piedra/adoquín/hierba). Cosmético puro.
     if(SHADOW_STALK.enabled) renderShadowStalkBadge(); // CAS-2426: Acecho / Sigilo — badge de OCULTAMIENTO / línea-de-visión (canal detectRadius, sub-cap stealthStalkCap); resalta si el héroe está OCULTO tras cobertura que rompe la LOS del cazador más cercano. Cosmético puro.
     if(SCARCITY_EDGE.enabled) renderScarcityBadge(); // CAS-2432: Presión por Escasez — badge de AGOTAMIENTO de la zona (canal essenceFind, sub-cap scarcityEssCap); resalta si el héroe está en una zona EXPRIMIDA (≥50% de la capacidad de spawn vacía) donde el forrajeo rinde esencia extra. Cosmético puro.
+    if(APEX_PROXIMITY.enabled) renderApexBadge(); // CAS-2439: Proximidad a Amenaza Apex — badge de PROXIMIDAD a un depredador apex vivo (canal matFind, sub-cap apexMatCap); resalta si el héroe tiene un jefe/campeón vivo dentro del radio de amenaza, donde el forrajeo rinde mena extra. Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -4223,6 +4224,36 @@ export function createRenderer(ctx){
     // estado a la derecha: % de forrajeo (mul) sobre el xp del mob + % de agotamiento de la zona; si zona rica, "—"
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("+"+pct+"% ess "+dep+"%"):"—";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+120,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+120,ty);
+    ctx.restore();
+  }
+  // CAS-2439: badge de PROXIMIDAD A AMENAZA APEX (APEX_PROXIMITY). Refleja el VM PURO (sim.apexVM, autoridad en sim) ⇒ MISMA dist/tier/mats para todos los clientes con el mismo estado de sim.
+  // Glifo procedural ▲ (pico/depredador apex acechando) — el brillo sube con el tier de proximidad. Muestra el canal FRESCO matFind (bono de mena de forrajeo) — cosmético puro, 0 sim/RNG. Label "Apex:" ÚNICO.
+  function renderApexBadge(){
+    const k=sim.apexVM&&sim.apexVM(); if(!k) return;                     // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+670, sw=14, sh=14;                            // bajo la Escasez (@+648); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, mats=k.mats|0, dist=(k.dist>=0?Math.round(k.dist):-1);
+    const pulse=here?(0.74+0.22*Math.sin(G.t*(2.4+tier*0.6))):0.55;
+    const glyph=here?"#ff8f6a":"#8a9bb0";                                // apex cerca=rojo-peligro, lejos/sin apex=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ▲ pico/apex: un triángulo apuntando arriba; el brillo sube con el tier
+    const litA=here?Math.min(1,0.4+tier*0.3):0.24; const r=sh*0.36;
+    ctx.globalAlpha=pulse*(here?0.95:litA);
+    ctx.strokeStyle=here?glyph:"rgba(150,160,176,0.42)"; ctx.lineWidth=1.6; ctx.lineJoin="round"; ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(cx,cy-r); ctx.lineTo(cx+r,cy+r); ctx.lineTo(cx-r,cy+r); ctx.closePath(); ctx.stroke();
+    if(here){ ctx.globalAlpha=pulse*Math.min(1,0.3+tier*0.35); ctx.fillStyle=glyph; ctx.fill(); }   // relleno crece con el tier (más cerca = más lleno)
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Apex: "+(here?("T"+tier):"—");
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#ffcdbb":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: +mena de forrajeo por kill + distancia al apex; si sin apex, "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("+"+mats+" mena "+dist+"px"):"—";
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+120,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+120,ty);
     ctx.restore();

@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4010,6 +4010,34 @@ export function scarcityVM(h){ h=h||G.hero; const on=!!SCARCITY_EDGE.enabled&&!!
     cap:Math.max(0,+SCARCITY_EDGE.scarcityEssCap||0), minZoneCap:Math.max(1,SCARCITY_EDGE.minZoneCap|0),
     tag: scarcityTag(h) }; }
 
+// CAS-2439: PROXIMIDAD A AMENAZA APEX (APEX_PROXIMITY) — EJE PROXIMIDAD A UN DEPREDADOR APEX + canal FRESCO matFind (multiplicador de recompensa de MENA/forja por forrajeo cerca de un apex). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth.
+// apexIsThreat(e) = ¿es un apex VIVO (jefe/campeón/campeón-élite)? Excluye muertos, neutrales y trash. PURO (lectura de flags de sim replicadas). El apex ya muerto (e.dead) NO cuenta ⇒ matar al apex no se auto-recompensa.
+function apexIsThreat(e){ return !!(e && !e.dead && (e.hp>0) && (e.isBoss||e.champion||e.champElite)); }
+// apexNearestDist(h) = distancia (px) al apex VIVO más cercano a la posición del héroe. ∞ si no hay apex vivo. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (posiciones = estado de sim replicado). Vecindad = todo G.enemies (el min ya selecciona el más cercano).
+function apexNearestDist(h){ h=h||G.hero; if(!h) return Infinity; let best=Infinity;
+  for(const e of (G.enemies||[])){ if(!apexIsThreat(e)) continue; const d=Math.hypot(h.x-e.x,h.y-e.y); if(d<best) best=d; } return best; }
+// apexTier(dist) = índice del tier de proximidad vigente (0 = sin apex cerca / sin ventaja) = el MÁS PELIGROSO (menor `max`) cuya distancia se satisface. CERCA = tier ALTO. LUT determinista pura.
+function apexTier(dist){ const T=APEX_PROXIMITY.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(dist<=(+T[i].max||0)) t=i+1; } return t; }
+// apexMatBonus(dist) = nº de mena de forrajeo del tier vigente, acotado por el sub-cap propio apexMatCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta matFind.
+function apexMatBonus(dist){ if(!APEX_PROXIMITY.enabled) return 0;
+  if((APEX_PROXIMITY.channel||"matFind")!=="matFind") return 0;   // seguridad: APEX_PROXIMITY SÓLO alimenta matFind (si el knob se re-apunta, no contribuye)
+  const t=apexTier(dist); if(t<=0) return 0;
+  const raw=+APEX_PROXIMITY.tiers[t-1].mats||0, cap=Math.max(0,APEX_PROXIMITY.apexMatCap|0);
+  return cap>0 ? Math.min(cap, raw) : raw; }
+// apexForageMats(h, tpl) = la mena de forrajeo por un kill con un apex vivo cerca del héroe = apexMatBonus(distNearest). 0 si OFF / sin apex cerca / sin tpl. PURO — el seam decide banca a h.mats vía grantMats.
+function apexForageMats(h, tpl){ if(!APEX_PROXIMITY.enabled||!tpl) return 0; return apexMatBonus(apexNearestDist(h||G.hero)); }
+// apexTag(h) = glifo del badge de AMENAZA APEX (▲) si el héroe tiene un apex vivo dentro del radio de amenaza (tier>0). PURO. "" si OFF / sin apex cerca.
+export function apexTag(h){ h=h||G.hero; if(!APEX_PROXIMITY.enabled||!h) return "";
+  return apexTier(apexNearestDist(h))>0 ? "▲" : ""; }
+// View-model PURO para el HUD/badge: el tier de proximidad, la distancia al apex, la mena efectiva por kill, el sub-cap. 0 sim/RNG/side-effect.
+export function apexVM(h){ h=h||G.hero; const on=!!APEX_PROXIMITY.enabled&&!!h;
+  const dist=on?apexNearestDist(h):Infinity, tier=on?apexTier(dist):0, mats=on?apexMatBonus(dist):0;
+  return { enabled:!!APEX_PROXIMITY.enabled, channel:APEX_PROXIMITY.channel||"matFind",
+    dist:(dist===Infinity?-1:+dist.toFixed(1)),
+    tier, tierCount:(APEX_PROXIMITY.tiers||[]).length, mats:+mats,
+    cap:Math.max(0,APEX_PROXIMITY.apexMatCap|0),
+    tag: apexTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5483,6 +5511,14 @@ function killEnemy(e){
   if(SCARCITY_EDGE.enabled && !tpl.neutral){ const eb=scarcityForageEssence(zone, tpl);
     if(eb>0){ ensureMeta().essence=(ensureMeta().essence|0)+eb; G.metaDirty=true;
       floater(e.x,e.y-34,"+"+eb+" Esencia","#8fe0ff",{small:true}); } }
+  // CAS-2439 APEX_PROXIMITY seam: FORRAJEO EN LA SOMBRA DEL APEX. Al matar un mob no-neutral con un apex vivo (jefe/campeón) dentro
+  // del radio de amenaza del HÉROE, el héroe forrajea mena extra = apexForageMats(hero,tpl) (flat por tier de proximidad, sub-cap
+  // apexMatCap), banca a h.mats vía grantMats (como el trickle de forja, 0 RNG). e.dead=true ya está fijado arriba ⇒ apexNearestDist
+  // lo excluye ⇒ matar al apex NO se auto-recompensa. GATED ⇒ enabled:false ⇒ rama muerta: 0 mena, 0 floater, 0 grantMats ⇒ killEnemy
+  // byte-idéntico al HEAD. Canal FRESCO matFind (fuente ÚNICA, sub-cap apexMatCap) — NINGUNA de las 14 flags #59-#72 lo toca.
+  if(APEX_PROXIMITY.enabled && !tpl.neutral){ const mb=apexForageMats(G.hero, tpl);
+    if(mb>0){ grantMats(mb);
+      floater(e.x,e.y-48,"+"+mb+" "+STR.forgeMat,"#cdb27a",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9346,6 +9382,53 @@ export const dev = {
       precedence:"essenceFind (canal FRESCO — multiplicador de recompensa de ESENCIA/meta-moneda por forrajeo): NINGUNA de las 13 flags #59-#71 lo toca. La familia recompensa-de-forrajeo tiene goldFind (#60/#62), lootQuality (#63/#68), xpGain (#65) OCUPADOS ⇒ ESENCIA es el ÚNICO libre. Fuente ÚNICA ⇒ máximo-único trivial, sub-cap propio scarcityEssCap, 0 doble-dip (esencia de arena/bossrush/pactos/uniques/NG+ vive en OTROS seams). EJE = ESCASEZ/AGOTAMIENTO del mundo compartido server-auth: depletion(zona)=1-mobsVivosNoJefe/Σsp.max — el MISMO estado que el loop de spawn usa en count<sp.max (⊥ a #69 que cuenta enemigos ENGANCHADOS al héroe; esto cuenta AUSENCIA vs capacidad de la ZONA). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius (seams distintos).",
       gExists:(G.scarcity!=null),                                        // prueba byte-id: STATELESS ⇒ G.scarcity NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS) }:null }; },
+  // CAS-2439: PROXIMIDAD A AMENAZA APEX OBSERVABLE hook (DARK, APEX_PROXIMITY — eje PROXIMIDAD A UN DEPREDADOR APEX server-auth [distancia snapshot al jefe/campeón vivo más cercano] + canal FRESCO
+  // matFind [multiplicador de recompensa de MENA/forja por forrajeo, NINGUNA flag previa lo toca] con sub-cap apexMatCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — la amenaza EMERGE del
+  // estado del mundo). Convergencia byte-a-byte: MISMO snapshot (G.enemies + posición del héroe) ⇒ MISMA dist/tier/mats/forageMats en N clientes.
+  //   apex()                                   → snapshot {enabled,channel,tiers,cap,dist,tier,mats,forageMatsPreview,peer channels ⊥,tag,gExists,apexCount,hero}
+  //   apex({enabled})                          → flip runtime IN-MEMORY de APEX_PROXIMITY.enabled (sin tocar el disco)
+  //   apex({tp:{tx,ty}})                       → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ la proximidad se evalúa contra las posiciones apex REALes de G.enemies
+  //   apex({distProbe:{dist}})                 → LUT PURA dist→tier→mats (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   apex({spawnApex:{tx,ty}})                → inyecta un apex de PRUEBA (isBoss) en el tile (tx,ty) para observar la señal REAL; devuelve su índice
+  //   apex({nearestProbe:true})                → distancia REAL al apex vivo más cercano + su {x,y,kind} (byte-verifica la lectura server-auth de G.enemies)
+  apex(p){
+    let distProbe=null, spawnApex=null, nearestProbe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) APEX_PROXIMITY.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.distProbe && typeof p.distProbe==="object"){ const dist=Math.max(0,+p.distProbe.dist||0), t=apexTier(dist);   // LUT PURA dist→tier→mats (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+APEX_PROXIMITY.tiers[t-1].mats||0):0, cap=Math.max(0,APEX_PROXIMITY.apexMatCap|0);
+        distProbe={ dist:+dist.toFixed(1), tier:t, mats:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnApex && typeof p.spawnApex==="object"){ const tx=p.spawnApex.tx|0, ty=p.spawnApex.ty|0;   // apex de PRUEBA (mob REAL vía spawnEnemy, flag isBoss) para observar la señal REAL en G.enemies
+        const e=spawnEnemy("orc", tx*TS+TS/2, ty*TS+TS/2); e.isBoss=true; e.hp=e.maxHp=1000;
+        spawnApex={ idx:G.enemies.indexOf(e), x:+e.x.toFixed(1), y:+e.y.toFixed(1) }; }
+      if(p.nearestProbe){ let best=Infinity, hit=null;   // lectura REAL server-auth: apex vivo más cercano al héroe
+        const h=G.hero; if(h){ for(const e of (G.enemies||[])){ if(!apexIsThreat(e)) continue; const d=Math.hypot(h.x-e.x,h.y-e.y); if(d<best){ best=d; hit=e; } } }
+        nearestProbe={ dist:(best===Infinity?-1:+best.toFixed(1)), apex: hit?{ x:+hit.x.toFixed(1), y:+hit.y.toFixed(1), kind:(hit.isBoss?"boss":hit.champElite?"champElite":"champion") }:null }; }
+    }
+    const h=G.hero, vm=apexVM(h);
+    let apexCount=0; for(const e of (G.enemies||[])){ if(apexIsThreat(e)) apexCount++; }
+    return { enabled:APEX_PROXIMITY.enabled, channel:APEX_PROXIMITY.channel||"matFind",
+      tiers:(APEX_PROXIMITY.tiers||[]).map(t=>({max:+t.max||0,mats:+t.mats||0})), cap:vm.cap,
+      dist:vm.dist, tier:vm.tier, tierCount:vm.tierCount, mats:vm.mats,
+      forageMatsPreview: h?apexForageMats(h, {xp:100}):0,                 // preview: mena forrajeada por un kill con la proximidad apex actual (expone el canal matFind)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                  // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                             // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                   // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                     // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,            // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      tag: apexTag(h),                                                   // glifo SERVIDO (OFF/sin apex ⇒ "" / apex cerca ⇒ ▲)
+      distProbe: distProbe,                                             // LUT PURA dist→tier→mats (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnApex: spawnApex,                                             // apex de PRUEBA inyectado (isBoss) — índice + posición
+      nearestProbe: nearestProbe,                                       // lectura REAL server-auth: apex vivo más cercano (dist + kind)
+      precedence:"matFind (canal FRESCO — multiplicador de recompensa de MENA/material de forja por forrajeo): NINGUNA de las 14 flags #59-#72 lo toca. La familia recompensa-de-forrajeo tiene goldFind (#60/#62), lootQuality (#63/#68), xpGain (#65), essenceFind (#72) OCUPADOS ⇒ MENA/forja es el ÚNICO libre. Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio apexMatCap, 0 doble-dip (la mena de jefes/campeones/daily/ambush vive en OTROS seams). EJE = PROXIMIDAD A UN DEPREDADOR APEX server-auth: apexNearestDist(hero)=min hypot(hero−apexVivo) sobre G.enemies (isBoss/champion/champElite). INVERSO a #72 (escasez=AUSENCIA de mobs vs cap; esto=PRESENCIA de un apex CONCRETO), ⊥ a #69 (force-ratio cuenta ENGANCHADOS; esto=distancia a UN apex). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind (seams distintos).",
+      gExists:(G.apex!=null),                                           // prueba byte-id: STATELESS ⇒ G.apex NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      apexCount:apexCount,                                              // nº de apex vivos en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), mats:h.mats|0 }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
