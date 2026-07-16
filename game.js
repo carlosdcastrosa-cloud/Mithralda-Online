@@ -401,6 +401,7 @@ export function createGame(canvas, ctx, getView){
       delve:(p)=>simDev.delve(p),  // CAS-2380: Descenso OBSERVABLE hook (DARK, DELVE — canal FRESCO critChance/precisión con CAP DURO + eje profundidad/descenso vertical/bandas distintas; ORTOGONAL a Trailcraft diversidad de tipos)
       erudition:(p)=>simDev.erudition(p),  // CAS-2381: Erudición OBSERVABLE hook (DARK, ERUDITION — canal REUSADO xpGain con de-stack a FELLOWSHIP + eje diversidad de PRESAS/bestiary breadth; OPUESTO a Focus concentración en 1 objetivo)
       nocturne:(p)=>simDev.nocturne(p),  // CAS-2393/2394: Cazador Nocturno OBSERVABLE hook (DARK, NOCTURNE_HUNT — canal REUSADO `vamp`/lifesteal con SHARE-CAP vs Vampírico + eje FASE TEMPORAL/caza nocturna; OPUESTO a Erudition — cuenta CUÁNDO matas, no a QUIÉN)
+      cadence:(p)=>simDev.cadence(p),  // CAS-2400: Cadencia / Ímpetu de Combate OBSERVABLE hook (DARK, CADENCE_RUSH — canal REUSADO critChance con SHARE-CAP vs Delve + eje TEMPO/cadencia de matanza; DISTINTO a Nocturne CUÁNDO / Delve DÓNDE / Focus A QUIÉN — mide CUÁN RÁPIDO EN SUCESIÓN matas)
       // CAS-2225: door open/close + interior-warp OBSERVABLE hooks (DARK). doorList reads every carved
       // door + its open state + threshold collision; doorInteract fires the REAL interact→toggle; doorEnter
       // /doorExit drive the threshold warp in/out; probeSolid maps the walkable gap. Empty ([]) with the

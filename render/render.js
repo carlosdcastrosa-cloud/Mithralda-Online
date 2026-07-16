@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -390,6 +390,7 @@ export function createRenderer(ctx){
     if(DELVE.enabled) renderDelveBadge(); // CAS-2380: Descenso — badge de profundidad (canal critChance); resalta si el jugador tiene un descenso abierto (nº de bandas de profundidad distintas alcanzadas). Cosmético puro.
     if(ERUDITION.enabled) renderEruditionBadge(); // CAS-2381: Erudición — badge de variedad de presas (canal xpGain); resalta si el jugador tiene erudición abierta (nº de tipos de enemigo distintos abatidos en la ventana). Cosmético puro.
     if(NOCTURNE_HUNT.enabled) renderNocturneBadge(); // CAS-2393/2394: Nocturne — badge de caza nocturna (canal `vamp`/lifesteal); resalta si el jugador tiene una caza nocturna abierta (nº de kills hechos de noche en la ventana). Cosmético puro.
+    if(CADENCE_RUSH.enabled) renderCadenceBadge(); // CAS-2400: Cadencia / Ímpetu — badge de tempo de matanza (canal critChance, share-cap con Delve); resalta si el jugador tiene un ímpetu abierto (combo-meter de kills en sucesión rápida). Cosmético puro.
     if(G.arenaMode) renderArenaOverlay(); // CAS-1664: wave/best banner (+ rest note) over the HUD
     if(G.bossRushMode) renderBossRushOverlay(); // CAS-1988: round r/N + best banner (+ bonfire note) over the HUD
     if(G.showMap) renderBigMap();
@@ -867,29 +868,33 @@ export function createRenderer(ctx){
   function drawHazards(){
     if(!ARENA_HAZARDS.enabled || !G.hazards.length) return;
     const A=ARENA_HAZARDS, t=G.t;
+    // CAS-2398 (board 4d0caf74 "elimina esos circulos"): the hard ground DISC + stroked RING that read
+    // as a "círculo de daño pintado en el suelo" is REMOVED. ARENA_HAZARDS is a SERVER-AUTHORITATIVE
+    // damage zone (sim.js + config byte-idénticos: enabled:true, still daña), so per the North-Star
+    // combat-legibility guardrail we do NOT blank it silently — we RE-STYLE it as a soft heat/miasma HAZE
+    // (radial gradient, NO hard edge, NO stroke ⇒ reads as glow, not a drawn circle) + a pulsing ⚠ warning
+    // glyph, so the danger footprint + "sal/rueda" read survive. Intensity ramps telegraph→active; fade
+    // decays to 0. Presentation-only (G.t, 0 RNG). Tradeoff flagged to board in the CAS-2398 comment.
+    const rgba=(hex,a)=>{ const n=parseInt(hex.slice(1),16); return "rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")"; };
     for(const hz of G.hazards){
       const def=hz.def||A.types[hz.type]||{}; const tint=def.tint||"#ff6a2a"; const x=hz.x, y=hz.y, r=hz.r;
+      let intensity, glyphScale;
+      if(hz.phase==="telegraph"){ const k=clamp(hz.t/A.telegraphMs,0,1); intensity=0.10+0.28*k; glyphScale=0.7+0.3*k; }   // el aviso se intensifica hacia el golpe
+      else if(hz.phase==="active"){ const pulse=0.5+0.5*Math.abs(Math.sin(t*10)); intensity=0.34+0.16*pulse; glyphScale=1.0+0.08*pulse; } // "duele AHORA"
+      else { const k=clamp(1-hz.t/A.fadeMs,0,1); intensity=0.30*k; glyphScale=1.0; }                                     // fade presentacional
       ctx.save();
-      if(hz.phase==="telegraph"){
-        const k=clamp(hz.t/A.telegraphMs,0,1);                        // 0→1 conforme se acerca el golpe
-        ctx.globalAlpha=0.10+0.16*k; ctx.fillStyle=tint;
-        ctx.beginPath(); ctx.arc(x,y,r*(0.55+0.45*k),0,6.283); ctx.fill();
-        ctx.globalAlpha=0.45+0.4*Math.abs(Math.sin(t*6)); ctx.strokeStyle=tint; ctx.lineWidth=2+2*k;
-        ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.stroke();
-      } else if(hz.phase==="active"){
-        const pulse=0.5+0.5*Math.abs(Math.sin(t*10));
-        ctx.globalAlpha=0.30+0.14*pulse; ctx.fillStyle=tint;
-        ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.fill();
-        ctx.globalAlpha=0.7+0.25*pulse; ctx.strokeStyle=tint; ctx.lineWidth=2.5;
-        ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.stroke();
-      } else {                                                         // fade
-        const k=clamp(1-hz.t/A.fadeMs,0,1);
-        ctx.globalAlpha=0.30*k; ctx.fillStyle=tint;
-        ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.fill();
-      }
-      if(A.markerLabel && def.glyph && hz.phase!=="fade"){
-        ctx.globalAlpha=0.92; ctx.fillStyle="#fff2d8"; ctx.font="bold 14px "+FF; ctx.textAlign="center"; ctx.textBaseline="middle";
-        ctx.fillText(def.glyph, x, y);
+      // soft haze: brightest at centre, fully transparent by the edge ⇒ NO hard circle silhouette
+      const g=ctx.createRadialGradient(x,y,1,x,y,r);
+      g.addColorStop(0,rgba(tint,intensity)); g.addColorStop(0.6,rgba(tint,intensity*0.5)); g.addColorStop(1,rgba(tint,0));
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.fill();
+      // pulsing warning glyph (⚠ + type glyph) — ahora el AVISO primario de peligro (el anillo ya no existe)
+      if(hz.phase!=="fade"){
+        ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.lineJoin="round";
+        const fs=Math.round(15*glyphScale);
+        ctx.globalAlpha=0.9; ctx.font="bold "+fs+"px "+FF; ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.8)";
+        ctx.strokeText("⚠", x, y-2); ctx.fillStyle="#ffdf6a"; ctx.fillText("⚠", x, y-2);
+        if(A.markerLabel && def.glyph){ ctx.globalAlpha=0.85; ctx.font="bold 11px "+FF; ctx.fillStyle="#fff2d8";
+          ctx.strokeText(def.glyph, x, y+12); ctx.fillText(def.glyph, x, y+12); }
       }
       ctx.restore();
     }
@@ -1628,9 +1633,11 @@ export function createRenderer(ctx){
         const fi = G.settings.reduceMotion ? (oneShot?strip.fc-1:0)
                  : oneShot ? Math.min(Math.floor((e.animT||0)*fps), strip.fc-1)
                  : (Math.floor(G.t*fps+ph*7)%strip.fc+strip.fc)%strip.fc;
-        // CAS-317: a soft grounding shadow plants the lateral dragon sprite in the 3/4 world.
-        if(e.tpl.richAnim){ ctx.save(); ctx.globalAlpha=0.32; ctx.fillStyle="#000";
-          ctx.beginPath(); ctx.ellipse(e.x,feetY,dw*0.30,dw*0.12,0,0,6.28); ctx.fill(); ctx.restore(); }
+        // CAS-2398 (board 4d0caf74 "elimina esos circulos"): the dark oval GROUNDING SHADOW under
+        // richAnim characters is REMOVED — the board confirmed "las sombras ovaladas bajo los personajes"
+        // as a target. Render-only (sprite still bottom-anchors at feetY, so no positional float); the
+        // former CAS-317 shadow ellipse (rgba(0,0,0,0.32) at e.x,feetY, dw*0.30×dw*0.12) is gone.
+        // Reversible: restore the one-line ellipse fill here to bring the shadow back.
         // CAS-331: dragon strips carry ~0.31·dh of empty rows below the feet; shift the draw
         // DOWN by footPad·dh so the content bottom plants on feetY (the shadow stays at feetY).
         // footPad is dragon-only (gate by strip.footPad) → other PixelLab/golem mobs untouched.
@@ -1795,9 +1802,8 @@ export function createRenderer(ctx){
     const feetY=c.y+c.size*0.5, fps=8;
     const fi=G.settings.reduceMotion?strip.fc-1:Math.min(Math.floor((c.t||0)*fps),strip.fc-1);
     const LIFE=sim.CORPSE_LIFE||2.6, fade=c.t>LIFE-0.6?clamp((LIFE-c.t)/0.6,0,1):1;
-    // soft grounding shadow
-    ctx.save(); ctx.globalAlpha=0.32*fade; ctx.fillStyle="#000";
-    ctx.beginPath(); ctx.ellipse(c.x,feetY,dw*0.30,dw*0.12,0,0,6.28); ctx.fill(); ctx.restore();
+    // CAS-2398: corpse grounding shadow REMOVED to match the live character (see drawEnemy) —
+    // board target "sombras ovaladas bajo los personajes". Render-only; corpse still lands on feetY.
     ctx.save(); ctx.globalAlpha=fade; ctx.translate(c.x,feetY);
     if(c.fl) ctx.scale(-1,1);
     ctx.imageSmoothingEnabled=false;
@@ -4013,6 +4019,40 @@ export function createRenderer(ctx){
     // estado a la derecha (dentro de [bx, bx+104]): tier + robo de vida% (lifesteal añadida, sobre el share-cap)
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st=here?("T"+tier+" +"+boostPct+"%"):(k.huntable?(lv+""):"—");
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
+    ctx.restore();
+  }
+
+  // CAS-2400: badge de CADENCIA / ÍMPETU DE COMBATE (CADENCE_RUSH). Refleja el VM PURO (sim.cadenceVM, autoridad en sim) ⇒ MISMO cad/tier/crit para todos los clientes con el mismo snapshot. Glifo procedural ⏩ (doble
+  // chevrón/avance rápido = tempo) — el brillo sube con el tier. Muestra el estado del canal REUSADO critChance (bono de crítico del tier, share-cap con Delve) — cosmético puro, 0 sim/RNG. Label "Cadencia:" (con colon) ÚNICO.
+  function renderCadenceBadge(){
+    const k=sim.cadenceVM&&sim.cadenceVM(); if(!k) return;                 // pre-primer-tick (G.cadence null) ⇒ cad 0 ⇒ tier 0
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+538, sw=14, sh=14;                             // bajo el Nocturno (@+516); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, lv=Math.round(k.cad||0), critPct=Math.round(k.critPct||0);
+    const pulse=here?(0.74+0.20*Math.sin(G.t*(3.0+tier*0.6))):0.55;       // el pulso ACELERA con el tier (metáfora de tempo)
+    const glyph=here?"#ffcf6e":"#8a9bb0";                                 // ímpetu=ámbar cálido (velocidad/crit), inerte=gris
+    const zn=k.zone?STR.zoneName(k.zone):"—";
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⏩ doble chevrón hacia la derecha (avance rápido): galones "»"; el nº de galones ENCENDIDOS = tier (1/2/3), procedural
+    const litA=here?Math.min(1,0.35+tier*0.22):0.22;
+    const R=sh*0.40;
+    ctx.lineWidth=1.9; ctx.lineCap="round"; ctx.lineJoin="round";
+    const chev=[[cx-R*0.9,cy],[cx-R*0.05,cy],[cx+R*0.8,cy]];              // 3 posiciones-x base de galones
+    for(let i=0;i<3;i++){ const lit=here && i<tier; ctx.strokeStyle=lit?glyph:"rgba(150,164,190,0.42)"; ctx.globalAlpha=pulse*(lit?1:litA*0.7);
+      const gx=chev[i][0], gy=chev[i][1];
+      ctx.beginPath(); ctx.moveTo(gx-R*0.42, gy-R*0.62); ctx.lineTo(gx+R*0.30, gy); ctx.lineTo(gx-R*0.42, gy+R*0.62); ctx.stroke(); }  // ">" galón
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Cadencia: "+zn;
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#ffe6b0":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha (dentro de [bx, bx+104]): tier + crit% (bono de crítico del tier, sobre el share-cap con Delve)
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st=here?("T"+tier+" +"+critPct+"%"):(k.rushable?(lv+""):"—");
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st,bx+104,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st,bx+104,ty);
     ctx.restore();
