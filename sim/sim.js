@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4113,6 +4113,57 @@ export function trailcraftVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):nu
   const craft=trailcraftVal(trailSelfPid()), tier=craftable?trailcraftTier(craft):0, steps=craftable?trailcraftStepsFor(craft):0;
   return { enabled:!!TRAILCRAFT.enabled, zone:z, craftable, craft:+craft.toFixed(2), tier, tierCount:(TRAILCRAFT.tiers||[]).length,
     boostKind:TRAILCRAFT.channel||"lootQuality", steps, floor: craftable&&steps>0 ? bumpRarity("common", steps) : "" }; }
+// PASOS de piso de rareza del canal lootQuality que aporta TRAILCRAFT (zone-gated, mirror trailcraftFloor pero devuelve el CONTEO, no la rareza-string). 0 si OFF / fuera de zona de sendero / tier 0. Puro. Usado por el SHARE-CAP con Tempest.
+function trailcraftFloorSteps(){ if(!TRAILCRAFT.enabled) return 0; const h=G.hero; if(!h) return 0;
+  const z=zoneOf(world,h.x,h.y); if(!z || (TRAILCRAFT.zones||[]).indexOf(z)<0) return 0;
+  return Math.max(0, trailcraftSteps(trailSelfPid())|0); }
+
+// CAS-2404: VENDAVAL / TEMPESTAD (DARK, TEMPEST_SURGE) — EVO mecánica #68. EJE FRESCO CONDICIÓN METEOROLÓGICA (world-CONDITION shard-wide, NO meter personal) + canal REUSADO lootQuality (SHARE-CAP con Trailcraft #63).
+// server-authoritative, 0-RNG, STATELESS (0 acumulador per-pid, 0 marcas, 0 G.tempestServer). La intensidad de tormenta = función PURA del MISMO reloj compartido que WEATHER (Date.now − epochMs mod cycleSeconds, phaseOverride
+// para QA) ⇒ shard-consistente por construcción. La VENTANA DE TORMENTA se alinea a los keyframes de "lluvia plena" de WEATHER (0.28–0.45). Rampa TRIANGULAR 0→1→0 dentro de la ventana ⇒ arrecia→pico→amaina. Durante la tormenta,
+// un jugador en una zona EXPUESTA/al-aire-libre (caves EXCLUIDA) obtiene un bono de piso de rareza. OPUESTO a Cadence #67 (meter personal decayente) y a Nocturne #66 (fase día/noche): el clima es una dimensión INDEPENDIENTE del
+// estado-mundo ⇒ una "noche tormentosa" satisface AMBOS ⇒ ortogonalidad. HARD-GATED: OFF ⇒ ninguna derivación de clima corre (Date.now/tempestPhaseNow nunca se llama), G.tempest* nunca se crea, tempestFloorSteps RETURN 0 ⇒ seam byte-id.
+// fase de clima compartida (0..1) — mirror worldWeatherPhase de render pero en sim (autoridad). phaseOverride (config) o G.tempestNow (harness) permiten fijar la fase sin tocar Date.now real. OFF ⇒ NUNCA se llama.
+function tempestPhaseNow(){ const ov=TEMPEST_SURGE.phaseOverride;
+  if(typeof ov==="number") return ((ov%1)+1)%1;
+  const cyc=Math.max(1, TEMPEST_SURGE.cycleSeconds||900);
+  const now=(G.tempestNow!=null?+G.tempestNow:Date.now());
+  const t=(now/1000 - (TEMPEST_SURGE.epochMs||0)/1000)/cyc;
+  return ((t%1)+1)%1; }
+// intensidad de tormenta (0..1) para una fase dada: 0 fuera de [stormStart, stormEnd]; DENTRO, rampa TRIANGULAR (0 en los bordes, 1 en el centro) ⇒ arrecia→pico→amaina. Función PURA (0 RNG/estado). Shard-wide (misma en N clientes).
+export function tempestIntensity(phase){ phase=((+phase||0)%1+1)%1; const s=+TEMPEST_SURGE.stormStart||0, e=+TEMPEST_SURGE.stormEnd||0;
+  if(e<=s || phase<s || phase>e) return 0; const span=(e-s)||1, k=(phase-s)/span; return 1 - Math.abs(2*k-1); }   // triangular 0→1→0
+// intensidad de tormenta AL AHORA (fase compartida). 0 si OFF (Date.now nunca se llama). Puro salvo la lectura del reloj.
+function tempestIntensityNow(){ if(!TEMPEST_SURGE.enabled) return 0; return tempestIntensity(tempestPhaseNow()); }
+// tempestTier(inten) = índice del tier vigente (0 = sin efecto) = el más alto cuyo `min` ≤ intensidad. Determinista, monótono por INTENSIDAD (world-state, NO permanencia per-pid). OFF/sin tiers ⇒ 0.
+function tempestTier(inten){ const T=TEMPEST_SURGE.tiers||[]; inten=+inten||0; let idx=0;
+  for(let i=0;i<T.length;i++){ if(T[i] && inten>=(+T[i].min||0)) idx=i+1; } return idx; }
+// PASOS de piso de rareza del tier de tormenta vigente (0 si Tier 0). Puro sobre la intensidad.
+function tempestStepsFor(inten){ const t=tempestTier(inten); return t>0 ? (TEMPEST_SURGE.tiers[t-1].steps|0) : 0; }
+// ¿el héroe LOCAL está en una zona EXPUESTA (al-aire-libre)? caves NO cuenta (resguardada). Puro. Gate de exposición del bono de tormenta.
+function tempestExposed(){ const h=G.hero; if(!h) return false; const z=zoneOf(world,h.x,h.y); return !!(z && (TEMPEST_SURGE.zones||[]).indexOf(z)>=0); }
+// PASOS de piso de rareza que aporta TEMPEST al jugador LOCAL: gate de CONDICIÓN (tormenta activa) + gate de EXPOSICIÓN (zona al-aire-libre). 0 si OFF / calma / bajo techo. Puro (0 RNG/estado). OFF ⇒ Date.now nunca se llama (return antes).
+function tempestFloorSteps(){ if(!TEMPEST_SURGE.enabled) return 0; if(!tempestExposed()) return 0;   // fuera de zona expuesta (o caves) ⇒ 0 (sin bono aunque haya tormenta)
+  return tempestStepsFor(tempestIntensityNow()); }                                                    // tier 0 (calma/arreciando) ⇒ 0 ⇒ piso sin cambio
+// lootQualityFloor() = piso de rareza (`minR`) EFECTIVO del canal lootQuality en el seam del drop, UNIFICANDO Trailcraft #63 + Tempest #68 por SHARE-CAP: pasos combinados = min(tempestLootCap, trailSteps + tempestSteps) ⇒ 0 doble-dip más
+// allá del techo (mismo patrón que Cadence critChance vs Delve). BYTE-NEUTRO: con Tempest OFF DELEGA a trailcraftFloor() (idéntico al seam LIVE de Trailcraft ⇒ 0-regr); con AMBOS OFF ⇒ "" ⇒ `minR`=undefined ⇒ drop byte-id a HEAD. Puro.
+function lootQualityFloor(){ if(!TEMPEST_SURGE.enabled) return trailcraftFloor();   // Tempest OFF ⇒ ruta byte-IDÉNTICA al LIVE de Trailcraft (delegación pura)
+  const cap=Math.max(0, TEMPEST_SURGE.tempestLootCap|0);
+  const total=Math.min(cap, trailcraftFloorSteps() + tempestFloorSteps());           // SHARE-CAP: pasos combinados capados ⇒ 0 doble-dip
+  return total>0 ? bumpRarity("common", total) : ""; }
+// glifo de la tormenta para el badge (mirror trailcraftTag): ⛈ si el jugador local está en zona expuesta CON tormenta abierta (tier≥1). Puro, 0 sim/RNG. "" si OFF / calma / bajo techo / fuera de zona.
+export function tempestTag(h){ h=h||G.hero; if(!TEMPEST_SURGE.enabled||!h) return ""; if(!tempestExposed()) return "";
+  return tempestTier(tempestIntensityNow())>0 ? "⛈" : ""; }
+// View-model PURO para el HUD/badge: la zona del héroe, si está expuesto, la intensidad/fase de tormenta shard-wide, el tier vigente, los pasos de tempest y el piso de rareza EFECTIVO (unificado con Trailcraft por share-cap). 0 sim/RNG/side-effect.
+export function tempestVM(h){ h=h||G.hero; const z=h?zoneOf(world,h.x,h.y):null;
+  const exposed=!!(z && (TEMPEST_SURGE.zones||[]).indexOf(z)>=0);
+  const phase=TEMPEST_SURGE.enabled?tempestPhaseNow():0, inten=TEMPEST_SURGE.enabled?tempestIntensity(phase):0;
+  const tier=exposed?tempestTier(inten):0, steps=exposed?tempestStepsFor(inten):0;
+  return { enabled:!!TEMPEST_SURGE.enabled, channel:TEMPEST_SURGE.channel||"lootQuality", zone:z, exposed,
+    phase:+phase.toFixed(4), intensity:+inten.toFixed(4), storming:inten>0, tier, tierCount:(TEMPEST_SURGE.tiers||[]).length,
+    boostKind:TEMPEST_SURGE.channel||"lootQuality", steps,
+    trailSteps: trailcraftFloorSteps(), cap:(TEMPEST_SURGE.tempestLootCap|0),
+    floor: lootQualityFloor()||"" }; }   // piso EFECTIVO combinado (share-cap Trailcraft+Tempest)
 
 // CAS-2380: DELVE / DESCENSO (DARK, DELVE) — EVO mecánica #64. EJE FRESCO PROFUNDIDAD/DESCENSO VERTICAL (nº de BANDAS de profundidad DISTINTAS alcanzadas) + canal FRESCO critChance (precisión ofensiva,
 // CAP DURO). server-authoritative, 0-RNG, INDIVIDUAL (per-pid). El server registra las marcas de banda { pid → [{d,t}] } (d = ZONE_TIER[zoneOf].tier, la elevación/zona-Z del mundo), computa
@@ -5208,9 +5259,9 @@ function killEnemy(e){
     if(e.elite){ onEliteKill(e, zone); }
     else if(e.champElite){ onChampElite(e, zone); } // CAS-1590: guaranteed superior loot + unique roll + banked Esencia (champion path only → RNG untouched at rate=0)
     else if(srand()<((tpl.gearChance||0)*pactRewardMul("drop"))){ const win=(ZONE_LOOT[zone]||ZONE_LOOT.field).tier; // CAS-1763: heat lifts the trash-gear threshold — the gate srand() already fires unconditionally (×1.0 at heat=0 ⇒ byte-identical)
-      // CAS-2377: SENDERO / TRAILCRAFT (DARK) — canal FRESCO lootQuality: un sendero abierto (variedad de terreno sostenida) SUBE el piso de rareza `minR` del drop. trailcraftFloor()="" cuando OFF/tier0/fuera-de-zona
-      // ⇒ `minR`=undefined ⇒ rollGearInst byte-IDÉNTICO a HEAD (0 cambio del srand autoritativo). Sube RAREZA, no cantidad de oro ⇒ ⊥ goldFind/restedMult/wardRegen/oocMitigation.
-      dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1], trailcraftFloor()||undefined)); }
+      // CAS-2377/CAS-2404: canal lootQuality — piso de rareza `minR` del drop, UNIFICADO Trailcraft #63 (variedad de terreno) + Tempest #68 (tormenta shard-wide en zona expuesta) por SHARE-CAP (min(tempestLootCap, trailSteps+tempestSteps),
+      // 0 doble-dip). lootQualityFloor()="" cuando ambos OFF/tier0/fuera-de-zona ⇒ `minR`=undefined ⇒ rollGearInst byte-IDÉNTICO a HEAD (0 cambio del srand). Con Tempest OFF delega a trailcraftFloor() ⇒ byte-id al LIVE de Trailcraft (0-regr). Sube RAREZA, no oro ⇒ ⊥ goldFind/restedMult/wardRegen/oocMitigation.
+      dropGear(e.x+frr(-8,8),e.y, rollGearInst(srand,win[0],win[1], lootQualityFloor()||undefined)); }
     // CAS-1586: an AFFIXED trash kill also ticks the lifetime affix-kill counter (feeds the Esencia
     // tie-in via the run recap). Rides the SAME branch that already paid the affix xp/gold/gear, so
     // no new roll/RNG — an un-affixed mob (incl. rate=0) leaves e.affix undefined → counter untouched.
@@ -8907,6 +8958,52 @@ export const dev = {
       nowMs:(G.trail&&G.trail.nowMs)||null,                              // reloj compartido del último tick (mismo en N clientes ⇒ misma proyección)
       probe: probe,                                                       // resultado de la función PURA trailVariety (byte-verificación de casos borde)
       lootPicked,                                                         // resultado del lootTick sintético { seed, floor, steps, baseRarity, floorRarity } (prueba del seam lootQuality en aislamiento, seed fijo)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
+  // CAS-2404: VENDAVAL / TEMPESTAD OBSERVABLE hook (DARK, TEMPEST_SURGE — eje CONDICIÓN METEOROLÓGICA world-CONDITION shard-wide + canal REUSADO lootQuality con SHARE-CAP vs Trailcraft). Sólo lectura + drivers de PRUEBA
+  // gateados (0 hotkey — passive AMBIENTAL emerge del clima+traversal, sin input.js). STATELESS: la intensidad es función PURA del reloj compartido ⇒ MISMA condición en N clientes con el mismo reloj (convergencia byte-a-byte, 0 desync).
+  //   tempest()                                         → snapshot {enabled,channel,zones,tiers,cap,...,zone,exposed,phase,intensity,storming,tier,steps,trailSteps,floor,lootQualityFloor,peer muls ⊥,tag,gExists,hero}
+  //   tempest({enabled})                                → flip runtime IN-MEMORY de TEMPEST_SURGE.enabled (sin tocar el disco)
+  //   tempest({nowMs})                                  → fija el reloj compartido G.tempestNow (la fase de clima se deriva de él)
+  //   tempest({phaseOverride}) / ({phase})              → fija TEMPEST_SURGE.phaseOverride (fuerza tormenta/calma determinista; null = reloj real)
+  //   tempest({intensityProbe:{phase}})                 → devuelve la función PURA tempestIntensity(phase) (byte-verificación de la rampa triangular / bordes de ventana) SIN tocar estado
+  //   tempest({lootTick:{seed,tmin,tmax}})              → rueda un drop sintético con SEED FIJO (createRNG, NO toca el srand autoritativo) SIN y CON el piso lootQualityFloor UNIFICADO (Trailcraft+Tempest share-cap) ⇒ byte-verifica el seam (OFF ⇒ floorRarity==baseRarity; share-cap ⇒ steps≤cap)
+  //   tempest({toZone}) / ({leave})                     → teleporta a una zona EXPUESTA / aleja de toda zona (prueba el gate de exposición: caves ⇒ no expuesto)
+  tempest(p){
+    let probe=null, lootPicked=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) TEMPEST_SURGE.enabled=!!p.enabled;
+      if("nowMs" in p) G.tempestNow=+p.nowMs;                                                    // fija el reloj compartido ⇒ deriva la fase de clima
+      if("phaseOverride" in p) TEMPEST_SURGE.phaseOverride=(p.phaseOverride==null?null:+p.phaseOverride);
+      if("phase" in p) TEMPEST_SURGE.phaseOverride=(p.phase==null?null:+p.phase);                // alias cómodo
+      if("intensityProbe" in p && p.intensityProbe && typeof p.intensityProbe==="object"){ probe=tempestIntensity(+p.intensityProbe.phase||0); }   // función PURA, SIN tocar estado
+      if(p.toZone && G.hero){ const zn=(typeof p.toZone==="string")?p.toZone:((TEMPEST_SURGE.zones||[])[0]); const spot=zn?pulseSpot(zn):null; if(spot){ G.hero.x=spot.x; G.hero.y=spot.y; } }
+      if(p.leave && G.hero){ G.hero.x=-1e7; G.hero.y=-1e7; }
+      if("lootTick" in p && p.lootTick && typeof p.lootTick==="object"){ const lt=p.lootTick;
+        const seed=(lt.seed!=null?(lt.seed|0):0x7a11c4f7), tmin=(lt.tmin!=null?lt.tmin|0:1), tmax=(lt.tmax!=null?lt.tmax|0:2);
+        const floor=lootQualityFloor();   // piso UNIFICADO (share-cap Trailcraft+Tempest); "" cuando ambos OFF/tier0/fuera-de-zona
+        const baseInst=rollGearInst(createRNG(seed).srand, tmin, tmax);                          // MISMO seed, SIN floor
+        const floorInst=rollGearInst(createRNG(seed).srand, tmin, tmax, floor||undefined);       // MISMO seed, CON floor unificado
+        lootPicked={ seed, floor:floor||"", trailSteps:trailcraftFloorSteps(), tempestSteps:tempestFloorSteps(),
+          combined:Math.min((TEMPEST_SURGE.tempestLootCap|0), trailcraftFloorSteps()+tempestFloorSteps()), cap:(TEMPEST_SURGE.tempestLootCap|0),
+          baseRarity:baseInst?baseInst.rarity:null, floorRarity:floorInst?floorInst.rarity:null }; }   // OFF ⇒ floorRarity==baseRarity byte-id; share-cap ⇒ steps combinados ≤ cap
+    }
+    const h=G.hero, vm=tempestVM(h);
+    return { enabled:TEMPEST_SURGE.enabled, channel:TEMPEST_SURGE.channel||"lootQuality", zones:(TEMPEST_SURGE.zones||[]).slice(),
+      tiers:(TEMPEST_SURGE.tiers||[]).map(t=>({min:+t.min||0,steps:t.steps|0})), cap:(TEMPEST_SURGE.tempestLootCap|0),
+      cycleSeconds:TEMPEST_SURGE.cycleSeconds|0, stormStart:+TEMPEST_SURGE.stormStart||0, stormEnd:+TEMPEST_SURGE.stormEnd||0, minIntensity:+TEMPEST_SURGE.minIntensity||0,
+      zone:vm.zone, exposed:vm.exposed, phase:vm.phase, intensity:vm.intensity, storming:vm.storming, tier:vm.tier, tierCount:vm.tierCount, boostKind:vm.boostKind, steps:vm.steps, trailSteps:vm.trailSteps,
+      floor:vm.floor,                                                     // piso EFECTIVO combinado (share-cap Trailcraft+Tempest)
+      lootQualityFloor: lootQualityFloor()||"",                           // idéntico al seam del drop (prueba: OFF ⇒ delega a trailcraftFloor ⇒ byte-id LIVE Trailcraft)
+      trailcraftFloor: trailcraftFloor()||"",                             // piso SÓLO-Trailcraft (para comparar el de-stack: con Tempest OFF, lootQualityFloor==trailcraftFloor)
+      restedXpMult: +(RESTED_XP.xpMult + (h?convoyMul(h,"restedMult"):0)).toFixed(4),   // canal restedMult — INDEPENDIENTE ⊥
+      goldFindMul: h?(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")):0,  // canal goldFind — INDEPENDIENTE ⊥ (sube RAREZA, no cantidad de oro)
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥ (lootQuality NO lo toca)
+      vampMul: h?nocturneMul(h,"vamp"):0,                                 // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      tag: tempestTag(h),                                                 // glifo SERVIDO (prueba: OFF/calma/bajo-techo ⇒ "" / tormenta en zona expuesta ⇒ ⛈)
+      probe: probe,                                                       // resultado de la función PURA tempestIntensity (byte-verificación de la rampa/bordes)
+      lootPicked,                                                         // resultado del lootTick sintético (prueba del seam lootQuality + share-cap en aislamiento, seed fijo)
+      precedence:"lootQuality (canal REUSADO — MISMO seam `minR` de rollGearInst que Trailcraft #63): SHARE-CAP de-stack ⇒ pasos combinados min(tempestLootCap, trailSteps+tempestSteps), 0 doble-dip más allá del techo (mismo patrón que Cadence critChance vs Delve). EJE = CONDICIÓN METEOROLÓGICA (world-state shard-wide), NO meter personal (⊥ Cadence) ni fase día/noche (⊥ Nocturne). ORTOGONAL a goldFind/restedMult/wardRegen/oocMitigation/critChance/xpGain/vamp (seams distintos).",
+      gExists:(G.tempest!=null),                                          // prueba byte-id: STATELESS ⇒ G.tempest NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, zone:zoneOf(world,h.x,h.y) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
