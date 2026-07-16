@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4066,6 +4066,33 @@ export function affixDangerVM(h){ h=h||G.hero; const on=!!MOB_AFFIX_DANGER.enabl
     cap:Math.max(0,MOB_AFFIX_DANGER.dangerFlaskCap|0), radius:+MOB_AFFIX_DANGER.radius||0,
     tag: affixDangerTag(h) }; }
 
+// CAS-2450: PARTICIPACIÓN EN EVENTO DE ZONA (ZONE_EVENT_SURGE) — EJE ESTADO DE EVENTO DE ZONA ACTIVO + canal FRESCO gemFind (recompensa de esquirlas de gema por forrajeo DENTRO de un evento activo). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Los POIs (G.zoneEvents.pois) = estado de sim REPLICADO sembrado determinista por zona (eventRng ISOLADO, off-srand).
+// zoneEventWeight(poi) = peso de participación de un POI de evento ACTIVO = eventWeights[type] (chest/goblin→2, shrine→1, tipo ausente→1 fallback). PURO (lectura de poi.type/poi.state replicados). state!=="active" (done/escaped) ⇒ 0 (evento consumido ⇒ ya no se participa).
+function zoneEventWeight(poi){ if(!poi||poi.state!=="active") return 0; const W=ZONE_EVENT_SURGE.eventWeights||{}; return (+W[poi.type]||1); }
+// zoneEventScore(h) = suma del peso de participación de TODOS los POIs de evento ACTIVOS dentro de ZONE_EVENT_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (POIs+posiciones = estado replicado). 0 si no hay eventos activos cerca. Vecindad = radio (⊥ apex que mide distancia a UN jefe; ⊥ afijo que lee la CALIDAD del mob).
+function zoneEventScore(h){ h=h||G.hero; if(!h) return 0; const Z=G.zoneEvents; if(!Z||!Z.pois) return 0; const R=+ZONE_EVENT_SURGE.radius||0, R2=R*R; let s=0;
+  for(const poi of Z.pois){ const w=zoneEventWeight(poi); if(w<=0) continue; const dx=h.x-poi.x, dy=h.y-poi.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// zoneEventTier(score) = índice del tier de participación vigente (0 = sin evento activo cerca / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS participación = tier ALTO. LUT determinista pura.
+function zoneEventTier(score){ const T=ZONE_EVENT_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// zoneEventGemBonus(score) = nº de esquirlas de gema del tier vigente, acotado por el sub-cap propio eventGemCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta gemFind.
+function zoneEventGemBonus(score){ if(!ZONE_EVENT_SURGE.enabled) return 0;
+  if((ZONE_EVENT_SURGE.channel||"gemFind")!=="gemFind") return 0;   // seguridad: ZONE_EVENT_SURGE SÓLO alimenta gemFind (si el knob se re-apunta, no contribuye)
+  const t=zoneEventTier(score); if(t<=0) return 0;
+  const raw=+ZONE_EVENT_SURGE.tiers[t-1].gems||0, cap=Math.max(0,ZONE_EVENT_SURGE.eventGemCap|0);
+  return cap>0 ? Math.min(cap, raw) : raw; }
+// zoneEventForageGems(h, tpl) = las esquirlas de gema por un kill DENTRO de un evento activo = zoneEventGemBonus(score actual). 0 si OFF / sin evento cerca / sin tpl. PURO — el seam decide banca a h.eventGems vía grantEventGem.
+function zoneEventForageGems(h, tpl){ if(!ZONE_EVENT_SURGE.enabled||!tpl) return 0; return zoneEventGemBonus(zoneEventScore(h||G.hero)); }
+// zoneEventTag(h) = glifo del badge de PARTICIPACIÓN EN EVENTO (◈) si el héroe está participando en evento(s) activo(s) en radio (tier>0). PURO. "" si OFF / sin evento cerca.
+export function zoneEventTag(h){ h=h||G.hero; if(!ZONE_EVENT_SURGE.enabled||!h) return "";
+  return zoneEventTier(zoneEventScore(h))>0 ? "◈" : ""; }
+// View-model PURO para el HUD/badge: el tier de participación, el score de eventos, las gemas efectivas por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function zoneEventVM(h){ h=h||G.hero; const on=!!ZONE_EVENT_SURGE.enabled&&!!h;
+  const score=on?zoneEventScore(h):0, tier=on?zoneEventTier(score):0, gems=on?zoneEventGemBonus(score):0;
+  return { enabled:!!ZONE_EVENT_SURGE.enabled, channel:ZONE_EVENT_SURGE.channel||"gemFind",
+    score, tier, tierCount:(ZONE_EVENT_SURGE.tiers||[]).length, gems,
+    cap:Math.max(0,ZONE_EVENT_SURGE.eventGemCap|0), radius:+ZONE_EVENT_SURGE.radius||0,
+    tag: zoneEventTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5554,6 +5581,13 @@ function killEnemy(e){
   if(MOB_AFFIX_DANGER.enabled && !tpl.neutral){ const fb=affixDangerForageFlasks(G.hero, tpl);
     if(fb>0){ grantFlask(fb);
       floater(e.x,e.y-60,"+"+fb+" Estus","#8fd3ff",{small:true}); } }
+  // CAS-2450 ZONE_EVENT_SURGE seam: FORRAJEO DENTRO DE UN EVENTO DE ZONA ACTIVO. Al matar un mob no-neutral mientras hay evento(s) de zona ACTIVO(s) (POIs state==="active", score≥umbral) dentro
+  // del radio de participación del HÉROE, el héroe cosecha esquirlas de gema = zoneEventForageGems(hero,tpl) (flat por tier de intensidad, sub-cap eventGemCap), banca a h.eventGems vía grantEventGem
+  // (0 RNG). El POI de evento es INDEPENDIENTE del mob muerto ⇒ matar NO consume el evento (sólo la interacción del POI lo hace). GATED ⇒ enabled:false ⇒ rama muerta: 0 gemas, 0 floater, 0 grantEventGem
+  // ⇒ killEnemy byte-idéntico al HEAD. Canal FRESCO gemFind (fuente ÚNICA, sub-cap eventGemCap) — NINGUNA de las 16 flags #59-#74 lo toca; esquirlas de gema transitorias ⇒ fuera del save + fingerprint.
+  if(ZONE_EVENT_SURGE.enabled && !tpl.neutral){ const gb=zoneEventForageGems(G.hero, tpl);
+    if(gb>0){ grantEventGem(gb);
+      floater(e.x,e.y-72,"+"+gb+" Gema","#b79cff",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -6755,6 +6789,9 @@ function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n
 
 // CAS-2445: banca cargas de Estus (canal flaskPotency de MOB_AFFIX_DANGER). Recurso TRANSITORIO (fuera del save allowlist + fingerprint), capado a FLASK.charges. Gated por FLASK.enabled (si Estus está OFF, no-op). 0 RNG. Mirror de grantMats para el trickle de forrajeo amid-danger.
 function grantFlask(n){ const h=G.hero; if(!h||n<=0||!FLASK.enabled) return; h.flaskCharges=Math.min(FLASK.charges,(h.flaskCharges|0)+(n|0)); }
+
+// CAS-2450: banca esquirlas de gema (canal gemFind de ZONE_EVENT_SURGE). Moneda TRANSITORIA NUEVA (h.eventGems — init por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantMats para el trickle de forrajeo DENTRO de un evento de zona activo. STATELESS: h.eventGems NO se serializa ⇒ no es clave de save.
+function grantEventGem(n){ const h=G.hero; if(!h||n<=0) return; h.eventGems=(h.eventGems|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9515,6 +9552,57 @@ export const dev = {
       gExists:(G.affixDanger!=null),                                      // prueba byte-id: STATELESS ⇒ G.affixDanger NUNCA se crea (0 estado nuevo, 0 clave serializada)
       affixMobCount:affixMobCount,                                        // nº de mobs afijados vivos en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), flaskCharges:(h.flaskCharges|0) }:null }; },
+  // CAS-2450: PARTICIPACIÓN EN EVENTO DE ZONA OBSERVABLE hook (DARK, ZONE_EVENT_SURGE — eje ESTADO DE EVENTO DE ZONA ACTIVO server-auth [Σ eventWeights sobre los POIs state==="active" en radio del héroe, leídos de G.zoneEvents.pois] + canal
+  // FRESCO gemFind [recompensa de esquirlas de gema por forrajeo DENTRO de un evento activo, NINGUNA flag previa lo toca] con sub-cap eventGemCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — la participación
+  // EMERGE del estado del mundo). Convergencia byte-a-byte: MISMO snapshot (G.zoneEvents.pois + posición del héroe) ⇒ MISMO score/tier/gems/forageGems en N clientes.
+  //   zoneEvent()                                  → snapshot {enabled,channel,radius,tiers,cap,score,tier,gems,forageGemsPreview,peer channels ⊥,tag,gExists,activeEventCount,hero}
+  //   zoneEvent({enabled})                         → flip runtime IN-MEMORY de ZONE_EVENT_SURGE.enabled (sin tocar el disco)
+  //   zoneEvent({tp:{tx,ty}})                      → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ la participación se evalúa contra los POIs REALes de G.zoneEvents.pois en radio
+  //   zoneEvent({scoreProbe:{score}})              → LUT PURA score→tier→gems (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   zoneEvent({spawnEvent:{tx,ty,type,state}})   → inyecta un POI de PRUEBA de evento REAL en G.zoneEvents.pois en el tile (tx,ty); devuelve idx + peso
+  //   zoneEvent({eventProbe:true})                 → score REAL + lista de POIs de evento activos en radio + su {x,y,type,state,weight} (byte-verifica la lectura server-auth de G.zoneEvents.pois)
+  zoneEvent(p){
+    let scoreProbe=null, spawnEvent=null, eventProbe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) ZONE_EVENT_SURGE.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=zoneEventTier(score);   // LUT PURA score→tier→gems (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+ZONE_EVENT_SURGE.tiers[t-1].gems||0):0, cap=Math.max(0,ZONE_EVENT_SURGE.eventGemCap|0);
+        scoreProbe={ score, tier:t, gems:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnEvent && typeof p.spawnEvent==="object"){ const tx=p.spawnEvent.tx|0, ty=p.spawnEvent.ty|0, type=(p.spawnEvent.type||"shrine"), st=(p.spawnEvent.state||"active");   // POI de PRUEBA de evento REAL (empujado a G.zoneEvents.pois, mirror de spawnZonePOI) para observar la señal REAL
+        const Z=G.zoneEvents||(G.zoneEvents={ seeded:[], pois:[], lastPayoff:null });
+        const poi={ id:++eventPoiSeq, type, zone:zoneOf(world,tx*TS+TS/2,ty*TS+TS/2), x:tx*TS+TS/2, y:ty*TS+TS/2, state:st, seen:false };
+        Z.pois.push(poi);
+        spawnEvent={ idx:Z.pois.indexOf(poi), x:+poi.x.toFixed(1), y:+poi.y.toFixed(1), type, state:st, weight:zoneEventWeight(poi) }; }
+      if(p.eventProbe){ const h=G.hero, R=+ZONE_EVENT_SURGE.radius||0, R2=R*R, Z=G.zoneEvents, pois=[]; let sc=0;   // lectura REAL server-auth: POIs de evento activos en radio del héroe
+        if(h&&Z&&Z.pois){ for(const poi of Z.pois){ const w=zoneEventWeight(poi); if(w<=0) continue; const dx=h.x-poi.x, dy=h.y-poi.y; if(dx*dx+dy*dy<=R2){ sc+=w; pois.push({ x:+poi.x.toFixed(1), y:+poi.y.toFixed(1), type:poi.type, state:poi.state, weight:w }); } } }
+        eventProbe={ score:sc, count:pois.length, pois }; }
+    }
+    const h=G.hero, vm=zoneEventVM(h), Z=G.zoneEvents;
+    let activeEventCount=0; if(Z&&Z.pois){ for(const poi of Z.pois){ if(zoneEventWeight(poi)>0) activeEventCount++; } }
+    return { enabled:ZONE_EVENT_SURGE.enabled, channel:ZONE_EVENT_SURGE.channel||"gemFind",
+      radius:vm.radius, tiers:(ZONE_EVENT_SURGE.tiers||[]).map(t=>({min:+t.min||0,gems:+t.gems||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, gems:vm.gems,
+      forageGemsPreview: h?zoneEventForageGems(h, {xp:100}):0,              // preview: esquirlas de gema forrajeadas por un kill con la participación actual (expone el canal gemFind)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      tag: zoneEventTag(h),                                                // glifo SERVIDO (OFF/sin evento ⇒ "" / evento cerca ⇒ ◈)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→gems (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnEvent: spawnEvent,                                             // POI de PRUEBA de evento inyectado (G.zoneEvents.pois) — idx + peso
+      eventProbe: eventProbe,                                             // lectura REAL server-auth: POIs de evento activos en radio (score + lista)
+      precedence:"gemFind (canal FRESCO — recompensa de esquirlas de gema por forrajeo DENTRO de un evento de zona activo): NINGUNA de las 16 flags #59-#74 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind #60/#62, lootQuality #63/#68, xpGain #65, essenceFind #72, matFind #73, flaskPotency #74) está LLENA ⇒ pivota a una moneda FRESCA, esquirlas de gema (h.eventGems, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio eventGemCap, 0 doble-dip (ningún otro seam banca eventGems). EJE = ESTADO DE EVENTO DE ZONA server-auth: zoneEventScore(hero)=Σ eventWeights[type] sobre los POIs state==='active' de G.zoneEvents.pois en radio. ⊥ #74 (afijo = CALIDAD de un mob individual; esto = ESTADO DE EVENTO de la zona, independiente de qué mobs haya), ⊥ #73 (apex = DISTANCIA a UN jefe; esto = presencia de POIs de EVENTO activos), ⊥ #72 (escasez = AUSENCIA de mobs; esto = PRESENCIA de un evento dinámico), ⊥ #69 (force-ratio = ENGANCHADOS). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency (seams distintos).",
+      gExists:(G.zoneEventSurge!=null),                                    // prueba byte-id: STATELESS ⇒ G.zoneEventSurge NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      activeEventCount:activeEventCount,                                  // nº de POIs de evento activos en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), eventGems:(h.eventGems|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
