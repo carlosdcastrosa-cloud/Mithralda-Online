@@ -2812,6 +2812,26 @@ export const FIRM_FOOTING = {
   ],
 };
 
+// CAS-2426: ACECHO / SIGILO (DARK, SHADOW_STALK) — EVO mecánica #71 (serializa tras #70 FIRM_FOOTING LIVE&closed). EJE FRESCO **SIGILO / LÍNEA-DE-VISIÓN / OCULTAMIENTO** (server-auth).
+//  · PRE-FLIGHT HARD GATE (escalera del issue):
+//    (1) "LOS entre héroe y mob" como estado PRE-CALCULADO server-side — NO existe (grep raycast|lineOfSight|hasLOS|canSee = 0; los "~154 refs `los`" son el ARTÍCULO español *los*, NO line-of-sight; ya lo señalé en CAS-2416). Pero SÍ existe la GEOMETRÍA server-auth de la que la LOS se DERIVA de forma determinista:
+//        `world.wallSet` + `world.blockSet` = Sets de índices de tile ocluyentes (muros/casas), poblados por buildWorld (world.js), LEÍDOS por el sim en solidBlocked (sim.js:2237-2238) y HASHEADOS en el worldFingerprint (wallCount, sim.js:13704). ⇒ construyo la LOS como FUNCIÓN PURA (raycast de grid Bresenham) sobre esa geometría REAL — NO es cosmético cliente, es autoridad determinista. Gate #1 SATISFECHO vía la opción "concealment-por-material/geometría" de la escalera.
+//        ⚠️ El CEO asignó #71=SHADOW_STALK CONOCIENDO ya (por mi steer CTO CAS-2417) que no hay raycast previo ⇒ construyo la LOS sobre la geometría real en vez de re-escalar el mismo hallazgo. Si el CEO prefiere el canal alternativo (bonus de primer golpe desde ocultamiento) o escalar, el pivote es trivial (DARK byte-neutral).
+//    (2) Canal `detectRadius` (radio de detección/adquisición del mob hacia el héroe) — NINGUNA de las 12 flags #59-#70 lo toca (todas son BUFFS DE STAT del héroe: restedMult/wardRegen/goldFind/oocMitigation/lootQuality/xpGain/atkspd/safeRegen). Es un DEBUFF de percepción del ENEMIGO ⇒ canal 100% fresco. Fuente ÚNICA ⇒ máximo-único trivial (mirror WARDING_RING #59); sub-cap propio stealthStalkCap.
+//    (3) STATELESS: 0 acumulador per-pid, 0 `G.shadowStalk*`, 0 marca, 0 clave serializada. El ocultamiento = función PURA del snapshot (world.wallSet/blockSet + pos del héroe + pos del mob) ⇒ MISMO valor para todo observador del mismo snapshot (convergencia byte-a-byte, 0 desync).
+//  · ⊥ a las 12 LIVE #59-#70: NO material-de-terreno-bajo-el-héroe (#70 FIRM_FOOTING lee `world.terr` del tile DEL HÉROE; esto lee la capa OCLUSORA `world.wallSet/blockSet` de los tiles ENTRE mob y héroe — capa/array distinto, geometría de línea, no material de casilla), NO force-ratio (#69 LAST_STAND), NO clima (#68 TEMPEST), NO time-of-day (NOCTURNE), NO tempo (CADENCE), NO social/kinship, NO territorial, NO profundidad/conocimiento.
+//  · APLICACIÓN — un solo seam: la adquisición de target del mob (sim.js "const aggro=e.hostile?300:e.tpl.aggro"). Cuando la LOS mob→héroe está ROTA (≥1 tile oclusor en la línea de grid), el radio EFECTIVO de detección se reduce ⇒ el mob adquiere/persigue desde más cerca (o suelta antes). BYTE-NEUTRO OFF: enabled:false ⇒ aporte +0 exacto ⇒ aggro EFECTIVO == e.hostile?300:e.tpl.aggro ⇒ máquina de estados del enemigo byte-idéntica al HEAD (raycast NUNCA se invoca con enabled:false). No es un stat de combate ⇒ NO entra al worldFingerprint (que hashea geometría estática, no IA de enemigos).
+export const SHADOW_STALK = {
+  enabled: false,            // DARK (EVO#71). OFF byte-neutral: +0 exacto ⇒ estado byte-idéntico al HEAD. Flip false→true SÓLO tras QA DARK PASS + CEO Gate. anti-stacking: 1 arco valida a la vez.
+  channel: "detectRadius",   // canal FRESCO (radio de detección/adquisición del mob) — NINGUNA de las 12 flags #59-#70 lo usa (todas son stat-buffs del héroe). Fuente ÚNICA ⇒ máximo-único trivial. ⊥ wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd. CEO balance knob.
+  stealthStalkCap: 0.35,     // SUB-CAP DURO PROPIO de la reducción del radio de detección (fracción, 0..1) — acota el ocultamiento aunque la tabla se re-tunee. = max(tiers.mit)=0.35 ⇒ neutral con la tabla actual. CEO balance knob.
+  // TABLA de tiers por PROFUNDIDAD DE OCULTAMIENTO (nº de tiles oclusores en la línea de grid mob→héroe) → `mit` = fracción de reducción del radio de detección (bajo stealthStalkCap). Tier vigente = el MÁS ALTO cuya `min` de oclusores se alcanza. LOS despejada (0 oclusores) ⇒ Tier 0 ⇒ +0 (sin ventaja). Determinista, LUT pura.
+  tiers: [
+    { min: 1, mit: 0.20 },   // Tier 1 — cobertura fina (1 tile oclusor en la línea): −20% al radio de detección. "tras una esquina".
+    { min: 2, mit: 0.35 },   // Tier 2 — cobertura densa (≥2 tiles oclusores): −35% al radio de detección. "en las sombras". CEO balance knobs.
+  ],
+};
+
 // CAS-1879: HOGUERA / REST SITE (Bonfire, 13º pilar · capstone que UNIFICA Estus+Mancha de Sangre+checkpoint).
 // Descansar en un sitio seguro (world.fountains) cura a tope, recarga Estus, fija el ancla de respawn y REPUEBLA los
 // no-jefes de la zona (tradeoff Souls: recuperas recursos pero el mundo vuelve). Sólo en seguridad (sin no-jefes en
