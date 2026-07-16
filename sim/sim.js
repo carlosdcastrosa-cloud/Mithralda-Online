@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4038,6 +4038,34 @@ export function apexVM(h){ h=h||G.hero; const on=!!APEX_PROXIMITY.enabled&&!!h;
     cap:Math.max(0,APEX_PROXIMITY.apexMatCap|0),
     tag: apexTag(h) }; }
 
+// CAS-2445: PELIGRO POR AFIJO DE MOB (MOB_AFFIX_DANGER) — EJE CALIDAD/PELIGRO DE AFIJO DE MOB + canal FRESCO flaskPotency (recompensa de cargas de Estus por forrajeo amid-danger). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Los afijos (e.affix/e.affixes) = estado de sim REPLICADO asignado determinista al spawn (maybeAffix/spawnChampion, off-srand).
+// affixDangerWeight(e) = peso de peligro total de un mob VIVO = Σ affixWeights[id] sobre mobAffixes(e) (campeón→2 afijos, trash afijado→1, boss/neutral→0; los boss NO llevan afijo — maybeAffix los excluye ⇒ ⊥ #73 apex). PURO (lectura de e.affix/e.affixes replicados). Muerto/sin hp ⇒ 0.
+function affixDangerWeight(e){ if(!e||e.dead||!(e.hp>0)) return 0; const W=MOB_AFFIX_DANGER.affixWeights||{}; let s=0;
+  for(const id of mobAffixes(e)){ s += (+W[id]||1); } return s; }
+// affixDangerScore(h) = suma del peso de peligro de TODOS los mobs afijados VIVOS dentro de MOB_AFFIX_DANGER.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (afijos+posiciones = estado replicado). 0 si no hay afijos cerca. Vecindad = radio (⊥ apex que mide distancia a UN jefe).
+function affixDangerScore(h){ h=h||G.hero; if(!h) return 0; const R=+MOB_AFFIX_DANGER.radius||0, R2=R*R; let s=0;
+  for(const e of (G.enemies||[])){ const w=affixDangerWeight(e); if(w<=0) continue; const dx=h.x-e.x, dy=h.y-e.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// affixDangerTier(score) = índice del tier de peligro vigente (0 = sin afijos cerca / sin ventaja) = el MÁS PELIGROSO (mayor `min`) cuyo score se satisface. MÁS peligro = tier ALTO. LUT determinista pura.
+function affixDangerTier(score){ const T=MOB_AFFIX_DANGER.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// affixDangerFlaskBonus(score) = nº de cargas de Estus del tier vigente, acotado por el sub-cap propio dangerFlaskCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta flaskPotency.
+function affixDangerFlaskBonus(score){ if(!MOB_AFFIX_DANGER.enabled) return 0;
+  if((MOB_AFFIX_DANGER.channel||"flaskPotency")!=="flaskPotency") return 0;   // seguridad: MOB_AFFIX_DANGER SÓLO alimenta flaskPotency (si el knob se re-apunta, no contribuye)
+  const t=affixDangerTier(score); if(t<=0) return 0;
+  const raw=+MOB_AFFIX_DANGER.tiers[t-1].flasks||0, cap=Math.max(0,MOB_AFFIX_DANGER.dangerFlaskCap|0);
+  return cap>0 ? Math.min(cap, raw) : raw; }
+// affixDangerForageFlasks(h, tpl) = las cargas de Estus por un kill amid-danger = affixDangerFlaskBonus(score actual). 0 si OFF / sin afijos cerca / sin tpl. PURO — el seam decide banca a h.flaskCharges vía grantFlask.
+function affixDangerForageFlasks(h, tpl){ if(!MOB_AFFIX_DANGER.enabled||!tpl) return 0; return affixDangerFlaskBonus(affixDangerScore(h||G.hero)); }
+// affixDangerTag(h) = glifo del badge de PELIGRO POR AFIJO (❈) si el héroe tiene peligro-de-afijo en radio (tier>0). PURO. "" si OFF / sin afijos cerca.
+export function affixDangerTag(h){ h=h||G.hero; if(!MOB_AFFIX_DANGER.enabled||!h) return "";
+  return affixDangerTier(affixDangerScore(h))>0 ? "❈" : ""; }
+// View-model PURO para el HUD/badge: el tier de peligro, el score de afijos, las flasks efectivas por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function affixDangerVM(h){ h=h||G.hero; const on=!!MOB_AFFIX_DANGER.enabled&&!!h;
+  const score=on?affixDangerScore(h):0, tier=on?affixDangerTier(score):0, flasks=on?affixDangerFlaskBonus(score):0;
+  return { enabled:!!MOB_AFFIX_DANGER.enabled, channel:MOB_AFFIX_DANGER.channel||"flaskPotency",
+    score, tier, tierCount:(MOB_AFFIX_DANGER.tiers||[]).length, flasks,
+    cap:Math.max(0,MOB_AFFIX_DANGER.dangerFlaskCap|0), radius:+MOB_AFFIX_DANGER.radius||0,
+    tag: affixDangerTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5519,6 +5547,13 @@ function killEnemy(e){
   if(APEX_PROXIMITY.enabled && !tpl.neutral){ const mb=apexForageMats(G.hero, tpl);
     if(mb>0){ grantMats(mb);
       floater(e.x,e.y-48,"+"+mb+" "+STR.forgeMat,"#cdb27a",{small:true}); } }
+  // CAS-2445 MOB_AFFIX_DANGER seam: FORRAJEO AMID-DANGER. Al matar un mob no-neutral con peligro-de-afijo (score de afijos ≥umbral) dentro del radio del HÉROE, el héroe cosecha cargas de
+  // Estus extra = affixDangerForageFlasks(hero,tpl) (flat por tier de peligro, sub-cap dangerFlaskCap), banca a h.flaskCharges vía grantFlask (capado a FLASK.charges, 0 RNG). e.dead=true ya está
+  // fijado arriba ⇒ affixDangerWeight(e)=0 ⇒ el mob recién muerto NO auto-cuenta su afijo. GATED ⇒ enabled:false ⇒ rama muerta: 0 flasks, 0 floater, 0 grantFlask ⇒ killEnemy byte-idéntico al HEAD.
+  // Canal FRESCO flaskPotency (fuente ÚNICA, sub-cap dangerFlaskCap) — NINGUNA de las 15 flags #59-#73 lo toca; Estus transitorio ⇒ fuera del save + fingerprint.
+  if(MOB_AFFIX_DANGER.enabled && !tpl.neutral){ const fb=affixDangerForageFlasks(G.hero, tpl);
+    if(fb>0){ grantFlask(fb);
+      floater(e.x,e.y-60,"+"+fb+" Estus","#8fd3ff",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -6717,6 +6752,9 @@ export function forgeUpgrade(slot){ const h=G.hero; if(!h) return false;
 // combat RNG stream (drops/affixes) is never perturbed — determinism baselines hold. Reads/writes
 // only h.mats. Daily contracts add mats through applyMetaReward (the meta-reward seam).
 function grantMats(n){ const h=G.hero; if(!h||n<=0) return; h.mats=(h.mats|0)+(n|0); }
+
+// CAS-2445: banca cargas de Estus (canal flaskPotency de MOB_AFFIX_DANGER). Recurso TRANSITORIO (fuera del save allowlist + fingerprint), capado a FLASK.charges. Gated por FLASK.enabled (si Estus está OFF, no-op). 0 RNG. Mirror de grantMats para el trickle de forrajeo amid-danger.
+function grantFlask(n){ const h=G.hero; if(!h||n<=0||!FLASK.enabled) return; h.flaskCharges=Math.min(FLASK.charges,(h.flaskCharges|0)+(n|0)); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9429,6 +9467,54 @@ export const dev = {
       gExists:(G.apex!=null),                                           // prueba byte-id: STATELESS ⇒ G.apex NUNCA se crea (0 estado nuevo, 0 clave serializada)
       apexCount:apexCount,                                              // nº de apex vivos en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), mats:h.mats|0 }:null }; },
+  // CAS-2445: PELIGRO POR AFIJO DE MOB OBSERVABLE hook (DARK, MOB_AFFIX_DANGER — eje CALIDAD/PELIGRO DE AFIJO server-auth [Σ affixWeights sobre mobAffixes de los mobs VIVOS en radio del héroe] + canal
+  // FRESCO flaskPotency [recompensa de cargas de Estus por forrajeo amid-danger, NINGUNA flag previa lo toca] con sub-cap dangerFlaskCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — el peligro
+  // EMERGE del estado del mundo). Convergencia byte-a-byte: MISMO snapshot (G.enemies + afijos + posición del héroe) ⇒ MISMO score/tier/flasks/forageFlasks en N clientes.
+  //   affixDanger()                                → snapshot {enabled,channel,radius,tiers,cap,score,tier,flasks,forageFlasksPreview,peer channels ⊥,tag,gExists,affixMobCount,hero}
+  //   affixDanger({enabled})                       → flip runtime IN-MEMORY de MOB_AFFIX_DANGER.enabled (sin tocar el disco)
+  //   affixDanger({tp:{tx,ty}})                    → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ el peligro se evalúa contra los afijos REALes de G.enemies en radio
+  //   affixDanger({scoreProbe:{score}})            → LUT PURA score→tier→flasks (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   affixDanger({spawnAffix:{tx,ty,affix}})      → inyecta un mob de PRUEBA afijado REAL (spawnEnemy + e.affix=affix) en el tile (tx,ty); devuelve idx + peso
+  //   affixDanger({dangerProbe:true})              → score REAL + lista de mobs afijados en radio + su {x,y,affixes,weight} (byte-verifica la lectura server-auth de G.enemies)
+  affixDanger(p){
+    let scoreProbe=null, spawnAffix=null, dangerProbe=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) MOB_AFFIX_DANGER.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=affixDangerTier(score);   // LUT PURA score→tier→flasks (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+MOB_AFFIX_DANGER.tiers[t-1].flasks||0):0, cap=Math.max(0,MOB_AFFIX_DANGER.dangerFlaskCap|0);
+        scoreProbe={ score, tier:t, flasks:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnAffix && typeof p.spawnAffix==="object"){ const tx=p.spawnAffix.tx|0, ty=p.spawnAffix.ty|0, id=(p.spawnAffix.affix||MOB_AFFIX_IDS[0]);   // mob de PRUEBA afijado (mob REAL vía spawnEnemy, e.affix=id) para observar la señal REAL en G.enemies
+        const e=spawnEnemy("orc", tx*TS+TS/2, ty*TS+TS/2); e.affix=id; e.affixGait=(MOB_AFFIX[id]&&MOB_AFFIX[id].gaitMul)||1;
+        spawnAffix={ idx:G.enemies.indexOf(e), x:+e.x.toFixed(1), y:+e.y.toFixed(1), affix:id, weight:affixDangerWeight(e) }; }
+      if(p.dangerProbe){ const h=G.hero, R=+MOB_AFFIX_DANGER.radius||0, R2=R*R, mobs=[]; let sc=0;   // lectura REAL server-auth: mobs afijados vivos en radio del héroe
+        if(h){ for(const e of (G.enemies||[])){ const w=affixDangerWeight(e); if(w<=0) continue; const dx=h.x-e.x, dy=h.y-e.y; if(dx*dx+dy*dy<=R2){ sc+=w; mobs.push({ x:+e.x.toFixed(1), y:+e.y.toFixed(1), affixes:mobAffixes(e), weight:w }); } } }
+        dangerProbe={ score:sc, count:mobs.length, mobs }; }
+    }
+    const h=G.hero, vm=affixDangerVM(h);
+    let affixMobCount=0; for(const e of (G.enemies||[])){ if(affixDangerWeight(e)>0) affixMobCount++; }
+    return { enabled:MOB_AFFIX_DANGER.enabled, channel:MOB_AFFIX_DANGER.channel||"flaskPotency",
+      radius:vm.radius, tiers:(MOB_AFFIX_DANGER.tiers||[]).map(t=>({min:+t.min||0,flasks:+t.flasks||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, flasks:vm.flasks,
+      forageFlasksPreview: h?affixDangerForageFlasks(h, {xp:100}):0,        // preview: cargas de Estus forrajeadas por un kill con el peligro-de-afijo actual (expone el canal flaskPotency)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      tag: affixDangerTag(h),                                              // glifo SERVIDO (OFF/sin afijos ⇒ "" / peligro cerca ⇒ ❈)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→flasks (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnAffix: spawnAffix,                                             // mob de PRUEBA afijado inyectado (e.affix) — idx + peso
+      dangerProbe: dangerProbe,                                           // lectura REAL server-auth: mobs afijados vivos en radio (score + lista)
+      precedence:"flaskPotency (canal FRESCO — recompensa de cargas de Estus/FLASK por forrajeo amid-danger): NINGUNA de las 15 flags #59-#73 lo toca. La familia recompensa-de-forrajeo (goldFind #60/#62, lootQuality #63/#68, xpGain #65, essenceFind #72, matFind #73) está LLENA ⇒ pivota FUERA de ella a Estus (recurso TRANSITORIO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio dangerFlaskCap, 0 doble-dip (las recargas de Estus de Hoguera/zona viven en OTROS seams). EJE = CALIDAD/PELIGRO DE AFIJO server-auth: affixDangerScore(hero)=Σ affixWeights[id] sobre mobAffixes(e) de los mobs VIVOS en radio. ⊥ #73 (apex = DISTANCIA a UN jefe/campeón — los boss NO llevan afijo; esto = SUMA DE PESO DE AFIJOS de mobs en radio), ⊥ #69 (force-ratio cuenta ENGANCHADOS; esto = calidad de afijo con o sin engage), ⊥ #72 (escasez = AUSENCIA de mobs; esto = PRESENCIA de mobs de ALTA CALIDAD de afijo). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind (seams distintos).",
+      gExists:(G.affixDanger!=null),                                      // prueba byte-id: STATELESS ⇒ G.affixDanger NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      affixMobCount:affixMobCount,                                        // nº de mobs afijados vivos en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), flaskCharges:(h.flaskCharges|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
