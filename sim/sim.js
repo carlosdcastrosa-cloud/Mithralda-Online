@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4443,6 +4443,39 @@ export function packHarvestVM(h){ h=h||G.hero; const on=!!PACKHARVEST_SURGE.enab
     cap:Math.max(0,PACKHARVEST_SURGE.packBountyCap|0), radius:+PACKHARVEST_SURGE.radius||0,
     tag: packHarvestTag(h) }; }
 
+// CAS-2527: REMATE A DISTANCIA (LONGSHOT_SURGE) — EJE DISTANCIA/RANGO DEL GOLPE DE REMATE (snapshot GEOMÉTRICO hero↔víctima al kill) + canal FRESCO reachFind (fichas de puntería por rematar DE LEJOS). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. La distancia = relación GEOMÉTRICA hero↔víctima derivada de las POSICIONES replicadas de G.hero + el mob (NO velocidad, NO clase de mob, NO clustering inter-mob). PRE-FLIGHT GATE: el eje RECOMENDADO (SWIFTNESS/velocidad |v| del mob) FALLA — los enemigos NO tienen VECTOR de velocidad server-auth (e.vx/e.vy INERTES para enemigos, sim.js:8543; el mov. enemigo = dir-persecución × ESCALAR e.tpl.spd + knockX/knockY); el único escalar de rapidez e.tpl.spd sólo lo modulan enrage (#78) y slow (#85) ⇒ ambos extremos YA son ejes ⇒ NO ⊥29 ⇒ pivote al alterno FRESCO #1 del board (distancia de remate).
+// reachWeight(dist) = peso de UN remate por la DISTANCIA (px) hero↔víctima en el instante del kill. far(≥farR)⇒2 (sniper), near(≥midR,<farR)⇒1 (stand-off), point-blank(<midR)⇒0 (melee). LUT PURA por umbral. Determinista.
+function reachWeight(dist){ const cfg=LONGSHOT_SURGE, W=cfg.reachWeights||{}; const d=+dist||0;
+  if(d>=(+cfg.farR||0)) return +W.far||0;
+  if(d>=(+cfg.midR||0)) return +W.near||0;
+  return 0; }
+// longshotReach(h, e) = distancia GEOMÉTRICA (px) hero↔mob = hypot(h.x−e.x, h.y−e.y). server-auth (posiciones replicadas). 0 si falta alguno. PURO.
+function longshotReach(h, e){ if(!h||!e) return 0; const dx=h.x-e.x, dy=h.y-e.y; return Math.sqrt(dx*dx+dy*dy); }
+// longshotScore(h) = MEJOR alcance de remate DISPONIBLE ahora = MAX reachWeight sobre los mobs VIVOS cuyo centro cae dentro de LONGSHOT_SURGE.radius del héroe (el long-shot más lejano rematable). PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si no hay mob rematable a distancia. Señal VIVA del badge/VM (el GRANT REAL usa la distancia PROPIA de la víctima, sin cap de radio). ⊥ #73 (apex = min-distancia a un JEFE/CAMPEÓN, premia CERCANÍA; esto = MAX peso sobre CUALQUIER mob, premia LEJANÍA). O(n) sobre mobs (n acotado cerca del héroe).
+function longshotScore(h){ h=h||G.hero; if(!h) return 0; const cfg=LONGSHOT_SURGE, R=+cfg.radius||0, R2=R*R; let best=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=h.x-e.x, dy=h.y-e.y, d2=dx*dx+dy*dy; if(d2>R2) continue; const w=reachWeight(Math.sqrt(d2)); if(w>best) best=w; } return best; }
+// longshotTier(score) = índice del tier de remate vigente (0 = point-blank) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS lejos = tier ALTO. LUT determinista pura.
+function longshotTier(score){ const T=LONGSHOT_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// longshotBonus(score) = nº de fichas de puntería del tier vigente, acotado por el sub-cap propio reachBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta reachFind.
+function longshotBonus(score){ if(!LONGSHOT_SURGE.enabled) return 0;
+  if((LONGSHOT_SURGE.channel||"reachFind")!=="reachFind") return 0;   // seguridad: LONGSHOT_SURGE SÓLO alimenta reachFind (si el knob se re-apunta, no contribuye)
+  const t=longshotTier(score); if(t<=0) return 0;
+  const raw=+LONGSHOT_SURGE.tiers[t-1].charge||0, cap=Math.max(0,LONGSHOT_SURGE.reachBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// longshotForage(h, tpl, preScore) = las fichas por un remate DESDE LEJOS = longshotBonus(preScore). preScore = el peso de remate reachWeight(dist víctima) muestreado en el TOP de killEnemy con la posición VIVA del mob (antes del splice) ⇒ señal FIEL al instante del kill. Si preScore es undefined (VM/preview) usa longshotScore(h) EN VIVO (mejor long-shot disponible). 0 si OFF / point-blank / sin tpl. PURO — el seam decide banca a h.reachBounty vía grantReachBounty.
+function longshotForage(h, tpl, preScore){ if(!LONGSHOT_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?longshotScore(h||G.hero):(+preScore||0); return longshotBonus(score); }
+// longshotTag(h) = glifo del badge de REMATE A DISTANCIA (⌖) si hay un long-shot disponible en radio (tier>0). PURO. "" si OFF / sin blanco a distancia.
+export function longshotTag(h){ h=h||G.hero; if(!LONGSHOT_SURGE.enabled||!h) return "";
+  return longshotTier(longshotScore(h))>0 ? "⌖" : ""; }
+// longshotVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function longshotVM(h){ h=h||G.hero; const on=!!LONGSHOT_SURGE.enabled&&!!h;
+  const score=on?longshotScore(h):0, tier=on?longshotTier(score):0, charge=on?longshotBonus(score):0;
+  return { enabled:!!LONGSHOT_SURGE.enabled, channel:LONGSHOT_SURGE.channel||"reachFind",
+    score, tier, tierCount:(LONGSHOT_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,LONGSHOT_SURGE.reachBountyCap|0), radius:+LONGSHOT_SURGE.radius||0,
+    tag: longshotTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5800,6 +5833,8 @@ function killEnemy(e){
   const _bloodPre = BLOODHARVEST_SURGE.enabled ? bloodHarvestScore(G.hero) : 0;
   // CAS-2521 PACKHARVEST_SURGE: snapshot de COHESIÓN/EMPAQUETAMIENTO INTER-MOB (clustering mob↔mob) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ su propia cohesión NO se auto-cuenta NI infla la de sus vecinos (packWeight/packNeighbors filtran !e.dead && e.hp>0 como sujeto Y como vecino). ANTI-AUTO-CONTEO ⇒ el score refleja la manada apiñada EN EL MOMENTO del kill; combinado con la TABLA (score≥2) rematar junto a un par de mobs sueltos NO forrajea. GATED ⇒ enabled:false ⇒ `_packPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _packPre = PACKHARVEST_SURGE.enabled ? packHarvestScore(G.hero) : 0;
+  // CAS-2527 LONGSHOT_SURGE: snapshot del PESO DE REMATE = reachWeight(DISTANCIA hero↔víctima) muestreado AQUÍ, en el TOP, con la posición VIVA del mob `e` (antes del splice) ⇒ señal FIEL a la geometría del instante del kill (la muerte NO desplaza al mob). NO es densidad de vecindad (⊥ auto-conteo N/A: el eje ES la víctima propia) — es la DISTANCIA GEOMÉTRICA hero↔ESTE mob. GATED ⇒ enabled:false ⇒ `_reachPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _reachPre = LONGSHOT_SURGE.enabled ? reachWeight(longshotReach(G.hero, e)) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -6031,6 +6066,12 @@ function killEnemy(e){
   if(PACKHARVEST_SURGE.enabled && !tpl.neutral){ const ph=packHarvestForage(G.hero, tpl, _packPre);
     if(ph>0){ grantPackBounty(ph);
       floater(e.x,e.y-200,"+"+ph+" Manada","#e0a24a",{small:true}); } }
+  // CAS-2527 LONGSHOT_SURGE seam: REMATAR A DISTANCIA. Al matar un mob no-neutral cuyo golpe de remate cayó DE LEJOS (reachWeight≥1 vía `_reachPre`, muestreado en el TOP con la posición viva de `e`: sniper a ≥farR ⇒ peso 2, stand-off a ≥midR ⇒ peso 1, point-blank ⇒ 0), el
+  // héroe cosecha fichas de puntería = longshotForage(hero,tpl,_reachPre) (flat por tier de distancia, sub-cap reachBountyCap), banca a h.reachBounty vía grantReachBounty (0 RNG). El eje ES la geometría hero↔ESTA víctima ⇒ un remate melee (point-blank) NO forrajea; hace falta abatir DE LEJOS.
+  // Canal FRESCO reachFind (fuente ÚNICA, sub-cap reachBountyCap) — NINGUNA de las 29 flags #59-#87 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantReachBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(LONGSHOT_SURGE.enabled && !tpl.neutral){ const ls=longshotForage(G.hero, tpl, _reachPre);
+    if(ls>0){ grantReachBounty(ls);
+      floater(e.x,e.y-220,"+"+ls+" Remate","#7fd0ff",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -7260,6 +7301,8 @@ function grantControlCharge(n){ const h=G.hero; if(!h||n<=0) return; h.controlCh
 function grantBloodCharge(n){ const h=G.hero; if(!h||n<=0) return; h.bloodCharges=(h.bloodCharges|0)+(n|0); }
 // CAS-2521: banca cargas de siega de manada (canal packFind de PACKHARVEST_SURGE). Moneda TRANSITORIA NUEVA (h.packBounty — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantBloodCharge para el trickle de cosecha en medio de una manada apiñada. STATELESS: h.packBounty NO se serializa ⇒ no es clave de save.
 function grantPackBounty(n){ const h=G.hero; if(!h||n<=0) return; h.packBounty=(h.packBounty|0)+(n|0); }
+// CAS-2527: banca fichas de puntería (canal reachFind de LONGSHOT_SURGE). Moneda TRANSITORIA NUEVA (h.reachBounty — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantPackBounty para el trickle de puntería al rematar de lejos. STATELESS: h.reachBounty NO se serializa ⇒ no es clave de save.
+function grantReachBounty(n){ const h=G.hero; if(!h||n<=0) return; h.reachBounty=(h.reachBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -10714,6 +10757,49 @@ export const dev = {
       gExists:(G.packBounty!=null),                                     // prueba byte-id: STATELESS ⇒ G.packBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       mobCount:mobCount,                                                // nº de mobs apiñados con peso en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), packBounty:(h.packBounty|0) }:null }; },
+  //   longshot()                                         → snapshot {enabled,channel,radius,farR,midR,tiers,cap,reachWeights,score,tier,charge,forageChargePreview,scoreProbe,distProbe,spawnShot,cleared,reachProbe,tag,gExists,hero}
+  //   longshot({enabled})                                → flip runtime IN-MEMORY de LONGSHOT_SURGE.enabled (sin tocar el disco)
+  //   longshot({tp:{tx,ty}})                             → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ el remate se evalúa contra los mobs REALes de G.enemies por distancia
+  //   longshot({scoreProbe:{score}})                     → LUT PURA score→tier→charge (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   longshot({distProbe:{dist}})                       → reachWeight(dist) + las fichas que forrajearía un remate a esa DISTANCIA (byte-verifica el path DISTANCIA→peso→forage del seam, world-independiente)
+  //   longshot({spawnShot:{tx,ty}})                      → inyecta un mob de PRUEBA REAL estacionario (spawnEnemy, spd 0, a plena vida) en el tile (tx,ty); devuelve idx + x,y + DISTANCIA REAL hero↔mob + peso de remate. Muévelo lejos/cerca del héroe para probar sniper/point-blank.
+  //   longshot({clearShot:true})                         → limpia los mobs de PRUEBA inyectados (aísla checks); devuelve nº removido
+  //   longshot({reachProbe:true})                        → por cada mob VIVO en radio: {x,y,dist,weight} + score MAX (byte-verifica la lectura server-auth de posiciones/G.enemies)
+  longshot(p){
+    let scoreProbe=null, distProbe=null, spawnShot=null, reachProbe=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) LONGSHOT_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=longshotTier(score);   // LUT PURA score→tier→charge (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+LONGSHOT_SURGE.tiers[t-1].charge||0):0, cap=Math.max(0,LONGSHOT_SURGE.reachBountyCap|0);
+        scoreProbe={ score, tier:t, charge:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.distProbe && typeof p.distProbe==="object"){ const dist=Math.max(0,+p.distProbe.dist||0), w=reachWeight(dist);   // path DISTANCIA→peso→forage (el mismo cómputo que el seam usa con _reachPre)
+        distProbe={ dist, weight:w, forage:longshotForage(G.hero, {xp:100}, w) }; }
+      if(p.spawnShot && typeof p.spawnShot==="object"){ const tx=p.spawnShot.tx|0, ty=p.spawnShot.ty|0;   // mob de PRUEBA REAL estacionario (spawnEnemy, a plena vida) para observar la DISTANCIA REAL server-auth hero↔mob
+        const e=spawnEnemy("orc", tx*TS+TS/2, ty*TS+TS/2);
+        if(e){ e._shotTest=true; e.tpl=Object.assign({},e.tpl,{spd:0}); e.maxHp=1000; e.hp=e.maxHp; e.dead=false; }   // estacionario (spd 0) ⇒ NO se mueve durante los checks; clona tpl sin mutar el ETPL compartido
+        const h=G.hero, d=e&&h?longshotReach(h,e):0;
+        spawnShot={ idx:e?G.enemies.indexOf(e):-1, x:e?+e.x.toFixed(1):0, y:e?+e.y.toFixed(1):0, dist:+d.toFixed(1), weight:e?reachWeight(d):0 }; }
+      if(p.clearShot){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._shotTest); cleared=before-G.enemies.length; }   // limpia SÓLO los mobs de prueba inyectados
+      if(p.reachProbe){ const h=G.hero, R=+LONGSHOT_SURGE.radius||0, R2=R*R, mobs=[]; let best=0;   // lectura REAL server-auth: mobs vivos en radio + su distancia/peso
+        if(h){ for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=h.x-e.x, dy=h.y-e.y, d2=dx*dx+dy*dy; if(d2>R2) continue; const d=Math.sqrt(d2), w=reachWeight(d); if(w>best) best=w; mobs.push({ x:+e.x.toFixed(1), y:+e.y.toFixed(1), dist:+d.toFixed(1), weight:w }); } }
+        reachProbe={ score:best, count:mobs.length, mobs }; }
+    }
+    const h=G.hero, vm=longshotVM(h);
+    return { enabled:LONGSHOT_SURGE.enabled, channel:LONGSHOT_SURGE.channel||"reachFind",
+      radius:vm.radius, farR:+LONGSHOT_SURGE.farR||0, midR:+LONGSHOT_SURGE.midR||0, tiers:(LONGSHOT_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      reachWeights:Object.assign({},LONGSHOT_SURGE.reachWeights||{}),
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, charge:vm.charge,
+      forageChargePreview: h?longshotForage(h, {xp:100}):0,             // preview: fichas forrajeadas por un remate con el mejor long-shot disponible (expone el canal reachFind; usa score EN VIVO)
+      scoreProbe: scoreProbe,                                            // LUT PURA (byte-verificación de la TABLA)
+      distProbe: distProbe,                                              // path DISTANCIA→peso→forage (byte-verifica el cómputo del seam)
+      spawnShot: spawnShot,                                              // mob de PRUEBA inyectado (G.enemies) — idx + x,y + distancia REAL + peso
+      cleared: cleared,                                                  // nº de mobs de prueba removidos por clearShot
+      reachProbe: reachProbe,                                            // lectura REAL server-auth: mobs vivos en radio (score MAX + lista {x,y,dist,weight})
+      tag: longshotTag(h),                                               // glifo SERVIDO (OFF/sin blanco a distancia ⇒ "" / long-shot disponible ⇒ ⌖)
+      precedence:"reachFind (canal FRESCO — recompensa de fichas de puntería por REMATAR DE LEJOS): NINGUNA de las 29 flags #59-#87 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind, lootQuality, xpGain, essenceFind, matFind, flaskPotency, gemFind, socketFind, healPotency, trophyFind #78, salvageFind #79, boneFind #80, frayFind #81, maelstromFind #82, blightFind #83, skirmishFind #84, controlFind #85, bloodFind #86, packFind #87) está LLENA ⇒ pivota a una moneda FRESCA, fichas de puntería (h.reachBounty, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio reachBountyCap, 0 doble-dip. PRE-FLIGHT GATE: el eje RECOMENDADO del issue (SWIFTNESS/VELOCIDAD del mob rematado, |v| de e.vx/e.vy) FALLA — los enemigos NO tienen VECTOR de velocidad server-auth: e.vx/e.vy existen en la entidad pero son INERTES para enemigos (documentado sim.js:8543 'e.vx/e.vy NO se integra en el movimiento enemigo'; el movimiento enemigo = dir-de-persecución × ESCALAR e.tpl.spd + integración de knockX/knockY); la ÚNICA señal de rapidez es el ESCALAR ESTÁTICO del template e.tpl.spd, cuyos ÚNICOS modificadores DINÁMICOS son enrage (#78 FURIA — e.enrageSpd hornea a e.tpl.spd sim.js:7892) y slow (#85 CONTROL — e.slowT sim.js:7919) ⇒ 'mob veloz' = enfurecido (#78) O no-ralentizado (#85) ⇒ AMBOS extremos del eje de velocidad YA son ejes reclamados ⇒ NO ⊥29 ⇒ pivote justificado al alterno FRESCO #1 del board: DISTANCIA/RANGO del golpe de remate. EJE = DISTANCIA GEOMÉTRICA hero↔víctima en el instante del kill: reachWeight(dist)=far(≥farR)⇒2/near(≥midR)⇒1/point-blank⇒0; score del kill = reachWeight(dist víctima) muestreado en TOP (_reachPre) con la posición VIVA del mob; señal VIVA del badge = longshotScore(hero)=MAX reachWeight sobre mobs VIVOS en radio (el mejor long-shot disponible). ⊥ #87 (manada = DISTANCIA mob↔mob [clustering INTER-mob, nº de vecinos de CADA mob]; remate = DISTANCIA hero↔víctima ÚNICA [geometría del héroe al kill], contenedor y geometría distintos), ⊥ #86 (siega = FRACCIÓN DE VIDA e.hp/e.maxHp), ⊥ #85 (control = ESTADO CC e.stun/e.slowT), ⊥ #84 (escaramuza = CLASE DE ALCANCE del MOB e.tpl.ranged [stat ESTÁTICO del ENEMIGO] vs GEOMETRÍA hero↔víctima del remate [posición del HÉROE] — melee-hero rematando de cerca a un arquero = alta escaramuza/cero remate; ranged-hero abatiendo de lejos a un orco melee suelto = cero escaramuza/alto remate, DIVERGEN), ⊥ #83 (plaga = DoT e.dots), ⊥ #82 (vorágine = ZONAS G.fields), ⊥ #81 (fragor = PROYECTILES G.projectiles), ⊥ #80 (carnicería = CUERPOS MUERTOS G.corpses), ⊥ #79 (botín = OBJETOS G.drops), ⊥ #78 (furia = BOOLEANO e.enraged), ⊥ #77 (hazard = G.hazards), ⊥ #76 (variante = e.variant), ⊥ #74 (afijo = e.affix), ⊥ #73 (apex = DISTANCIA hero→un JEFE/CAMPEÓN vivo [blanco ESPECIAL, premia CERCANÍA, estado PERSISTENTE de pie] vs DISTANCIA hero→la VÍCTIMA REAL cualquiera en el INSTANTE del kill [premia LEJANÍA]; conjunto-blanco/signo/timing distintos), ⊥ #72 (escasez = AUSENCIA/CONTEO crudo de mobs), ⊥ #69 (LAST_STAND = CONTEO de ENGANCHADOS en melee con el HÉROE [todos de cerca] — el remate premia lo OPUESTO: abatir DE LEJOS), ⊥ CADENCE #67/FRENZY (racha/tempo de kills), ⊥ lootQuality #63/#68 (calidad de la próxima tirada). NO velocidad (recomendado, falló pre-flight). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind/socketFind/healPotency/trophyFind/salvageFind/boneFind/frayFind/maelstromFind/blightFind/skirmishFind/controlFind/bloodFind/packFind (seams distintos).",
+      gExists:(G.reachBounty!=null),                                     // prueba byte-id: STATELESS ⇒ G.reachBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), reachBounty:(h.reachBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
