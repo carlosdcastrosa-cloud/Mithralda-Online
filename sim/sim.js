@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4290,6 +4290,35 @@ export function maelstromFieldVM(h){ h=h||G.hero; const on=!!MAELSTROM_FIELD_SUR
     cap:Math.max(0,MAELSTROM_FIELD_SURGE.maelstromChargeCap|0), radius:+MAELSTROM_FIELD_SURGE.radius||0,
     tag: maelstromFieldTag(h) }; }
 
+// CAS-2497: COSECHA DE PLAGA (BLIGHT_HARVEST_SURGE) — EJE PRESENCIA/DENSIDAD DE AFLICCIONES DE ESTADO (DoT) ACTIVAS sobre los MOBS VIVOS de la vecindad server-auth + canal FRESCO blightFind (recompensa de esencias de plaga por cosechar EN MEDIO de un pack enfermo). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Las aflicciones DoT (e.dots={poison?,burn?}) = estado de sim REPLICADO: pobladas DETERMINISTA en el path AUTORITATIVO (applyStatus, alimentado por afijo Ardiente / boons elementales / resinas / ataques enemigos) y TICKEADAS/FILTRADAS en el tick de paso-fijo AUTORITATIVO updateEnemies (tickDots, d.t-=dt, borra en muerte/expiración). Que NINGUNA de las 24 flags #59-#82 lea hoy e.dots como eje de score es lo que lo hace un eje FRESCO/0-contestado.
+// blightAfflict(e) = peso de las aflicciones DoT de UN mob = Σ blightWeights[tipo] sobre las claves de e.dots (poison/burn; tipo ausente→fallback 1). FILTRA mob muerto/sin-dots (⇒0). PURO (lectura de e.dots replicado). ANTI-AUTO-CONTEO: exige !e.dead ⇒ en el TOP de killEnemy el mob a rematar (e.dead=true ya fijado sim.js:5629) NO auto-cuenta su propia plaga. Un mob "totalmente carcomido" (veneno+quemadura) pesa 2.
+function blightAfflict(e){ if(!e||e.dead||!e.dots) return 0; const W=BLIGHT_HARVEST_SURGE.blightWeights||{}; let s=0;
+  for(const type in e.dots){ if(!e.dots[type]) continue; s+=(W[type]!=null?(+W[type]||0):1); } return s; }
+// blightHarvestScore(h) = suma del peso de aflicción de TODOS los mobs VIVOS cuyo centro cae dentro de BLIGHT_HARVEST_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (G.enemies+e.dots+posiciones = estado replicado). 0 si no hay pack enfermo cerca. Vecindad = radio (⊥ furia #78 que lee e.enraged [fase de jefe]; ⊥ afijo #74 que lee e.affix [calidad estática de spawn]; ⊥ variante #76 que lee e.variant [comportamiento de spawn]; ⊥ vorágine #82 que lee G.fields [zonas de negación]).
+function blightHarvestScore(h){ h=h||G.hero; if(!h) return 0; const R=+BLIGHT_HARVEST_SURGE.radius||0, R2=R*R; let s=0;
+  for(const e of (G.enemies||[])){ const w=blightAfflict(e); if(w<=0) continue; const dx=h.x-e.x, dy=h.y-e.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// blightHarvestTier(score) = índice del tier de plaga vigente (0 = sin plaga / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS densidad/mayor-profundidad de aflicción = tier ALTO. LUT determinista pura.
+function blightHarvestTier(score){ const T=BLIGHT_HARVEST_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// blightHarvestBonus(score) = nº de esencias de plaga del tier vigente, acotado por el sub-cap propio blightHarvestCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta blightFind.
+function blightHarvestBonus(score){ if(!BLIGHT_HARVEST_SURGE.enabled) return 0;
+  if((BLIGHT_HARVEST_SURGE.channel||"blightFind")!=="blightFind") return 0;   // seguridad: BLIGHT_HARVEST_SURGE SÓLO alimenta blightFind (si el knob se re-apunta, no contribuye)
+  const t=blightHarvestTier(score); if(t<=0) return 0;
+  const raw=+BLIGHT_HARVEST_SURGE.tiers[t-1].harvest||0, cap=Math.max(0,BLIGHT_HARVEST_SURGE.blightHarvestCap|0);
+  return cap>0?Math.max(0,Math.min(cap,raw)):Math.max(0,raw); }
+// blightHarvestForage(h, tpl, preScore) = las esencias por un kill DENTRO de un pack enfermo = blightHarvestBonus(preScore). preScore = el snapshot de densidad muestreado en el TOP de killEnemy (tras fijarse e.dead=true del mob a rematar) ⇒ ANTI-AUTO-CONTEO. Si preScore es undefined (VM/preview) usa blightHarvestScore(h) EN VIVO. 0 si OFF / sin plaga / sin tpl. PURO — el seam decide banca a h.blightHarvest vía grantBlightHarvest.
+function blightHarvestForage(h, tpl, preScore){ if(!BLIGHT_HARVEST_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?blightHarvestScore(h||G.hero):(+preScore||0); return blightHarvestBonus(score); }
+// blightHarvestTag(h) = glifo del badge de COSECHA DE PLAGA (☣) si el héroe está EN un pack enfermo en radio (tier>0). PURO. "" si OFF / sin plaga.
+export function blightHarvestTag(h){ h=h||G.hero; if(!BLIGHT_HARVEST_SURGE.enabled||!h) return "";
+  return blightHarvestTier(blightHarvestScore(h))>0 ? "☣" : ""; }
+// View-model PURO para el HUD/badge: el tier de plaga, el score, las esencias efectivas por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function blightHarvestVM(h){ h=h||G.hero; const on=!!BLIGHT_HARVEST_SURGE.enabled&&!!h;
+  const score=on?blightHarvestScore(h):0, tier=on?blightHarvestTier(score):0, harvest=on?blightHarvestBonus(score):0;
+  return { enabled:!!BLIGHT_HARVEST_SURGE.enabled, channel:BLIGHT_HARVEST_SURGE.channel||"blightFind",
+    score, tier, tierCount:(BLIGHT_HARVEST_SURGE.tiers||[]).length, harvest,
+    cap:Math.max(0,BLIGHT_HARVEST_SURGE.blightHarvestCap|0), radius:+BLIGHT_HARVEST_SURGE.radius||0,
+    tag: blightHarvestTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5637,6 +5666,8 @@ function killEnemy(e){
   const _frayPre = CROSSFIRE_FRAY_SURGE.enabled ? crossfireFrayScore(G.hero) : 0;
   // CAS-2493 MAELSTROM_FIELD_SURGE: snapshot de DENSIDAD DE ZONAS DE NEGACIÓN DE ÁREA muestreado AQUÍ, en el TOP, ANTES del splice del mob. ANTI-AUTO-CONTEO ⇒ el score refleja la vorágine EN EL MOMENTO del kill; combinado con la TABLA (score≥2) rematar dentro de UNA sola zona pequeña incidental (peso 1) NO forrajea. GATED ⇒ enabled:false ⇒ `_maelPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _maelPre = MAELSTROM_FIELD_SURGE.enabled ? maelstromFieldScore(G.hero) : 0;
+  // CAS-2497 BLIGHT_HARVEST_SURGE: snapshot de DENSIDAD DE AFLICCIONES DE ESTADO (DoT) sobre los mobs VIVOS muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar (sim.js arriba) ⇒ su propia plaga NO se auto-cuenta (blightAfflict filtra !e.dead). ANTI-AUTO-CONTEO ⇒ el score refleja el pack enfermo EN EL MOMENTO del kill; combinado con la TABLA (score≥2) rematar UN solo mob afligido aislado (score 0 tras excluir el propio) NO forrajea. GATED ⇒ enabled:false ⇒ `_blightPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _blightPre = BLIGHT_HARVEST_SURGE.enabled ? blightHarvestScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -5838,6 +5869,12 @@ function killEnemy(e){
   if(MAELSTROM_FIELD_SURGE.enabled && !tpl.neutral){ const mc=maelstromFieldForageCharges(G.hero, tpl, _maelPre);
     if(mc>0){ grantMaelstromCharge(mc);
       floater(e.x,e.y-156,"+"+mc+" Vorágine","#8fd0ff",{small:true}); } }
+  // CAS-2497 BLIGHT_HARVEST_SURGE seam: COSECHA EN MEDIO DE UN PACK ENFERMO. Al matar un mob no-neutral mientras la vecindad del HÉROE estaba EN UN PACK ENFERMO (mobs afligidos por DoT densos en G.enemies, score≥umbral ANTES de este kill vía `_blightPre`) dentro del radio, el
+  // héroe cosecha esencias de plaga = blightHarvestForage(hero,tpl,_blightPre) (flat por tier de densidad, sub-cap blightHarvestCap), banca a h.blightHarvest vía grantBlightHarvest (0 RNG). `_blightPre` se muestreó en el TOP tras e.dead=true (blightAfflict filtra !e.dead ⇒ el mob a rematar NO auto-cuenta) + la TABLA exige score≥2 ⇒ rematar UN mob afligido aislado NO forrajea; hace falta un pack ENFERMO GENUINO (≥2 mobs afligidos, o ≥1 mob doblemente-carcomido cerca). GATED ⇒ enabled:false ⇒ rama muerta: 0 esencias, 0 floater, 0 grantBlightHarvest ⇒ killEnemy byte-idéntico al HEAD.
+  // Canal FRESCO blightFind (fuente ÚNICA, sub-cap blightHarvestCap) — NINGUNA de las 24 flags #59-#82 lo toca; esencias transitorias ⇒ fuera del save + fingerprint.
+  if(BLIGHT_HARVEST_SURGE.enabled && !tpl.neutral){ const bh=blightHarvestForage(G.hero, tpl, _blightPre);
+    if(bh>0){ grantBlightHarvest(bh);
+      floater(e.x,e.y-168,"+"+bh+" Plaga","#9be04a",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -7057,6 +7094,8 @@ function grantFrayEmber(n){ const h=G.hero; if(!h||n<=0) return; h.frayEmbers=(h
 
 // CAS-2493: banca cargas de vorágine (canal maelstromFind de MAELSTROM_FIELD_SURGE). Moneda TRANSITORIA NUEVA (h.maelstromCharges — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantFrayEmber para el trickle de forrajeo en medio de una vorágine densa de zonas de negación. STATELESS: h.maelstromCharges NO se serializa ⇒ no es clave de save.
 function grantMaelstromCharge(n){ const h=G.hero; if(!h||n<=0) return; h.maelstromCharges=(h.maelstromCharges|0)+(n|0); }
+// CAS-2497: banca esencias de plaga (canal blightFind de BLIGHT_HARVEST_SURGE). Moneda TRANSITORIA NUEVA (h.blightHarvest — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantMaelstromCharge para el trickle de cosecha en medio de un pack afligido por DoT. STATELESS: h.blightHarvest NO se serializa ⇒ no es clave de save.
+function grantBlightHarvest(n){ const h=G.hero; if(!h||n<=0) return; h.blightHarvest=(h.blightHarvest|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -10253,6 +10292,68 @@ export const dev = {
       gExists:(G.maelstromField!=null),                                    // prueba byte-id: STATELESS ⇒ G.maelstromField NUNCA se crea (0 estado nuevo, 0 clave serializada)
       fieldCount:fieldCount,                                              // nº de zonas con peso en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), maelstromCharges:(h.maelstromCharges|0) }:null }; },
+  // CAS-2497: COSECHA DE PLAGA OBSERVABLE hook (DARK, BLIGHT_HARVEST_SURGE — eje PRESENCIA/DENSIDAD DE AFLICCIONES DE ESTADO (DoT) ACTIVAS sobre los MOBS VIVOS de la vecindad server-auth [Σ blightAfflict(e) sobre los mobs en radio del héroe, leídos de e.dots={poison?,burn?}] + canal
+  // FRESCO blightFind [recompensa de esencias de plaga por cosechar en medio de un pack enfermo, NINGUNA flag previa lo toca] con sub-cap blightHarvestCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — la plaga emerge de las aflicciones aplicadas en combate, sin input.js).
+  //   blightHarvest()                                  → snapshot {enabled,channel,radius,tiers,cap,score,tier,harvest,forageHarvestPreview,peer channels ⊥,tag,gExists,mobCount,hero}
+  //   blightHarvest({enabled})                         → flip runtime IN-MEMORY de BLIGHT_HARVEST_SURGE.enabled (sin tocar el disco)
+  //   blightHarvest({tp:{tx,ty}})                      → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ la plaga se evalúa contra los mobs REALes de G.enemies en radio
+  //   blightHarvest({scoreProbe:{score}})              → LUT PURA score→tier→harvest (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   blightHarvest({spawnBlight:{tx,ty,poison,burn}}) → inyecta un mob de PRUEBA REAL AFLIGIDO (spawnEnemy + applyStatus DoT, el MISMO path autoritativo que afijo/boon/enemigo) estacionario/alto-HP en el tile (tx,ty); devuelve idx + dots + peso
+  //   blightHarvest({clearBlight:true})                → limpia los mobs de PRUEBA inyectados (aísla checks); devuelve nº removido
+  //   blightHarvest({blightProbe:true})                → score REAL + lista de mobs afligidos VIVOS en radio + su {x,y,dots,weight} (byte-verifica la lectura server-auth de e.dots/G.enemies)
+  blightHarvest(p){
+    let scoreProbe=null, spawnBlight=null, blightProbe=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) BLIGHT_HARVEST_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=blightHarvestTier(score);   // LUT PURA score→tier→harvest (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+BLIGHT_HARVEST_SURGE.tiers[t-1].harvest||0):0, cap=Math.max(0,BLIGHT_HARVEST_SURGE.blightHarvestCap|0);
+        scoreProbe={ score, tier:t, harvest:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnBlight && typeof p.spawnBlight==="object"){ const tx=p.spawnBlight.tx|0, ty=p.spawnBlight.ty|0;   // mob de PRUEBA afligido (mob REAL vía spawnEnemy + applyStatus DoT, mirror del path natural afijo/boon) para observar la señal REAL en G.enemies
+        const e=spawnEnemy("orc", tx*TS+TS/2, ty*TS+TS/2);
+        if(e){ e._blightTest=true; e.tpl=Object.assign({},e.tpl,{spd:0}); e.hp=e.maxHp=99999;   // estacionario (spd 0) + alto-HP ⇒ sobrevive los DoT de prueba (0 efecto de sim en las lecturas)
+          if(p.spawnBlight.poison!==false) applyStatus(e,"poison",{dur:99});   // aflicción REAL vía el path AUTORITATIVO applyStatus (mismo seam que afijo Ardiente/boon/enemigo pueblan e.dots)
+          if(p.spawnBlight.burn) applyStatus(e,"burn",{dur:99}); }
+        spawnBlight={ idx:e?G.enemies.indexOf(e):-1, x:e?+e.x.toFixed(1):0, y:e?+e.y.toFixed(1):0, dots:(e&&e.dots)?Object.keys(e.dots):[], weight:e?blightAfflict(e):0 }; }
+      if(p.clearBlight){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._blightTest); cleared=before-G.enemies.length; }   // limpia SÓLO los mobs de prueba inyectados
+      if(p.blightProbe){ const h=G.hero, R=+BLIGHT_HARVEST_SURGE.radius||0, R2=R*R, mobs=[]; let sc=0;   // lectura REAL server-auth: mobs afligidos vivos en radio del héroe
+        if(h){ for(const e of (G.enemies||[])){ const w=blightAfflict(e); if(w<=0) continue; const dx=h.x-e.x, dy=h.y-e.y; if(dx*dx+dy*dy<=R2){ sc+=w; mobs.push({ x:+e.x.toFixed(1), y:+e.y.toFixed(1), dots:e.dots?Object.keys(e.dots):[], weight:w }); } } }
+        blightProbe={ score:sc, count:mobs.length, mobs }; }
+    }
+    const h=G.hero, vm=blightHarvestVM(h);
+    let mobCount=0; for(const e of (G.enemies||[])){ if(blightAfflict(e)>0) mobCount++; }
+    return { enabled:BLIGHT_HARVEST_SURGE.enabled, channel:BLIGHT_HARVEST_SURGE.channel||"blightFind",
+      radius:vm.radius, tiers:(BLIGHT_HARVEST_SURGE.tiers||[]).map(t=>({min:+t.min||0,harvest:+t.harvest||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, harvest:vm.harvest,
+      forageHarvestPreview: h?blightHarvestForage(h, {xp:100}):0,           // preview: esencias forrajeadas por un kill con la plaga actual (expone el canal blightFind; usa score EN VIVO)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      gemForagePreview: h?zoneEventForageGems(h, {xp:100}):0,               // canal gemFind (ZONE_EVENT_SURGE #75) — INDEPENDIENTE ⊥
+      socketForagePreview: h?variantSurgeForageSockets(h, {xp:100}):0,      // canal socketFind (ENCOUNTER_VARIANT_SURGE #76) — INDEPENDIENTE ⊥
+      healForagePreview: h?hazardSurgeForageMotes(h, {xp:100}):0,           // canal healPotency (ARENA_HAZARD_SURGE #77) — INDEPENDIENTE ⊥
+      trophyForagePreview: h?enrageSurgeForageTrophies(h, {xp:100}):0,      // canal trophyFind (BOSS_ENRAGE_SURGE #78) — INDEPENDIENTE ⊥
+      salvageForagePreview: h?spoilsFieldForageSalvage(h, {xp:100}):0,      // canal salvageFind (SPOILS_FIELD_SURGE #79) — INDEPENDIENTE ⊥
+      boneForagePreview: h?carnageFieldForageBones(h, {xp:100}):0,          // canal boneFind (CARNAGE_FIELD_SURGE #80) — INDEPENDIENTE ⊥
+      emberForagePreview: h?crossfireFrayForageEmbers(h, {xp:100}):0,       // canal frayFind (CROSSFIRE_FRAY_SURGE #81) — INDEPENDIENTE ⊥
+      maelstromForagePreview: h?maelstromFieldForageCharges(h, {xp:100}):0, // canal maelstromFind (MAELSTROM_FIELD_SURGE #82) — INDEPENDIENTE ⊥ (DENSIDAD DE ZONAS DE NEGACIÓN en G.fields vs DENSIDAD DE AFLICCIONES DoT en e.dots)
+      tag: blightHarvestTag(h),                                           // glifo SERVIDO (OFF/sin plaga ⇒ "" / pack enfermo cerca ⇒ ☣)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→harvest (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnBlight: spawnBlight,                                           // mob de PRUEBA afligido inyectado (G.enemies, e.dots) — idx + dots + peso
+      cleared: cleared,                                                   // nº de mobs de prueba removidos por clearBlight
+      blightProbe: blightProbe,                                          // lectura REAL server-auth: mobs afligidos en radio (score + lista)
+      precedence:"blightFind (canal FRESCO — recompensa de esencias de plaga por cosechar en medio de un pack enfermo): NINGUNA de las 24 flags #59-#82 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind, lootQuality, xpGain, essenceFind, matFind, flaskPotency, gemFind, socketFind, healPotency, trophyFind #78, salvageFind #79, boneFind #80, frayFind #81, maelstromFind #82) está LLENA ⇒ pivota a una moneda FRESCA, esencias de plaga (h.blightHarvest, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio blightHarvestCap, 0 doble-dip (ningún otro seam banca blightHarvest). PRE-FLIGHT GATE: el eje RECOMENDADO del issue (HIGH_GROUND/elevación/z server-auth) NO existe replicado (grep elevation|altitude|\\.z=0, ya documentado en FIRM_FOOTING #70) ⇒ pivote justificado a e.dots (aflicciones DoT sobre los mobs, sí replicado/autoritativo — populate applyStatus, tick updateEnemies/tickDots). EJE = PRESENCIA/DENSIDAD DE AFLICCIONES DE ESTADO (DoT) ACTIVAS server-auth: blightHarvestScore(hero)=Σ blightAfflict(e) sobre los mobs VIVOS de G.enemies en radio (blightAfflict=Σ blightWeights[tipo] sobre e.dots; un mob con veneno+quemadura pesa 2). ⊥ #82 (vorágine = ZONAS DE NEGACIÓN estáticas en G.fields plantadas por HECHIZOS; plaga = AFLICCIONES DoT sobre los MOBS en e.dots — mago sembrando zonas en suelo vacío = alta vorágine/cero plaga; pack envenenado sin campos = cero vorágine/alta plaga, DIVERGEN), ⊥ #81 (fragor = PROYECTILES EN VUELO G.projectiles; una aflicción NO es una bala), ⊥ #80 (carnicería = CUERPOS MUERTOS G.corpses; la plaga cuenta mobs VIVOS afligidos, vivo vs muerto — DIVERGEN), ⊥ #79 (botín = OBJETOS G.drops), ⊥ #78 (furia = FASE de un JEFE e.enraged — estado de fase, no aflicción DoT; jefe enfurecido SIN veneno = alta furia/cero plaga; pack de trash envenenado sin jefe = cero furia/alta plaga, DIVERGEN), ⊥ #77 (hazard = zona ambiental G.hazards), ⊥ #76 (variante = e.variant, modificador de SPAWN, id-set {stalker,bastion,glass}; plaga = aflicción DoT APLICADA en combate e.dots, disjunto), ⊥ #74 (afijo = CALIDAD ESTÁTICA e.affix/mobAffixes {swift,armored,vampiric,volatile,frost} horneada al spawn; plaga = estado DINÁMICO e.dots {poison,burn} aplicado por combate — id-set y subsistema disjuntos: mob 'vampiric' recién spawneado = alto afijo/cero plaga hasta que lo enveneno), ⊥ #73 (apex = DISTANCIA a un jefe VIVO), ⊥ #72 (escasez = AUSENCIA de mobs VIVOS), ⊥ #69 (force-ratio = ENGANCHADOS), ⊥ lootQuality #63/#68 (=CALIDAD de la PRÓXIMA tirada). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind/socketFind/healPotency/trophyFind/salvageFind/boneFind/frayFind/maelstromFind (seams distintos).",
+      gExists:(G.blightHarvest!=null),                                    // prueba byte-id: STATELESS ⇒ G.blightHarvest NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      mobCount:mobCount,                                                  // nº de mobs afligidos con peso en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), blightHarvest:(h.blightHarvest|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
