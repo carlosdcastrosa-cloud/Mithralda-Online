@@ -384,14 +384,7 @@ export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"e
   // CAS-312: dark_demon_3 idle cutout (claw frame 0). drawEnemy uses this for idle/walk
   // (resolveStrip returns null for those states → ENEMY_IMG path adds the breathe/walk-bob),
   // and the demon_attack / demon_cast strips below for the two board animations.
-  demon:"enemy_demon",
-  // CAS-2587 (sprite audit): the last two combat sprites that had NO real art and always
-  // rendered as tiny procedural SP blobs (11x7 rat, humanoid adv) — now FOUNTAINS-style
-  // PixelLab side-view cutouts (STYLE TOKEN embedded, trimmed via cas1692-trim-sprite so
-  // feet bottom-anchor). `rat` = common tier-1 forest mob + "Plaga de Ratas" daily target;
-  // `adv` = neutral adventurer AND the `healer` mob (sprite:"adv"). Same load path as the
-  // cutouts above; drawn with the CAS-203 breathe/walk-bob so they animate, not freeze.
-  rat:"enemy_rat", adv:"enemy_adv" };
+  demon:"enemy_demon" };
 // CAS-209: per-state PixelLab MCP animation strips for solid-bodied mobs.
 // Each mob has a map of animState → strip descriptor. drawEnemyStrip() picks the
 // correct state strip (falling back to "walk" if the state-specific strip is absent).
