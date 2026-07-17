@@ -384,6 +384,8 @@ export const ENEMY_IMG={ skel:"enemy_skeleton", bandit:"enemy_bandit", wraith:"e
   // CAS-312: dark_demon_3 idle cutout (claw frame 0). drawEnemy uses this for idle/walk
   // (resolveStrip returns null for those states → ENEMY_IMG path adds the breathe/walk-bob),
   // and the demon_attack / demon_cast strips below for the two board animations.
+  // CAS-2587: last 2 procedural placeholders replaced with real FOUNTAINS PixelLab cutouts.
+  rat:"enemy_rat", adv:"enemy_adv",
   demon:"enemy_demon" };
 // CAS-209: per-state PixelLab MCP animation strips for solid-bodied mobs.
 // Each mob has a map of animState → strip descriptor. drawEnemyStrip() picks the
