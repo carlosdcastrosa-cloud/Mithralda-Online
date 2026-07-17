@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4178,6 +4178,34 @@ export function enrageSurgeVM(h){ h=h||G.hero; const on=!!BOSS_ENRAGE_SURGE.enab
     cap:Math.max(0,BOSS_ENRAGE_SURGE.enrageTrophyCap|0), radius:+BOSS_ENRAGE_SURGE.radius||0,
     tag: enrageSurgeTag(h) }; }
 
+// CAS-2477: CAMPO DE BOTÍN DENSO (SPOILS_FIELD_SURGE) — EJE PRESENCIA/DENSIDAD DE UN CAMPO DE BOTÍN EN EL SUELO server-auth + canal FRESCO salvageFind (recompensa de esquirlas de chatarra por rematar mientras el suelo está enterrado en despojos sin recoger). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Los drops de suelo (G.drops) = estado de sim REPLICADO sembrado determinista por el motor al matar/abrir cofre (el MISMO array que el render dibuja y el pickup consume). NO cosmético: los drops SON el botín real recogible.
+// spoilsWeight(d) = peso de UN drop de suelo VIVO (no recogido) = spoilsWeights[d.kind] (gear/rune→2, gold/potion→1; recogido/sin kind→0/fallback 1). PURO (lectura de d.kind/d.taken replicados).
+function spoilsWeight(d){ if(!d||d.taken) return 0; const W=SPOILS_FIELD_SURGE.spoilsWeights||{}; const k=d.kind; if(!k) return 1; return (W[k]!=null?(+W[k]||0):1); }
+// spoilsFieldScore(h) = suma del peso de TODOS los drops de suelo NO recogidos dentro de SPOILS_FIELD_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (G.drops+posiciones = estado replicado). 0 si no hay botín cerca. Vecindad = radio (⊥ furia #78 que lee e.enraged; ⊥ evento #75 que lee G.zoneEvents.pois; ⊥ lootQuality #63/#68 que es CALIDAD de la PRÓXIMA tirada, no densidad del suelo).
+function spoilsFieldScore(h){ h=h||G.hero; if(!h) return 0; const R=+SPOILS_FIELD_SURGE.radius||0, R2=R*R; let s=0;
+  for(const d of (G.drops||[])){ const w=spoilsWeight(d); if(w<=0) continue; const dx=h.x-d.x, dy=h.y-d.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// spoilsFieldTier(score) = índice del tier de botín vigente (0 = suelo limpio / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS/mayor-valor de despojos = tier ALTO. LUT determinista pura.
+function spoilsFieldTier(score){ const T=SPOILS_FIELD_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// spoilsFieldSalvageBonus(score) = nº de esquirlas de chatarra del tier vigente, acotado por el sub-cap propio spoilsSalvageCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta salvageFind.
+function spoilsFieldSalvageBonus(score){ if(!SPOILS_FIELD_SURGE.enabled) return 0;
+  if((SPOILS_FIELD_SURGE.channel||"salvageFind")!=="salvageFind") return 0;   // seguridad: SPOILS_FIELD_SURGE SÓLO alimenta salvageFind (si el knob se re-apunta, no contribuye)
+  const t=spoilsFieldTier(score); if(t<=0) return 0;
+  const raw=+SPOILS_FIELD_SURGE.tiers[t-1].salvage||0, cap=Math.max(0,SPOILS_FIELD_SURGE.spoilsSalvageCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// spoilsFieldForageSalvage(h, tpl, preScore) = las esquirlas por un kill DENTRO de un campo de botín denso = spoilsFieldSalvageBonus(preScore). preScore = el snapshot de densidad muestreado en el TOP de killEnemy (ANTES de que este kill empuje sus propios drops) ⇒ ANTI-AUTO-CONTEO. Si preScore es undefined (VM/preview) usa spoilsFieldScore(h) EN VIVO. 0 si OFF / sin botín / sin tpl. PURO — el seam decide banca a h.salvageShards vía grantSalvage.
+function spoilsFieldForageSalvage(h, tpl, preScore){ if(!SPOILS_FIELD_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?spoilsFieldScore(h||G.hero):(+preScore||0); return spoilsFieldSalvageBonus(score); }
+// spoilsFieldTag(h) = glifo del badge de CAMPO DE BOTÍN (◆) si el héroe está sobre un suelo con despojos en radio (tier>0). PURO. "" si OFF / suelo limpio.
+export function spoilsFieldTag(h){ h=h||G.hero; if(!SPOILS_FIELD_SURGE.enabled||!h) return "";
+  return spoilsFieldTier(spoilsFieldScore(h))>0 ? "◆" : ""; }
+// View-model PURO para el HUD/badge: el tier de botín, el score, las esquirlas efectivas por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function spoilsFieldVM(h){ h=h||G.hero; const on=!!SPOILS_FIELD_SURGE.enabled&&!!h;
+  const score=on?spoilsFieldScore(h):0, tier=on?spoilsFieldTier(score):0, salvage=on?spoilsFieldSalvageBonus(score):0;
+  return { enabled:!!SPOILS_FIELD_SURGE.enabled, channel:SPOILS_FIELD_SURGE.channel||"salvageFind",
+    score, tier, tierCount:(SPOILS_FIELD_SURGE.tiers||[]).length, salvage,
+    cap:Math.max(0,SPOILS_FIELD_SURGE.spoilsSalvageCap|0), radius:+SPOILS_FIELD_SURGE.radius||0,
+    tag: spoilsFieldTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5517,6 +5545,8 @@ function killEnemy(e){
   if(e.dead) return; e.dead=true;
   freeze(e.isBoss?9:(e.champion?8:5)); // kill confirm — boss/champion deaths land heaviest
   const tpl=e.tpl; const zone=zoneOf(world,e.x,e.y);
+  // CAS-2477 SPOILS_FIELD_SURGE: snapshot de DENSIDAD DE BOTÍN muestreado AQUÍ, en el TOP, ANTES de que este kill empuje sus propios drops (gold/gear/potion se añaden más abajo). ANTI-AUTO-CONTEO ⇒ los despojos recién soltados por el mob muerto NO inflan su propia recompensa. GATED ⇒ enabled:false ⇒ `_spoilsPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _spoilsPre = SPOILS_FIELD_SURGE.enabled ? spoilsFieldScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -5694,6 +5724,12 @@ function killEnemy(e){
   if(BOSS_ENRAGE_SURGE.enabled && !tpl.neutral){ const tb=enrageSurgeForageTrophies(G.hero, tpl);
     if(tb>0){ grantTrophy(tb);
       floater(e.x,e.y-108,"+"+tb+" Trofeo","#ffd34d",{small:true}); } }
+  // CAS-2477 SPOILS_FIELD_SURGE seam: FORRAJEO DENTRO DE UN CAMPO DE BOTÍN DENSO. Al matar un mob no-neutral mientras el suelo de la vecindad del HÉROE tenía botín denso (drops NO recogidos de G.drops, score≥umbral ANTES de este kill vía `_spoilsPre`) dentro del radio, el
+  // héroe cosecha esquirlas de chatarra = spoilsFieldForageSalvage(hero,tpl,_spoilsPre) (flat por tier de densidad, sub-cap spoilsSalvageCap), banca a h.salvageShards vía grantSalvage (0 RNG). `_spoilsPre` se muestreó en el TOP ANTES de que este kill soltara sus drops ⇒ el mob recién muerto NO auto-cuenta su propio botín. GATED ⇒ enabled:false ⇒ rama muerta: 0 chatarra, 0 floater, 0 grantSalvage ⇒ killEnemy byte-idéntico al HEAD.
+  // Canal FRESCO salvageFind (fuente ÚNICA, sub-cap spoilsSalvageCap) — NINGUNA de las 20 flags #59-#78 lo toca; chatarra transitoria ⇒ fuera del save + fingerprint.
+  if(SPOILS_FIELD_SURGE.enabled && !tpl.neutral){ const sv=spoilsFieldForageSalvage(G.hero, tpl, _spoilsPre);
+    if(sv>0){ grantSalvage(sv);
+      floater(e.x,e.y-120,"+"+sv+" Chatarra","#c9d67a",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -6904,6 +6940,8 @@ function grantSocket(n){ const h=G.hero; if(!h||n<=0) return; h.socketShards=(h.
 function grantHazardMote(n){ const h=G.hero; if(!h||n<=0) return; h.hazardMotes=(h.hazardMotes|0)+(n|0); }
 // CAS-2468: banca trofeos de guerra (canal trophyFind de BOSS_ENRAGE_SURGE). Moneda TRANSITORIA NUEVA (h.enrageTrophies — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantHazardMote para el trickle de forrajeo mientras un jefe está ENFURECIDO. STATELESS: h.enrageTrophies NO se serializa ⇒ no es clave de save.
 function grantTrophy(n){ const h=G.hero; if(!h||n<=0) return; h.enrageTrophies=(h.enrageTrophies|0)+(n|0); }
+// CAS-2477: banca esquirlas de chatarra (canal salvageFind de SPOILS_FIELD_SURGE). Moneda TRANSITORIA NUEVA (h.salvageShards — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantTrophy para el trickle de forrajeo dentro de un campo de botín denso. STATELESS: h.salvageShards NO se serializa ⇒ no es clave de save.
+function grantSalvage(n){ const h=G.hero; if(!h||n<=0) return; h.salvageShards=(h.salvageShards|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9872,6 +9910,62 @@ export const dev = {
       gExists:(G.enrageSurge!=null),                                     // prueba byte-id: STATELESS ⇒ G.enrageSurge NUNCA se crea (0 estado nuevo, 0 clave serializada)
       enragedCount:enragedCount,                                         // nº de jefes enfurecidos vivos en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), enrageTrophies:(h.enrageTrophies|0) }:null }; },
+  // CAS-2477: CAMPO DE BOTÍN DENSO OBSERVABLE hook (DARK, SPOILS_FIELD_SURGE — eje PRESENCIA/DENSIDAD DE UN CAMPO DE BOTÍN EN EL SUELO server-auth [Σ spoilsWeights[d.kind] sobre los drops NO recogidos (!d.taken) en radio del héroe, leídos de G.drops] + canal
+  // FRESCO salvageFind [recompensa de esquirlas de chatarra por rematar dentro de un campo de botín denso, NINGUNA flag previa lo toca] con sub-cap spoilsSalvageCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — el botín emerge del loot, sin input.js).
+  // Convergencia byte-a-byte: MISMO snapshot ⇒ MISMO score/tier/salvage en N clientes.
+  //   spoilsField()                                    → snapshot {enabled,channel,radius,tiers,cap,score,tier,salvage,forageSalvagePreview,peer channels ⊥,tag,gExists,dropCount,hero}
+  //   spoilsField({enabled})                           → flip runtime IN-MEMORY de SPOILS_FIELD_SURGE.enabled (sin tocar el disco)
+  //   spoilsField({tp:{tx,ty}})                        → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ el botín se evalúa contra los drops REALes de G.drops en radio
+  //   spoilsField({scoreProbe:{score}})                → LUT PURA score→tier→salvage (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   spoilsField({spawnDrop:{tx,ty,kind}})            → inyecta un drop de suelo de PRUEBA REAL (G.drops.push, el MISMO array del loot) en el tile (tx,ty); devuelve idx + peso
+  //   spoilsField({clearDrops:true})                   → limpia los drops de PRUEBA inyectados (aísla checks); devuelve nº removido
+  //   spoilsField({spoilsProbe:true})                  → score REAL + lista de drops no recogidos en radio + su {x,y,kind,weight} (byte-verifica la lectura server-auth de G.drops)
+  spoilsField(p){
+    let scoreProbe=null, spawnDrop=null, spoilsProbe=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) SPOILS_FIELD_SURGE.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=spoilsFieldTier(score);   // LUT PURA score→tier→salvage (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+SPOILS_FIELD_SURGE.tiers[t-1].salvage||0):0, cap=Math.max(0,SPOILS_FIELD_SURGE.spoilsSalvageCap|0);
+        scoreProbe={ score, tier:t, salvage:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnDrop && typeof p.spawnDrop==="object"){ const tx=p.spawnDrop.tx|0, ty=p.spawnDrop.ty|0, kind=(p.spawnDrop.kind||"gold");   // drop de suelo de PRUEBA REAL empujado al MISMO G.drops que usa el loot ⇒ observar la señal REAL server-auth
+        const d={ x:tx*TS+TS/2, y:ty*TS+TS/2, kind, _spoilsTest:true }; if(kind==="gold") d.amt=1; (G.drops||(G.drops=[])).push(d);
+        spawnDrop={ idx:G.drops.indexOf(d), x:+d.x.toFixed(1), y:+d.y.toFixed(1), kind:d.kind, weight:spoilsWeight(d) }; }
+      if(p.clearDrops){ const before=(G.drops||[]).length; G.drops=(G.drops||[]).filter(d=>!d._spoilsTest); cleared=before-G.drops.length; }   // limpia SÓLO los drops de prueba inyectados
+      if(p.spoilsProbe){ const h=G.hero, R=+SPOILS_FIELD_SURGE.radius||0, R2=R*R, drops=[]; let sc=0;   // lectura REAL server-auth: drops no recogidos en radio del héroe
+        if(h){ for(const d of (G.drops||[])){ const w=spoilsWeight(d); if(w<=0) continue; const dx=h.x-d.x, dy=h.y-d.y; if(dx*dx+dy*dy<=R2){ sc+=w; drops.push({ x:+d.x.toFixed(1), y:+d.y.toFixed(1), kind:d.kind, weight:w }); } } }
+        spoilsProbe={ score:sc, count:drops.length, drops }; }
+    }
+    const h=G.hero, vm=spoilsFieldVM(h);
+    let dropCount=0; for(const d of (G.drops||[])){ if(spoilsWeight(d)>0) dropCount++; }
+    return { enabled:SPOILS_FIELD_SURGE.enabled, channel:SPOILS_FIELD_SURGE.channel||"salvageFind",
+      radius:vm.radius, tiers:(SPOILS_FIELD_SURGE.tiers||[]).map(t=>({min:+t.min||0,salvage:+t.salvage||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, salvage:vm.salvage,
+      forageSalvagePreview: h?spoilsFieldForageSalvage(h, {xp:100}):0,       // preview: chatarra forrajeada por un kill con la densidad actual (expone el canal salvageFind; usa score EN VIVO)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥ (CALIDAD de tirada, NO densidad de suelo)
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      gemForagePreview: h?zoneEventForageGems(h, {xp:100}):0,               // canal gemFind (ZONE_EVENT_SURGE #75) — INDEPENDIENTE ⊥
+      socketForagePreview: h?variantSurgeForageSockets(h, {xp:100}):0,      // canal socketFind (ENCOUNTER_VARIANT_SURGE #76) — INDEPENDIENTE ⊥
+      healForagePreview: h?hazardSurgeForageMotes(h, {xp:100}):0,           // canal healPotency (ARENA_HAZARD_SURGE #77) — INDEPENDIENTE ⊥
+      trophyForagePreview: h?enrageSurgeForageTrophies(h, {xp:100}):0,      // canal trophyFind (BOSS_ENRAGE_SURGE #78) — INDEPENDIENTE ⊥
+      tag: spoilsFieldTag(h),                                             // glifo SERVIDO (OFF/suelo limpio ⇒ "" / botín cerca ⇒ ◆)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→salvage (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnDrop: spawnDrop,                                               // drop de PRUEBA inyectado (G.drops) — idx + peso
+      cleared: cleared,                                                   // nº de drops de prueba removidos por clearDrops
+      spoilsProbe: spoilsProbe,                                           // lectura REAL server-auth: drops no recogidos en radio (score + lista)
+      precedence:"salvageFind (canal FRESCO — recompensa de esquirlas de chatarra por rematar dentro de un campo de botín denso): NINGUNA de las 20 flags #59-#78 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind #60/#62, lootQuality #63/#68, xpGain #65, essenceFind #72, matFind #73, flaskPotency #74, gemFind #75, socketFind #76, healPotency #77, trophyFind #78) está LLENA ⇒ pivota a una moneda FRESCA, esquirlas de chatarra (h.salvageShards, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio spoilsSalvageCap, 0 doble-dip (ningún otro seam banca salvageShards). EJE = PRESENCIA/DENSIDAD DE UN CAMPO DE BOTÍN EN EL SUELO server-auth: spoilsFieldScore(hero)=Σ spoilsWeights[d.kind] sobre los drops NO recogidos (!d.taken) de G.drops en radio. ⊥ #78 (furia = ESTADO DE FASE de un JEFE leído de e.enraged/G.enemies; botín = OBJETOS DE LOOT en el suelo leídos de G.drops, otro contenedor), ⊥ #77 (hazard = peligro ambiental G.hazards; un drop NO es un hazard), ⊥ #76 (variante = e.variant sobre mobs; un drop NO es un mob), ⊥ #75 (evento de zona = POIs de EVENTO en G.zoneEvents.pois; campo de botín = OBJETOS DE LOOT en G.drops, contenedor DISTINTO, independiente de si hay un evento activo), ⊥ #74 (afijo = CALIDAD de un mob), ⊥ #73 (apex = DISTANCIA a un jefe), ⊥ #72 (escasez = AUSENCIA de mobs; esto = PRESENCIA de despojos), ⊥ #69 (force-ratio = ENGANCHADOS), ⊥ lootQuality #63/#68 (=CALIDAD/piso de rareza de la PRÓXIMA tirada de rollGearInst; botín = DENSIDAD de los objetos YA en el suelo — eje DENSIDAD-DE-SUELO vs CALIDAD-DE-TIRADA). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind/socketFind/healPotency/trophyFind (seams distintos).",
+      gExists:(G.spoilsField!=null),                                     // prueba byte-id: STATELESS ⇒ G.spoilsField NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      dropCount:dropCount,                                               // nº de drops no recogidos con peso en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), salvageShards:(h.salvageShards|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
