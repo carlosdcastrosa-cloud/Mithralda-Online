@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -407,6 +407,7 @@ export function createRenderer(ctx){
     if(CARNAGE_FIELD_SURGE.enabled) renderCarnageFieldBadge(); // CAS-2481: Campo de Carnicería — badge de PRESENCIA/DENSIDAD de un campo de cadáveres recién caídos (cuerpos de G.corpses) en radio (canal boneFind, sub-cap carnageBoneCap); resalta si el héroe remata sobre un suelo sembrado de bajas, donde el forrajeo rinde fichas de osario. Cosmético puro.
     if(MAELSTROM_FIELD_SURGE.enabled) renderMaelstromFieldBadge(); // CAS-2493: Vorágine de Zonas de Área — badge de PRESENCIA/DENSIDAD de un campo de zonas de negación de área persistentes (campos de hechizo de G.fields) en radio (canal maelstromFind, sub-cap maelstromChargeCap); resalta si el héroe remata en medio de una vorágine densa de zonas solapadas, donde el forrajeo rinde cargas de vorágine. Cosmético puro.
     if(SKIRMISH_LINE_SURGE.enabled) renderSkirmishLineBadge(); // CAS-2504: Línea de Escaramuza — badge de COMPOSICIÓN DE ARQUETIPO DE ALCANCE (a-distancia) del pack de mobs VIVOS (e.tpl.ranged/e.tpl.range) en radio (canal skirmishFind, sub-cap skirmishMarkCap); resalta si el héroe remata en medio de una línea de hostigamiento a-distancia densa, donde el forrajeo rinde marcas de escaramuza. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
+    if(BULK_SURGE.enabled) renderBulkBadge(); // CAS-2546: Remate de Mole — badge de BANDA DE TAMAÑO/HITBOX FÍSICO del mob TYPE server-auth (la MOLE intrínseca de la criatura); la señal viva = MAX bulkWeight sobre los mobs VIVOS en radio (la mole más grande rematable: bestia corpulenta⇒2/mediana⇒1/menuda⇒0) (canal bulkFind, sub-cap bulkBountyCap); resalta si hay un mob VOLUMINOSO rematable, donde despacharlo rinde fichas de mole. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(ZONETIER_SURGE.enabled) renderZoneTierBadge(); // CAS-2541: Remate en Zona Peligrosa — badge de DIFICULTAD/TIER de la ZONA GEOGRÁFICA server-auth donde muere el mob (banda de nivel del ÁREA); la señal viva = MAX tierWeight sobre los mobs VIVOS en radio (el kill de zona más peligrosa disponible: zona endgame/peligrosa⇒2/intermedia⇒1/inicial⇒0) (canal tierFind, sub-cap tierBountyCap); resalta si hay un mob rematable en tierra profunda/hostil, donde despacharlo rinde fichas de frontera. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(HEADING_SURGE.enabled) renderHeadingBadge(); // CAS-2537: Remate de Embestida — badge de RUMBO/HEADING del mob al kill (dirección de MOVIMIENTO relativa al héroe); la señal viva = MAX headingWeight sobre los mobs VIVOS en radio (la embestida más peligrosa disponible: cargando de frente⇒2/lateral⇒1/huyendo⇒0) (canal headingFind, sub-cap headingBountyCap); resalta si hay un mob CARGANDO hacia el héroe, donde rematar al agresor rinde fichas de embestida. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(INTERRUPT_SURGE.enabled) renderInterruptBadge(); // CAS-2532: Remate de Interrupción — badge de ESTADO-DE-ACCIÓN-EN-PROGRESO del mob al kill (denegar la habilidad enemiga); la señal viva = MAX interruptWeight sobre los mobs VIVOS en radio (la mejor interrupción disponible: habilidad PESADA (shield/special/cast)⇒2/ataque NORMAL comprometido (windup/strike)⇒1) (canal interruptFind, sub-cap interruptBountyCap); resalta si hay un mob EJECUTANDO una acción rematable, donde cortarlo MID-ACCIÓN rinde fichas de interrupción. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
@@ -4881,6 +4882,42 @@ export function createRenderer(ctx){
     // estado a la derecha: +fichas de frontera por kill + score; si zona inicial, "—"
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st2=here?("+"+charge+" Front s"+score):"—";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+140,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+140,ty);
+    ctx.restore();
+  }
+
+  // CAS-2546: badge de REMATE DE MOLE (BULK_SURGE). Refleja el VM PURO (sim.bulkVM, autoridad en sim) ⇒ MISMO score/tier/fichas para todos los clientes con el mismo estado de sim. Cosmético puro (0 efecto de sim). DARK (enabled:false) ⇒ el dispatch NO lo llama hasta el flip.
+  function renderBulkBadge(){
+    const k=sim.bulkVM&&sim.bulkVM(); if(!k) return;                    // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+1088, sw=14, sh=14;                          // bajo el Remate-en-zona-peligrosa (@+1066); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, charge=k.charge|0, score=k.score|0;
+    const pulse=here?(0.74+0.24*Math.sin(G.t*(2.6+tier*0.7))):0.55;
+    const glyph=here?"#e0b877":"#8a9bb0";                               // mole=ámbar/bronce (masa), alimaña menuda=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⬢ hexágono (bulto/masa física); el brillo/relleno sube con el tier
+    const rr=sh*0.44;
+    ctx.globalAlpha=pulse*(here?0.95:0.28);
+    ctx.strokeStyle=here?glyph:"rgba(150,160,176,0.42)"; ctx.lineWidth=here?1.6:1.2; ctx.lineJoin="round";
+    ctx.beginPath();
+    for(let i=0;i<6;i++){ const ang=Math.PI/6+i*Math.PI/3, px=cx+Math.cos(ang)*rr, py=cy+Math.sin(ang)*rr; if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+    ctx.closePath(); ctx.stroke();
+    if(here && tier>=2){ ctx.globalAlpha=pulse*0.85;                    // núcleo hexagonal relleno en T2 (mole grande)
+      ctx.fillStyle="#f4dcae";
+      ctx.beginPath();
+      for(let i=0;i<6;i++){ const ang=Math.PI/6+i*Math.PI/3, px=cx+Math.cos(ang)*rr*0.5, py=cy+Math.sin(ang)*rr*0.5; if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+      ctx.closePath(); ctx.fill(); }
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Mole: "+(here?("T"+tier):"—");
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#f2e0bf":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: +fichas de mole por kill + score; si alimaña menuda, "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st2=here?("+"+charge+" Mole s"+score):"—";
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+140,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+140,ty);
     ctx.restore();
