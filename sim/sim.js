@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4206,6 +4206,34 @@ export function spoilsFieldVM(h){ h=h||G.hero; const on=!!SPOILS_FIELD_SURGE.ena
     cap:Math.max(0,SPOILS_FIELD_SURGE.spoilsSalvageCap|0), radius:+SPOILS_FIELD_SURGE.radius||0,
     tag: spoilsFieldTag(h) }; }
 
+// CAS-2481: CAMPO DE CARNICERÍA (CARNAGE_FIELD_SURGE) — EJE PRESENCIA/DENSIDAD DE UN CAMPO DE CADÁVERES RECIÉN CAÍDOS server-auth + canal FRESCO boneFind (recompensa de fichas de osario por rematar mientras la vecindad del suelo está sembrada de los cuerpos de los recién abatidos). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Los cadáveres (G.corpses) = estado de sim REPLICADO: poblados DETERMINISTA en el path AUTORITATIVO killEnemy (un cuerpo por cada muerte de mob richAnim) y ENVEJECIDOS/reapeados en el tick de paso-fijo AUTORITATIVO updateCorpses (CORPSE_LIFE=2.6s). Que NADA de gameplay lea hoy G.corpses ("presentation-only") es lo que lo hace un eje FRESCO/0-contestado.
+// carnageWeight(c) = peso de UN cadáver por RANGO = carnageWeights[boss|champion|normal] (boss→3, champion→2, normal→1; rango ausente→fallback normal). PURO (lectura de c.isBoss/c.champion replicados).
+function carnageWeight(c){ if(!c) return 0; const W=CARNAGE_FIELD_SURGE.carnageWeights||{}; const k=c.isBoss?"boss":(c.champion?"champion":"normal"); return (W[k]!=null?(+W[k]||0):(+W.normal||1)); }
+// carnageFieldScore(h) = suma del peso de TODOS los cadáveres dentro de CARNAGE_FIELD_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (G.corpses+posiciones = estado replicado). 0 si no hay bajas cerca. Vecindad = radio (⊥ botín #79 que lee G.drops [OBJETOS de loot recogibles]; ⊥ escasez #72 que lee G.enemies count [mobs VIVOS]; ⊥ furia #78 que lee e.enraged [jefe VIVO]).
+function carnageFieldScore(h){ h=h||G.hero; if(!h) return 0; const R=+CARNAGE_FIELD_SURGE.radius||0, R2=R*R; let s=0;
+  for(const c of (G.corpses||[])){ const w=carnageWeight(c); if(w<=0) continue; const dx=h.x-c.x, dy=h.y-c.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// carnageFieldTier(score) = índice del tier de carnicería vigente (0 = suelo sin bajas / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS/mayor-rango de bajas = tier ALTO. LUT determinista pura.
+function carnageFieldTier(score){ const T=CARNAGE_FIELD_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// carnageFieldBoneBonus(score) = nº de fichas de osario del tier vigente, acotado por el sub-cap propio carnageBoneCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta boneFind.
+function carnageFieldBoneBonus(score){ if(!CARNAGE_FIELD_SURGE.enabled) return 0;
+  if((CARNAGE_FIELD_SURGE.channel||"boneFind")!=="boneFind") return 0;   // seguridad: CARNAGE_FIELD_SURGE SÓLO alimenta boneFind (si el knob se re-apunta, no contribuye)
+  const t=carnageFieldTier(score); if(t<=0) return 0;
+  const raw=+CARNAGE_FIELD_SURGE.tiers[t-1].bone||0, cap=Math.max(0,CARNAGE_FIELD_SURGE.carnageBoneCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// carnageFieldForageBones(h, tpl, preScore) = las fichas por un kill DENTRO de un campo de carnicería denso = carnageFieldBoneBonus(preScore). preScore = el snapshot de densidad muestreado en el TOP de killEnemy (ANTES de que este kill empuje su propio cadáver) ⇒ ANTI-AUTO-CONTEO. Si preScore es undefined (VM/preview) usa carnageFieldScore(h) EN VIVO. 0 si OFF / sin bajas / sin tpl. PURO — el seam decide banca a h.boneTokens vía grantBone.
+function carnageFieldForageBones(h, tpl, preScore){ if(!CARNAGE_FIELD_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?carnageFieldScore(h||G.hero):(+preScore||0); return carnageFieldBoneBonus(score); }
+// carnageFieldTag(h) = glifo del badge de CAMPO DE CARNICERÍA (☠) si el héroe está sobre un suelo con cadáveres en radio (tier>0). PURO. "" si OFF / suelo sin bajas.
+export function carnageFieldTag(h){ h=h||G.hero; if(!CARNAGE_FIELD_SURGE.enabled||!h) return "";
+  return carnageFieldTier(carnageFieldScore(h))>0 ? "☠" : ""; }
+// View-model PURO para el HUD/badge: el tier de carnicería, el score, las fichas efectivas por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function carnageFieldVM(h){ h=h||G.hero; const on=!!CARNAGE_FIELD_SURGE.enabled&&!!h;
+  const score=on?carnageFieldScore(h):0, tier=on?carnageFieldTier(score):0, bone=on?carnageFieldBoneBonus(score):0;
+  return { enabled:!!CARNAGE_FIELD_SURGE.enabled, channel:CARNAGE_FIELD_SURGE.channel||"boneFind",
+    score, tier, tierCount:(CARNAGE_FIELD_SURGE.tiers||[]).length, bone,
+    cap:Math.max(0,CARNAGE_FIELD_SURGE.carnageBoneCap|0), radius:+CARNAGE_FIELD_SURGE.radius||0,
+    tag: carnageFieldTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5547,6 +5575,8 @@ function killEnemy(e){
   const tpl=e.tpl; const zone=zoneOf(world,e.x,e.y);
   // CAS-2477 SPOILS_FIELD_SURGE: snapshot de DENSIDAD DE BOTÍN muestreado AQUÍ, en el TOP, ANTES de que este kill empuje sus propios drops (gold/gear/potion se añaden más abajo). ANTI-AUTO-CONTEO ⇒ los despojos recién soltados por el mob muerto NO inflan su propia recompensa. GATED ⇒ enabled:false ⇒ `_spoilsPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _spoilsPre = SPOILS_FIELD_SURGE.enabled ? spoilsFieldScore(G.hero) : 0;
+  // CAS-2481 CARNAGE_FIELD_SURGE: snapshot de DENSIDAD DE CADÁVERES muestreado AQUÍ, en el TOP, ANTES de que este kill empuje su propio cadáver (G.corpses.push más abajo, sólo si richAnim). ANTI-AUTO-CONTEO ⇒ el cuerpo recién caído del mob muerto NO infla su propia recompensa (rematar un mob SOLITARIO sobre suelo sin bajas NO forrajea). GATED ⇒ enabled:false ⇒ `_carnagePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _carnagePre = CARNAGE_FIELD_SURGE.enabled ? carnageFieldScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -5730,6 +5760,12 @@ function killEnemy(e){
   if(SPOILS_FIELD_SURGE.enabled && !tpl.neutral){ const sv=spoilsFieldForageSalvage(G.hero, tpl, _spoilsPre);
     if(sv>0){ grantSalvage(sv);
       floater(e.x,e.y-120,"+"+sv+" Chatarra","#c9d67a",{small:true}); } }
+  // CAS-2481 CARNAGE_FIELD_SURGE seam: FORRAJEO DENTRO DE UN CAMPO DE CARNICERÍA DENSO. Al matar un mob no-neutral mientras la vecindad del HÉROE tenía cadáveres densos (cuerpos de G.corpses, score≥umbral ANTES de este kill vía `_carnagePre`) dentro del radio, el
+  // héroe cosecha fichas de osario = carnageFieldForageBones(hero,tpl,_carnagePre) (flat por tier de densidad, sub-cap carnageBoneCap), banca a h.boneTokens vía grantBone (0 RNG). `_carnagePre` se muestreó en el TOP ANTES de que este kill empujara su propio cadáver ⇒ el mob recién muerto NO auto-cuenta su propio cuerpo. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantBone ⇒ killEnemy byte-idéntico al HEAD.
+  // Canal FRESCO boneFind (fuente ÚNICA, sub-cap carnageBoneCap) — NINGUNA de las 21 flags #59-#79 lo toca; fichas transitorias ⇒ fuera del save + fingerprint.
+  if(CARNAGE_FIELD_SURGE.enabled && !tpl.neutral){ const bn=carnageFieldForageBones(G.hero, tpl, _carnagePre);
+    if(bn>0){ grantBone(bn);
+      floater(e.x,e.y-132,"+"+bn+" Osario","#d8cbb0",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -6942,6 +6978,8 @@ function grantHazardMote(n){ const h=G.hero; if(!h||n<=0) return; h.hazardMotes=
 function grantTrophy(n){ const h=G.hero; if(!h||n<=0) return; h.enrageTrophies=(h.enrageTrophies|0)+(n|0); }
 // CAS-2477: banca esquirlas de chatarra (canal salvageFind de SPOILS_FIELD_SURGE). Moneda TRANSITORIA NUEVA (h.salvageShards — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantTrophy para el trickle de forrajeo dentro de un campo de botín denso. STATELESS: h.salvageShards NO se serializa ⇒ no es clave de save.
 function grantSalvage(n){ const h=G.hero; if(!h||n<=0) return; h.salvageShards=(h.salvageShards|0)+(n|0); }
+// CAS-2481: banca fichas de osario (canal boneFind de CARNAGE_FIELD_SURGE). Moneda TRANSITORIA NUEVA (h.boneTokens — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantSalvage para el trickle de forrajeo dentro de un campo de carnicería denso. STATELESS: h.boneTokens NO se serializa ⇒ no es clave de save.
+function grantBone(n){ const h=G.hero; if(!h||n<=0) return; h.boneTokens=(h.boneTokens|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9966,6 +10004,63 @@ export const dev = {
       gExists:(G.spoilsField!=null),                                     // prueba byte-id: STATELESS ⇒ G.spoilsField NUNCA se crea (0 estado nuevo, 0 clave serializada)
       dropCount:dropCount,                                               // nº de drops no recogidos con peso en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), salvageShards:(h.salvageShards|0) }:null }; },
+  // CAS-2481: CAMPO DE CARNICERÍA OBSERVABLE hook (DARK, CARNAGE_FIELD_SURGE — eje PRESENCIA/DENSIDAD DE UN CAMPO DE CADÁVERES RECIÉN CAÍDOS server-auth [Σ carnageWeights[rango] sobre los cadáveres en radio del héroe, leídos de G.corpses] + canal
+  // FRESCO boneFind [recompensa de fichas de osario por rematar dentro de un campo de carnicería denso, NINGUNA flag previa lo toca] con sub-cap carnageBoneCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — la carnicería emerge de las muertes, sin input.js).
+  // Convergencia byte-a-byte: MISMO snapshot ⇒ MISMO score/tier/bone en N clientes.
+  //   carnageField()                                   → snapshot {enabled,channel,radius,tiers,cap,score,tier,bone,forageBonePreview,peer channels ⊥,tag,gExists,corpseCount,hero}
+  //   carnageField({enabled})                          → flip runtime IN-MEMORY de CARNAGE_FIELD_SURGE.enabled (sin tocar el disco)
+  //   carnageField({tp:{tx,ty}})                       → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ la carnicería se evalúa contra los cadáveres REALes de G.corpses en radio
+  //   carnageField({scoreProbe:{score}})               → LUT PURA score→tier→bone (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   carnageField({spawnCorpse:{tx,ty,rank}})         → inyecta un cadáver de PRUEBA REAL (G.corpses.push, el MISMO array que puebla killEnemy) en el tile (tx,ty); rank ∈ {boss,champion,normal}; devuelve idx + peso
+  //   carnageField({clearCorpses:true})                → limpia los cadáveres de PRUEBA inyectados (aísla checks); devuelve nº removido
+  //   carnageField({carnageProbe:true})                → score REAL + lista de cadáveres en radio + su {x,y,rank,weight} (byte-verifica la lectura server-auth de G.corpses)
+  carnageField(p){
+    let scoreProbe=null, spawnCorpse=null, carnageProbe=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) CARNAGE_FIELD_SURGE.enabled=!!p.enabled;
+      if(p.tp && typeof p.tp==="object" && G.hero){ const tx=p.tp.tx|0, ty=p.tp.ty|0; G.hero.x=tx*TS+TS/2; G.hero.y=ty*TS+TS/2; }   // teleport determinista al centro del tile
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=carnageFieldTier(score);   // LUT PURA score→tier→bone (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+CARNAGE_FIELD_SURGE.tiers[t-1].bone||0):0, cap=Math.max(0,CARNAGE_FIELD_SURGE.carnageBoneCap|0);
+        scoreProbe={ score, tier:t, bone:(cap>0?Math.min(cap,raw):raw)|0 }; }
+      if(p.spawnCorpse && typeof p.spawnCorpse==="object"){ const tx=p.spawnCorpse.tx|0, ty=p.spawnCorpse.ty|0, rank=(p.spawnCorpse.rank||"normal");   // cadáver de PRUEBA REAL empujado al MISMO G.corpses que puebla killEnemy ⇒ observar la señal REAL server-auth
+        const c={ sprite:"quillback", x:tx*TS+TS/2, y:ty*TS+TS/2, size:20, isBoss:rank==="boss", champion:rank==="champion", fl:false, gaitPhase:0, t:0, _carnageTest:true }; (G.corpses||(G.corpses=[])).push(c);
+        spawnCorpse={ idx:G.corpses.indexOf(c), x:+c.x.toFixed(1), y:+c.y.toFixed(1), rank, weight:carnageWeight(c) }; }
+      if(p.clearCorpses){ const before=(G.corpses||[]).length; G.corpses=(G.corpses||[]).filter(c=>!c._carnageTest); cleared=before-G.corpses.length; }   // limpia SÓLO los cadáveres de prueba inyectados
+      if(p.carnageProbe){ const h=G.hero, R=+CARNAGE_FIELD_SURGE.radius||0, R2=R*R, corpses=[]; let sc=0;   // lectura REAL server-auth: cadáveres en radio del héroe
+        if(h){ for(const c of (G.corpses||[])){ const w=carnageWeight(c); if(w<=0) continue; const dx=h.x-c.x, dy=h.y-c.y; if(dx*dx+dy*dy<=R2){ sc+=w; corpses.push({ x:+c.x.toFixed(1), y:+c.y.toFixed(1), rank:c.isBoss?"boss":(c.champion?"champion":"normal"), weight:w }); } } }
+        carnageProbe={ score:sc, count:corpses.length, corpses }; }
+    }
+    const h=G.hero, vm=carnageFieldVM(h);
+    let corpseCount=0; for(const c of (G.corpses||[])){ if(carnageWeight(c)>0) corpseCount++; }
+    return { enabled:CARNAGE_FIELD_SURGE.enabled, channel:CARNAGE_FIELD_SURGE.channel||"boneFind",
+      radius:vm.radius, tiers:(CARNAGE_FIELD_SURGE.tiers||[]).map(t=>({min:+t.min||0,bone:+t.bone||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, bone:vm.bone,
+      forageBonePreview: h?carnageFieldForageBones(h, {xp:100}):0,          // preview: fichas forrajeadas por un kill con la densidad actual (expone el canal boneFind; usa score EN VIVO)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      gemForagePreview: h?zoneEventForageGems(h, {xp:100}):0,               // canal gemFind (ZONE_EVENT_SURGE #75) — INDEPENDIENTE ⊥
+      socketForagePreview: h?variantSurgeForageSockets(h, {xp:100}):0,      // canal socketFind (ENCOUNTER_VARIANT_SURGE #76) — INDEPENDIENTE ⊥
+      healForagePreview: h?hazardSurgeForageMotes(h, {xp:100}):0,           // canal healPotency (ARENA_HAZARD_SURGE #77) — INDEPENDIENTE ⊥
+      trophyForagePreview: h?enrageSurgeForageTrophies(h, {xp:100}):0,      // canal trophyFind (BOSS_ENRAGE_SURGE #78) — INDEPENDIENTE ⊥
+      salvageForagePreview: h?spoilsFieldForageSalvage(h, {xp:100}):0,      // canal salvageFind (SPOILS_FIELD_SURGE #79) — INDEPENDIENTE ⊥ (DENSIDAD DE BOTÍN en G.drops vs DENSIDAD DE CADÁVERES en G.corpses)
+      tag: carnageFieldTag(h),                                             // glifo SERVIDO (OFF/suelo sin bajas ⇒ "" / cadáveres cerca ⇒ ☠)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→bone (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnCorpse: spawnCorpse,                                           // cadáver de PRUEBA inyectado (G.corpses) — idx + peso
+      cleared: cleared,                                                   // nº de cadáveres de prueba removidos por clearCorpses
+      carnageProbe: carnageProbe,                                         // lectura REAL server-auth: cadáveres en radio (score + lista)
+      precedence:"boneFind (canal FRESCO — recompensa de fichas de osario por rematar dentro de un campo de carnicería denso): NINGUNA de las 21 flags #59-#79 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind #60/#62, lootQuality #63/#68, xpGain #65, essenceFind #72, matFind #73, flaskPotency #74, gemFind #75, socketFind #76, healPotency #77, trophyFind #78, salvageFind #79) está LLENA ⇒ pivota a una moneda FRESCA, fichas de osario (h.boneTokens, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio carnageBoneCap, 0 doble-dip (ningún otro seam banca boneTokens). EJE = PRESENCIA/DENSIDAD DE UN CAMPO DE CADÁVERES RECIÉN CAÍDOS server-auth: carnageFieldScore(hero)=Σ carnageWeights[rango] sobre los cadáveres de G.corpses en radio (poblados DETERMINISTA en killEnemy, envejecidos en updateCorpses, CORPSE_LIFE=2.6s). ⊥ #79 (botín = OBJETOS DE LOOT recogibles en G.drops que persisten hasta d.taken; carnicería = CUERPOS en G.corpses NO recogibles que despawnan — otro contenedor y otro ciclo de vida), ⊥ #78 (furia = jefe VIVO enfurecido e.enraged/G.enemies; carnicería = mobs MUERTOS G.corpses — vivo vs muerto), ⊥ #72 (escasez = AUSENCIA de mobs VIVOS [G.enemies count]; carnicería = PRESENCIA de mobs MUERTOS [G.corpses count] — DIVERGEN: batalla masiva = muchos vivos [baja escasez] Y muchos cadáveres [alta carnicería] simultáneo), ⊥ #77 (hazard = peligro ambiental G.hazards; un cadáver NO es un hazard), ⊥ #76 (variante = e.variant sobre mobs vivos), ⊥ #75 (evento de zona = POIs en G.zoneEvents.pois), ⊥ #74 (afijo = CALIDAD de un mob), ⊥ #73 (apex = DISTANCIA a un jefe VIVO), ⊥ #69 (force-ratio = ENGANCHADOS), ⊥ lootQuality #63/#68 (=CALIDAD de la PRÓXIMA tirada). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind/socketFind/healPotency/trophyFind/salvageFind (seams distintos).",
+      gExists:(G.carnageField!=null),                                     // prueba byte-id: STATELESS ⇒ G.carnageField NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      corpseCount:corpseCount,                                            // nº de cadáveres con peso en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), boneTokens:(h.boneTokens|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
