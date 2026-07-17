@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -407,6 +407,7 @@ export function createRenderer(ctx){
     if(CARNAGE_FIELD_SURGE.enabled) renderCarnageFieldBadge(); // CAS-2481: Campo de Carnicería — badge de PRESENCIA/DENSIDAD de un campo de cadáveres recién caídos (cuerpos de G.corpses) en radio (canal boneFind, sub-cap carnageBoneCap); resalta si el héroe remata sobre un suelo sembrado de bajas, donde el forrajeo rinde fichas de osario. Cosmético puro.
     if(MAELSTROM_FIELD_SURGE.enabled) renderMaelstromFieldBadge(); // CAS-2493: Vorágine de Zonas de Área — badge de PRESENCIA/DENSIDAD de un campo de zonas de negación de área persistentes (campos de hechizo de G.fields) en radio (canal maelstromFind, sub-cap maelstromChargeCap); resalta si el héroe remata en medio de una vorágine densa de zonas solapadas, donde el forrajeo rinde cargas de vorágine. Cosmético puro.
     if(SKIRMISH_LINE_SURGE.enabled) renderSkirmishLineBadge(); // CAS-2504: Línea de Escaramuza — badge de COMPOSICIÓN DE ARQUETIPO DE ALCANCE (a-distancia) del pack de mobs VIVOS (e.tpl.ranged/e.tpl.range) en radio (canal skirmishFind, sub-cap skirmishMarkCap); resalta si el héroe remata en medio de una línea de hostigamiento a-distancia densa, donde el forrajeo rinde marcas de escaramuza. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
+    if(SWIFT_SURGE.enabled) renderSwiftBadge(); // CAS-2556: Remate de Presa Veloz — badge de VELOCIDAD DE MOVIMIENTO BASE del mob TYPE server-auth (la RAPIDEZ intrínseca de la criatura); la señal viva = MAX swiftWeight sobre los mobs VIVOS en radio (la presa más escurridiza rematable: escurridiza⇒2/ágil⇒1/plúmbeo⇒0) (canal swiftFind, sub-cap swiftBountyCap); resalta si hay una PRESA ESCURRIDIZA rematable, donde acorralarla rinde fichas de acoso. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(ROLE_SURGE.enabled) renderRoleBadge(); // CAS-2551: Remate de Cabecilla — badge de ROL/ARQUETIPO DE COMBATE del mob TYPE server-auth (la FUNCIÓN de IA intrínseca de la criatura); la señal viva = MAX roleWeight sobre los mobs VIVOS en radio (la pieza clave más valiosa rematable: habilitador de soporte⇒2/disruptor especialista⇒1/peleador estándar⇒0) (canal roleFind, sub-cap roleBountyCap); resalta si hay un mob de ALTO VALOR TÁCTICO rematable, donde despacharlo rinde fichas de cabecilla. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(BULK_SURGE.enabled) renderBulkBadge(); // CAS-2546: Remate de Mole — badge de BANDA DE TAMAÑO/HITBOX FÍSICO del mob TYPE server-auth (la MOLE intrínseca de la criatura); la señal viva = MAX bulkWeight sobre los mobs VIVOS en radio (la mole más grande rematable: bestia corpulenta⇒2/mediana⇒1/menuda⇒0) (canal bulkFind, sub-cap bulkBountyCap); resalta si hay un mob VOLUMINOSO rematable, donde despacharlo rinde fichas de mole. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(ZONETIER_SURGE.enabled) renderZoneTierBadge(); // CAS-2541: Remate en Zona Peligrosa — badge de DIFICULTAD/TIER de la ZONA GEOGRÁFICA server-auth donde muere el mob (banda de nivel del ÁREA); la señal viva = MAX tierWeight sobre los mobs VIVOS en radio (el kill de zona más peligrosa disponible: zona endgame/peligrosa⇒2/intermedia⇒1/inicial⇒0) (canal tierFind, sub-cap tierBountyCap); resalta si hay un mob rematable en tierra profunda/hostil, donde despacharlo rinde fichas de frontera. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
@@ -4953,6 +4954,38 @@ export function createRenderer(ctx){
     // estado a la derecha: +fichas de cabecilla por kill + score; si peleador estándar, "—"
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st2=here?("+"+charge+" Cab s"+score):"—";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+140,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+140,ty);
+    ctx.restore();
+  }
+
+  // CAS-2556: badge de REMATE DE PRESA VELOZ (SWIFT_SURGE). Refleja el VM PURO (sim.swiftVM, autoridad en sim) ⇒ MISMO score/tier/fichas para todos los clientes con el mismo estado de sim. Cosmético puro (0 efecto de sim). DARK (enabled:false) ⇒ el dispatch NO lo llama hasta el flip.
+  function renderSwiftBadge(){
+    const k=sim.swiftVM&&sim.swiftVM(); if(!k) return;                  // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+1132, sw=14, sh=14;                          // bajo el Remate-de-Cabecilla (@+1110); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, charge=k.charge|0, score=k.score|0;
+    const pulse=here?(0.74+0.24*Math.sin(G.t*(2.6+tier*0.7))):0.55;
+    const glyph=here?"#5fe0c0":"#8a9bb0";                               // veloz=cian/teal (líneas de velocidad), plúmbeo=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // ⇶ triple-chevron apuntando a la derecha (líneas de velocidad/escurridizo); el nº de chevrones brillantes sube con el tier
+    const rr=sh*0.46;
+    ctx.globalAlpha=pulse*(here?0.95:0.28);
+    ctx.strokeStyle=here?glyph:"rgba(150,160,176,0.42)"; ctx.lineWidth=here?1.7:1.2; ctx.lineJoin="round"; ctx.lineCap="round";
+    for(let i=0;i<3;i++){ const ox=cx-rr+i*rr*0.72;                     // 3 chevrones ">" escalonados
+      ctx.globalAlpha=pulse*(here?(i<=tier?0.95:0.30):0.28);           // T1 ilumina 2, T2 ilumina los 3 (i<=tier)
+      ctx.beginPath();
+      ctx.moveTo(ox-rr*0.28,cy-rr*0.66); ctx.lineTo(ox+rr*0.34,cy); ctx.lineTo(ox-rr*0.28,cy+rr*0.66); ctx.stroke(); }
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Acoso: "+(here?("T"+tier):"—");
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#c8f2e6":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: +fichas de acoso por kill + score; si plúmbeo, "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st2=here?("+"+charge+" Acoso s"+score):"—";
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+140,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+140,ty);
     ctx.restore();
