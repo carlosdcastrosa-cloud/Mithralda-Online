@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4262,6 +4262,34 @@ export function crossfireFrayVM(h){ h=h||G.hero; const on=!!CROSSFIRE_FRAY_SURGE
     cap:Math.max(0,CROSSFIRE_FRAY_SURGE.frayEmberCap|0), radius:+CROSSFIRE_FRAY_SURGE.radius||0,
     tag: crossfireFrayTag(h) }; }
 
+// CAS-2493: VORÁGINE DE ZONAS DE ÁREA (MAELSTROM_FIELD_SURGE) — EJE PRESENCIA/DENSIDAD DE UN CAMPO DE ZONAS DE NEGACIÓN DE ÁREA server-auth + canal FRESCO maelstromFind (recompensa de cargas de vorágine por rematar EN MEDIO de una vorágine densa de zonas solapadas). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Las zonas de negación (G.fields) = estado de sim REPLICADO: pobladas DETERMINISTA en el path AUTORITATIVO (el caso "field" de castSpell, G.fields.push(f) con spellDmg) y TICKEADAS/FILTRADAS en el tick de paso-fijo AUTORITATIVO updateFields (f.life-=dt, filtra life>0). Que NINGUNA de las 23 flags #59-#81 lea hoy G.fields como eje de score ("combate/presentación-only") es lo que lo hace un eje FRESCO/0-contestado.
+// maelstromWeight(f) = peso de UNA zona por TAMAÑO = maelstromWeights[large|small] (f.r≥largeR→large:2, else→small:1; radio ausente→fallback small:1). PURO (lectura de f.r replicado). Una zona GRANDE cubre más suelo ⇒ pesa el doble: la vorágine densa premia terreno saturado de negación de área.
+function maelstromWeight(f){ if(!f) return 0; const W=MAELSTROM_FIELD_SURGE.maelstromWeights||{}, R=+MAELSTROM_FIELD_SURGE.largeR||0; const k=((+f.r||0)>=R)?"large":"small"; return (W[k]!=null?(+W[k]||0):(+W.small||1)); }
+// maelstromFieldScore(h) = suma del peso de TODAS las zonas de negación cuyo CENTRO cae dentro de MAELSTROM_FIELD_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (G.fields+posiciones = estado replicado). 0 si no hay vorágine cerca. Vecindad = radio (⊥ fragor #81 que lee G.projectiles [proyectiles EN VUELO con velocidad]; ⊥ carnicería #80 que lee G.corpses [CUERPOS muertos]; ⊥ hazard #77 que lee G.hazards [peligro ambiental gateado por jefe]).
+function maelstromFieldScore(h){ h=h||G.hero; if(!h) return 0; const R=+MAELSTROM_FIELD_SURGE.radius||0, R2=R*R; let s=0;
+  for(const f of (G.fields||[])){ const w=maelstromWeight(f); if(w<=0) continue; const dx=h.x-f.x, dy=h.y-f.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// maelstromFieldTier(score) = índice del tier de vorágine vigente (0 = sin vorágine / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS densidad/mayor-tamaño de zonas = tier ALTO. LUT determinista pura.
+function maelstromFieldTier(score){ const T=MAELSTROM_FIELD_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// maelstromFieldChargeBonus(score) = nº de cargas de vorágine del tier vigente, acotado por el sub-cap propio maelstromChargeCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta maelstromFind.
+function maelstromFieldChargeBonus(score){ if(!MAELSTROM_FIELD_SURGE.enabled) return 0;
+  if((MAELSTROM_FIELD_SURGE.channel||"maelstromFind")!=="maelstromFind") return 0;   // seguridad: MAELSTROM_FIELD_SURGE SÓLO alimenta maelstromFind (si el knob se re-apunta, no contribuye)
+  const t=maelstromFieldTier(score); if(t<=0) return 0;
+  const raw=+MAELSTROM_FIELD_SURGE.tiers[t-1].charge||0, cap=Math.max(0,MAELSTROM_FIELD_SURGE.maelstromChargeCap|0);
+  return Math.max(0,Math.min(cap,raw)); }
+// maelstromFieldForageCharges(h, tpl, preScore) = las cargas por un kill DENTRO de una vorágine densa = maelstromFieldChargeBonus(preScore). preScore = el snapshot de densidad muestreado en el TOP de killEnemy (ANTES del splice) ⇒ ANTI-AUTO-CONTEO. Si preScore es undefined (VM/preview) usa maelstromFieldScore(h) EN VIVO. 0 si OFF / sin vorágine / sin tpl. PURO — el seam decide banca a h.maelstromCharges vía grantMaelstromCharge.
+function maelstromFieldForageCharges(h, tpl, preScore){ if(!MAELSTROM_FIELD_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?maelstromFieldScore(h||G.hero):(+preScore||0); return maelstromFieldChargeBonus(score); }
+// maelstromFieldTag(h) = glifo del badge de VORÁGINE DE ZONAS DE ÁREA (⊛) si el héroe está EN una vorágine en radio (tier>0). PURO. "" si OFF / sin vorágine.
+export function maelstromFieldTag(h){ h=h||G.hero; if(!MAELSTROM_FIELD_SURGE.enabled||!h) return "";
+  return maelstromFieldTier(maelstromFieldScore(h))>0 ? "⊛" : ""; }
+// View-model PURO para el HUD/badge: el tier de vorágine, el score, las cargas efectivas por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function maelstromFieldVM(h){ h=h||G.hero; const on=!!MAELSTROM_FIELD_SURGE.enabled&&!!h;
+  const score=on?maelstromFieldScore(h):0, tier=on?maelstromFieldTier(score):0, charge=on?maelstromFieldChargeBonus(score):0;
+  return { enabled:!!MAELSTROM_FIELD_SURGE.enabled, channel:MAELSTROM_FIELD_SURGE.channel||"maelstromFind",
+    score, tier, tierCount:(MAELSTROM_FIELD_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,MAELSTROM_FIELD_SURGE.maelstromChargeCap|0), radius:+MAELSTROM_FIELD_SURGE.radius||0,
+    tag: maelstromFieldTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5607,6 +5635,8 @@ function killEnemy(e){
   const _carnagePre = CARNAGE_FIELD_SURGE.enabled ? carnageFieldScore(G.hero) : 0;
   // CAS-2488 CROSSFIRE_FRAY_SURGE: snapshot de DENSIDAD DE PROYECTILES EN VUELO muestreado AQUÍ, en el TOP, ANTES del splice del mob. ANTI-AUTO-CONTEO ⇒ el score refleja el fuego cruzado EN EL MOMENTO del kill; combinado con la TABLA (score≥2) rematar en un DUELO aislado (una sola bala tuya, peso hero 1) NO forrajea. GATED ⇒ enabled:false ⇒ `_frayPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _frayPre = CROSSFIRE_FRAY_SURGE.enabled ? crossfireFrayScore(G.hero) : 0;
+  // CAS-2493 MAELSTROM_FIELD_SURGE: snapshot de DENSIDAD DE ZONAS DE NEGACIÓN DE ÁREA muestreado AQUÍ, en el TOP, ANTES del splice del mob. ANTI-AUTO-CONTEO ⇒ el score refleja la vorágine EN EL MOMENTO del kill; combinado con la TABLA (score≥2) rematar dentro de UNA sola zona pequeña incidental (peso 1) NO forrajea. GATED ⇒ enabled:false ⇒ `_maelPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _maelPre = MAELSTROM_FIELD_SURGE.enabled ? maelstromFieldScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -5802,6 +5832,12 @@ function killEnemy(e){
   if(CROSSFIRE_FRAY_SURGE.enabled && !tpl.neutral){ const em=crossfireFrayForageEmbers(G.hero, tpl, _frayPre);
     if(em>0){ grantFrayEmber(em);
       floater(e.x,e.y-144,"+"+em+" Fragor","#ffb066",{small:true}); } }
+  // CAS-2493 MAELSTROM_FIELD_SURGE seam: FORRAJEO EN MEDIO DE UNA VORÁGINE DENSA. Al matar un mob no-neutral mientras la vecindad del HÉROE estaba EN UNA VORÁGINE (zonas de negación de área densas de G.fields, score≥umbral ANTES de este kill vía `_maelPre`) dentro del radio, el
+  // héroe cosecha cargas de vorágine = maelstromFieldForageCharges(hero,tpl,_maelPre) (flat por tier de densidad, sub-cap maelstromChargeCap), banca a h.maelstromCharges vía grantMaelstromCharge (0 RNG). `_maelPre` se muestreó en el TOP + la TABLA exige score≥2 ⇒ rematar dentro de UNA sola zona pequeña incidental (peso 1) NO forrajea; hace falta una vorágine GENUINA (≥2 zonas, o ≥1 zona GRANDE). GATED ⇒ enabled:false ⇒ rama muerta: 0 cargas, 0 floater, 0 grantMaelstromCharge ⇒ killEnemy byte-idéntico al HEAD.
+  // Canal FRESCO maelstromFind (fuente ÚNICA, sub-cap maelstromChargeCap) — NINGUNA de las 23 flags #59-#81 lo toca; cargas transitorias ⇒ fuera del save + fingerprint.
+  if(MAELSTROM_FIELD_SURGE.enabled && !tpl.neutral){ const mc=maelstromFieldForageCharges(G.hero, tpl, _maelPre);
+    if(mc>0){ grantMaelstromCharge(mc);
+      floater(e.x,e.y-156,"+"+mc+" Vorágine","#8fd0ff",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -7018,6 +7054,9 @@ function grantSalvage(n){ const h=G.hero; if(!h||n<=0) return; h.salvageShards=(
 function grantBone(n){ const h=G.hero; if(!h||n<=0) return; h.boneTokens=(h.boneTokens|0)+(n|0); }
 // CAS-2488: banca ascuas de fragor (canal frayFind de CROSSFIRE_FRAY_SURGE). Moneda TRANSITORIA NUEVA (h.frayEmbers — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantBone para el trickle de forrajeo en medio de un fuego cruzado denso. STATELESS: h.frayEmbers NO se serializa ⇒ no es clave de save.
 function grantFrayEmber(n){ const h=G.hero; if(!h||n<=0) return; h.frayEmbers=(h.frayEmbers|0)+(n|0); }
+
+// CAS-2493: banca cargas de vorágine (canal maelstromFind de MAELSTROM_FIELD_SURGE). Moneda TRANSITORIA NUEVA (h.maelstromCharges — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantFrayEmber para el trickle de forrajeo en medio de una vorágine densa de zonas de negación. STATELESS: h.maelstromCharges NO se serializa ⇒ no es clave de save.
+function grantMaelstromCharge(n){ const h=G.hero; if(!h||n<=0) return; h.maelstromCharges=(h.maelstromCharges|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -10156,6 +10195,64 @@ export const dev = {
       gExists:(G.crossfireFray!=null),                                    // prueba byte-id: STATELESS ⇒ G.crossfireFray NUNCA se crea (0 estado nuevo, 0 clave serializada)
       projCount:projCount,                                               // nº de proyectiles con peso en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), frayEmbers:(h.frayEmbers|0) }:null }; },
+  // CAS-2493: VORÁGINE DE ZONAS DE ÁREA OBSERVABLE hook (DARK, MAELSTROM_FIELD_SURGE — eje PRESENCIA/DENSIDAD DE UN CAMPO DE ZONAS DE NEGACIÓN DE ÁREA server-auth [Σ maelstromWeights[tamaño] sobre las zonas cuyo centro cae en radio del héroe, leídas de G.fields] + canal
+  // FRESCO maelstromFind [recompensa de cargas de vorágine por rematar en medio de una vorágine densa, NINGUNA flag previa lo toca] con sub-cap maelstromChargeCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — la vorágine emerge de los hechizos de área, sin input.js).
+  //   maelstromField()                                 → snapshot {enabled,channel,radius,tiers,cap,score,tier,charge,forageChargePreview,peer channels ⊥,tag,gExists,fieldCount,hero}
+  //   maelstromField({enabled})                        → flip runtime IN-MEMORY de MAELSTROM_FIELD_SURGE.enabled (sin tocar el disco)
+  //   maelstromField({tp:{tx,ty}})                     → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ la vorágine se evalúa contra las zonas REALes de G.fields en radio
+  //   maelstromField({scoreProbe:{score}})             → LUT PURA score→tier→charge (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   maelstromField({spawnField:{tx,ty,r}})           → inyecta una zona de negación de PRUEBA REAL (G.fields.push, el MISMO array que puebla el caso "field" de castSpell) en el tile (tx,ty) con radio r (dmg:0 ⇒ 0 daño en frames reales; life:99 ⇒ sobrevive); devuelve idx + peso
+  //   maelstromField({clearField:true})                → limpia las zonas de PRUEBA inyectadas (aísla checks); devuelve nº removido
+  //   maelstromField({fieldProbe:true})                → score REAL + lista de zonas en radio + su {x,y,r,weight} (byte-verifica la lectura server-auth de G.fields)
+  maelstromField(p){
+    let scoreProbe=null, spawnField=null, fieldProbe=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) MAELSTROM_FIELD_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=maelstromFieldTier(score);   // LUT PURA score→tier→charge (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+MAELSTROM_FIELD_SURGE.tiers[t-1].charge||0):0, cap=Math.max(0,MAELSTROM_FIELD_SURGE.maelstromChargeCap|0);
+        scoreProbe={ score, tier:t, charge:Math.max(0,Math.min(cap,raw)) }; }
+      if(p.spawnField && typeof p.spawnField==="object"){ const tx=p.spawnField.tx|0, ty=p.spawnField.ty|0, r=Math.max(1,+p.spawnField.r||40);   // inyecta una zona REAL al MISMO G.fields que puebla el caso "field" de castSpell
+        const fd={ x:tx*TS+TS/2, y:ty*TS+TS/2, r, dmg:0, tick:0.5, acc:0, life:99, maxLife:99, col:"#8fd0ff", style:"spike", status:null, _maelTest:true }; (G.fields||(G.fields=[])).push(fd);
+        spawnField={ idx:G.fields.indexOf(fd), x:+fd.x.toFixed(1), y:+fd.y.toFixed(1), r:fd.r, weight:maelstromWeight(fd) }; }
+      if(p.clearField){ const before=(G.fields||[]).length; G.fields=(G.fields||[]).filter(fd=>!fd._maelTest); cleared=before-G.fields.length; }   // limpia SÓLO las zonas de prueba inyectadas
+      if(p.fieldProbe){ const h=G.hero, R=+MAELSTROM_FIELD_SURGE.radius||0, R2=R*R, fields=[]; let sc=0;   // lectura REAL server-auth: zonas en radio del héroe
+        if(h){ for(const fd of (G.fields||[])){ const w=maelstromWeight(fd); if(w<=0) continue; const dx=h.x-fd.x, dy=h.y-fd.y; if(dx*dx+dy*dy<=R2){ sc+=w; fields.push({ x:+fd.x.toFixed(1), y:+fd.y.toFixed(1), r:+fd.r, weight:w }); } } }
+        fieldProbe={ score:sc, count:fields.length, fields }; }
+    }
+    const h=G.hero, vm=maelstromFieldVM(h);
+    let fieldCount=0; for(const fd of (G.fields||[])){ if(maelstromWeight(fd)>0) fieldCount++; }
+    return { enabled:MAELSTROM_FIELD_SURGE.enabled, channel:MAELSTROM_FIELD_SURGE.channel||"maelstromFind",
+      radius:vm.radius, tiers:(MAELSTROM_FIELD_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, charge:vm.charge,
+      forageChargePreview: h?maelstromFieldForageCharges(h, {xp:100}):0,     // preview: cargas forrajeadas por un kill con la densidad actual (expone el canal maelstromFind; usa score EN VIVO)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      gemForagePreview: h?zoneEventForageGems(h, {xp:100}):0,               // canal gemFind (ZONE_EVENT_SURGE #75) — INDEPENDIENTE ⊥
+      socketForagePreview: h?variantSurgeForageSockets(h, {xp:100}):0,      // canal socketFind (ENCOUNTER_VARIANT_SURGE #76) — INDEPENDIENTE ⊥
+      healForagePreview: h?hazardSurgeForageMotes(h, {xp:100}):0,           // canal healPotency (ARENA_HAZARD_SURGE #77) — INDEPENDIENTE ⊥
+      trophyForagePreview: h?enrageSurgeForageTrophies(h, {xp:100}):0,      // canal trophyFind (BOSS_ENRAGE_SURGE #78) — INDEPENDIENTE ⊥
+      salvageForagePreview: h?spoilsFieldForageSalvage(h, {xp:100}):0,      // canal salvageFind (SPOILS_FIELD_SURGE #79) — INDEPENDIENTE ⊥
+      boneForagePreview: h?carnageFieldForageBones(h, {xp:100}):0,          // canal boneFind (CARNAGE_FIELD_SURGE #80) — INDEPENDIENTE ⊥
+      emberForagePreview: h?crossfireFrayForageEmbers(h, {xp:100}):0,       // canal frayFind (CROSSFIRE_FRAY_SURGE #81) — INDEPENDIENTE ⊥ (DENSIDAD DE PROYECTILES EN VUELO en G.projectiles vs DENSIDAD DE ZONAS DE NEGACIÓN en G.fields)
+      tag: maelstromFieldTag(h),                                           // glifo SERVIDO (OFF/sin vorágine ⇒ "" / zonas cerca ⇒ ⊛)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→charge (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnField: spawnField,                                            // zona de PRUEBA inyectada (G.fields) — idx + peso
+      cleared: cleared,                                                   // nº de zonas de prueba removidas por clearField
+      fieldProbe: fieldProbe,                                            // lectura REAL server-auth: zonas en radio (score + lista)
+      precedence:"maelstromFind (canal FRESCO — recompensa de cargas de vorágine por rematar en medio de una vorágine densa de zonas de negación de área): NINGUNA de las 23 flags #59-#81 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind, lootQuality, xpGain, essenceFind, matFind, flaskPotency, gemFind, socketFind, healPotency, trophyFind #78, salvageFind #79, boneFind #80, frayFind #81) está LLENA ⇒ pivota a una moneda FRESCA, cargas de vorágine (h.maelstromCharges, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio maelstromChargeCap, 0 doble-dip (ningún otro seam banca maelstromCharges). EJE = PRESENCIA/DENSIDAD DE UN CAMPO DE ZONAS DE NEGACIÓN DE ÁREA server-auth: maelstromFieldScore(hero)=Σ maelstromWeights[tamaño] sobre las zonas de G.fields cuyo centro cae en radio (pobladas DETERMINISTA en el caso 'field' de castSpell, tickeadas/filtradas en updateFields). PRE-FLIGHT GATE: el candidato líder del issue (G.props/destructibles) NO existe replicado ⇒ pivote justificado a G.fields (zonas de negación, sí replicado/autoritativo). ⊥ #81 (fragor = PROYECTILES EN VUELO en G.projectiles con velocidad que expiran por p.life; vorágine = ZONAS ESTÁTICAS de negación en G.fields fijas en {x,y} que tickean en su sitio — otro contenedor y otro ciclo: tiroteo a distancia = muchos proyectiles/cero campos; mago carbonizando el suelo = muchas zonas/cero proyectiles — DIVERGEN), ⊥ #80 (carnicería = CUERPOS MUERTOS en G.corpses; una zona VIVA no es un cadáver), ⊥ #79 (botín = OBJETOS DE LOOT recogibles en G.drops; una zona no es recogible), ⊥ #78 (furia = jefe VIVO enfurecido e.enraged), ⊥ #77 (hazard = zona ambiental de G.hazards GATEADA por jefe/élite vivo [bossOrElitePresent]; la vorágine lee G.fields = campos de HECHIZO del héroe, NO gateados por jefe, otro contenedor y otro path — jefe con hazards pero sin campos = alto hazard/cero vorágine; mago sembrando zonas sin jefe = cero hazard/alta vorágine, DIVERGEN), ⊥ #76 (variante = e.variant sobre mobs vivos), ⊥ #75 (evento de zona = POIs en G.zoneEvents.pois), ⊥ #74 (afijo = CALIDAD de un mob), ⊥ #73 (apex = DISTANCIA a un jefe VIVO), ⊥ #72 (escasez = AUSENCIA de mobs VIVOS), ⊥ #69 (ENGANCHADOS), ⊥ lootQuality #63/#68 (=CALIDAD de la PRÓXIMA tirada). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind/socketFind/healPotency/trophyFind/salvageFind/boneFind/frayFind (seams distintos).",
+      gExists:(G.maelstromField!=null),                                    // prueba byte-id: STATELESS ⇒ G.maelstromField NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      fieldCount:fieldCount,                                              // nº de zonas con peso en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), maelstromCharges:(h.maelstromCharges|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
