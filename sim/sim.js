@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -4234,6 +4234,34 @@ export function carnageFieldVM(h){ h=h||G.hero; const on=!!CARNAGE_FIELD_SURGE.e
     cap:Math.max(0,CARNAGE_FIELD_SURGE.carnageBoneCap|0), radius:+CARNAGE_FIELD_SURGE.radius||0,
     tag: carnageFieldTag(h) }; }
 
+// CAS-2488: FRAGOR DE FUEGO CRUZADO (CROSSFIRE_FRAY_SURGE) — EJE PRESENCIA/DENSIDAD DE UN CAMPO DE PROYECTILES EN VUELO server-auth + canal FRESCO frayFind (recompensa de ascuas de fragor por rematar EN MEDIO de un tiroteo denso y contestado). Funciones PURAS, deterministas, 0-RNG/0-timer/STATELESS, server-auth. Los proyectiles (G.projectiles) = estado de sim REPLICADO: poblados DETERMINISTA en el path AUTORITATIVO (spawns de hechizo/ataque del héroe y de enemigos con p.enemy) y AVANZADOS/FILTRADOS en el tick de paso-fijo AUTORITATIVO updateProjectiles (p.x+=p.vx*dt / p.life-=dt, filtra life>0). Que NINGUNA de las 22 flags #59-#80 lea hoy G.projectiles como eje de score ("presentation/combat-only") es lo que lo hace un eje FRESCO/0-contestado.
+// frayWeight(p) = peso de UN proyectil por LADO = frayWeights[enemy|hero] (p.enemy→enemy:2, else→hero:1; lado ausente→fallback hero:1). PURO (lectura de p.enemy replicado). El fuego ENTRANTE del enemigo pesa el doble: es el peligro real de sostenerse en el fragor.
+function frayWeight(p){ if(!p) return 0; const W=CROSSFIRE_FRAY_SURGE.frayWeights||{}; const k=p.enemy?"enemy":"hero"; return (W[k]!=null?(+W[k]||0):(+W.hero||1)); }
+// crossfireFrayScore(h) = suma del peso de TODOS los proyectiles dentro de CROSSFIRE_FRAY_SURGE.radius del héroe. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot (G.projectiles+posiciones = estado replicado). 0 si no hay fuego cruzado cerca. Vecindad = radio (⊥ carnicería #80 que lee G.corpses [CUERPOS muertos]; ⊥ botín #79 que lee G.drops [OBJETOS de loot recogibles]; ⊥ furia #78 que lee e.enraged [jefe VIVO]).
+function crossfireFrayScore(h){ h=h||G.hero; if(!h) return 0; const R=+CROSSFIRE_FRAY_SURGE.radius||0, R2=R*R; let s=0;
+  for(const p of (G.projectiles||[])){ const w=frayWeight(p); if(w<=0) continue; const dx=h.x-p.x, dy=h.y-p.y; if(dx*dx+dy*dy<=R2) s+=w; } return s; }
+// crossfireFrayTier(score) = índice del tier de fragor vigente (0 = sin fuego cruzado / sin ventaja) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. MÁS densidad/mayor-proporción de fuego entrante = tier ALTO. LUT determinista pura.
+function crossfireFrayTier(score){ const T=CROSSFIRE_FRAY_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// crossfireFrayEmberBonus(score) = nº de ascuas de fragor del tier vigente, acotado por el sub-cap propio frayEmberCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO (0 RNG/estado). Seguridad de canal: sólo alimenta frayFind.
+function crossfireFrayEmberBonus(score){ if(!CROSSFIRE_FRAY_SURGE.enabled) return 0;
+  if((CROSSFIRE_FRAY_SURGE.channel||"frayFind")!=="frayFind") return 0;   // seguridad: CROSSFIRE_FRAY_SURGE SÓLO alimenta frayFind (si el knob se re-apunta, no contribuye)
+  const t=crossfireFrayTier(score); if(t<=0) return 0;
+  const raw=+CROSSFIRE_FRAY_SURGE.tiers[t-1].ember||0, cap=Math.max(0,CROSSFIRE_FRAY_SURGE.frayEmberCap|0);
+  return Math.max(0,Math.min(cap,raw)); }
+// crossfireFrayForageEmbers(h, tpl, preScore) = las ascuas por un kill DENTRO de un fuego cruzado denso = crossfireFrayEmberBonus(preScore). preScore = el snapshot de densidad muestreado en el TOP de killEnemy (ANTES del splice) ⇒ ANTI-AUTO-CONTEO. Si preScore es undefined (VM/preview) usa crossfireFrayScore(h) EN VIVO. 0 si OFF / sin fuego cruzado / sin tpl. PURO — el seam decide banca a h.frayEmbers vía grantFrayEmber.
+function crossfireFrayForageEmbers(h, tpl, preScore){ if(!CROSSFIRE_FRAY_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?crossfireFrayScore(h||G.hero):(+preScore||0); return crossfireFrayEmberBonus(score); }
+// crossfireFrayTag(h) = glifo del badge de FRAGOR DE FUEGO CRUZADO (✷) si el héroe está EN un fuego cruzado en radio (tier>0). PURO. "" si OFF / sin fuego cruzado.
+export function crossfireFrayTag(h){ h=h||G.hero; if(!CROSSFIRE_FRAY_SURGE.enabled||!h) return "";
+  return crossfireFrayTier(crossfireFrayScore(h))>0 ? "✷" : ""; }
+// View-model PURO para el HUD/badge: el tier de fragor, el score, las ascuas efectivas por kill, el sub-cap, el radio. 0 sim/RNG/side-effect.
+export function crossfireFrayVM(h){ h=h||G.hero; const on=!!CROSSFIRE_FRAY_SURGE.enabled&&!!h;
+  const score=on?crossfireFrayScore(h):0, tier=on?crossfireFrayTier(score):0, ember=on?crossfireFrayEmberBonus(score):0;
+  return { enabled:!!CROSSFIRE_FRAY_SURGE.enabled, channel:CROSSFIRE_FRAY_SURGE.channel||"frayFind",
+    score, tier, tierCount:(CROSSFIRE_FRAY_SURGE.tiers||[]).length, ember,
+    cap:Math.max(0,CROSSFIRE_FRAY_SURGE.frayEmberCap|0), radius:+CROSSFIRE_FRAY_SURGE.radius||0,
+    tag: crossfireFrayTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -5577,6 +5605,8 @@ function killEnemy(e){
   const _spoilsPre = SPOILS_FIELD_SURGE.enabled ? spoilsFieldScore(G.hero) : 0;
   // CAS-2481 CARNAGE_FIELD_SURGE: snapshot de DENSIDAD DE CADÁVERES muestreado AQUÍ, en el TOP, ANTES de que este kill empuje su propio cadáver (G.corpses.push más abajo, sólo si richAnim). ANTI-AUTO-CONTEO ⇒ el cuerpo recién caído del mob muerto NO infla su propia recompensa (rematar un mob SOLITARIO sobre suelo sin bajas NO forrajea). GATED ⇒ enabled:false ⇒ `_carnagePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _carnagePre = CARNAGE_FIELD_SURGE.enabled ? carnageFieldScore(G.hero) : 0;
+  // CAS-2488 CROSSFIRE_FRAY_SURGE: snapshot de DENSIDAD DE PROYECTILES EN VUELO muestreado AQUÍ, en el TOP, ANTES del splice del mob. ANTI-AUTO-CONTEO ⇒ el score refleja el fuego cruzado EN EL MOMENTO del kill; combinado con la TABLA (score≥2) rematar en un DUELO aislado (una sola bala tuya, peso hero 1) NO forrajea. GATED ⇒ enabled:false ⇒ `_frayPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _frayPre = CROSSFIRE_FRAY_SURGE.enabled ? crossfireFrayScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -5766,6 +5796,12 @@ function killEnemy(e){
   if(CARNAGE_FIELD_SURGE.enabled && !tpl.neutral){ const bn=carnageFieldForageBones(G.hero, tpl, _carnagePre);
     if(bn>0){ grantBone(bn);
       floater(e.x,e.y-132,"+"+bn+" Osario","#d8cbb0",{small:true}); } }
+  // CAS-2488 CROSSFIRE_FRAY_SURGE seam: FORRAJEO EN MEDIO DE UN FUEGO CRUZADO DENSO. Al matar un mob no-neutral mientras la vecindad del HÉROE estaba EN FUEGO CRUZADO (proyectiles densos en vuelo de G.projectiles, score≥umbral ANTES de este kill vía `_frayPre`) dentro del radio, el
+  // héroe cosecha ascuas de fragor = crossfireFrayForageEmbers(hero,tpl,_frayPre) (flat por tier de densidad, sub-cap frayEmberCap), banca a h.frayEmbers vía grantFrayEmber (0 RNG). `_frayPre` se muestreó en el TOP + la TABLA exige score≥2 ⇒ rematar en un DUELO aislado (una sola bala tuya, peso hero 1) NO forrajea; hace falta fuego cruzado GENUINO. GATED ⇒ enabled:false ⇒ rama muerta: 0 ascuas, 0 floater, 0 grantFrayEmber ⇒ killEnemy byte-idéntico al HEAD.
+  // Canal FRESCO frayFind (fuente ÚNICA, sub-cap frayEmberCap) — NINGUNA de las 22 flags #59-#80 lo toca; ascuas transitorias ⇒ fuera del save + fingerprint.
+  if(CROSSFIRE_FRAY_SURGE.enabled && !tpl.neutral){ const em=crossfireFrayForageEmbers(G.hero, tpl, _frayPre);
+    if(em>0){ grantFrayEmber(em);
+      floater(e.x,e.y-144,"+"+em+" Fragor","#ffb066",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -6980,6 +7016,8 @@ function grantTrophy(n){ const h=G.hero; if(!h||n<=0) return; h.enrageTrophies=(
 function grantSalvage(n){ const h=G.hero; if(!h||n<=0) return; h.salvageShards=(h.salvageShards|0)+(n|0); }
 // CAS-2481: banca fichas de osario (canal boneFind de CARNAGE_FIELD_SURGE). Moneda TRANSITORIA NUEVA (h.boneTokens — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantSalvage para el trickle de forrajeo dentro de un campo de carnicería denso. STATELESS: h.boneTokens NO se serializa ⇒ no es clave de save.
 function grantBone(n){ const h=G.hero; if(!h||n<=0) return; h.boneTokens=(h.boneTokens|0)+(n|0); }
+// CAS-2488: banca ascuas de fragor (canal frayFind de CROSSFIRE_FRAY_SURGE). Moneda TRANSITORIA NUEVA (h.frayEmbers — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantBone para el trickle de forrajeo en medio de un fuego cruzado denso. STATELESS: h.frayEmbers NO se serializa ⇒ no es clave de save.
+function grantFrayEmber(n){ const h=G.hero; if(!h||n<=0) return; h.frayEmbers=(h.frayEmbers|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -10061,6 +10099,63 @@ export const dev = {
       gExists:(G.carnageField!=null),                                     // prueba byte-id: STATELESS ⇒ G.carnageField NUNCA se crea (0 estado nuevo, 0 clave serializada)
       corpseCount:corpseCount,                                            // nº de cadáveres con peso en el snapshot (server-auth)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), boneTokens:(h.boneTokens|0) }:null }; },
+  // CAS-2488: FRAGOR DE FUEGO CRUZADO OBSERVABLE hook (DARK, CROSSFIRE_FRAY_SURGE — eje PRESENCIA/DENSIDAD DE UN CAMPO DE PROYECTILES EN VUELO server-auth [Σ frayWeights[lado] sobre los proyectiles en radio del héroe, leídos de G.projectiles] + canal
+  // FRESCO frayFind [recompensa de ascuas de fragor por rematar en medio de un fuego cruzado denso, NINGUNA flag previa lo toca] con sub-cap frayEmberCap). Sólo lectura + drivers de PRUEBA gateados (0 hotkey — el fragor emerge del tiroteo, sin input.js).
+  //   crossfireFray()                                  → snapshot {enabled,channel,radius,tiers,cap,score,tier,ember,forageEmberPreview,peer channels ⊥,tag,gExists,projCount,hero}
+  //   crossfireFray({enabled})                         → flip runtime IN-MEMORY de CROSSFIRE_FRAY_SURGE.enabled (sin tocar el disco)
+  //   crossfireFray({tp:{tx,ty}})                      → MUEVE al héroe al CENTRO del tile (tx,ty) ⇒ el fragor se evalúa contra los proyectiles REALes de G.projectiles en radio
+  //   crossfireFray({scoreProbe:{score}})              → LUT PURA score→tier→ember (byte-verifica la TABLA + sub-cap, world-independiente)
+  //   crossfireFray({spawnProj:{tx,ty,side}})          → inyecta un proyectil de PRUEBA REAL (G.projectiles.push, el MISMO array que puebla el combate) en el tile (tx,ty); side ∈ {enemy,hero}; devuelve idx + peso
+  //   crossfireFray({clearProj:true})                  → limpia los proyectiles de PRUEBA inyectados (aísla checks); devuelve nº removido
+  //   crossfireFray({frayProbe:true})                  → score REAL + lista de proyectiles en radio + su {x,y,side,weight} (byte-verifica la lectura server-auth de G.projectiles)
+  crossfireFray(p){
+    let scoreProbe=null, spawnProj=null, frayProbe=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) CROSSFIRE_FRAY_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.scoreProbe && typeof p.scoreProbe==="object"){ const score=Math.max(0,+p.scoreProbe.score||0), t=crossfireFrayTier(score);   // LUT PURA score→tier→ember (byte-verificación de la TABLA, world-independiente)
+        const raw=t>0?(+CROSSFIRE_FRAY_SURGE.tiers[t-1].ember||0):0, cap=Math.max(0,CROSSFIRE_FRAY_SURGE.frayEmberCap|0);
+        scoreProbe={ score, tier:t, ember:Math.max(0,Math.min(cap,raw)) }; }
+      if(p.spawnProj && typeof p.spawnProj==="object"){ const tx=p.spawnProj.tx|0, ty=p.spawnProj.ty|0, side=p.spawnProj.side==="enemy"?"enemy":"hero";   // inyecta un proyectil REAL al MISMO G.projectiles que puebla el combate
+        const pr={ x:tx*TS+TS/2, y:ty*TS+TS/2, vx:0, vy:0, life:99, dmg:0, kind:"bolt", enemy:side==="enemy", _frayTest:true }; (G.projectiles||(G.projectiles=[])).push(pr);
+        spawnProj={ idx:G.projectiles.indexOf(pr), x:+pr.x.toFixed(1), y:+pr.y.toFixed(1), side, weight:frayWeight(pr) }; }
+      if(p.clearProj){ const before=(G.projectiles||[]).length; G.projectiles=(G.projectiles||[]).filter(pr=>!pr._frayTest); cleared=before-G.projectiles.length; }   // limpia SÓLO los proyectiles de prueba inyectados
+      if(p.frayProbe){ const h=G.hero, R=+CROSSFIRE_FRAY_SURGE.radius||0, R2=R*R, projs=[]; let sc=0;   // lectura REAL server-auth: proyectiles en radio del héroe
+        if(h){ for(const pr of (G.projectiles||[])){ const w=frayWeight(pr); if(w<=0) continue; const dx=h.x-pr.x, dy=h.y-pr.y; if(dx*dx+dy*dy<=R2){ sc+=w; projs.push({ x:+pr.x.toFixed(1), y:+pr.y.toFixed(1), side:pr.enemy?"enemy":"hero", weight:w }); } } }
+        frayProbe={ score:sc, count:projs.length, projs }; }
+    }
+    const h=G.hero, vm=crossfireFrayVM(h);
+    let projCount=0; for(const pr of (G.projectiles||[])){ if(frayWeight(pr)>0) projCount++; }
+    return { enabled:CROSSFIRE_FRAY_SURGE.enabled, channel:CROSSFIRE_FRAY_SURGE.channel||"frayFind",
+      radius:vm.radius, tiers:(CROSSFIRE_FRAY_SURGE.tiers||[]).map(t=>({min:+t.min||0,ember:+t.ember||0})), cap:vm.cap,
+      score:vm.score, tier:vm.tier, tierCount:vm.tierCount, ember:vm.ember,
+      forageEmberPreview: h?crossfireFrayForageEmbers(h, {xp:100}):0,       // preview: ascuas forrajeadas por un kill con la densidad actual (expone el canal frayFind; usa score EN VIVO)
+      wardRegenBoost: h?+wardRegenBoost(h).toFixed(4):0,                    // canal wardRegen (Warding/LastStand) — INDEPENDIENTE ⊥
+      goldFindMul: h?+(kinshipMul(h,"goldFind")+focusMul(h,"goldFind")).toFixed(4):0,   // canal goldFind — INDEPENDIENTE ⊥
+      atkspdBonus: h?+firmFootingAtkspd(h):0,                               // canal atkspd (FIRM_FOOTING #70) — INDEPENDIENTE ⊥
+      critChancePct: h?+((delveCritBonusPct()+cadenceCritBonusPct())).toFixed(2):0,     // canal critChance (Delve/Cadence) — INDEPENDIENTE ⊥
+      xpGainMul: h?+fellowMul(h,"xpGain").toFixed(4):0,                     // canal xpGain (Erudition/Fellowship) — INDEPENDIENTE ⊥
+      vampMul: h?+nocturneMul(h,"vamp").toFixed(4):0,                       // canal vamp (Nocturne) — INDEPENDIENTE ⊥
+      lootQualityFloor: (typeof lootQualityFloor==="function"?(lootQualityFloor()||""):""),   // canal lootQuality (Tempest/Trailcraft) — INDEPENDIENTE ⊥
+      detectRadiusMit: h?+(shadowStalkVM(h).mit).toFixed(4):0,             // canal detectRadius (SHADOW_STALK #71) — INDEPENDIENTE ⊥
+      essenceForagePreview: h?scarcityForageEssence(zoneOf(world,h.x,h.y), {xp:100}):0,   // canal essenceFind (SCARCITY_EDGE #72) — INDEPENDIENTE ⊥
+      matForagePreview: h?apexForageMats(h, {xp:100}):0,                    // canal matFind (APEX_PROXIMITY #73) — INDEPENDIENTE ⊥
+      flaskForagePreview: h?affixDangerForageFlasks(h, {xp:100}):0,         // canal flaskPotency (MOB_AFFIX_DANGER #74) — INDEPENDIENTE ⊥
+      gemForagePreview: h?zoneEventForageGems(h, {xp:100}):0,               // canal gemFind (ZONE_EVENT_SURGE #75) — INDEPENDIENTE ⊥
+      socketForagePreview: h?variantSurgeForageSockets(h, {xp:100}):0,      // canal socketFind (ENCOUNTER_VARIANT_SURGE #76) — INDEPENDIENTE ⊥
+      healForagePreview: h?hazardSurgeForageMotes(h, {xp:100}):0,           // canal healPotency (ARENA_HAZARD_SURGE #77) — INDEPENDIENTE ⊥
+      trophyForagePreview: h?enrageSurgeForageTrophies(h, {xp:100}):0,      // canal trophyFind (BOSS_ENRAGE_SURGE #78) — INDEPENDIENTE ⊥
+      salvageForagePreview: h?spoilsFieldForageSalvage(h, {xp:100}):0,      // canal salvageFind (SPOILS_FIELD_SURGE #79) — INDEPENDIENTE ⊥
+      boneForagePreview: h?carnageFieldForageBones(h, {xp:100}):0,          // canal boneFind (CARNAGE_FIELD_SURGE #80) — INDEPENDIENTE ⊥ (DENSIDAD DE CADÁVERES en G.corpses vs DENSIDAD DE PROYECTILES EN VUELO en G.projectiles)
+      tag: crossfireFrayTag(h),                                            // glifo SERVIDO (OFF/sin fuego cruzado ⇒ "" / proyectiles cerca ⇒ ✷)
+      scoreProbe: scoreProbe,                                             // LUT PURA score→tier→ember (byte-verificación de la TABLA + sub-cap, world-independiente)
+      spawnProj: spawnProj,                                              // proyectil de PRUEBA inyectado (G.projectiles) — idx + peso
+      cleared: cleared,                                                   // nº de proyectiles de prueba removidos por clearProj
+      frayProbe: frayProbe,                                              // lectura REAL server-auth: proyectiles en radio (score + lista)
+      precedence:"frayFind (canal FRESCO — recompensa de ascuas de fragor por rematar en medio de un fuego cruzado denso): NINGUNA de las 22 flags #59-#80 lo toca. La familia recompensa-de-forrajeo de moneda EXISTENTE (goldFind, lootQuality, xpGain, essenceFind, matFind, flaskPotency, gemFind, socketFind, healPotency, trophyFind #78, salvageFind #79, boneFind #80) está LLENA ⇒ pivota a una moneda FRESCA, ascuas de fragor (h.frayEmbers, recurso TRANSITORIO NUEVO, fuera del save allowlist + worldFingerprint). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio frayEmberCap, 0 doble-dip (ningún otro seam banca frayEmbers). EJE = PRESENCIA/DENSIDAD DE UN CAMPO DE PROYECTILES EN VUELO server-auth: crossfireFrayScore(hero)=Σ frayWeights[lado] sobre los proyectiles de G.projectiles en radio (poblados DETERMINISTA en los spawns de combate, avanzados/filtrados en updateProjectiles). ⊥ #80 (carnicería = CUERPOS MUERTOS en G.corpses estáticos que despawnan en CORPSE_LIFE; fragor = PROYECTILES EN VUELO en G.projectiles con velocidad que expiran por p.life — otro contenedor y otro ciclo de vida: campo tras masacre melee = muchos cadáveres [alta carnicería] Y cero proyectiles [cero fragor]; tiroteo a distancia EN CURSO = lluvia de proyectiles [alto fragor] Y cero cadáveres aún [cero carnicería] — DIVERGEN), ⊥ #79 (botín = OBJETOS DE LOOT recogibles en G.drops que persisten hasta d.taken; fragor = munición EN VUELO NO recogible que expira por life), ⊥ #78 (furia = jefe VIVO enfurecido e.enraged; fragor = proyectiles inanimados en el aire), ⊥ #77 (hazard = zona de peligro ambiental PERSISTENTE G.hazards; un proyectil EN VUELO con velocidad NO es un hazard estático), ⊥ #76 (variante = e.variant sobre mobs vivos), ⊥ #75 (evento de zona = POIs en G.zoneEvents.pois), ⊥ #74 (afijo = CALIDAD de un mob), ⊥ #73 (apex = DISTANCIA a un jefe VIVO), ⊥ #72 (escasez = AUSENCIA de mobs VIVOS [G.enemies count]), ⊥ #69 (force-ratio = ENGANCHADOS), ⊥ lootQuality #63/#68 (=CALIDAD de la PRÓXIMA tirada). NO sigilo (⊥ ShadowStalk) ni material-de-terreno (⊥ FirmFooting) ni clima/tiempo/tempo/social/territorial. ORTOGONAL a wardRegen/goldFind/oocMitigation/critChance/xpGain/vamp/lootQuality/restedMult/atkspd/detectRadius/essenceFind/matFind/flaskPotency/gemFind/socketFind/healPotency/trophyFind/salvageFind/boneFind (seams distintos).",
+      gExists:(G.crossfireFray!=null),                                    // prueba byte-id: STATELESS ⇒ G.crossfireFray NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      projCount:projCount,                                               // nº de proyectiles con peso en el snapshot (server-auth)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), zone:zoneOf(world,h.x,h.y), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), frayEmbers:(h.frayEmbers|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
