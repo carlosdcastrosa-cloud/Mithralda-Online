@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -5752,6 +5752,60 @@ export function targetSpreadVM(h){ h=h||G.hero; const on=!!TARGET_SPREAD_SURGE.e
     cap:Math.max(0,TARGET_SPREAD_SURGE.targetSpreadBountyCap|0), radius:+TARGET_SPREAD_SURGE.radius||0,
     tag: targetSpreadTag(h) }; }
 
+// ===== CAS-2712: VAIVÉN DE OBJETIVOS (AGGRO_SWITCH_SURGE, EVO#122 DARK) — dimensión TEMPORAL/CHURN de la familia COMPOSICIÓN-DE-INTENCIÓN. Fracción de la manada ENGANCHADA cuyo aiTarget CAMBIÓ en una ventana W. Historia per-mob (ring-buffer) capturada por switchTick, como #117 ACCEL / #119 JERK-SPLIT. =====
+// swLivePlayers(h) = la party de JUGADORES VIVOS en radio del héroe. 🔑 Single-player ⇒ SÓLO el héroe. G._swParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.aggroSwitch driveSwitch — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. O(P). Helper INDEPENDIENTE de #121 (livePlayers) — historia y party separadas.
+function swLivePlayers(h){ h=h||G.hero; if(!h) return [];
+  const R=+AGGRO_SWITCH_SURGE.radius||0, R2=R*R;
+  const party=(Array.isArray(G._swParty)&&G._swParty.length)?G._swParty:[h];   // normal (juego): sólo el héroe; PRUEBA: party sintética inyectada
+  const out=[]; for(const p of party){ if(!p) continue; if(p.dead||(p.hp!=null&&p.hp<=0)) continue; const dx=(+p.x||0)-h.x, dy=(+p.y||0)-h.y; if(dx*dx+dy*dy>R2) continue; out.push(p); } return out; }
+// swTargetIdx(e, players) = índice del jugador que este mob-enganchado targetea AHORA = proxy server-auth del aiTarget de la aggro-table COMPARTIDA. 🔑 Single-player: todo el aggro es al ÚNICO héroe ⇒ 0 (players[0]) ⇒ NUNCA cambia. e._swTgt (poblado SÓLO por driveSwitch) inyecta el objetivo sintético per-tick para probar el churn multijugador; clamp al tamaño de la party. PURO/determinista.
+function swTargetIdx(e, players){ const P=players.length; if(P<=0) return -1;
+  let t=(e&&e._swTgt!=null)?(e._swTgt|0):0; if(t<0) t=0; if(t>=P) t=P-1; return t; }
+// switchTick(dt) = CAPTURA TEMPORAL del CHURN de OBJETIVO: por cada mob VIVO ENGANCHADO, empuja su aiTarget ACTUAL (swTargetIdx) a un ring-buffer per-mob (e._swR, capacidad W+1). Cuando el buffer está LLENO (W+1 muestras = t−W..t), compara la muestra ACTUAL (última) con la de hace W ticks (primera): e._swChg=1 si difieren (cambió), 0 si igual; marca e._swHas=true. Mob NO-enganchado/muerto ⇒ RESETEA la historia (e._swR=null, _swHas=false) ⇒ sin churn espurio al reanudar. Estado 100% TRANSITORIO (e._swR/_swChg/_swHas — enemigos NUNCA serializados ⇒ fuera del save; NO entra al worldFingerprint). GATED en el llamador (update): OFF ⇒ NUNCA corre ⇒ 0 campos creados ⇒ byte-neutral. Historia SEPARADA de #117 (e._accPm) / #119 (e._jrkPm). Determinista (0 RNG) ⇒ 2-cliente evoluciona idéntico.
+function switchTick(dt){ const h=G.hero; if(!h) return;
+  const players=swLivePlayers(h), W=Math.max(2,AGGRO_SWITCH_SURGE.window|0);
+  for(const e of (G.enemies||[])){
+    if(e.dead||e.hp<=0){ e._swR=null; e._swHas=false; e._swChg=0; continue; }        // muerto ⇒ resetea historia
+    if(!aggroEngaged(e)){ e._swR=null; e._swHas=false; e._swChg=0; continue; }        // no-enganchado ⇒ resetea (sin churn espurio al re-enganchar)
+    const t=swTargetIdx(e,players); let r=e._swR; if(!r){ r=[]; e._swR=r; }
+    r.push(t); if(r.length>W+1) r.shift();                                            // ring-buffer capacidad W+1 (t−W..t)
+    if(r.length>=W+1){ e._swChg=(r[r.length-1]!==r[0])?1:0; e._swHas=true; }          // lleno ⇒ compara actual vs hace-W-ticks
+    else { e._swChg=0; e._swHas=false; } } }                                         // cold-start (no lleno) ⇒ no cuenta
+// aggroSwitchField(h) = FRACCIÓN de CHURN V∈[0,1] = (# mobs ENGANCHADOS con historia (e._swHas) en radio cuyo aiTarget cambió en la ventana) / (# mobs ENGANCHADOS con historia en radio). P=#jugadores vivos en radio; requiere P≥minPlayers (con <2 ⇒ single-player ⇒ objetivo único ⇒ nunca cambia ⇒ 0 LIMPIO). Requiere ≥minMobs con historia (DENOMINADOR); cold-start (buffer no lleno) ⇒ e._swHas=false ⇒ NO cuenta. FILTRA muertos/hp≤0 ⇒ ANTI-AUTO-CONTEO. V≈1 ⇒ re-apunta frenético; V≈0 ⇒ objetivo fijo. INTENSIVO/ADIMENSIONAL (invariante al conteo). PURO — lee e._swChg/_swHas (poblados por switchTick). 0 si OFF-path (switchTick nunca corrió ⇒ ningún e._swHas). O(n+P).
+function aggroSwitchField(h){ h=h||G.hero; if(!h) return 0;
+  const R=+AGGRO_SWITCH_SURGE.radius||0, R2=R*R, minN=Math.max(3,AGGRO_SWITCH_SURGE.minMobs|0), minP=Math.max(2,AGGRO_SWITCH_SURGE.minPlayers|0);
+  const players=swLivePlayers(h), P=players.length; if(P<minP) return 0;             // <minPlayers (single-player) ⇒ objetivo único ⇒ 0
+  let n=0, chg=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(dx*dx+dy*dy>R2) continue; if(!aggroEngaged(e)) continue; if(!e._swHas) continue; n++; if(e._swChg) chg++; }   // denominador = enganchados con historia en radio; numerador = los que cambiaron
+  if(n<minN) return 0;                                                               // <minMobs con historia ⇒ churn indefinido ⇒ 0
+  const V=chg/n; return V>1?1:(V<0?0:V); }                                           // fracción ∈[0,1]
+// aggroSwitchBand(v) = peso por la BANDA de churn. V≥hiSwitch(0.67) ⇒ volatile/vaivén amplio ⇒ 2; V≥midSwitch(0.34) ⇒ shifting/vaivén parcial ⇒ 1; V<midSwitch (estable) ⇒ 0. LUT PURA ESTÁTICA por umbral adimensional.
+function aggroSwitchBand(v){ const cfg=AGGRO_SWITCH_SURGE, W=cfg.weights||{}; const hi=(cfg.hiSwitch!=null)?+cfg.hiSwitch:0.67, mid=(cfg.midSwitch!=null)?+cfg.midSwitch:0.34;
+  if(v>=hi) return +W.volatile||0; if(v>=mid) return +W.shifting||0; return 0; }
+// aggroSwitchScore(h) = peso de banda del CHURN VIVO en radio = aggroSwitchBand(aggroSwitchField(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo estado. 0 si no hay ≥minMobs con historia / <minPlayers. Señal VIVA del badge/VM (el GRANT usa el snapshot _aggroSwitchPre del TOP del kill tras e.dead=true ⇒ ANTI-AUTO-CONTEO).
+function aggroSwitchScore(h){ h=h||G.hero; if(!h) return 0; return aggroSwitchBand(aggroSwitchField(h)); }
+// aggroSwitchRank(score) = índice del tier de vaivén vigente (0 = estable/single-player/cold-start) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más churn = tier ALTO. LUT determinista pura.
+function aggroSwitchRank(score){ const T=AGGRO_SWITCH_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// aggroSwitchBonus(score) = nº de fichas de vaivén del tier vigente, acotado por el sub-cap propio aggroSwitchBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta aggroSwitchFind.
+function aggroSwitchBonus(score){ if(!AGGRO_SWITCH_SURGE.enabled) return 0;
+  if((AGGRO_SWITCH_SURGE.channel||"aggroSwitchFind")!=="aggroSwitchFind") return 0;   // seguridad: AGGRO_SWITCH_SURGE SÓLO alimenta aggroSwitchFind (si el knob se re-apunta, no contribuye)
+  const t=aggroSwitchRank(score); if(t<=0) return 0;
+  const raw=+AGGRO_SWITCH_SURGE.tiers[t-1].charge||0, cap=Math.max(0,AGGRO_SWITCH_SURGE.aggroSwitchBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// aggroSwitchForage(h, tpl, preScore) = las fichas por un remate en medio de una manada que re-apunta = aggroSwitchBonus(preScore). preScore = el snapshot de churn muestreado en el TOP de killEnemy (tras fijarse e.dead=true del mob a rematar) ⇒ ANTI-AUTO-CONTEO. Si preScore es undefined (VM/preview) usa aggroSwitchScore(h) EN VIVO. 0 si OFF / sin party / sin tpl. PURO — el seam decide banca a h.aggroSwitchBounty vía grantAggroSwitchBounty.
+function aggroSwitchForage(h, tpl, preScore){ if(!AGGRO_SWITCH_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?aggroSwitchScore(h||G.hero):(+preScore||0); return aggroSwitchBonus(score); }
+// aggroSwitchTag(h) = glifo del badge de VAIVÉN (⇄) si el héroe está en medio de una manada cuyo aggro ≥shifting re-apunta en radio (tier>0). PURO. "" si OFF / estable / single-player / cold-start. 🔑 en single-player SIEMPRE "" (objetivo único ⇒ V=0).
+export function aggroSwitchTag(h){ h=h||G.hero; if(!AGGRO_SWITCH_SURGE.enabled||!h) return "";
+  return aggroSwitchRank(aggroSwitchScore(h))>0 ? "⇄" : ""; }
+// aggroSwitchVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function aggroSwitchVM(h){ h=h||G.hero; const on=!!AGGRO_SWITCH_SURGE.enabled&&!!h;
+  const idx=on?aggroSwitchField(h):0, score=on?aggroSwitchScore(h):0, tier=on?aggroSwitchRank(score):0, charge=on?aggroSwitchBonus(score):0;
+  return { enabled:!!AGGRO_SWITCH_SURGE.enabled, channel:AGGRO_SWITCH_SURGE.channel||"aggroSwitchFind",
+    idx:+idx.toFixed(3), score, tier, tierCount:(AGGRO_SWITCH_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,AGGRO_SWITCH_SURGE.aggroSwitchBountyCap|0), radius:+AGGRO_SWITCH_SURGE.radius||0, window:Math.max(2,AGGRO_SWITCH_SURGE.window|0),
+    tag: aggroSwitchTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -7177,6 +7231,8 @@ function killEnemy(e){
   const _strikeCommitPre = STRIKE_COMMIT_SURGE.enabled ? strikeCommitScore(G.hero) : 0;
   // CAS-2706 TARGET_SPREAD_SURGE: snapshot de la ENTROPÍA de la DISTRIBUCIÓN de objetivos de la manada ENGANCHADA VIVA = targetSpreadScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ NO cuenta en la distribución (targetSpreadField filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja cuán REPARTIDO estaba el aggro de la manada (S=H(targets)/ln(nPlayers)) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ divided) rematar en single-player (P=1 ⇒ S=0) o con el aggro concentrado en 1 blanco NO forrajea. GATED ⇒ enabled:false ⇒ `_targetSpreadPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _targetSpreadPre = TARGET_SPREAD_SURGE.enabled ? targetSpreadScore(G.hero) : 0;
+  // CAS-2712 AGGRO_SWITCH_SURGE: snapshot del CHURN TEMPORAL del targeting de la manada ENGANCHADA VIVA = aggroSwitchScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ NO cuenta en el churn (aggroSwitchField filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja cuán VOLÁTIL estaba el targeting de la manada (V=cambiados/enganchados-con-historia) EN EL MOMENTO del kill; con minMobs≥3 (con historia), minPlayers≥2 y la TABLA (score≥1 ⇒ shifting) rematar en single-player (objetivo único ⇒ V=0), cold-start (buffer no lleno ⇒ V=0) o con el targeting estable NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroSwitchPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _aggroSwitchPre = AGGRO_SWITCH_SURGE.enabled ? aggroSwitchScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -7612,6 +7668,12 @@ function killEnemy(e){
   if(TARGET_SPREAD_SURGE.enabled && !tpl.neutral){ const tsf=targetSpreadForage(G.hero, tpl, _targetSpreadPre);
     if(tsf>0){ grantTargetSpreadBounty(tsf);
       floater(e.x,e.y-908,"+"+tsf+" Reparto","#8fd0ff",{small:true}); } }
+  // CAS-2712 AGGRO_SWITCH_SURGE seam: VAIVÉN DE OBJETIVOS. Al matar un mob no-neutral mientras la manada ENGANCHADA del HÉROE RE-APUNTABA su aggro (V=cambiados/enganchados-con-historia ≥midSwitch con ≥minMobs con historia y ≥minPlayers jugadores en radio, score≥umbral ANTES de este kill vía `_aggroSwitchPre`), el héroe
+  // cosecha fichas de vaivén = aggroSwitchForage(hero,tpl,_aggroSwitchPre) (flat por banda de churn, sub-cap aggroSwitchBountyCap), banca a h.aggroSwitchBounty vía grantAggroSwitchBounty (0 RNG). `_aggroSwitchPre` se muestreó en el TOP tras e.dead=true (aggroSwitchField filtra !e.dead ⇒ la víctima NO cuenta) + minMobs≥3 + minPlayers≥2 + la TABLA exige score≥1 (⇒ shifting) ⇒ rematar en single-player (objetivo único ⇒ V=0), cold-start (buffer no lleno ⇒ V=0) o con el targeting estable (V bajo ⇒ 0) NO forrajea; hace falta una manada re-apuntando su aggro sobre una party GENUINA.
+  // Canal FRESCO aggroSwitchFind (fuente ÚNICA, sub-cap aggroSwitchBountyCap) — NINGUNA de las 63 flags #59-#121 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantAggroSwitchBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(AGGRO_SWITCH_SURGE.enabled && !tpl.neutral){ const asf=aggroSwitchForage(G.hero, tpl, _aggroSwitchPre);
+    if(asf>0){ grantAggroSwitchBounty(asf);
+      floater(e.x,e.y-930,"+"+asf+" Vaivén","#c9a0ff",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -8910,6 +8972,8 @@ function grantJerkDirBounty(n){ const h=G.hero; if(!h||n<=0) return; h.jerkDirBo
 function grantStrikeCommitBounty(n){ const h=G.hero; if(!h||n<=0) return; h.strikeCommitBounty=(h.strikeCommitBounty|0)+(n|0); }
 // CAS-2706 DISPERSIÓN DE OBJETIVOS: banca fichas de dispersión (targetSpreadFind) — recurso TRANSITORIO h.targetSpreadBounty, fuera del save allowlist + worldFingerprint. STATELESS ⇒ G.targetSpreadBounty NUNCA se crea. 0 RNG.
 function grantTargetSpreadBounty(n){ const h=G.hero; if(!h||n<=0) return; h.targetSpreadBounty=(h.targetSpreadBounty|0)+(n|0); }
+// CAS-2712 VAIVÉN DE OBJETIVOS: banca fichas de vaivén (aggroSwitchFind) — recurso TRANSITORIO h.aggroSwitchBounty, fuera del save allowlist + worldFingerprint. STATELESS ⇒ G.aggroSwitchBounty NUNCA se crea. 0 RNG.
+function grantAggroSwitchBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroSwitchBounty=(h.aggroSwitchBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9388,6 +9452,7 @@ export function update(dtMs){
   updateEnemies(dt);
   if(ACCEL_SURGE.enabled) accelTick(dt); // CAS-2688 REVUELO CINÉTICO (EVO#117 DARK): captura de 2º orden del vector de movimiento de los mobs (|Δmᵢ| entre ticks) tras el AI update. GATED ⇒ OFF ⇒ NUNCA corre ⇒ 0 estado per-mob creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente idéntico.
   if(JERK_DIR_SURGE.enabled) jerkTick(dt); // CAS-2698 QUIEBRE/REGATE (EVO#119 DARK): descompone el Δ del vector de movimiento de los mobs en radial/tangencial (fracción TANGENCIAL) tras el AI update. Historia per-mob SEPARADA de #117 (e._jrkPm). GATED ⇒ OFF ⇒ NUNCA corre ⇒ 0 estado per-mob creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente idéntico.
+  if(AGGRO_SWITCH_SURGE.enabled) switchTick(dt); // CAS-2712 VAIVÉN DE OBJETIVOS (EVO#122 DARK): empuja el aiTarget ACTUAL de cada mob enganchado a un ring-buffer per-mob (e._swR, ventana W) tras el AI update ⇒ compara actual vs hace-W-ticks (CHURN de IDENTIDAD del objetivo). Historia per-mob SEPARADA de #117 (e._accPm) / #119 (e._jrkPm). GATED ⇒ OFF ⇒ NUNCA corre ⇒ 0 estado per-mob creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente idéntico.
   updateCorpses(dt); // CAS-317: age + reap rich-anim boss death corpses (presentation-only)
   updateProjectiles(dt);
   updateFields(dt);
@@ -13979,6 +14044,63 @@ export const dev = {
       gExists:(G.targetSpreadBounty!=null),                            // prueba byte-id: STATELESS ⇒ G.targetSpreadBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._spreadParty!=null),                             // prueba byte-id: G._spreadParty SÓLO existe tras driveSpread (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), targetSpreadBounty:(h.targetSpreadBounty|0) }:null }; },
+  // CAS-2712: VAIVÉN DE OBJETIVOS OBSERVABLE hook (DARK, AGGRO_SWITCH_SURGE — EVO#122, AÑADE la dimensión TEMPORAL/CHURN a la familia COMPOSICIÓN-DE-INTENCIÓN). Canal FRESCO aggroSwitchFind + eje = aggroSwitchField(hero)=V=(#mobs enganchados con historia cuyo aiTarget cambió en la ventana W)/(#mobs enganchados con historia) ∈[0,1] (churn temporal del targeting de la manada ENGANCHADA VIVA). CAPTURA TEMPORAL (ring-buffer per-mob del aiTarget vía switchTick tras updateEnemies, como #117 ACCEL / #119 JERK-SPLIT). GATED enabled:false ⇒ byte-neutral OFF. 🔑 INTRÍNSECAMENTE MULTIJUGADOR: single-player ⇒ objetivo único (héroe) ⇒ nunca cambia ⇒ V=0 (colapso LIMPIO); cold-start ⇒ buffer no lleno ⇒ 0 ⇒ la métrica bien-definida multijugador se prueba vía switchProbe (LUT pura) + driveSwitch (party SINTÉTICA + SCHEDULE de objetivos step-por-tick que puebla el ring-buffer real).
+  //   aggroSwitch()                                      → snapshot {enabled,channel,radius,window,weights,hiSwitch,midSwitch,minMobs,minPlayers,tiers,cap,idx,score,tier,charge,forageChargePreview,switchProbe,driveSwitch,switchProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   aggroSwitch({enabled})                             → flip runtime IN-MEMORY de AGGRO_SWITCH_SURGE.enabled (sin tocar disco)
+  //   aggroSwitch({tp:{tx,ty}})                          → teleporta al héroe
+  //   aggroSwitch({switchProbe:{engaged,changed,P}})     → LUT PURA (engaged,changed)→V→banda→tier→charge (byte-verifica la FRACCIÓN + UMBRALES hiSwitch/midSwitch; P<2 ⇒ degenerado ⇒ 0)
+  //   aggroSwitch({driveSwitch:{wipe,players:[{dx,dy}],pts:[{dx,dy,type,state,tgts:[...]}]}}) → inyecta party SINTÉTICA (G._swParty, héroe=índice0) + mobs con SCHEDULE de objetivos per-tick; corre switchTick por cada paso ⇒ puebla el ring-buffer REAL ⇒ V server-auth
+  //   aggroSwitch({switchProbeLive:true})                → lectura REAL server-auth: mobs enganchados con historia en radio + fracción cambiada (n,changed,field)
+  //   aggroSwitch({clearSwitch:true})                    → remueve los mobs de prueba (_swTest) + limpia la party sintética
+  aggroSwitch(p){
+    let switchProbe=null, driveSwitch=null, switchProbeLive=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) AGGRO_SWITCH_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.switchProbe && typeof p.switchProbe==="object"){ const eng=Math.max(0,p.switchProbe.engaged|0), chg=Math.max(0,p.switchProbe.changed|0);   // LUT PURA (engaged,changed)→V→banda→tier→charge
+        const P=(p.switchProbe.P!=null)?(p.switchProbe.P|0):2; let V=0; if(P>=2 && eng>0){ V=chg/eng; if(V>1)V=1; if(V<0)V=0; }   // P<2 ⇒ degenerado ⇒ 0
+        const w=aggroSwitchBand(V), t=aggroSwitchRank(w);
+        const hi=(AGGRO_SWITCH_SURGE.hiSwitch!=null)?+AGGRO_SWITCH_SURGE.hiSwitch:0.67, mid=(AGGRO_SWITCH_SURGE.midSwitch!=null)?+AGGRO_SWITCH_SURGE.midSwitch:0.34;
+        const raw=t>0?(+AGGRO_SWITCH_SURGE.tiers[t-1].charge||0):0, cap=Math.max(0,AGGRO_SWITCH_SURGE.aggroSwitchBountyCap|0);
+        switchProbe={ engaged:eng, changed:chg, players:P, switch:+V.toFixed(3), hiSwitch:hi, midSwitch:mid, weight:w, tier:t, charge:cap>0?Math.min(raw,cap):raw }; }
+      if(p.driveSwitch && typeof p.driveSwitch==="object"){ const pts=Array.isArray(p.driveSwitch.pts)?p.driveSwitch.pts:[], injected=[];   // inyecta party sintética + mobs con SCHEDULE de objetivos ⇒ puebla el ring-buffer real vía switchTick
+        if(p.driveSwitch.wipe) G.enemies=(G.enemies||[]).filter(e=>!e._swTest);   // test-only: limpia SÓLO los mobs de prueba previos
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const extra=Array.isArray(p.driveSwitch.players)?p.driveSwitch.players:[];   // party sintética: el héroe es SIEMPRE players[0]; extra = jugadores de PRUEBA (relativos al héroe, transitorios)
+        const party=G.hero?[G.hero]:[]; for(const pl of extra){ party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), hp:1, dead:false, _synthPlayer:true }); }
+        G._swParty=party;
+        const mobs=[]; let maxLen=0;
+        for(let i=0;i<pts.length;i++){ const q=pts[i]||{}, ty2=String(q.type||"rat"), sx=hx+(+q.dx||0), sy=hy+(+q.dy||0), st=String(q.state||"chase"), e=ETPL[ty2]?spawnEnemy(ty2,sx,sy):null;
+          if(e){ e._swTest=true; e.dead=false; e.x=sx; e.y=sy; e.state=st; if(q.hostile) e.hostile=true; e._swR=null; e._swHas=false; e._swChg=0;
+            const sched=Array.isArray(q.tgts)?q.tgts.map(v=>v|0):[0]; if(sched.length>maxLen) maxLen=sched.length; mobs.push({ e, sched, type:ty2, st });
+            e._swTgt=sched[0]|0; }
+          else injected.push({ idx:-1, type:ty2, state:st, valid:false }); }
+        for(let s=0;s<maxLen;s++){ for(const mm of mobs){ const sc=mm.sched; mm.e._swTgt=(sc[Math.min(s,sc.length-1)]|0); } switchTick(0); }   // corre switchTick por cada paso del schedule ⇒ ring-buffer real
+        for(const mm of mobs) injected.push({ idx:G.enemies.indexOf(mm.e), type:mm.type, state:mm.st, tgts:mm.sched, curTgt:(mm.e._swTgt|0), chg:(mm.e._swChg|0), has:!!mm.e._swHas, engaged:aggroEngaged(mm.e) });
+        driveSwitch={ injected, players:G._swParty.length, steps:maxLen, idx:+aggroSwitchField(G.hero).toFixed(3), score:aggroSwitchScore(G.hero) }; }
+      if(p.clearSwitch){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._swTest); cleared=before-G.enemies.length; G._swParty=null; }   // remueve mobs de prueba + limpia party sintética
+      if(p.switchProbeLive){ const h2=G.hero, R=+AGGRO_SWITCH_SURGE.radius||0, R2=R*R, mobs=[];   // lectura REAL server-auth: enganchados con historia + fracción cambiada
+        if(h2){ const players=swLivePlayers(h2), P=players.length; let n=0, chg=0;
+          for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h2.x, dy=e.y-h2.y; if(dx*dx+dy*dy>R2) continue; if(!aggroEngaged(e)) continue; if(!e._swHas) continue; n++; if(e._swChg) chg++; mobs.push({ x:+e.x.toFixed(1), y:+e.y.toFixed(1), type:e.type, state:e.state, tgt:(e._swTgt|0), chg:(e._swChg|0) }); }
+          const vf=aggroSwitchField(h2);
+          switchProbeLive={ players:P, engaged:n, changed:chg, field:+vf.toFixed(3), score:aggroSwitchBand(vf), mobs }; }
+        else switchProbeLive={ players:0, engaged:0, changed:0, field:0, score:0, mobs:[] }; }
+    }
+    const h=G.hero, vm=aggroSwitchVM(h);
+    return { enabled:AGGRO_SWITCH_SURGE.enabled, channel:AGGRO_SWITCH_SURGE.channel||"aggroSwitchFind",
+      radius:vm.radius, window:vm.window, weights:Object.assign({},AGGRO_SWITCH_SURGE.weights||{}), hiSwitch:+AGGRO_SWITCH_SURGE.hiSwitch||0, midSwitch:+AGGRO_SWITCH_SURGE.midSwitch||0, minMobs:Math.max(3,AGGRO_SWITCH_SURGE.minMobs|0), minPlayers:Math.max(2,AGGRO_SWITCH_SURGE.minPlayers|0),
+      tiers:(AGGRO_SWITCH_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?aggroSwitchForage(h, {aggroSwitch:true}):0,   // preview: fichas forrajeadas por un remate con la party disponible AHORA (expone el canal aggroSwitchFind; usa score EN VIVO — en single-player 0)
+      switchProbe: switchProbe,                                        // LUT PURA (engaged,changed)→V→banda→tier→charge (byte-verifica FRACCIÓN + UMBRALES)
+      driveSwitch: driveSwitch,                                        // inyecta party SINTÉTICA + mobs con SCHEDULE de objetivos ⇒ V=cambiados/enganchados REAL + idx/score server-auth
+      switchProbeLive: switchProbeLive,                                // lectura REAL server-auth: enganchados con historia en radio + fracción cambiada (n,changed,field)
+      cleared: cleared,                                               // nº de mobs de prueba removidos por clearSwitch
+      tag: aggroSwitchTag(h),                                         // glifo SERVIDO (OFF/estable/single-player/cold-start ⇒ "" / shifting ≥midSwitch ⇒ ⇄)
+      precedence:"aggroSwitchFind (canal FRESCO — recompensa de fichas de VAIVÉN por REMATAR con la manada ENGANCHADA RE-APUNTANDO frenéticamente su aggro): NINGUNA de las 63 flags #59-#121 lo toca. AÑADE la dimensión TEMPORAL/CHURN a la familia COMPOSICIÓN-DE-INTENCIÓN (#118 AGGRO-FOCUS = nivel sobre el HÉROE; #120 EMBATE = sub-estado; #121 REPARTO = forma de la distribución AHORA, un SNAPSHOT). EJE = aggroSwitchField(hero)=V=(#enganchados-con-historia cuyo aiTarget cambió en la ventana W)/(#enganchados-con-historia), fracción AGREGADA ∈[0,1], INTENSIVA (invariante al conteo). 🔑 CAPTURA TEMPORAL server-auth (ring-buffer per-mob del aiTarget vía switchTick tras updateEnemies, como #117 ACCEL / #119 JERK-SPLIT; historia SEPARADA e._swR); INTRÍNSECAMENTE MULTIJUGADOR (single-player ⇒ objetivo único ⇒ V=0, colapso LIMPIO; cold-start ⇒ buffer no lleno ⇒ 0). CRUX ⊥#121 REPARTO (LA CRÍTICA — CHURN-TEMPORAL vs FORMA-SNAPSHOT; 4-cuad: uniforme-Y-estable ⇒ spread-alto/switch0; TODO-sobre-uno-pero-rotando ⇒ spread≈0/switch-alto; uniforme-Y-re-rolleando ⇒ spread-alto/switch-alto; fijo-todo-sobre-héroe ⇒ spread0/switch0 ⇒ DISOCIAN). ⊥#118 AGGRO-FOCUS (nivel-estático vs tasa-de-cambio: 100%-sobre-héroe-sin-cambiar ⇒ focus-alto/switch0; re-apuntando-lejos-y-de-vuelta ⇒ focus-mid/switch-alto). ⊥#120 EMBATE (sub-estado vs identidad-de-objetivo). ⊥ 2º-orden CINÉTICO #117 ACCEL/#119 JERK-SPLIT (IMPORTANTE — ambos son 'cambio': ACCEL/JERK = churn del MOVIMIENTO; SWITCH = churn de la IDENTIDAD del OBJETIVO; accel-alto/switch0 vs accel0/switch-alto). ⊥#67 FRENZY/#94 SWIFT (ratio de churn-de-objetivo, NO kill-rate — switch MAX con 0 kills). ⊥ velocidad-1er-orden #110/#111/#112/#116. ⊥ ATRIBUTO #115/#88/#106. ⊥ POSICIÓN #107/#108/#109/#113/#114 (a QUIÉN apuntan-en-el-tiempo ≠ dónde están). ⊥#87 PACKHARVEST (fracción invariante al conteo). ⊥#86/#85/#83 (frost-slow escala velocidad/timing NO el targeting). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio aggroSwitchBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.aggroSwitchBounty STATELESS (fuera del save allowlist + worldFingerprint); historia per-mob (e._swR/_swChg/_swHas) TRANSITORIA (nunca serializada, fuera del fingerprint), poblada sólo cuando enabled. ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.aggroSwitchBounty!=null),                            // prueba byte-id: STATELESS ⇒ G.aggroSwitchBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._swParty!=null),                                // prueba byte-id: G._swParty SÓLO existe tras driveSwitch (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroSwitchBounty:(h.aggroSwitchBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
