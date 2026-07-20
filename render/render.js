@@ -10,7 +10,7 @@
 // ===========================================================================
 import * as sim from "../sim/sim.js";
 import { zoneOf } from "../sim/world.js";
-import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE } from "../sim/config.js";
+import { TS, MAP_W, MAP_H, T_GRASS, T_STONE, T_SAND, T_COBBLE, T_ICE, T_SWAMP, T_CALDERA, T_STREET, CFG, CLASS_LIST, CLASS_STATS, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, ULTIMATES, ULTIMATE_MAP, HUNTS, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, CALDERA_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, CUSTOMIZE, MOB_AFFIX, CHAMPION, BOON_MAP, BOON_CAT_LABEL, BOON_RARITY, SYNERGIES, SYN_MAP, ZONE_MOD_MAP, WEAPON_AFFIXES, FRENZY, DODGE, PARRY, POISE, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, BONFIRE, WEAPON_ARTS, WEAPON_BUFFS, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ARENA, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, ONBOARDING, NG_PLUS, PACTS, RALLY, CHARGED_ATTACK, PIXELART, DOORS_INTERIORS, MINIMAP, DAYNIGHT, WEATHER, ZONE_BANNER, SAFEZONE, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE } from "../sim/config.js";
 import { clamp, dist2 } from "../sim/math.js";
 import { createRNG, hash2 } from "../sim/rng.js";
 import { gearStat, gearName, gearCol, rarityRank, equippedDmg, equippedDef, heroMaxHp, affixTotals, affixList, affixLabel, FORGE, forgeLevel, forgeNextCost, SETS, SET_ORDER, setCounts, RUNES, runeDef, runeName, socketTotals } from "../sim/gear.js";
@@ -409,6 +409,7 @@ export function createRenderer(ctx){
     if(SKIRMISH_LINE_SURGE.enabled) renderSkirmishLineBadge(); // CAS-2504: Línea de Escaramuza — badge de COMPOSICIÓN DE ARQUETIPO DE ALCANCE (a-distancia) del pack de mobs VIVOS (e.tpl.ranged/e.tpl.range) en radio (canal skirmishFind, sub-cap skirmishMarkCap); resalta si el héroe remata en medio de una línea de hostigamiento a-distancia densa, donde el forrajeo rinde marcas de escaramuza. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(RECOVER_SURGE.enabled) renderRecoverBadge(); // CAS-2594: Remate de Recobro — badge de VENTANA DE RECUPERACIÓN POST-ATAQUE / RECOVER BASE del mob TYPE server-auth (la LENTITUD DE RECOBRO intrínseca: cuánto TARDA la criatura de fábrica en recomponerse DESPUÉS de golpear); la señal viva = MAX recoverWeight sobre los mobs VIVOS en radio (el recobro más largo rematable: plúmbeo⇒2/rezagado⇒1/ágil⇒0) (canal recoverFind, sub-cap recoverBountyCap); resalta si hay un LENTO-DE-RECOBRO rematable, donde castigar su cola de exposición rinde fichas de recobro. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(LUNGE_SURGE.enabled) renderLungeBadge(); // CAS-2600: Remate de Acometida — badge de DISTANCIA DE ESTOCADA/POUNCE BASE del mob TYPE server-auth (cuánto se ABALANZA la criatura de fábrica para cerrar distancia en su lunge de rusher); la señal viva = MAX lungeWeight sobre los mobs VIVOS en radio (el saltador más largo rematable: pouncer⇒2/estocada media⇒1/salto corto⇒0) (canal lungeFind, sub-cap lungeBountyCap); resalta si hay un SALTADOR-LARGO rematable, donde castigar su salto de acercamiento rinde fichas de acometida. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
+    if(GOLD_SURGE.enabled) renderGoldBadge(); // CAS-2615: Remate de Bolsa — badge de MAGNITUD DE ORO/BOTÍN DE MONEDA BASE del mob TYPE server-auth (cuánta BOLSA carga de fábrica la criatura: la cantidad base de oro gold[1] que suelta al morir); la señal viva = MAX goldWeight sobre los mobs VIVOS en radio (el mob de bolsa más gorda rematable: opulent⇒2/bolsa media⇒1/bolsa-flaca⇒0) (canal coinFind, sub-cap coinBountyCap; ⊥ goldFind #60 que es el multiplicador de oro-RECOGIDO); resalta si hay un mob de BOLSA GORDA rematable, donde cazar su alta magnitud de moneda rinde fichas de moneda. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(GEARCHANCE_SURGE.enabled) renderGearBadge(); // CAS-2611: Remate de Pertrecho — badge de PROBABILIDAD DE SOLTAR EQUIPO / GEAR-DROP BASE del mob TYPE server-auth (cuán PERTRECHADO va de fábrica la criatura: la probabilidad base gearChance con que suelta equipo al morir); la señal viva = MAX gearWeight sobre los mobs VIVOS en radio (el mob más pertrechado rematable: arsenal⇒2/pertrecho medio⇒1/pelado⇒0) (canal gearFind, sub-cap gearBountyCap); resalta si hay un mob BIEN-ARMADO rematable, donde cazar su alta prob de gear rinde fichas de pertrecho. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(WINDUP_SURGE.enabled) renderWindupBadge(); // CAS-2585: Remate de Presagio — badge de TIEMPO DE PRESAGIO / WIND-UP BASE del mob TYPE server-auth (la CADENCIA DE ANTICIPACIÓN intrínseca: cuánto TELEGRAFÍA la criatura de fábrica ANTES de golpear); la señal viva = MAX windWeight sobre los mobs VIVOS en radio (el telegrafiado más ponderoso rematable: ponderoso⇒2/medido⇒1/súbito⇒0) (canal windFind, sub-cap windBountyCap); resalta si hay un TELEGRAFIADO rematable, donde castigar su amago largo rinde fichas de presagio. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
     if(RAM_SURGE.enabled) renderRamBadge(); // CAS-2580: Remate de Ariete — badge de FUERZA DE IMPACTO/KNOCKBACK BASE del mob TYPE server-auth (la POTENCIA DE EMPUJE intrínseca: cuánto te ARROLLA la criatura de fábrica al golpear); la señal viva = MAX ramWeight sobre los mobs VIVOS en radio (el demoledor más contundente rematable: ariete⇒2/pegador firme⇒1/leve⇒0) (canal ramFind, sub-cap ramBountyCap); resalta si hay un DEMOLEDOR rematable, donde descolocarlo rinde fichas de ariete. Cosmético puro. DARK (enabled:false) ⇒ NO se dibuja hasta el flip.
@@ -5281,6 +5282,40 @@ export function createRenderer(ctx){
     // estado a la derecha: +fichas de pertrecho por kill + score; si pelado, "—"
     ctx.font="bold 10px "+FF; ctx.textAlign="right";
     const st2=here?("+"+charge+" Pertrecho s"+score):"—";
+    ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+140,ty);
+    ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+140,ty);
+    ctx.restore();
+  }
+
+  // CAS-2615: badge de REMATE DE BOLSA (GOLD_SURGE). Refleja el VM PURO (sim.goldVM, autoridad en sim) ⇒ MISMO score/tier/fichas para todos los clientes con el mismo estado de sim. Cosmético puro (0 efecto de sim). DARK (enabled:false) ⇒ el dispatch NO lo llama hasta el flip.
+  function renderGoldBadge(){
+    const k=sim.goldVM&&sim.goldVM(); if(!k) return;                     // sin VM ⇒ nada
+    const a=badgeRowAnchor();
+    const bx=a.bx, by=a.by+1330, sw=14, sh=14;                          // bajo el Remate-de-Pertrecho (@+1308); gap anti-solape (CAS-2263)
+    const tier=k.tier|0, here=tier>0, charge=k.charge|0, score=k.score|0;
+    const pulse=here?(0.74+0.22*Math.sin(G.t*(2.0+tier*0.5))):0.55;
+    const glyph=here?"#ffcf40":"#8a9bb0";                               // bolsa=oro-moneda (el botín cargado del mob de bolsa gorda), bolsa-flaca=gris
+    const cx=bx+sw/2, cy=by+sh/2;
+    ctx.save(); ctx.globalAlpha=pulse;
+    // moneda de BOLSA (el coin del mob de bolsa gorda; los anillos crecen con el tier = más monedas)
+    const R=sh*(here?0.42:0.30), rings=here?(1+tier):1;
+    ctx.strokeStyle=here?glyph:"rgba(150,160,176,0.42)"; ctx.lineWidth=here?2.0:1.4;
+    ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.stroke();        // el borde de la moneda
+    ctx.globalAlpha=pulse*(here?0.85:0.30);
+    for(let i=1;i<rings;i++){ ctx.beginPath(); ctx.arc(cx,cy,R*(1-i*0.28),0,Math.PI*2); ctx.stroke(); }   // anillos internos (las monedas apiladas)
+    // marca central de valor (el cuño del coin)
+    ctx.globalAlpha=pulse*(here?0.92:0.30);
+    ctx.fillStyle=here?glyph:"rgba(150,160,176,0.42)";
+    ctx.beginPath(); ctx.arc(cx,cy,here?1.9:1.4,0,Math.PI*2); ctx.fill();
+    // micro-label
+    ctx.globalAlpha=pulse;
+    ctx.font="bold 11px "+FF; ctx.textAlign="left"; ctx.textBaseline="middle";
+    const ty=cy, tx=bx+sw+5, lbl="Bolsa: "+(here?("T"+tier):"—");
+    ctx.lineWidth=3; ctx.lineJoin="round"; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(lbl,tx,ty);
+    ctx.fillStyle=here?"#ffe08a":"#8a9bb0"; ctx.fillText(lbl,tx,ty);
+    // estado a la derecha: +fichas de moneda por kill + score; si bolsa-flaca, "—"
+    ctx.font="bold 10px "+FF; ctx.textAlign="right";
+    const st2=here?("+"+charge+" Bolsa s"+score):"—";
     ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,0.72)"; ctx.strokeText(st2,bx+140,ty);
     ctx.fillStyle=here?glyph:"#8a9bb0"; ctx.fillText(st2,bx+140,ty);
     ctx.restore();
