@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -5895,6 +5895,51 @@ export function aggroPileVM(h){ h=h||G.hero; const on=!!AGGRO_PILE_SURGE.enabled
     cap:Math.max(0,AGGRO_PILE_SURGE.aggroPileBountyCap|0), radius:+AGGRO_PILE_SURGE.radius||0,
     tag: aggroPileTag(h) }; }
 
+// ===== CAS-2726: VENTAJA DE APILAMIENTO (AGGRO_MARGIN_SURGE, EVO#125 DARK) — dimensión de DOMINANCIA-GAP/LEAD de la familia COMPOSICIÓN-DE-INTENCIÓN. SEPARACIÓN (top−second)/N del jugador más pilado sobre el segundo (el runaway del líder). SNAPSHOT PURO (lee la aggro-table directo, como #121/#123/#124 — SIN buffer temporal). =====
+// amLivePlayers(h) = la party de JUGADORES VIVOS en radio del héroe. 🔑 Single-player ⇒ SÓLO el héroe. G._amParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.aggroMargin driveMargin — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. O(P). Helper INDEPENDIENTE de #121 (livePlayers) / #122 (swLivePlayers) / #123 (acLivePlayers) / #124 (apLivePlayers) — party separada.
+function amLivePlayers(h){ h=h||G.hero; if(!h) return [];
+  const R=+AGGRO_MARGIN_SURGE.radius||0, R2=R*R;
+  const party=(Array.isArray(G._amParty)&&G._amParty.length)?G._amParty:[h];   // normal (juego): sólo el héroe; PRUEBA: party sintética inyectada
+  const out=[]; for(const p of party){ if(!p) continue; if(p.dead||(p.hp!=null&&p.hp<=0)) continue; const dx=(+p.x||0)-h.x, dy=(+p.y||0)-h.y; if(dx*dx+dy*dy>R2) continue; out.push(p); } return out; }
+// amTargetIdx(e, players) = índice del jugador que este mob-enganchado targetea = proxy server-auth del aiTarget de la aggro-table COMPARTIDA. 🔑 Single-player: todo el aggro es al ÚNICO héroe ⇒ 0 (el héroe es players[0]). e._amTgt (poblado SÓLO por driveMargin) inyecta el objetivo sintético per-mob para probar el lead multijugador; clamp al tamaño de la party. PURO/determinista.
+function amTargetIdx(e, players){ const P=players.length; if(P<=0) return -1;
+  let t=(e&&e._amTgt!=null)?(e._amTgt|0):0; if(t<0) t=0; if(t>=P) t=P-1; return t; }
+// aggroMarginField(h) = VENTAJA/LEAD M∈[0,1] = (top − second) / N, con top=max_j(#mobs ENGANCHADOS→j), second=2º-mayor de esos conteos, N=#mobs ENGANCHADOS en radio. P_players=#jugadores vivos en radio; requiere P_players≥minPlayers (con <2 ⇒ single-player ⇒ no hay segundo ⇒ lead trivial ⇒ 0 LIMPIO). Enganchados (aggroEngaged) en radio ⇒ cada uno SUMA +1 al bucket de su jugador-objetivo (amTargetIdx); N=Σbuckets, requiere N≥minMobs (significancia). M = (top−second)/N. FILTRA muertos/hp≤0 ⇒ ANTI-AUTO-CONTEO. M≈1 ⇒ un jugador acapara TODO el aggro con margen enorme (runaway); M≈0 ⇒ pico EMPATADO con el segundo (co-dominancia). INTENSIVO/ADIMENSIONAL (invariante al conteo de MOBS). 🔑 IGNORA el PICO absoluto (⊥ pile #124: MISMO max, distinto margen si el second varía) y la forma de la cola (⊥ spread #121). PURO (lee la aggro-table replicada), 0-RNG/0-timer. O(n+P).
+function aggroMarginField(h){ h=h||G.hero; if(!h) return 0;
+  const R=+AGGRO_MARGIN_SURGE.radius||0, R2=R*R, minN=Math.max(3,AGGRO_MARGIN_SURGE.minMobs|0), minP=Math.max(2,AGGRO_MARGIN_SURGE.minPlayers|0);
+  const players=amLivePlayers(h), P=players.length; if(P<minP) return 0;               // <minPlayers (single-player) ⇒ lead trivial ⇒ 0
+  const buckets=new Array(P).fill(0); let n=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(dx*dx+dy*dy>R2) continue; if(!aggroEngaged(e)) continue; const t=amTargetIdx(e,players); if(t<0) continue; n++; buckets[t]++; }   // denominador de significancia = enganchados en radio; +1 al bucket del jugador-objetivo
+  if(n<minN) return 0;                                                                 // <minMobs enganchados ⇒ lead indefinido ⇒ 0
+  let top=0, second=0; for(let i=0;i<P;i++){ const c=buckets[i]; if(c>top){ second=top; top=c; } else if(c>second){ second=c; } }   // top = bucket máximo; second = 2º-mayor (incluye ceros ⇒ [12,0,0,0]⇒second0)
+  const M=(top-second)/n; return M>1?1:(M<0?0:M); }                                     // lead fraccional ∈[0,1] (top−second sobre N)
+// aggroMarginBand(v) = peso por la BANDA de ventaja. M≥hiMargin(0.50) ⇒ heavy/runaway ⇒ 2; M≥midMargin(0.25) ⇒ some/lead parcial ⇒ 1; M<midMargin (empate) ⇒ 0. LUT PURA ESTÁTICA por umbral adimensional.
+function aggroMarginBand(v){ const cfg=AGGRO_MARGIN_SURGE, W=cfg.weights||{}; const hi=(cfg.hiMargin!=null)?+cfg.hiMargin:0.50, mid=(cfg.midMargin!=null)?+cfg.midMargin:0.25;
+  if(v>=hi) return +W.heavy||0; if(v>=mid) return +W.some||0; return 0; }
+// aggroMarginScore(h) = peso de banda de la VENTAJA VIVA en radio = aggroMarginBand(aggroMarginField(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si no hay ≥minMobs enganchados / <minPlayers. Señal VIVA del badge/VM (el GRANT usa el snapshot _aggroMarginPre del TOP del kill tras e.dead=true ⇒ ANTI-AUTO-CONTEO).
+function aggroMarginScore(h){ h=h||G.hero; if(!h) return 0; return aggroMarginBand(aggroMarginField(h)); }
+// aggroMarginRank(score) = índice del tier de ventaja vigente (0 = empate/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Lead más pronunciado = tier ALTO. LUT determinista pura.
+function aggroMarginRank(score){ const T=AGGRO_MARGIN_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// aggroMarginBonus(score) = nº de fichas de ventaja del tier vigente, acotado por el sub-cap propio aggroMarginBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta aggroMarginFind.
+function aggroMarginBonus(score){ if(!AGGRO_MARGIN_SURGE.enabled) return 0;
+  if((AGGRO_MARGIN_SURGE.channel||"aggroMarginFind")!=="aggroMarginFind") return 0;   // seguridad: AGGRO_MARGIN_SURGE SÓLO alimenta aggroMarginFind (si el knob se re-apunta, no contribuye)
+  const t=aggroMarginRank(score); if(t<=0) return 0;
+  const raw=+AGGRO_MARGIN_SURGE.tiers[t-1].charge||0, cap=Math.max(0,AGGRO_MARGIN_SURGE.aggroMarginBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// aggroMarginForage(h, tpl, preScore) = las fichas por un remate en medio de una manada con un líder acaparando el aggro = aggroMarginBonus(preScore). preScore = el snapshot de ventaja muestreado en el TOP de killEnemy (tras fijarse e.dead=true del mob a rematar) ⇒ ANTI-AUTO-CONTEO. Si preScore es undefined (VM/preview) usa aggroMarginScore(h) EN VIVO. 0 si OFF / sin party / sin tpl. PURO — el seam decide banca a h.aggroMarginBounty vía grantAggroMarginBounty.
+function aggroMarginForage(h, tpl, preScore){ if(!AGGRO_MARGIN_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?aggroMarginScore(h||G.hero):(+preScore||0); return aggroMarginBonus(score); }
+// aggroMarginTag(h) = glifo del badge de VENTAJA (⪢) si el héroe está en medio de una manada cuya ventaja ≥some en radio (tier>0). PURO. "" si OFF / empate / single-player. 🔑 en single-player SIEMPRE "" (P<minPlayers ⇒ M=0).
+export function aggroMarginTag(h){ h=h||G.hero; if(!AGGRO_MARGIN_SURGE.enabled||!h) return "";
+  return aggroMarginRank(aggroMarginScore(h))>0 ? "⪢" : ""; }
+// aggroMarginVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function aggroMarginVM(h){ h=h||G.hero; const on=!!AGGRO_MARGIN_SURGE.enabled&&!!h;
+  const idx=on?aggroMarginField(h):0, score=on?aggroMarginScore(h):0, tier=on?aggroMarginRank(score):0, charge=on?aggroMarginBonus(score):0;
+  return { enabled:!!AGGRO_MARGIN_SURGE.enabled, channel:AGGRO_MARGIN_SURGE.channel||"aggroMarginFind",
+    idx:+idx.toFixed(3), score, tier, tierCount:(AGGRO_MARGIN_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,AGGRO_MARGIN_SURGE.aggroMarginBountyCap|0), radius:+AGGRO_MARGIN_SURGE.radius||0,
+    tag: aggroMarginTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -7326,6 +7371,8 @@ function killEnemy(e){
   const _aggroContestPre = AGGRO_CONTEST_SURGE.enabled ? aggroContestScore(G.hero) : 0;
   // CAS-2720 AGGRO_PILE_SURGE: snapshot del APILAMIENTO/DOMINANCIA (max-share) de la manada ENGANCHADA VIVA = aggroPileScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ NO cuenta en el pico (aggroPileField filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja qué FRACCIÓN de la manada pilaba sobre el jugador PICO (P=maxBucket/N) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ some) rematar en single-player (P<minPlayers ⇒ P=0) o con el aggro repartido (pico bajo) NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroPilePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _aggroPilePre = AGGRO_PILE_SURGE.enabled ? aggroPileScore(G.hero) : 0;
+  // CAS-2726 AGGRO_MARGIN_SURGE: snapshot de la VENTAJA/LEAD (top−second)/N de la manada ENGANCHADA VIVA = aggroMarginScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ NO cuenta en el lead (aggroMarginField filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja cuánto DESPUNTABA el líder sobre el segundo (M=(top−second)/N) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ some) rematar en single-player (P<minPlayers ⇒ M=0) o con el pico EMPATADO (margin bajo) NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroMarginPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _aggroMarginPre = AGGRO_MARGIN_SURGE.enabled ? aggroMarginScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -7779,6 +7826,12 @@ function killEnemy(e){
   if(AGGRO_PILE_SURGE.enabled && !tpl.neutral){ const apf=aggroPileForage(G.hero, tpl, _aggroPilePre);
     if(apf>0){ grantAggroPileBounty(apf);
       floater(e.x,e.y-984,"+"+apf+" Apilamiento","#e0c0a0",{small:true}); } }
+  // CAS-2726 AGGRO_MARGIN_SURGE seam: VENTAJA DE APILAMIENTO. Al matar un mob no-neutral mientras la manada ENGANCHADA del HÉROE tenía un jugador ACAPARANDO el aggro con margen sobre el segundo (M=(top−second)/N ≥midMargin con ≥minMobs enganchados y ≥minPlayers jugadores en radio, score≥umbral ANTES de este kill vía `_aggroMarginPre`), el héroe
+  // cosecha fichas de ventaja = aggroMarginForage(hero,tpl,_aggroMarginPre) (flat por banda de lead, sub-cap aggroMarginBountyCap), banca a h.aggroMarginBounty vía grantAggroMarginBounty (0 RNG). `_aggroMarginPre` se muestreó en el TOP tras e.dead=true (aggroMarginField filtra !e.dead ⇒ la víctima NO cuenta) + minMobs≥3 + minPlayers≥2 + la TABLA exige score≥1 (⇒ some) ⇒ rematar en single-player (P<minPlayers ⇒ M=0) o con el pico EMPATADO (margin bajo ⇒ 0) NO forrajea; hace falta un líder DESPUNTANDO sobre el resto.
+  // Canal FRESCO aggroMarginFind (fuente ÚNICA, sub-cap aggroMarginBountyCap) — NINGUNA de las 66 flags #59-#124 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantAggroMarginBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(AGGRO_MARGIN_SURGE.enabled && !tpl.neutral){ const amf=aggroMarginForage(G.hero, tpl, _aggroMarginPre);
+    if(amf>0){ grantAggroMarginBounty(amf);
+      floater(e.x,e.y-1008,"+"+amf+" Ventaja","#a0d0e0",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9084,6 +9137,8 @@ function grantAggroContestBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggr
 
 // CAS-2720 APILAMIENTO DE OBJETIVOS: banca fichas de apilamiento (aggroPileFind) — recurso TRANSITORIO h.aggroPileBounty, fuera del save allowlist + worldFingerprint. STATELESS ⇒ G.aggroPileBounty NUNCA se crea. 0 RNG.
 function grantAggroPileBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroPileBounty=(h.aggroPileBounty|0)+(n|0); }
+// CAS-2726 VENTAJA DE APILAMIENTO: banca fichas de ventaja (aggroMarginFind) — recurso TRANSITORIO h.aggroMarginBounty, fuera del save allowlist + worldFingerprint. STATELESS ⇒ G.aggroMarginBounty NUNCA se crea. 0 RNG.
+function grantAggroMarginBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroMarginBounty=(h.aggroMarginBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -14319,6 +14374,61 @@ export const dev = {
       gExists:(G.aggroPileBounty!=null),                        // prueba byte-id: STATELESS ⇒ G.aggroPileBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._apParty!=null),                           // prueba byte-id: G._apParty SÓLO existe tras drivePile (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroPileBounty:(h.aggroPileBounty|0) }:null }; },
+  // CAS-2726: VENTAJA DE APILAMIENTO OBSERVABLE hook (DARK, AGGRO_MARGIN_SURGE — EVO#125, AÑADE la dimensión de DOMINANCIA-GAP/LEAD a la familia COMPOSICIÓN-DE-INTENCIÓN). Canal FRESCO aggroMarginFind + eje = aggroMarginField(hero)=M=(top−second)/N ∈[0,1] (cuánto DESPUNTA el jugador más pilado sobre el segundo — el runaway del líder). SNAPSHOT PURO (lee la aggro-table directo, SIN captura per-tick, como #121/#123/#124). GATED enabled:false ⇒ byte-neutral OFF. 🔑 INTRÍNSECAMENTE MULTIJUGADOR: single-player ⇒ P_players=1 ⇒ no hay segundo ⇒ M=0 (colapso LIMPIO); la métrica bien-definida multijugador se prueba vía marginProbe (LUT pura de top−second) + driveMargin (party SINTÉTICA + targets inyectados per-mob).
+  //   aggroMargin()                                   → snapshot {enabled,channel,radius,weights,hiMargin,midMargin,minMobs,minPlayers,tiers,cap,idx,score,tier,charge,forageChargePreview,marginProbe,driveMargin,marginProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   aggroMargin({enabled})                          → flip runtime IN-MEMORY de AGGRO_MARGIN_SURGE.enabled (sin tocar disco)
+  //   aggroMargin({tp:{tx,ty}})                       → teleporta al héroe
+  //   aggroMargin({marginProbe:{counts:[...],players}}) → LUT PURA (counts,P)→N=Σ→top,second→M=(top−second)/N→banda→tier→charge (byte-verifica el LEAD + UMBRALES hiMargin/midMargin; P<2 ⇒ degenerado ⇒ 0)
+  //   aggroMargin({driveMargin:{wipe,players:[{dx,dy}],pts:[{dx,dy,type,state,tgt}]}}) → inyecta party SINTÉTICA (G._amParty, héroe=índice0) + mobs con target ⇒ M REAL server-auth
+  //   aggroMargin({marginProbeLive:true})             → lectura REAL server-auth: mobs enganchados en radio + buckets por jugador (counts + top + second + field)
+  //   aggroMargin({clearMargin:true})                 → remueve los mobs de prueba (_amTest) + limpia la party sintética
+  aggroMargin(p){
+    let marginProbe=null, driveMargin=null, marginProbeLive=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) AGGRO_MARGIN_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.marginProbe && typeof p.marginProbe==="object"){ const counts=Array.isArray(p.marginProbe.counts)?p.marginProbe.counts.map(c=>Math.max(0,c|0)):[];   // LUT PURA (counts,P)→N=Σ→top,second→M=(top−second)/N→banda→tier→charge
+        const P=(p.marginProbe.players!=null)?(p.marginProbe.players|0):counts.length; let N=0, top=0, second=0; for(const c of counts){ N+=c; if(c>top){ second=top; top=c; } else if(c>second){ second=c; } }
+        let V=0; if(P>=2 && N>0){ V=(top-second)/N; if(V>1)V=1; if(V<0)V=0; }   // P<2 ⇒ degenerado ⇒ 0
+        const w=aggroMarginBand(V), t=aggroMarginRank(w);
+        const hi=(AGGRO_MARGIN_SURGE.hiMargin!=null)?+AGGRO_MARGIN_SURGE.hiMargin:0.50, mid=(AGGRO_MARGIN_SURGE.midMargin!=null)?+AGGRO_MARGIN_SURGE.midMargin:0.25;
+        const raw=t>0?(+AGGRO_MARGIN_SURGE.tiers[t-1].charge||0):0, cap=Math.max(0,AGGRO_MARGIN_SURGE.aggroMarginBountyCap|0);
+        marginProbe={ counts:counts.slice(), players:P, total:N, top:top, second:second, margin:+V.toFixed(3), hiMargin:hi, midMargin:mid, weight:w, tier:t, charge:cap>0?Math.min(raw,cap):raw }; }
+      if(p.driveMargin && typeof p.driveMargin==="object"){ const pts=Array.isArray(p.driveMargin.pts)?p.driveMargin.pts:[], injected=[];   // inyecta party sintética + mobs con target ⇒ M REAL
+        if(p.driveMargin.wipe) G.enemies=(G.enemies||[]).filter(e=>!e._amTest);   // test-only: limpia SÓLO los mobs de prueba previos ⇒ M refleja los inyectados de esta llamada
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const extra=Array.isArray(p.driveMargin.players)?p.driveMargin.players:[];   // party sintética: el héroe es SIEMPRE players[0]; extra = jugadores de PRUEBA (relativos al héroe, transitorios)
+        const party=G.hero?[G.hero]:[]; for(const pl of extra){ party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), hp:1, dead:false, _synthPlayer:true }); }
+        G._amParty=party;
+        for(let i=0;i<pts.length;i++){ const q=pts[i]||{}, ty2=String(q.type||"rat"), sx=hx+(+q.dx||0), sy=hy+(+q.dy||0), st=String(q.state||"chase"), e=ETPL[ty2]?spawnEnemy(ty2,sx,sy):null;
+          if(e){ e._amTest=true; e.dead=false; e.x=sx; e.y=sy; e.state=st; if(q.hostile) e.hostile=true; e._amTgt=(q.tgt!=null)?(q.tgt|0):0;
+            injected.push({ idx:G.enemies.indexOf(e), type:ty2, state:st, tgt:(e._amTgt|0), engaged:aggroEngaged(e) }); }
+          else injected.push({ idx:-1, type:ty2, state:st, valid:false }); }
+        driveMargin={ injected, players:G._amParty.length, idx:+aggroMarginField(G.hero).toFixed(3), score:aggroMarginScore(G.hero) }; }
+      if(p.clearMargin){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._amTest); cleared=before-G.enemies.length; G._amParty=null; }   // remueve mobs de prueba + limpia party sintética
+      if(p.marginProbeLive){ const h2=G.hero, R=+AGGRO_MARGIN_SURGE.radius||0, R2=R*R, mobs=[];   // lectura REAL server-auth: buckets por jugador-objetivo
+        if(h2){ const players=amLivePlayers(h2), P=players.length, buckets=new Array(P).fill(0); let n=0;
+          for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h2.x, dy=e.y-h2.y; if(dx*dx+dy*dy>R2) continue; if(!aggroEngaged(e)) continue; const t=amTargetIdx(e,players); if(t<0) continue; n++; buckets[t]++; mobs.push({ x:+e.x.toFixed(1), y:+e.y.toFixed(1), type:e.type, state:e.state, tgt:t }); }
+          let top=0, second=0; for(let i=0;i<P;i++){ const c=buckets[i]; if(c>top){ second=top; top=c; } else if(c>second){ second=c; } }
+          const mf=aggroMarginField(h2);
+          marginProbeLive={ players:P, engaged:n, counts:buckets.slice(), top:top, second:second, field:+mf.toFixed(3), score:aggroMarginBand(mf), mobs }; }
+        else marginProbeLive={ players:0, engaged:0, counts:[], top:0, second:0, field:0, score:0, mobs:[] }; }
+    }
+    const h=G.hero, vm=aggroMarginVM(h);
+    return { enabled:AGGRO_MARGIN_SURGE.enabled, channel:AGGRO_MARGIN_SURGE.channel||"aggroMarginFind",
+      radius:vm.radius, weights:Object.assign({},AGGRO_MARGIN_SURGE.weights||{}), hiMargin:+AGGRO_MARGIN_SURGE.hiMargin||0, midMargin:+AGGRO_MARGIN_SURGE.midMargin||0, minMobs:Math.max(3,AGGRO_MARGIN_SURGE.minMobs|0), minPlayers:Math.max(2,AGGRO_MARGIN_SURGE.minPlayers|0),
+      tiers:(AGGRO_MARGIN_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?aggroMarginForage(h, {aggroMargin:true}):0,   // preview: fichas forrajeadas por un remate con la party disponible AHORA (expone el canal aggroMarginFind; usa score EN VIVO — en single-player 0)
+      marginProbe: marginProbe,                                // LUT PURA (counts,P)→N→top,second→M=(top−second)/N→banda→tier→charge (byte-verifica LEAD + UMBRALES)
+      driveMargin: driveMargin,                                // inyecta party SINTÉTICA + mobs con target ⇒ M=(top−second)/N REAL + idx/score server-auth
+      marginProbeLive: marginProbeLive,                        // lectura REAL server-auth: mobs enganchados en radio + buckets por jugador (counts + top + second + field)
+      cleared: cleared,                                        // nº de mobs de prueba removidos por clearMargin
+      tag: aggroMarginTag(h),                                  // glifo SERVIDO (OFF/empate/single-player ⇒ "" / some ≥midMargin ⇒ ⪢)
+      precedence:"aggroMarginFind (canal FRESCO — recompensa de fichas de VENTAJA por REMATAR con un jugador ACAPARANDO el aggro con margen sobre el resto): NINGUNA de las 66 flags #59-#124 lo toca. AÑADE la dimensión de DOMINANCIA-GAP/LEAD a la familia COMPOSICIÓN-DE-INTENCIÓN (#118 AGGRO-FOCUS = nivel sobre el HÉROE; #120 EMBATE = sub-estado; #121 REPARTO = UNIFORMIDAD de toda la distribución; #122 VAIVÉN = CHURN TEMPORAL; #123 COBERTURA = AMPLITUD/cuántos jugadores; #124 APILAMIENTO = max-share/PICO absoluto). EJE = aggroMarginField(hero)=M=(top−second)/N, lead fraccional ∈[0,1], INTENSIVO (invariante al conteo de MOBS). 🔑 server-auth sobre la aggro-table COMPARTIDA (SNAPSHOT PURO, SIN buffer temporal, como #121/#123/#124); INTRÍNSECAMENTE MULTIJUGADOR (single-player ⇒ P_players=1 ⇒ M=0, colapso LIMPIO). CRUX ⊥#124 APILAMIENTO (EL HERMANO, LA CRÍTICA — PICO absoluto max/N vs LEAD (max−second)/N; MISMO pico distinto margen: [6,6,0,0] ⇒ pile0.5-ALTO/margin0 (empate) vs [6,1,1,1] ⇒ pile0.667/margin0.556-ALTO (runaway); con N/max FIJOS [6,1,1,1] ⇒ pile0.667/margin0.556 vs [6,3,0,0] ⇒ pile0.667-MISMO/margin0.333-DISTINTO ⇒ margin NO es función de pile ⇒ DISOCIAN). ⊥#121 REPARTO (evenness/entropía de TODA la distribución: [6,6,0,0] ⇒ margin0/spread-mid vs [6,3,3,0] ⇒ margin0.25/spread-hi). ⊥#123 COBERTURA (AMPLITUD/cuántos jugadores). ⊥#118 AGGRO-FOCUS (IDENTITY-BLIND al héroe — lead sobre CUALQUIER jugador: [0,12,0,0] ⇒ margin1.0/focus0). ⊥#122 AGGRO-SWITCH (lead-estático-AHORA vs churn-temporal). ⊥#120 EMBATE (distribución sobre jugadores ⊥ sub-estado). ⊥ 2º-orden CINÉTICO #117 ACCEL/#119 JERK-SPLIT (churn de MOVIMIENTO ≠ dominancia de objetivos). ⊥#67 FRENZY/#94 SWIFT (ratio de dominancia, NO kill-rate). ⊥ velocidad-1er-orden #110/#111/#112/#116. ⊥ ATRIBUTO #115/#88/#106. ⊥ POSICIÓN #107/#108/#109/#113/#114 (a QUIÉN apuntan ≠ dónde están). ⊥#87 PACKHARVEST (lead-FRACCIONAL invariante al conteo de MOBS). ⊥#86/#85/#83. Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio aggroMarginBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.aggroMarginBounty STATELESS (fuera del save allowlist + worldFingerprint). SNAPSHOT PURO (sin estado per-tick, como #121/#123/#124). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.aggroMarginBounty!=null),                     // prueba byte-id: STATELESS ⇒ G.aggroMarginBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._amParty!=null),                          // prueba byte-id: G._amParty SÓLO existe tras driveMargin (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroMarginBounty:(h.aggroMarginBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
