@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -5528,6 +5528,56 @@ export function orbitVM(h){ h=h||G.hero; const on=!!ORBIT_SURGE.enabled&&!!h;
     cap:Math.max(0,ORBIT_SURGE.orbitBountyCap|0), radius:+ORBIT_SURGE.radius||0,
     tag: orbitTag(h) }; }
 
+// ============================ CAS-2688 REVUELO CINÉTICO (ACCEL_SURGE, EVO#117 DARK — eje de 2º ORDEN / CHURN) ============================
+// accelMotion(e, h) = VECTOR DE MOVIMIENTO server-auth de un mob = vᵢ·rumboᵢ = (speedIntent × headingIntent). MISMO null-set y MISMA fuente (rama de IA) que orbitVel/convergeVel #112/#116 (NO e.vx/e.vy INERTES). null si estacionario/comprometido (sin traslación).
+function accelMotion(e, h){ if(!e||!h) return null;
+  const m=headingIntent(e, h); if(!m) return null;                                 // sin rumbo (estacionario/comprometido) ⇒ null
+  const v=speedIntent(e, h); if(v==null) return null;                              // sin magnitud ⇒ null
+  return { mx:v*m.mx, my:v*m.my, v }; }                                            // vector de movimiento = magnitud × dirección de paso
+// accelTick(dt) = captura de 2º ORDEN: por cada mob VIVO EN MOVIMIENTO, si tenía un vector de movimiento del tick ANTERIOR (e._accPm), computa |Δmᵢ| = |mᵢ(t)−mᵢ(t−1)| en e._accD (marcado e._accHas) y guarda el actual como prev. Estado 100% TRANSITORIO en el enemigo (e._accPm/_accD/_accHas — los enemigos NUNCA se serializan ⇒ fuera del save; NO entra al worldFingerprint). GATED en el llamador (update): OFF ⇒ NUNCA corre ⇒ 0 campos creados ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente evoluciona idéntico.
+function accelTick(dt){ const h=G.hero; if(!h) return;
+  for(const e of (G.enemies||[])){ if(!e) continue;
+    if(e.dead||e.hp<=0){ e._accPm=null; e._accHas=false; e._accD=0; continue; }   // muerto ⇒ resetea historia (su Δ NO cuenta)
+    const m=accelMotion(e, h);
+    if(m==null){ e._accPm=null; e._accHas=false; e._accD=0; continue; }            // estacionario/comprometido ⇒ resetea (sin Δ espurio al reanudar)
+    const pm=e._accPm;
+    if(pm){ const ddx=m.mx-pm.mx, ddy=m.my-pm.my; e._accD=Math.hypot(ddx,ddy); e._accHas=true; }   // Δ del vector de movimiento entre ticks
+    else { e._accD=0; e._accHas=false; }                                          // 1er tick con movimiento ⇒ sólo siembra prev, aún sin Δ
+    e._accPm={ mx:m.mx, my:m.my }; } }
+// accelField(h) = CHURN CINÉTICO C∈[0,1] = media_i |Δmᵢ| / refDelta sobre los mobs VIVOS EN MOVIMIENTO con Δ DEFINIDO (e._accHas, ≥2 ticks de historia) en radio. Requiere ≥minMobs. INTENSIVO/ADIMENSIONAL (media normalizada, invariante al conteo). PURO — lee e._accD (poblado por accelTick). 0 si OFF-path (accelTick nunca corrió ⇒ ningún e._accHas).
+function accelField(h){ h=h||G.hero; if(!h) return 0; const R=+ACCEL_SURGE.radius||0, R2=R*R, minN=Math.max(3,ACCEL_SURGE.minMobs|0), ref=+ACCEL_SURGE.refDelta||60;
+  let n=0, sum=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(dx*dx+dy*dy>R2) continue; if(!e._accHas) continue; n++; sum+=(+e._accD||0); }   // Δ de los mobs vivos en movimiento con historia
+  if(n<minN) return 0;                                                             // <minMobs con Δ definido ⇒ churn indefinido ⇒ 0
+  if(ref<=1e-6) return 0;                                                          // referencia degenerada ⇒ 0
+  return Math.min(1, (sum/n)/ref); }                                              // media |Δm| normalizada ∈[0,1] (1=finta/revuelo, 0=velocidad constante)
+// accelBand(c) = peso por la BANDA de churn. C≥hiChurn(0.55) ⇒ churn/revuelo ⇒ 2; C≥midChurn(0.25) ⇒ jitter/tembleque ⇒ 1; C<midChurn (~constante) ⇒ 0. LUT PURA ESTÁTICA por umbral adimensional.
+function accelBand(c){ const cfg=ACCEL_SURGE, W=cfg.weights||{}; const hi=(cfg.hiChurn!=null)?+cfg.hiChurn:0.55, mid=(cfg.midChurn!=null)?+cfg.midChurn:0.25;
+  if(c>=hi) return +W.churn||0; if(c>=mid) return +W.jitter||0; return 0; }
+// accelScore(h) = peso de banda del CHURN VIVO en radio = accelBand(accelField(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si no hay ≥minMobs con Δ en radio. Señal VIVA del badge/VM (el GRANT usa el snapshot _accelPre muestreado en el TOP del kill tras e.dead=true ⇒ ANTI-AUTO-CONTEO).
+function accelScore(h){ h=h||G.hero; if(!h) return 0; return accelBand(accelField(h)); }
+// accelRank(score) = índice del tier de revuelo vigente (0 = ~constante/solitario) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más revuelo = tier ALTO. LUT determinista pura.
+function accelRank(score){ const T=ACCEL_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// accelBonus(score) = nº de fichas de revuelo del tier vigente, acotado por el sub-cap propio accelBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta accelFind.
+function accelBonus(score){ if(!ACCEL_SURGE.enabled) return 0;
+  if((ACCEL_SURGE.channel||"accelFind")!=="accelFind") return 0;                   // seguridad: ACCEL_SURGE SÓLO alimenta accelFind (si el knob se re-apunta, no contribuye)
+  const t=accelRank(score); if(t<=0) return 0;
+  const raw=+ACCEL_SURGE.tiers[t-1].charge||0, cap=Math.max(0,ACCEL_SURGE.accelBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// accelForage(h, tpl, preScore) = las fichas por un remate DENTRO de un revuelo = accelBonus(preScore). preScore = el snapshot de churn muestreado en el TOP de killEnemy (tras fijarse e.dead=true del mob a rematar) ⇒ ANTI-AUTO-CONTEO. Si preScore es undefined (VM/preview) usa accelScore(h) EN VIVO. 0 si OFF / sin formación / sin tpl. PURO — el seam decide banca a h.accelBounty vía grantAccelBounty.
+function accelForage(h, tpl, preScore){ if(!ACCEL_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?accelScore(h||G.hero):(+preScore||0); return accelBonus(score); }
+// accelTag(h) = glifo del badge de REVUELO CINÉTICO (⚡) si el héroe está en medio de una manada en churn ≥jitter en radio (tier>0). PURO. "" si OFF / sin revuelo.
+export function accelTag(h){ h=h||G.hero; if(!ACCEL_SURGE.enabled||!h) return "";
+  return accelRank(accelScore(h))>0 ? "⚡" : ""; }
+// accelVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function accelVM(h){ h=h||G.hero; const on=!!ACCEL_SURGE.enabled&&!!h;
+  const idx=on?accelField(h):0, score=on?accelScore(h):0, tier=on?accelRank(score):0, charge=on?accelBonus(score):0;
+  return { enabled:!!ACCEL_SURGE.enabled, channel:ACCEL_SURGE.channel||"accelFind",
+    idx:+idx.toFixed(3), score, tier, tierCount:(ACCEL_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,ACCEL_SURGE.accelBountyCap|0), radius:+ACCEL_SURGE.radius||0,
+    tag: accelTag(h) }; }
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -6943,6 +6993,8 @@ function killEnemy(e){
   const _sizeClassPre = SIZECLASS_SURGE.enabled ? sizeClassScore(G.hero) : 0;
   // CAS-2684 ORBIT_SURGE: snapshot de la CIRCULACIÓN ORBITAL / CIRCULACIÓN NETA TANGENCIAL de la formación VIVA = orbitScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ su vector NO entra al conjunto (orbitField filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja la CIRCULACIÓN de la manada VIVA (C=|Σ vᵢ·(mᵢ·t̂ᵢ)|/Σvᵢ) EN EL MOMENTO del kill; combinado con minMobs≥3 (en movimiento) y la TABLA (score≥1 ⇒ swirl) rematar en solitario o CON la manada embistiendo/huyendo en radial (C bajo) NO forrajea. GATED ⇒ enabled:false ⇒ `_orbitPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _orbitPre = ORBIT_SURGE.enabled ? orbitScore(G.hero) : 0;
+  // CAS-2688 ACCEL_SURGE: snapshot del CHURN CINÉTICO / 2º-orden del movimiento de la formación VIVA = accelScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ su Δ NO entra al conjunto (accelField filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja el REVUELO de la manada VIVA (C=media|Δmᵢ|/refDelta) EN EL MOMENTO del kill; con minMobs≥3 (con Δ) y la TABLA (score≥1 ⇒ jitter) rematar en solitario o CON la manada a velocidad constante (C bajo) NO forrajea. GATED ⇒ enabled:false ⇒ `_accelPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _accelPre = ACCEL_SURGE.enabled ? accelScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -7348,6 +7400,12 @@ function killEnemy(e){
   if(ORBIT_SURGE.enabled && !tpl.neutral){ const obf=orbitForage(G.hero, tpl, _orbitPre);
     if(obf>0){ grantOrbitBounty(obf);
       floater(e.x,e.y-792,"+"+obf+" Órbita","#a0e0ff",{small:true}); } }
+  // CAS-2688 ACCEL_SURGE seam: REMATE DE REVUELO. Al matar un mob no-neutral mientras la vecindad del HÉROE estaba en alto CHURN CINÉTICO (C=media|Δmᵢ|/refDelta ≥midChurn con ≥minMobs mobs vivos con Δ definido en radio, score≥umbral ANTES de este kill vía `_accelPre`), el héroe
+  // cosecha fichas de revuelo = accelForage(hero,tpl,_accelPre) (flat por banda de churn, sub-cap accelBountyCap), banca a h.accelBounty vía grantAccelBounty (0 RNG). `_accelPre` se muestreó en el TOP tras e.dead=true (accelField filtra !e.dead ⇒ el Δ de la víctima NO entra) + minMobs≥3 (con Δ) + la TABLA exige score≥1 (⇒ jitter) ⇒ rematar en solitario o con la manada a velocidad CONSTANTE (C bajo ⇒ 0) NO forrajea; hace falta una manada GENUINAMENTE fintando/reposicionando (revuelo cinético).
+  // Canal FRESCO accelFind (fuente ÚNICA, sub-cap accelBountyCap) — NINGUNA de las 58 flags #59-#116 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantAccelBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(ACCEL_SURGE.enabled && !tpl.neutral){ const acf=accelForage(G.hero, tpl, _accelPre);
+    if(acf>0){ grantAccelBounty(acf);
+      floater(e.x,e.y-814,"+"+acf+" Revuelo","#ffe27a",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -8636,6 +8694,8 @@ function grantDepthBounty(n){ const h=G.hero; if(!h||n<=0) return; h.depthBounty
 function grantSizeClassBounty(n){ const h=G.hero; if(!h||n<=0) return; h.sizeClassBounty=(h.sizeClassBounty|0)+(n|0); }
 // CAS-2684: banca fichas de carrusel (canal orbitFind de ORBIT_SURGE). Moneda TRANSITORIA NUEVA (h.orbitBounty — init LAZY por-run, FUERA del save allowlist + fingerprint). 0 RNG. Mirror de grantSizeClassBounty para el trickle de fichas al rematar con la manada que ORBITA COORDINADA (C tangencial ≥midOrbit con ≥minMobs vivos en movimiento en radio). STATELESS: h.orbitBounty NO se serializa ⇒ no es clave de save. ⊥ h.gold/h.coinBounty/h.blastBounty/h.baneBounty/h.motleyBounty/h.disperseBounty/h.flankBounty/h.columnBounty/h.orientBounty/h.speedBounty/h.convergeBounty/h.encircleBounty/h.depthBounty/h.sizeClassBounty/h.packBounty — orbitBounty es un recurso TRANSITORIO de forrajeo de carrusel, distinto de todos los canales previos.
 function grantOrbitBounty(n){ const h=G.hero; if(!h||n<=0) return; h.orbitBounty=(h.orbitBounty|0)+(n|0); }
+// CAS-2688 REVUELO CINÉTICO: banca fichas de revuelo (accelFind) — recurso TRANSITORIO h.accelBounty, fuera del save allowlist + worldFingerprint. STATELESS ⇒ G.accelBounty NUNCA se crea. 0 RNG.
+function grantAccelBounty(n){ const h=G.hero; if(!h||n<=0) return; h.accelBounty=(h.accelBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9112,6 +9172,7 @@ export function update(dtMs){
   updateSpirit(dt);
   // enemies
   updateEnemies(dt);
+  if(ACCEL_SURGE.enabled) accelTick(dt); // CAS-2688 REVUELO CINÉTICO (EVO#117 DARK): captura de 2º orden del vector de movimiento de los mobs (|Δmᵢ| entre ticks) tras el AI update. GATED ⇒ OFF ⇒ NUNCA corre ⇒ 0 estado per-mob creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente idéntico.
   updateCorpses(dt); // CAS-317: age + reap rich-anim boss death corpses (presentation-only)
   updateProjectiles(dt);
   updateFields(dt);
@@ -13453,6 +13514,55 @@ export const dev = {
       precedence:"orbitFind (canal FRESCO — recompensa de fichas de carrusel por REMATAR con la manada que ORBITA COORDINADA alrededor del héroe, carrusel/estrafeo coherente): NINGUNA de las 57 flags #59-#115 lo toca. Distinto por CONSTRUCCIÓN de convergeFind #112 [velocidad RADIAL SIGNADA (cos, m·u) — ORBIT es la TANGENCIAL (sin, m·t̂), la componente ORTOGONAL del MISMO vector de velocidad], orientFind #110 [dispersión de rumbo WORLD-frame hero-INVARIANTE — ORBIT es circulación hero-RELATIVA; un carrusel da orient2/orbit2], speedFind #111 [CV de MAGNITUD dirección-agnóstico — ORBIT es dirección tangencial magnitud-INVARIANTE], headingFind #90 [rumbo de UNA víctima MAX]. Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio orbitBountyCap, 0 doble-dip. PRE-FLIGHT del eje RECOMENDADO velCohesionSurge (R/1−CV de rumbos) → FALLA ⊥#110 ORIENT: R de rumbos = EXACTAMENTE 1−orientSpread, re-mapeo AFÍN (pendiente −1) de un flag YA LIVE. FALLBACK tempoBurstSurge (kill-rate en ventana) → FALLA ⊥#67 FRENZY: re-mapeo monótono de kill-streak stacks (ya rechazado por el pre-flight de #110). ⇒ PIVOTE a la 3ª pierna de VELOCITY-COHESION: la COHESIÓN ROTACIONAL/ORBITAL (circulación neta tangencial). EJE = orbitField(hero)=C=|Σ vᵢ·(mᵢ·t̂ᵢ)|/Σvᵢ ⇒ orbitBand: ≥hiOrbit(0.60) ⇒ 2, ≥midOrbit(0.30) ⇒ 1, <mid ⇒ 0; requiere ≥minMobs(3) en movimiento. score del kill = orbitScore(hero) muestreado en TOP (_orbitPre) tras e.dead=true (ANTI-AUTO-CONTEO: el vector de la víctima NO entra a la circulación). CRUX ⊥57: eje CINÉTICO/ROTACIONAL CIRCULACIÓN ORBITAL (¿orbita coordinada en carrusel vs embiste/huye radial vs gira en desorden?, magnitud-INVARIANTE, hero-relativa), NO velocidad-radial-signada/rumbo-WORLD/CV-de-magnitud/rumbo-de-1-víctima/posición/atributo/conteo/tempo. ⊥ #112 CONVERGE (radial cos ⊥ tangencial sin, descomposición ORTOGONAL, 4 cuadrantes: embestida frontal ⇒ converge2/orbit0, carrusel CCW ⇒ converge0/orbit2, espiral ⇒ converge1/orbit1, huida ⇒ converge0/orbit0). ⊥ #110 ORIENT (acuerdo WORLD hero-INVARIANTE ⊥ circulación hero-RELATIVA: carrusel ⇒ orient2/orbit2, marcha-norte-en-bloque ⇒ orient0/orbit0-bajo). ⊥ #111 SPEED (CV de magnitud ⊥ dirección tangencial magnitud-INVARIANTE: carrusel uniforme ⇒ orbit2/speed0, carrusel dispar ⇒ orbit2/speed2). ⊥ #90 HEADING (rumbo de 1 víctima MAX). ⊥ #107 DISPERSE/#108 FLANK/#109 COLUMN/#113 ENCIRCLE/#114 DEPTH (POSICIONES/distancias/ángulos — ORBIT lee el VECTOR DE MOVIMIENTO: anillo de mobs QUIETOS ⇒ encircle2 PERO orbit0 [sin traslación ⇒ EXCLUIDOS]). ⊥ #115 SIZECLASS/#88 BULK/#106 MOTLEY (ATRIBUTOS estáticos — ORBIT es CINÉTICO). ⊥ #87 PACKHARVEST (CONTEO — C invariante al conteo). ⊥ #84 SKIRMISH (fracción ranged). ⊥ #86/#85/#83 [estado DINÁMICO — el frost-slow #85 escala vᵢ pero /Σv lo cancela en la dirección]. ⊥ FRENZY#67/CADENCE#67 (TEMPO/tasa temporal — el FALLBACK que FALLÓ). ⊥override/⊥#74/⊥#91 [velocidad ≠ afijo/zona: C INVARIANTE a un factor de escala UNIFORME]. ORTOGONAL a toda la familia find (convergeFind/orientFind/speedFind/headingFind/… seams distintos).",
       gExists:(G.orbitBounty!=null),                                  // prueba byte-id: STATELESS ⇒ G.orbitBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), orbitBounty:(h.orbitBounty|0) }:null }; },
+  // CAS-2688: REVUELO CINÉTICO OBSERVABLE hook (DARK, ACCEL_SURGE — canal FRESCO accelFind [fichas de revuelo por REMATAR con la manada en alto CHURN cinético (fintas/juking/reposicionamiento), NINGUNA de las 58 flags #59-#116 lo toca] + eje de 2º ORDEN: accelField(hero)=C=media_i|Δmᵢ|/refDelta = tasa de CAMBIO del vector de movimiento server-auth mᵢ=vᵢ·rumboᵢ [vᵢ=speedIntent + rumboᵢ=headingIntent — MISMA fuente que #112/#116, NO e.vx/e.vy] entre ticks consecutivos, muestreado en el TOP de killEnemy [_accelPre, tras e.dead=true ⇒ ANTI-AUTO-CONTEO]). GATED enabled:false ⇒ byte-neutral OFF (accelTick NUNCA corre + _accelPre=0 const inerte + seam rama muerta ⇒ killEnemy byte-idéntico al HEAD).
+  //   accel()                         → snapshot VM {enabled,channel,radius,weights,hiChurn,midChurn,minMobs,refDelta,tiers,cap,idx,score,tier,charge,forageChargePreview,churnProbe,driveAcc,accProbeLive,cleared,tag,gExists,hero}
+  //   accel({enabled})                → flip runtime IN-MEMORY de ACCEL_SURGE.enabled
+  //   accel({tp:{tx,ty}})             → teleport determinista del héroe al centro del tile (los mobs inyectados caen en radio)
+  //   accel({churnProbe:{c}})         → LUT PURA C→banda→tier→charge (byte-verifica UMBRALES hiChurn/midChurn + TABLA + sub-cap)
+  //   accel({driveAcc:{pts:[{dx,dy,h0,h1}],wipe}}) → inyecta mobs REALES (wander) en offsets px con rumbo INICIAL h0, siembra prev vía accelTick, re-apunta a h1, computa Δ vía 2º accelTick ⇒ accelField lee |Δm| REAL; deja los mobs en h1 (los peers orbit/converge/speed leen la config FINAL). |Δm|=60·|sin((h1−h0)/2)| (v wander=30)
+  //   accel({accProbeLive:true})      → lectura REAL server-auth: mobs vivos con Δ en radio + sumD + mean + C + score + lista {x,y,type,d}
+  //   accel({clearAcc:true})          → limpia SÓLO los mobs de prueba inyectados
+  accel(p){
+    let churnProbe=null, driveAcc=null, accProbeLive=null, cleared=null;
+    if(p && typeof p==="object"){
+      if("enabled" in p) ACCEL_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.churnProbe && typeof p.churnProbe==="object"){ const c=Math.max(0,+p.churnProbe.c||0), w=accelBand(c), t=accelRank(w);   // LUT PURA C→banda→tier→charge (byte-verifica UMBRALES hiChurn/midChurn)
+        const hi=(ACCEL_SURGE.hiChurn!=null)?+ACCEL_SURGE.hiChurn:0.55, mid=(ACCEL_SURGE.midChurn!=null)?+ACCEL_SURGE.midChurn:0.25;
+        const raw=t>0?(+ACCEL_SURGE.tiers[t-1].charge||0):0, cap=Math.max(0,ACCEL_SURGE.accelBountyCap|0);
+        churnProbe={ c, hiChurn:hi, midChurn:mid, weight:w, tier:t, charge:cap>0?Math.min(raw,cap):raw }; }
+      if(p.driveAcc && typeof p.driveAcc==="object"){ const pts=Array.isArray(p.driveAcc.pts)?p.driveAcc.pts:[], injected=[];   // 2º-orden: siembra en h0, re-apunta a h1, computa |Δm| vía dos accelTick
+        if(p.driveAcc.wipe) G.enemies=[];   // test-only: limpia mobs ambiente ⇒ el churn refleja SÓLO los inyectados
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0, mobs=[];
+        for(let i=0;i<pts.length;i++){ const q=pts[i]||{}, ty2=String(q.type||"rat"), sx=hx+(+q.dx||0), sy=hy+(+q.dy||0), e=ETPL[ty2]?spawnEnemy(ty2,sx,sy):null;
+          if(e){ e._accTest=true; e.dead=false; e.x=sx; e.y=sy; e.state="wander"; const h0=+q.h0||0; e.wx=Math.cos(h0); e.wy=Math.sin(h0); e._accPm=null; e._accHas=false; e._accD=0; mobs.push({ e, h1:+q.h1||0, type:ty2, h0 }); }
+          else injected.push({ idx:-1, type:ty2, valid:false }); }
+        accelTick(0);   // TICK 1: siembra prev con el vector en h0 (e._accHas=false)
+        for(const mm of mobs){ mm.e.wx=Math.cos(mm.h1); mm.e.wy=Math.sin(mm.h1); }   // re-apunta al rumbo FINAL h1
+        accelTick(0);   // TICK 2: computa Δ = |m(h1)−m(h0)| en e._accD (e._accHas=true)
+        for(const mm of mobs) injected.push({ idx:G.enemies.indexOf(mm.e), type:mm.type, h0:+mm.h0.toFixed(3), h1:+mm.h1.toFixed(3), x:+mm.e.x.toFixed(1), y:+mm.e.y.toFixed(1), d:+(+mm.e._accD||0).toFixed(3), has:!!mm.e._accHas });
+        driveAcc={ injected, idx:+accelField(G.hero).toFixed(3), score:accelScore(G.hero) }; }
+      if(p.clearAcc){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._accTest); cleared=before-G.enemies.length; }
+      if(p.accProbeLive){ const h2=G.hero, R=+ACCEL_SURGE.radius||0, R2=R*R, mobs=[]; let sumD=0, n=0;   // lectura REAL server-auth: mobs vivos con Δ en radio
+        if(h2){ for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h2.x, dy=e.y-h2.y; if(dx*dx+dy*dy>R2) continue; if(!e._accHas) continue; n++; const d=+e._accD||0; sumD+=d; mobs.push({ x:+e.x.toFixed(1), y:+e.y.toFixed(1), type:e.type, d:+d.toFixed(3) }); }
+          const cc=accelField(h2);
+          accProbeLive={ mobCount:n, sumD:+sumD.toFixed(3), mean:n>0?+(sumD/n).toFixed(3):0, cv:+cc.toFixed(3), score:accelBand(cc), mobs }; }
+        else accProbeLive={ mobCount:0, sumD:0, mean:0, cv:0, score:0, mobs:[] }; }
+    }
+    const h=G.hero, vm=accelVM(h);
+    return { enabled:ACCEL_SURGE.enabled, channel:ACCEL_SURGE.channel||"accelFind",
+      radius:vm.radius, weights:Object.assign({},ACCEL_SURGE.weights||{}), hiChurn:+ACCEL_SURGE.hiChurn||0, midChurn:+ACCEL_SURGE.midChurn||0, minMobs:Math.max(3,ACCEL_SURGE.minMobs|0), refDelta:+ACCEL_SURGE.refDelta||0,
+      tiers:(ACCEL_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?accelForage(h, {accel:true}):0,           // preview: fichas forrajeadas por un remate con la formación disponible AHORA (expone el canal accelFind; usa score EN VIVO)
+      churnProbe: churnProbe,                                          // LUT PURA C→banda→tier→charge (byte-verifica UMBRALES hiChurn/midChurn + TABLA)
+      driveAcc: driveAcc,                                              // 2º-orden: inyecta mobs REALES (h0→h1), computa |Δm| REAL + idx/score server-auth
+      accProbeLive: accProbeLive,                                      // lectura REAL server-auth: mobs vivos con Δ en radio (sumD + mean + C + score + lista {x,y,type,d})
+      cleared: cleared,                                               // nº de mobs de prueba removidos por clearAcc
+      tag: accelTag(h),                                              // glifo SERVIDO (OFF/~constante ⇒ "" / jitter ≥midChurn ⇒ ⚡)
+      precedence:"accelFind (canal FRESCO — recompensa de fichas de REVUELO por REMATAR con la manada en alto CHURN CINÉTICO / que CAMBIA rápido su movimiento, fintas/juking/reposicionamiento): NINGUNA de las 58 flags #59-#116 lo toca. EJE DE 2º ORDEN — accelField(hero)=C=media_i|Δmᵢ|/refDelta = la DERIVADA TEMPORAL del vector de movimiento server-auth mᵢ=vᵢ·rumboᵢ (vᵢ=speedIntent + rumboᵢ=headingIntent — MISMA fuente que #110/#111/#112/#116, NO e.vx/e.vy INERTES) entre ticks consecutivos, capturada por accelTick tras updateEnemies. Distinto por CONSTRUCCIÓN de las 4 flags de VELOCIDAD 1er-orden [orbitFind #116 tangencial-INSTANTÁNEA / convergeFind #112 radial-INSTANTÁNEA / orientFind #110 rumbo-WORLD-INSTANTÁNEO / speedFind #111 CV-magnitud-INSTANTÁNEA]: son funciones de mᵢ(t); ACCEL = |mᵢ(t)−mᵢ(t−1)|. CRUX ⊥#116 ORBIT (4 cuadrantes orbit×accel): CARRUSEL-CONSTANTE ⇒ orbit2/accel0; SPIN-UP (radial→tangente) ⇒ orbit2/accel2; MARCHA-CONSTANTE ⇒ orbit0/accel0; FINTA-EN-SITIO ⇒ orbit0/accel2 ⇒ orbit mapea a accel 0 Y 2 ⇒ accel NO es función de orbit. CRUX ⊥#112 CONVERGE / ⊥#110 ORIENT (constante-vs-cambio: embiste-frontal CONSTANTE ⇒ converge2/accel0; alcanzado por giro brusco ⇒ converge2/accel2). CRUX ⊥#111 SPEED (pack wander v uniforme ⇒ speedSpread≡0 mientras accel varía 0/1/2). ⊥#67 FRENZY/#94 SWIFT/CADENCE (TEMPO = kill-rate del HÉROE — ACCEL es 2º-orden del MOVIMIENTO DE LOS MOBS; pico de revuelo con CERO kills). ⊥#115 SIZECLASS/#88 BULK/#106 MOTLEY (ATRIBUTOS de template — ACCEL cinético). ⊥#107/#108/#109/#113/#114 (POSICIONES/distancias/ángulos — anillo QUIETO ⇒ encircle2 PERO accel0 [sin traslación excluido; sin CAMBIO ⇒ 0]). ⊥#87 PACKHARVEST (CONTEO — media invariante). ⊥#86/#85/#83 [frost-slow #85 escala vᵢ pero un pack CONSTANTE-slowed ⇒ accel0 (el slow no crea CAMBIO), juking-slowed ⇒ accel>0 ⇒ MISMO slow-factor accel distinto ⇒ NO re-mapeo del slow-flag; mide el PATRÓN de cambio, no la velocidad]. Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio accelBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.accelBounty STATELESS (fuera del save allowlist + worldFingerprint); estado de historia per-mob (e._accPm/_accD/_accHas) TRANSITORIO en el enemigo (nunca serializado, fuera del fingerprint), poblado sólo cuando enabled. ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.accelBounty!=null),                                  // prueba byte-id: STATELESS ⇒ G.accelBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), accelBounty:(h.accelBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
