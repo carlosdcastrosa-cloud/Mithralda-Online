@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6028,6 +6028,63 @@ export function aggroVarietyVM(h){ h=h||G.hero; const on=!!AGGRO_VARIETY_SURGE.e
     cap:Math.max(0,AGGRO_VARIETY_SURGE.aggroVarietyBountyCap|0), radius:+AGGRO_VARIETY_SURGE.radius||0,
     tag: aggroVarietyTag(h) }; }
 
+// CAS-2743: ESCALADA (AGGRO_MOMENTUM_SURGE, EVO#128 DARK) — la dimensión ESCALATION/BUILD-UP (la TENDENCIA aggro CON SIGNO, no el snapshot) de la familia COMPOSICIÓN-DE-INTENCIÓN. TEMPORAL/WINDOWED (ring-buffer per-héroe de N enganchado, como #122 SWITCH).
+// momLivePlayers(h) = la party de JUGADORES VIVOS en radio del héroe (para el gate P≥minPlayers). 🔑 Single-player ⇒ SÓLO el héroe. G._momParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.aggroMomentum driveMomentum — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. O(P). Helper INDEPENDIENTE de #121/#122/#123/#124/#125/#126/#127 — party separada.
+function momLivePlayers(h){ h=h||G.hero; if(!h) return [];
+  const R=+AGGRO_MOMENTUM_SURGE.radius||0, R2=R*R;
+  const party=(Array.isArray(G._momParty)&&G._momParty.length)?G._momParty:[h];   // normal (juego): sólo el héroe; PRUEBA: party sintética inyectada
+  const out=[]; for(const p of party){ if(!p) continue; if(p.dead||(p.hp!=null&&p.hp<=0)) continue; const dx=(+p.x||0)-h.x, dy=(+p.y||0)-h.y; if(dx*dx+dy*dy>R2) continue; out.push(p); } return out; }
+// momEngagedN(h) = N = nº de mobs aggro-ENGANCHADOS VIVOS en radio del héroe (el TAMAÑO instantáneo del pack). FILTRA muertos/hp≤0 ⇒ ANTI-AUTO-CONTEO. PURO (lee la aggro-table replicada), 0-RNG/0-timer. O(n). 🔑 IGNORA a QUIÉN targetea cada mob y de QUÉ tipo es (momentum = TENDENCIA del CONTEO, no la forma/tipo del reparto).
+function momEngagedN(h){ h=h||G.hero; if(!h) return 0;
+  const R=+AGGRO_MOMENTUM_SURGE.radius||0, R2=R*R; let n=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(dx*dx+dy*dy>R2) continue; if(!aggroEngaged(e)) continue; n++; }
+  return n; }
+// momentumTick(dt) = CAPTURA TEMPORAL de la ESCALADA del pack: muestrea N enganchado (momEngagedN) del héroe y lo empuja a un ring-buffer per-héroe (G._momR, capacidad window+1). Cuando el buffer está LLENO (Δ+1 muestras = t−Δ..t), G._momHas=true ⇒ N_t (última) vs N_{t−Δ} (primera) están disponibles. Sin héroe ⇒ RESETEA el buffer (G._momR=null). Estado 100% TRANSITORIO (G._momR/_momHas — G scratch, NUNCA serializado ⇒ fuera del save; worldFingerprint es world-only ⇒ NO entra). GATED en el llamador (update): OFF ⇒ NUNCA corre ⇒ 0 estado creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente evoluciona idéntico. Ring per-héroe (cliente-derivado del estado replicado, como #122).
+function momentumTick(dt){ const h=G.hero; if(!h){ G._momR=null; G._momHas=false; return; }
+  const W=Math.max(1,AGGRO_MOMENTUM_SURGE.window|0), n=momEngagedN(h);
+  let r=G._momR; if(!Array.isArray(r)){ r=[]; G._momR=r; }
+  r.push(n); while(r.length>W+1) r.shift();                                            // ring capacity Δ+1 (t−Δ..t)
+  G._momHas=(r.length>=W+1); }                                                         // lleno ⇒ N_{t−Δ} disponible
+// aggroMomentumRaw(h) = build-up CRUDO CON SIGNO rawM = max(0, N_t − N_{t−Δ}) del pack ENGANCHADO sobre la ventana Δ. Requiere el ring LLENO (G._momHas), P≥minPlayers (con <2 ⇒ single-player ⇒ 0 LIMPIO) y N_t≥minMobs (pack actual significativo). DECAY/estable (N_t≤N_{t−Δ}) ⇒ 0 (PREMIA sólo la ESCALADA). PURO — lee G._momR (poblado por momentumTick). 0 si OFF-path (momentumTick nunca corrió ⇒ G._momR ausente). O(P).
+function aggroMomentumRaw(h){ h=h||G.hero; if(!h) return 0;
+  const r=G._momR; if(!G._momHas||!Array.isArray(r)||r.length<2) return 0;             // cold-start / OFF-path ⇒ 0 (sin historia)
+  const minN=Math.max(3,AGGRO_MOMENTUM_SURGE.minMobs|0), minP=Math.max(2,AGGRO_MOMENTUM_SURGE.minPlayers|0);
+  const players=momLivePlayers(h), P=players.length; if(P<minP) return 0;             // <minPlayers (single-player) ⇒ escalada compartida indefinida ⇒ 0
+  const Nt=r[r.length-1]|0, Nprev=r[0]|0;                                             // N_t (última) vs N_{t−Δ} (primera)
+  if(Nt<minN) return 0;                                                              // pack actual <minMobs ⇒ indefinido ⇒ 0
+  const raw=Nt-Nprev; return raw>0?raw:0; }                                          // decay/estable ⇒ 0 (sólo build-up POSITIVO)
+// aggroMomentumField(h) = ESCALADA M∈[0,1] = min(1, rawM/momentumCap), rawM=aggroMomentumRaw(h). El idx NORMALIZADO del badge (cuánto creció el pack relativo al techo). M≈1 ⇒ oleada máxima; M=0 ⇒ estable/menguante/single-player. INTENSIVO. PURO/determinista.
+function aggroMomentumField(h){ h=h||G.hero; if(!h) return 0;
+  const cap=Math.max(1,+AGGRO_MOMENTUM_SURGE.momentumCap||4), raw=aggroMomentumRaw(h);
+  const M=raw/cap; return M>1?1:(M<0?0:M); }
+// aggroMomentumBand(raw) = peso por la BANDA de escalada sobre rawM CRUDO (ΔN, NO el M normalizado). rawM≥hiMomentum(3) ⇒ surging ⇒ 2; rawM≥midMomentum(2) ⇒ creciendo ⇒ 1; rawM<midMomentum (estable/menguante) ⇒ 0. LUT PURA ESTÁTICA por umbral de ΔN.
+function aggroMomentumBand(raw){ const cfg=AGGRO_MOMENTUM_SURGE, W=cfg.weights||{}; const hi=(cfg.hiMomentum!=null)?+cfg.hiMomentum:3, mid=(cfg.midMomentum!=null)?+cfg.midMomentum:2;
+  if(raw>=hi) return +W.heavy||0; if(raw>=mid) return +W.some||0; return 0; }
+// aggroMomentumScore(h) = peso de banda del PACK VIVO en radio = aggroMomentumBand(aggroMomentumRaw(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo estado. 0 si <minMobs / <minPlayers / estable-menguante / cold-start. Señal VIVA del badge/VM (el GRANT usa el snapshot _aggroMomentumPre del TOP del kill).
+function aggroMomentumScore(h){ h=h||G.hero; if(!h) return 0; return aggroMomentumBand(aggroMomentumRaw(h)); }
+// aggroMomentumRank(score) = índice del tier de escalada vigente (0 = estable/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Pull creciendo más rápido = tier ALTO. LUT determinista pura.
+function aggroMomentumRank(score){ const T=AGGRO_MOMENTUM_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// aggroMomentumBonus(score) = nº de fichas de escalada del tier vigente, acotado por el sub-cap propio aggroMomentumBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta aggroMomentumFind.
+function aggroMomentumBonus(score){ if(!AGGRO_MOMENTUM_SURGE.enabled) return 0;
+  if((AGGRO_MOMENTUM_SURGE.channel||"aggroMomentumFind")!=="aggroMomentumFind") return 0;   // seguridad: AGGRO_MOMENTUM_SURGE SÓLO alimenta aggroMomentumFind (si el knob se re-apunta, no contribuye)
+  const t=aggroMomentumRank(score); if(t<=0) return 0;
+  const raw=+AGGRO_MOMENTUM_SURGE.tiers[t-1].charge||0, cap=Math.max(0,AGGRO_MOMENTUM_SURGE.aggroMomentumBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// aggroMomentumForage(h, tpl, preScore) = las fichas por un remate mientras el pull CRECE = aggroMomentumBonus(preScore). preScore = el snapshot de escalada muestreado en el TOP de killEnemy (_aggroMomentumPre). Si preScore es undefined (VM/preview) usa aggroMomentumScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.aggroMomentumBounty vía grantAggroMomentumBounty.
+function aggroMomentumForage(h, tpl, preScore){ if(!AGGRO_MOMENTUM_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?aggroMomentumScore(h||G.hero):(+preScore||0); return aggroMomentumBonus(score); }
+// aggroMomentumTag(h) = glifo del badge de ESCALADA (⇗) si el pull ENGANCHADO del héroe está creciendo ≥mid en radio (tier>0). PURO. "" si OFF / estable / single-player. 🔑 en single-player SIEMPRE "" (P<minPlayers ⇒ M=0).
+export function aggroMomentumTag(h){ h=h||G.hero; if(!AGGRO_MOMENTUM_SURGE.enabled||!h) return "";
+  return aggroMomentumRank(aggroMomentumScore(h))>0 ? "⇗" : ""; }
+// aggroMomentumVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/raw/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function aggroMomentumVM(h){ h=h||G.hero; const on=!!AGGRO_MOMENTUM_SURGE.enabled&&!!h;
+  const raw=on?aggroMomentumRaw(h):0, idx=on?aggroMomentumField(h):0, score=on?aggroMomentumScore(h):0, tier=on?aggroMomentumRank(score):0, charge=on?aggroMomentumBonus(score):0;
+  return { enabled:!!AGGRO_MOMENTUM_SURGE.enabled, channel:AGGRO_MOMENTUM_SURGE.channel||"aggroMomentumFind",
+    idx:+idx.toFixed(3), raw, score, tier, tierCount:(AGGRO_MOMENTUM_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,AGGRO_MOMENTUM_SURGE.aggroMomentumBountyCap|0), radius:+AGGRO_MOMENTUM_SURGE.radius||0,
+    tag: aggroMomentumTag(h) }; }
+
+
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
 // (próximos); mientras ≥minPairs pares se sostienen ACUMULA un `kinship` con DECAY, empuja { zona → { kinship, atMs } }; el cliente REFLEJA + PROYECTA al `now` compartido. kinshipPairs(positions)
@@ -7465,6 +7522,8 @@ function killEnemy(e){
   const _aggroDensityPre = AGGRO_DENSITY_SURGE.enabled ? aggroDensityScore(G.hero) : 0;
   // CAS-2736 AGGRO_VARIETY_SURGE: snapshot de la MEZCLA/heterogeneidad K del pack ENGANCHADO VIVO = aggroVarietyScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ NO cuenta en N/K (aggroVarietyTypes filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja cuán HETEROGÉNEO era el pull (K arquetipos distintos) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ mixto) rematar en single-player (P<minPlayers ⇒ V=0) o en un zerg monotipo (K<midVariety) NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroVarietyPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _aggroVarietyPre = AGGRO_VARIETY_SURGE.enabled ? aggroVarietyScore(G.hero) : 0;
+  // CAS-2743 AGGRO_MOMENTUM_SURGE: snapshot de la ESCALADA/build-up del pack ENGANCHADO = aggroMomentumScore(hero) muestreado AQUÍ, en el TOP. La escalada lee el ring-buffer per-héroe G._momR (N sobre 2 snapshots, poblado por momentumTick), NO un recuento vivo ⇒ el score refleja cuán RÁPIDO CRECÍA el pull (rawM=N_t−N_{t−Δ}) EN EL MOMENTO del kill; con minMobs≥3 (N_t), minPlayers≥2 y la TABLA (score≥1 ⇒ creciendo) rematar en single-player (P<minPlayers ⇒ M=0), con el pack estable/menguante (rawM≤0 ⇒ 0) o cold-start (buffer no lleno ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroMomentumPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _aggroMomentumPre = AGGRO_MOMENTUM_SURGE.enabled ? aggroMomentumScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -7936,6 +7995,12 @@ function killEnemy(e){
   if(AGGRO_VARIETY_SURGE.enabled && !tpl.neutral){ const avf=aggroVarietyForage(G.hero, tpl, _aggroVarietyPre);
     if(avf>0){ grantAggroVarietyBounty(avf);
       floater(e.x,e.y-1056,"+"+avf+" Mezcla","#d0c0e8",{small:true}); } }
+  // CAS-2743 AGGRO_MOMENTUM_SURGE seam: ESCALADA. Al matar un mob no-neutral mientras el pull ENGANCHADO del HÉROE estaba CRECIENDO (build-up rawM=N_t−N_{t−Δ} ≥midMomentum con ≥minMobs enganchados y ≥minPlayers jugadores en radio, score≥umbral ANTES de este kill vía `_aggroMomentumPre`), el héroe
+  // cosecha fichas de escalada = aggroMomentumForage(hero,tpl,_aggroMomentumPre) (flat por banda de escalada, sub-cap aggroMomentumBountyCap), banca a h.aggroMomentumBounty vía grantAggroMomentumBounty (0 RNG). `_aggroMomentumPre` se muestreó en el TOP (lee el ring-buffer G._momR, N sobre 2 snapshots) + minMobs≥3 + minPlayers≥2 + la TABLA exige score≥1 (⇒ creciendo) ⇒ rematar en single-player (P<minPlayers ⇒ M=0), con el pack estable/menguante (rawM≤0 ⇒ 0) o cold-start (buffer no lleno ⇒ 0) NO forrajea; hace falta un pull genuinamente ESCALANDO (adds entrando) sobre una party GENUINA.
+  // Canal FRESCO aggroMomentumFind (fuente ÚNICA, sub-cap aggroMomentumBountyCap) — NINGUNA de las 69 flags #59-#127 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantAggroMomentumBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(AGGRO_MOMENTUM_SURGE.enabled && !tpl.neutral){ const amof=aggroMomentumForage(G.hero, tpl, _aggroMomentumPre);
+    if(amof>0){ grantAggroMomentumBounty(amof);
+      floater(e.x,e.y-1080,"+"+amof+" Escalada","#a0e0c8",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9247,6 +9312,8 @@ function grantAggroMarginBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggro
 function grantAggroDensityBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroDensityBounty=(h.aggroDensityBounty|0)+(n|0); }
 // CAS-2736 MEZCLA: banca fichas de mezcla (aggroVarietyFind) — recurso TRANSITORIO h.aggroVarietyBounty, fuera del save allowlist + worldFingerprint. STATELESS ⇒ G.aggroVarietyBounty NUNCA se crea. 0 RNG.
 function grantAggroVarietyBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroVarietyBounty=(h.aggroVarietyBounty|0)+(n|0); }
+// CAS-2743 ESCALADA: banca fichas de escalada (aggroMomentumFind) — recurso TRANSITORIO h.aggroMomentumBounty, fuera del save allowlist + worldFingerprint. STATELESS ⇒ G.aggroMomentumBounty NUNCA se crea. 0 RNG.
+function grantAggroMomentumBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroMomentumBounty=(h.aggroMomentumBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -9726,6 +9793,7 @@ export function update(dtMs){
   if(ACCEL_SURGE.enabled) accelTick(dt); // CAS-2688 REVUELO CINÉTICO (EVO#117 DARK): captura de 2º orden del vector de movimiento de los mobs (|Δmᵢ| entre ticks) tras el AI update. GATED ⇒ OFF ⇒ NUNCA corre ⇒ 0 estado per-mob creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente idéntico.
   if(JERK_DIR_SURGE.enabled) jerkTick(dt); // CAS-2698 QUIEBRE/REGATE (EVO#119 DARK): descompone el Δ del vector de movimiento de los mobs en radial/tangencial (fracción TANGENCIAL) tras el AI update. Historia per-mob SEPARADA de #117 (e._jrkPm). GATED ⇒ OFF ⇒ NUNCA corre ⇒ 0 estado per-mob creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente idéntico.
   if(AGGRO_SWITCH_SURGE.enabled) switchTick(dt); // CAS-2712 VAIVÉN DE OBJETIVOS (EVO#122 DARK): empuja el aiTarget ACTUAL de cada mob enganchado a un ring-buffer per-mob (e._swR, ventana W) tras el AI update ⇒ compara actual vs hace-W-ticks (CHURN de IDENTIDAD del objetivo). Historia per-mob SEPARADA de #117 (e._accPm) / #119 (e._jrkPm). GATED ⇒ OFF ⇒ NUNCA corre ⇒ 0 estado per-mob creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente idéntico.
+  if(AGGRO_MOMENTUM_SURGE.enabled) momentumTick(dt); // CAS-2743 ESCALADA (EVO#128 DARK): muestrea N enganchado del héroe y lo empuja a un ring-buffer per-héroe (G._momR, ventana Δ) tras el AI update ⇒ compara N_t vs N_{t−Δ} (TENDENCIA CON SIGNO del TAMAÑO del pack). Ring per-héroe SEPARADO de #122 (e._swR per-mob). GATED ⇒ OFF ⇒ NUNCA corre ⇒ 0 estado creado ⇒ byte-neutral. Determinista (0 RNG) ⇒ 2-cliente idéntico.
   updateCorpses(dt); // CAS-317: age + reap rich-anim boss death corpses (presentation-only)
   updateProjectiles(dt);
   updateFields(dt);
@@ -14651,6 +14719,67 @@ export const dev = {
       gExists:(G.aggroVarietyBounty!=null),                    // prueba byte-id: STATELESS ⇒ G.aggroVarietyBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._avParty!=null),                          // prueba byte-id: G._avParty SÓLO existe tras driveVariety (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroVarietyBounty:(h.aggroVarietyBounty|0) }:null }; },
+  // CAS-2743: ESCALADA OBSERVABLE hook (DARK, AGGRO_MOMENTUM_SURGE — EVO#128, AÑADE la dimensión ESCALATION/BUILD-UP (la TENDENCIA aggro CON SIGNO, no el snapshot) a la familia COMPOSICIÓN-DE-INTENCIÓN). Canal FRESCO aggroMomentumFind + eje = aggroMomentumField(hero)=M=min(1,rawM/momentumCap) ∈[0,1], rawM=max(0,N_t−N_{t−Δ}) (cuánto CRECIÓ el pack ENGANCHADO sobre Δ). TEMPORAL/WINDOWED (ring-buffer per-héroe G._momR de N enganchado vía momentumTick, como #122 SWITCH; NO snapshot-puro). GATED enabled:false ⇒ byte-neutral OFF (momentumTick NUNCA corre ⇒ G._momR NUNCA creado). 🔑 INTRÍNSECAMENTE MULTIJUGADOR: single-player ⇒ P<2 ⇒ M=0 (colapso LIMPIO); la métrica se prueba vía momentumProbe (LUT pura de N-samples) + driveMomentum (party SINTÉTICA + schedule real de N con momentumTick).
+  //   aggroMomentum()                                  → snapshot {enabled,channel,radius,weights,hiMomentum,midMomentum,momentumCap,window,minMobs,minPlayers,tiers,cap,idx,raw,score,tier,charge,forageChargePreview,momentumProbe,driveMomentum,momentumProbeLive,cleared,tag,precedence,gExists,partyExists,bufExists,hero}
+  //   aggroMomentum({enabled})                         → flip runtime IN-MEMORY de AGGRO_MOMENTUM_SURGE.enabled (sin tocar disco)
+  //   aggroMomentum({tp:{tx,ty}})                      → teleporta al héroe
+  //   aggroMomentum({momentumProbe:{samples:[N…],players}}) → LUT PURA (ring de N,P)→N_t vs N_{t−Δ}→rawM=max(0,ΔN)→M=min(1,rawM/cap)→banda(rawM crudo)→tier→charge (byte-verifica MOMENTUM + UMBRALES; P<2 / N_t<minMobs / buffer<Δ+1 / decay ⇒ 0). 🔑 samples = secuencia temporal de N enganchado (momentum IGNORA tipos/reparto — sólo la TENDENCIA del CONTEO)
+  //   aggroMomentum({driveMomentum:{wipe,players:[{dx,dy}],steps:[N…]}}) → inyecta party SINTÉTICA (G._momParty) + corre un SCHEDULE de N (por paso spawnea exactamente N mobs enganchados + momentumTick) ⇒ ring-buffer G._momR REAL ⇒ rawM/M/score server-auth
+  //   aggroMomentum({momentumProbeLive:true})          → lectura REAL server-auth: N actual enganchado, buffer, rawM, field, P
+  //   aggroMomentum({clearMomentum:true})              → remueve los mobs de prueba (_momTest) + limpia la party sintética + resetea el ring
+  aggroMomentum(p){
+    let momentumProbe=null, driveMomentum=null, momentumProbeLive=null, cleared=null;
+    const minN=Math.max(3,AGGRO_MOMENTUM_SURGE.minMobs|0), minP=Math.max(2,AGGRO_MOMENTUM_SURGE.minPlayers|0), cap0=Math.max(1,+AGGRO_MOMENTUM_SURGE.momentumCap||4), Wp=Math.max(1,AGGRO_MOMENTUM_SURGE.window|0);
+    const MPOS=[[120,0],[0,120],[-120,0],[90,60],[-60,90],[40,-110],[110,110],[-110,-40],[70,-70],[-90,-90],[150,20],[-20,150]];   // offsets de mobs de prueba (dentro de radio 300)
+    if(p && typeof p==="object"){
+      if("enabled" in p) AGGRO_MOMENTUM_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.momentumProbe && typeof p.momentumProbe==="object"){ const s=(Array.isArray(p.momentumProbe.samples)?p.momentumProbe.samples:[]).map(x=>x|0);   // LUT PURA (ring,P)→rawM=max(0,N_t−N_{t−Δ})→M→banda(rawM crudo)→tier→charge
+        const P=(p.momentumProbe.players!=null)?(p.momentumProbe.players|0):2; const len=s.length, full=len>=Wp+1;
+        const Nt=len?s[len-1]:0, Nprev=len?s[Math.max(0,len-1-Wp)]:0;
+        const gated=(full && P>=minP && Nt>=minN);                                    // buffer no lleno / single-player / N_t<minMobs ⇒ degenerado
+        const rawM=gated?Math.max(0,Nt-Nprev):0;                                      // decay/estable ⇒ 0 (sólo build-up POSITIVO)
+        let M=rawM/cap0; if(M>1)M=1; if(M<0)M=0;
+        const w=aggroMomentumBand(rawM), t=aggroMomentumRank(w);
+        const hi=(AGGRO_MOMENTUM_SURGE.hiMomentum!=null)?+AGGRO_MOMENTUM_SURGE.hiMomentum:3, mid=(AGGRO_MOMENTUM_SURGE.midMomentum!=null)?+AGGRO_MOMENTUM_SURGE.midMomentum:2;
+        const raw=t>0?(+AGGRO_MOMENTUM_SURGE.tiers[t-1].charge||0):0, cap=Math.max(0,AGGRO_MOMENTUM_SURGE.aggroMomentumBountyCap|0);
+        momentumProbe={ samples:s.slice(), players:P, full, Nt, Nprev, rawM, momentum:+M.toFixed(3), momentumCap:cap0, hiMomentum:hi, midMomentum:mid, weight:w, tier:t, charge:cap>0?Math.min(raw,cap):raw }; }
+      if(p.driveMomentum && typeof p.driveMomentum==="object"){ const steps=Array.isArray(p.driveMomentum.steps)?p.driveMomentum.steps.map(x=>x|0):[];   // inyecta party sintética + corre schedule de N ⇒ ring REAL
+        if(p.driveMomentum.wipe){ G.enemies=(G.enemies||[]).filter(e=>!e._momTest); G._momR=null; G._momHas=false; }   // test-only: limpia mobs de prueba previos + resetea el ring ⇒ el schedule de esta llamada lo repuebla
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const extra=Array.isArray(p.driveMomentum.players)?p.driveMomentum.players:[];   // party sintética: el héroe es SIEMPRE players[0]; extra = jugadores de PRUEBA (relativos al héroe, transitorios)
+        const party=G.hero?[G.hero]:[]; for(const pl of extra){ party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), hp:1, dead:false, _synthPlayer:true }); }
+        G._momParty=party;
+        const trace=[];
+        for(const cnt of steps){ G.enemies=(G.enemies||[]).filter(e=>!e._momTest);   // cada paso: fija exactamente `cnt` mobs enganchados de prueba
+          const c=Math.max(0,cnt|0);
+          for(let i=0;i<c;i++){ const off=MPOS[i%MPOS.length], sx=hx+off[0], sy=hy+off[1], e=ETPL["rat"]?spawnEnemy("rat",sx,sy):null;
+            if(e){ e._momTest=true; e.dead=false; e.x=sx; e.y=sy; e.state="chase"; } }
+          momentumTick(0);                                                            // empuja N_t=cnt al ring-buffer per-héroe REAL
+          trace.push({ step:c, engaged:momEngagedN(G.hero), bufLen:(Array.isArray(G._momR)?G._momR.length:0) }); }
+        driveMomentum={ steps:steps.slice(), trace, players:G._momParty.length, bufLen:(Array.isArray(G._momR)?G._momR.length:0), momHas:!!G._momHas, raw:aggroMomentumRaw(G.hero), idx:+aggroMomentumField(G.hero).toFixed(3), score:aggroMomentumScore(G.hero) }; }
+      if(p.clearMomentum){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._momTest); cleared=before-G.enemies.length; G._momParty=null; G._momR=null; G._momHas=false; }   // remueve mobs de prueba + limpia party + resetea ring
+      if(p.momentumProbeLive){ const h2=G.hero;   // lectura REAL server-auth: N actual, buffer, rawM, field, P
+        if(h2){ const players=momLivePlayers(h2), P=players.length, r=G._momR;
+          momentumProbeLive={ players:P, engaged:momEngagedN(h2), bufLen:(Array.isArray(r)?r.length:0), momHas:!!G._momHas, buffer:(Array.isArray(r)?r.slice():[]), raw:aggroMomentumRaw(h2), field:+aggroMomentumField(h2).toFixed(3), score:aggroMomentumScore(h2) }; }
+        else momentumProbeLive={ players:0, engaged:0, bufLen:0, momHas:false, buffer:[], raw:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=aggroMomentumVM(h);
+    return { enabled:AGGRO_MOMENTUM_SURGE.enabled, channel:AGGRO_MOMENTUM_SURGE.channel||"aggroMomentumFind",
+      radius:vm.radius, weights:Object.assign({},AGGRO_MOMENTUM_SURGE.weights||{}), hiMomentum:+AGGRO_MOMENTUM_SURGE.hiMomentum||0, midMomentum:+AGGRO_MOMENTUM_SURGE.midMomentum||0, momentumCap:cap0, window:Wp, minMobs:minN, minPlayers:minP,
+      tiers:(AGGRO_MOMENTUM_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, raw:vm.raw, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?aggroMomentumForage(h, {aggroMomentum:true}):0,   // preview: fichas forrajeadas por un remate con el pack disponible AHORA (expone el canal aggroMomentumFind; usa score EN VIVO — en single-player/estable 0)
+      momentumProbe: momentumProbe,                            // LUT PURA (ring,P)→rawM=max(0,ΔN)→M=min(1,rawM/cap)→banda(rawM crudo)→tier→charge (byte-verifica MOMENTUM + UMBRALES)
+      driveMomentum: driveMomentum,                            // inyecta party SINTÉTICA + schedule real de N ⇒ ring G._momR REAL + rawM/M/score server-auth
+      momentumProbeLive: momentumProbeLive,                    // lectura REAL server-auth: N actual, buffer, rawM, field, P
+      cleared: cleared,                                        // nº de mobs de prueba removidos por clearMomentum
+      tag: aggroMomentumTag(h),                                // glifo SERVIDO (OFF/estable/single-player ⇒ "" / creciendo ≥midMomentum ⇒ ⇗)
+      precedence:"aggroMomentumFind (canal FRESCO — recompensa de fichas de ESCALADA por REMATAR mientras el pull ENGANCHADO CRECE): NINGUNA de las 69 flags #59-#127 lo toca. AÑADE la dimensión ESCALATION/BUILD-UP (la TENDENCIA aggro CON SIGNO, no el snapshot) a la familia COMPOSICIÓN-DE-INTENCIÓN (#118 FOCUS/nivel; #121 SPREAD/UNIFORMIDAD; #122 SWITCH/CHURN sin-signo; #123 CONTEST/AMPLITUD; #124 PILE/max-share; #125 MARGIN/LEAD; #126 DENSITY/magnitud; #127 VARIETY/mob-type). EJE = aggroMomentumField(hero)=M=min(1,rawM/momentumCap), rawM=max(0,N_t−N_{t−Δ}), build-up POSITIVO ∈[0,1], INTENSIVO. 🔑 TEMPORAL/WINDOWED server-auth (ring-buffer per-héroe G._momR de N enganchado vía momentumTick tras updateEnemies, como #122 SWITCH; cliente-derivado del estado replicado, NUNCA serializado ⇒ fuera del save + fingerprint); INTRÍNSECAMENTE MULTIJUGADOR (single-player ⇒ P<2 ⇒ M=0, colapso LIMPIO; cold-start ⇒ buffer <Δ+1 ⇒ 0). CRUX (LA CRÍTICA) — MOMENTUM es la DERIVADA CON SIGNO; todos los priores snapshot son el NIVEL: ⊥#126 DENSITY (magnitud/nivel): momentum=dN/dt, NO N — N=6 estable (density hi, M=0) vs N:2→4→6 (MISMA densidad instantánea en t, M=hi). ⊥#122 SWITCH (churn SIN signo): SWITCH=churn de IDENTIDAD del objetivo (magnitud, ciega al signo); MOMENTUM=tendencia CON SIGNO del TAMAÑO — churn-sin-crecimiento (switch hi, M=0) vs crecimiento-estable-sin-churn (M hi, switch 0). ⊥#124 PILE/#125 MARGIN/#121 SPREAD/#123 CONTEST/#118 FOCUS/#127 VARIETY (snapshots de distribución/tipo): momentum es agnóstico a CÓMO se distribuye o QUÉ tipos — sólo si CRECE. ⊥ 2º-orden CINÉTICO #117 ACCEL/#119 JERK (churn del MOVIMIENTO ≠ tendencia del CONTEO). ⊥#67 FRENZY/#94 SWIFT (dN/dt del aggro-pack, NO kill-rate). ⊥ velocidad #110/#111/#112/#116. ⊥ atributo #115/#88/#106. ⊥ posición #107/#108/#109/#113/#114. ⊥#87 PACKHARVEST (tendencia del conteo ⊥ conteo BRUTO por kill). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio aggroMomentumBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.aggroMomentumBounty STATELESS (fuera del save allowlist + worldFingerprint); ring-buffer per-héroe (G._momR) TRANSITORIO (nunca serializado, fuera del fingerprint), poblado sólo cuando enabled. ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.aggroMomentumBounty!=null),                    // prueba byte-id: STATELESS ⇒ G.aggroMomentumBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._momParty!=null),                          // prueba byte-id: G._momParty SÓLO existe tras driveMomentum (test scaffolding); en juego normal NUNCA se crea
+      bufExists:(G._momR!=null),                                // prueba byte-id OFF: G._momR SÓLO existe tras momentumTick (ON) o driveMomentum; OFF ⇒ NUNCA se crea ⇒ 0 perturbación del fingerprint
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroMomentumBounty:(h.aggroMomentumBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
