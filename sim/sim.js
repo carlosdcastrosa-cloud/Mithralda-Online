@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6084,6 +6084,59 @@ export function aggroMomentumVM(h){ h=h||G.hero; const on=!!AGGRO_MOMENTUM_SURGE
     cap:Math.max(0,AGGRO_MOMENTUM_SURGE.aggroMomentumBountyCap|0), radius:+AGGRO_MOMENTUM_SURGE.radius||0,
     tag: aggroMomentumTag(h) }; }
 
+// ===== CAS-2749: CERCO (AGGRO_SURROUND_SURGE, EVO#129 DARK) — dimensión SPATIAL-ENCIRCLEMENT (la GEOMETRÍA ANGULAR de la amenaza, no el conteo/tendencia/reparto/tipo) de la familia COMPOSICIÓN-DE-INTENCIÓN. S = 1 − R, R = |vector resultante MEDIO| de los RUMBOS (hero→mob) de los mobs ALIVE ENGANCHADOS en radio. SNAPSHOT PURO (lee hero+mob pos directo, SIN buffer temporal — a diferencia de #122/#128). 🔑 DETERMINISMO (sev-1): rumbos CUANTIZADOS a bins ENTEROS (angleBins) vía atan2→bin; resultante sumada de un LUT ENTERO (cos/sin ×1000); banda por comparación ENTERA de R² ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. =====
+// surLut() = LUT ENTERO cacheado de B vectores unidad (cos/sin ×_SUR_SCALE) para B=angleBins. Determinista, sin RNG. Recomputado sólo si B cambia.
+const _SUR_SCALE=1000; let _surLut=null;
+function surLut(){ const B=Math.max(8,AGGRO_SURROUND_SURGE.angleBins|0)||64; if(_surLut&&_surLut.B===B) return _surLut; const cos=new Array(B), sin=new Array(B); for(let b=0;b<B;b++){ const a=2*Math.PI*b/B; cos[b]=Math.round(_SUR_SCALE*Math.cos(a)); sin[b]=Math.round(_SUR_SCALE*Math.sin(a)); } _surLut={B,cos,sin}; return _surLut; }
+// surBin(dx,dy,B) = bin ENTERO ∈[0,B) del rumbo (dx,dy) vía atan2 cuantizado. Determinista.
+function surBin(dx,dy,B){ let a=Math.atan2(dy,dx); let b=Math.round(B*(a/(2*Math.PI))); b%=B; if(b<0)b+=B; return b; }
+// surLivePlayers(h) = la party de JUGADORES VIVOS en radio del héroe (para el gate P≥minPlayers). 🔑 Single-player ⇒ SÓLO el héroe. G._surParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.aggroSurround driveSurround — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. O(P). Helper INDEPENDIENTE de #121/#122/#123/#124/#125/#126/#127/#128 — party separada.
+function surLivePlayers(h){ h=h||G.hero; if(!h) return [];
+  const R=+AGGRO_SURROUND_SURGE.radius||0, R2=R*R;
+  const party=(Array.isArray(G._surParty)&&G._surParty.length)?G._surParty:[h];   // normal (juego): sólo el héroe; PRUEBA: party sintética inyectada
+  const out=[]; for(const p of party){ if(!p) continue; if(p.dead||(p.hp!=null&&p.hp<=0)) continue; const dx=(+p.x||0)-h.x, dy=(+p.y||0)-h.y; if(dx*dx+dy*dy>R2) continue; out.push(p); } return out; }
+// aggroSurroundResultant(h) = {N, sx, sy} = la resultante ENTERA de los vectores unidad de rumbo (hero→mob) de los mobs ENGANCHADOS VIVOS en radio (sx,sy = suma de LUT[bin], enteros). Requiere P≥minPlayers (con <2 ⇒ single-player ⇒ null LIMPIO) y N≥minMobs (pack significativo; con <minMobs ⇒ null). FILTRA muertos/hp≤0 ⇒ ANTI-AUTO-CONTEO. Un mob EXACTAMENTE sobre el héroe (d²=0) cuenta en N pero NO aporta rumbo (sin dirección definida). PURO (lee hero+mob pos replicadas), 0-RNG/0-timer. O(n+P).
+function aggroSurroundResultant(h){ h=h||G.hero; if(!h) return null;
+  const R=+AGGRO_SURROUND_SURGE.radius||0, R2=R*R, minN=Math.max(3,AGGRO_SURROUND_SURGE.minMobs|0), minP=Math.max(2,AGGRO_SURROUND_SURGE.minPlayers|0);
+  const players=surLivePlayers(h), P=players.length; if(P<minP) return null;             // <minPlayers (single-player) ⇒ cerco compartido indefinido ⇒ null
+  const lut=surLut(); let sx=0, sy=0, n=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; const d2=dx*dx+dy*dy; if(d2>R2) continue; if(!aggroEngaged(e)) continue; n++; if(d2===0) continue; const b=surBin(dx,dy,lut.B); sx+=lut.cos[b]; sy+=lut.sin[b]; }   // N=# enganchados vivos en radio; resultante ENTERA de rumbos
+  if(n<minN) return null;                                                                 // <minMobs enganchados ⇒ cerco indefinido ⇒ null
+  return { N:n, sx, sy }; }
+// aggroSurroundField(h) = CERCO S∈[0,1] = 1 − R, R = |resultante|/(N·_SUR_SCALE) ∈[0,1]. El idx NORMALIZADO del badge (Math.sqrt SÓLO cosmético, determinista para inputs enteros idénticos; la BANDA/decisión usa comparación ENTERA de R²). S≈1 ⇒ rodeado 360°; S=0 ⇒ un-solo-lado/single-player/<minMobs. INTENSIVO (invariante a N). PURO/determinista.
+function aggroSurroundField(h){ const r=aggroSurroundResultant(h); if(!r) return 0; const denom=r.N*_SUR_SCALE; if(denom<=0) return 0; const mag=Math.sqrt(r.sx*r.sx+r.sy*r.sy); let S=1-mag/denom; return S>1?1:(S<0?0:S); }
+// aggroSurroundBandFromResultant(r) = peso por la BANDA de cerco sobre S, decidida por comparación ENTERA de R² (0-float ⇒ 2-cliente byte-idéntico). S≥hiSurround ⟺ mag²≤((1−hi)·denom)² ⇒ cercado ⇒ 2; S≥midSurround ⟺ mag²≤((1−mid)·denom)² ⇒ cerco-parcial ⇒ 1; <mid (un-solo-lado) ⇒ 0. LUT PURA ESTÁTICA. Con hi=0.75/mid=0.5 y denom=N·1000, los límites son ENTEROS (250N/500N) ⇒ comparación 100% entera.
+function aggroSurroundBandFromResultant(r){ if(!r) return 0; const cfg=AGGRO_SURROUND_SURGE, W=cfg.weights||{};
+  const denom=r.N*_SUR_SCALE, mag2=r.sx*r.sx+r.sy*r.sy;
+  const hi=(cfg.hiSurround!=null)?+cfg.hiSurround:0.75, mid=(cfg.midSurround!=null)?+cfg.midSurround:0.5;
+  const hiLim=(1-hi)*denom, midLim=(1-mid)*denom;
+  if(mag2<=hiLim*hiLim) return +W.heavy||0;
+  if(mag2<=midLim*midLim) return +W.some||0;
+  return 0; }
+// aggroSurroundScore(h) = peso de banda del PACK VIVO en radio = aggroSurroundBandFromResultant(aggroSurroundResultant(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minMobs / <minPlayers / un-solo-lado. Señal VIVA del badge/VM (el GRANT usa el snapshot _aggroSurroundPre del TOP del kill tras e.dead=true ⇒ ANTI-AUTO-CONTEO).
+function aggroSurroundScore(h){ h=h||G.hero; if(!h) return 0; return aggroSurroundBandFromResultant(aggroSurroundResultant(h)); }
+// aggroSurroundRank(score) = índice del tier de cerco vigente (0 = un-solo-lado/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más rodeando = tier ALTO. LUT determinista pura.
+function aggroSurroundRank(score){ const T=AGGRO_SURROUND_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// aggroSurroundBonus(score) = nº de fichas de cerco del tier vigente, acotado por el sub-cap propio aggroSurroundBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta aggroSurroundFind.
+function aggroSurroundBonus(score){ if(!AGGRO_SURROUND_SURGE.enabled) return 0;
+  if((AGGRO_SURROUND_SURGE.channel||"aggroSurroundFind")!=="aggroSurroundFind") return 0;   // seguridad: AGGRO_SURROUND_SURGE SÓLO alimenta aggroSurroundFind
+  const t=aggroSurroundRank(score); if(t<=0) return 0;
+  const raw=+AGGRO_SURROUND_SURGE.tiers[t-1].charge||0, cap=Math.max(0,AGGRO_SURROUND_SURGE.aggroSurroundBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// aggroSurroundForage(h, tpl, preScore) = las fichas por un remate estando CERCADO = aggroSurroundBonus(preScore). preScore = el snapshot de cerco muestreado en el TOP de killEnemy (_aggroSurroundPre, tras e.dead=true ⇒ ANTI-AUTO-CONTEO). Si preScore es undefined (VM/preview) usa aggroSurroundScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.aggroSurroundBounty vía grantAggroSurroundBounty.
+function aggroSurroundForage(h, tpl, preScore){ if(!AGGRO_SURROUND_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?aggroSurroundScore(h||G.hero):(+preScore||0); return aggroSurroundBonus(score); }
+// aggroSurroundTag(h) = glifo del badge de CERCO (⊙) si el héroe está rodeado ≥medio en radio (tier>0). PURO. "" si OFF / un-solo-lado / single-player. 🔑 en single-player SIEMPRE "" (P<minPlayers ⇒ S=0).
+export function aggroSurroundTag(h){ h=h||G.hero; if(!AGGRO_SURROUND_SURGE.enabled||!h) return "";
+  return aggroSurroundRank(aggroSurroundScore(h))>0 ? "⊙" : ""; }
+// aggroSurroundVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/engaged/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function aggroSurroundVM(h){ h=h||G.hero; const on=!!AGGRO_SURROUND_SURGE.enabled&&!!h;
+  const r=on?aggroSurroundResultant(h):null, N=r?r.N:0, idx=on?aggroSurroundField(h):0, score=on?aggroSurroundScore(h):0, tier=on?aggroSurroundRank(score):0, charge=on?aggroSurroundBonus(score):0;
+  return { enabled:!!AGGRO_SURROUND_SURGE.enabled, channel:AGGRO_SURROUND_SURGE.channel||"aggroSurroundFind",
+    idx:+idx.toFixed(3), engaged:N, score, tier, tierCount:(AGGRO_SURROUND_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,AGGRO_SURROUND_SURGE.aggroSurroundBountyCap|0), radius:+AGGRO_SURROUND_SURGE.radius||0,
+    tag: aggroSurroundTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -7524,6 +7577,8 @@ function killEnemy(e){
   const _aggroVarietyPre = AGGRO_VARIETY_SURGE.enabled ? aggroVarietyScore(G.hero) : 0;
   // CAS-2743 AGGRO_MOMENTUM_SURGE: snapshot de la ESCALADA/build-up del pack ENGANCHADO = aggroMomentumScore(hero) muestreado AQUÍ, en el TOP. La escalada lee el ring-buffer per-héroe G._momR (N sobre 2 snapshots, poblado por momentumTick), NO un recuento vivo ⇒ el score refleja cuán RÁPIDO CRECÍA el pull (rawM=N_t−N_{t−Δ}) EN EL MOMENTO del kill; con minMobs≥3 (N_t), minPlayers≥2 y la TABLA (score≥1 ⇒ creciendo) rematar en single-player (P<minPlayers ⇒ M=0), con el pack estable/menguante (rawM≤0 ⇒ 0) o cold-start (buffer no lleno ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroMomentumPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _aggroMomentumPre = AGGRO_MOMENTUM_SURGE.enabled ? aggroMomentumScore(G.hero) : 0;
+  // CAS-2749 AGGRO_SURROUND_SURGE: snapshot del CERCO/encirclement del pack ENGANCHADO = aggroSurroundScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ NO cuenta en N ni en la resultante (aggroSurroundResultant filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja cuán RODEADO estaba el héroe (S=1−R, dispersión angular de los rumbos) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ ≥medio-cercado) rematar en single-player (P<minPlayers ⇒ S=0) o con el pack a un solo lado (S<midSurround ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroSurroundPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _aggroSurroundPre = AGGRO_SURROUND_SURGE.enabled ? aggroSurroundScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8001,6 +8056,12 @@ function killEnemy(e){
   if(AGGRO_MOMENTUM_SURGE.enabled && !tpl.neutral){ const amof=aggroMomentumForage(G.hero, tpl, _aggroMomentumPre);
     if(amof>0){ grantAggroMomentumBounty(amof);
       floater(e.x,e.y-1080,"+"+amof+" Escalada","#a0e0c8",{small:true}); } }
+  // CAS-2749 AGGRO_SURROUND_SURGE seam: CERCO. Al matar un mob no-neutral mientras el héroe estaba RODEADO por el pack ENGANCHADO (S=1−R, dispersión angular ≥midSurround con ≥minMobs enganchados y ≥minPlayers jugadores en radio, score≥umbral ANTES de este kill vía `_aggroSurroundPre`), el héroe
+  // cosecha fichas de cerco = aggroSurroundForage(hero,tpl,_aggroSurroundPre) (flat por banda de cerco, sub-cap aggroSurroundBountyCap), banca a h.aggroSurroundBounty vía grantAggroSurroundBounty (0 RNG). `_aggroSurroundPre` se muestreó en el TOP tras e.dead=true (aggroSurroundResultant filtra !e.dead ⇒ la víctima NO cuenta en N/resultante) + minMobs≥3 + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥medio-cercado) ⇒ rematar en single-player (P<minPlayers ⇒ S=0) o con el pack a un solo lado (S<midSurround ⇒ 0) NO forrajea; hace falta estar genuinamente CERCADO sobre una party GENUINA.
+  // Canal FRESCO aggroSurroundFind (fuente ÚNICA, sub-cap aggroSurroundBountyCap) — NINGUNA de las 70 flags #59-#128 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantAggroSurroundBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(AGGRO_SURROUND_SURGE.enabled && !tpl.neutral){ const asf=aggroSurroundForage(G.hero, tpl, _aggroSurroundPre);
+    if(asf>0){ grantAggroSurroundBounty(asf);
+      floater(e.x,e.y-1104,"+"+asf+" Rodeo","#b0d8e8",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9314,6 +9375,8 @@ function grantAggroDensityBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggr
 function grantAggroVarietyBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroVarietyBounty=(h.aggroVarietyBounty|0)+(n|0); }
 // CAS-2743 ESCALADA: banca fichas de escalada (aggroMomentumFind) — recurso TRANSITORIO h.aggroMomentumBounty, fuera del save allowlist + worldFingerprint. STATELESS ⇒ G.aggroMomentumBounty NUNCA se crea. 0 RNG.
 function grantAggroMomentumBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroMomentumBounty=(h.aggroMomentumBounty|0)+(n|0); }
+// CAS-2749: banca fichas de CERCO al recurso TRANSITORIO h.aggroSurroundBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantAggroSurroundBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroSurroundBounty=(h.aggroSurroundBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -14780,6 +14843,64 @@ export const dev = {
       partyExists:(G._momParty!=null),                          // prueba byte-id: G._momParty SÓLO existe tras driveMomentum (test scaffolding); en juego normal NUNCA se crea
       bufExists:(G._momR!=null),                                // prueba byte-id OFF: G._momR SÓLO existe tras momentumTick (ON) o driveMomentum; OFF ⇒ NUNCA se crea ⇒ 0 perturbación del fingerprint
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroMomentumBounty:(h.aggroMomentumBounty|0) }:null }; },
+  // CAS-2749: CERCO OBSERVABLE hook (DARK, AGGRO_SURROUND_SURGE — EVO#129, AÑADE la dimensión SPATIAL-ENCIRCLEMENT (la GEOMETRÍA ANGULAR de la amenaza, no el conteo/tendencia/reparto/tipo) a la familia COMPOSICIÓN-DE-INTENCIÓN). Canal FRESCO aggroSurroundFind + eje = aggroSurroundField(hero)=S=1−R, R=|resultante media de rumbos hero→mob| ∈[0,1] (cuán rodeado 360° está el héroe). SNAPSHOT PURO (SIN buffer temporal, a diferencia de #122/#128; DETERMINISMO sev-1 vía LUT ENTERO + banda R² entera). GATED enabled:false ⇒ byte-neutral OFF. 🔑 INTRÍNSECAMENTE MULTIJUGADOR: single-player ⇒ P<2 ⇒ S=0 (colapso LIMPIO); la métrica se prueba vía surroundProbe (LUT pura de rumbos) + driveSurround (party SINTÉTICA + mobs en rumbos dados).
+  //   aggroSurround()                                  → snapshot {enabled,channel,radius,weights,hiSurround,midSurround,angleBins,minMobs,minPlayers,tiers,cap,idx,engaged,score,tier,charge,forageChargePreview,surroundProbe,driveSurround,surroundProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   aggroSurround({enabled})                         → flip runtime IN-MEMORY de AGGRO_SURROUND_SURGE.enabled (sin tocar disco)
+  //   aggroSurround({tp:{tx,ty}})                      → teleporta al héroe
+  //   aggroSurround({surroundProbe:{bearings:[deg…],players}}) → LUT PURA (bearings,P)→N=len→resultante ENTERA (bin+LUT)→S=1−R→banda(R² entera)→tier→charge (byte-verifica CERCO + UMBRALES; P<2 / N<minMobs ⇒ degenerado ⇒ 0). 🔑 bearings = rumbo por mob en GRADOS (surround IGNORA distancia/tipo/reparto — sólo la DISTRIBUCIÓN ANGULAR)
+  //   aggroSurround({driveSurround:{wipe,players:[{dx,dy}],pts:[{deg,dist,type,state}]}}) → inyecta party SINTÉTICA (G._surParty, héroe=índice0) + mobs enganchados en RUMBOS dados ⇒ S REAL server-auth (N=#mobs, resultante de posiciones, P=#party)
+  //   aggroSurround({surroundProbeLive:true})          → lectura REAL server-auth: N=mobs enganchados en radio, resultante, S=field, P=jugadores en radio
+  //   aggroSurround({clearSurround:true})              → remueve los mobs de prueba (_surTest) + limpia la party sintética
+  aggroSurround(p){
+    let surroundProbe=null, driveSurround=null, surroundProbeLive=null, cleared=null;
+    const minN=Math.max(3,AGGRO_SURROUND_SURGE.minMobs|0), minP=Math.max(2,AGGRO_SURROUND_SURGE.minPlayers|0), lut=surLut();
+    const D2R=Math.PI/180;
+    if(p && typeof p==="object"){
+      if("enabled" in p) AGGRO_SURROUND_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.surroundProbe && typeof p.surroundProbe==="object"){ const bearings=Array.isArray(p.surroundProbe.bearings)?p.surroundProbe.bearings.map(x=>+x||0):[];   // LUT PURA (bearings,P)→N→resultante ENTERA→S=1−R→banda(R² entera)→tier→charge
+        const P=(p.surroundProbe.players!=null)?(p.surroundProbe.players|0):2; const N=bearings.length;
+        let sx=0, sy=0; for(const deg of bearings){ const b=surBin(Math.cos(deg*D2R),Math.sin(deg*D2R),lut.B); sx+=lut.cos[b]; sy+=lut.sin[b]; }
+        const gated=(P>=minP && N>=minN);                                            // P<minPlayers (single-player) ó N<minMobs ⇒ degenerado ⇒ 0
+        const r=gated?{N,sx,sy}:null; const denom=N*_SUR_SCALE;
+        let S=(gated&&denom>0)?(1-Math.sqrt(sx*sx+sy*sy)/denom):0; if(S>1)S=1; if(S<0)S=0;
+        const w=aggroSurroundBandFromResultant(r), t=aggroSurroundRank(w);
+        const hi=(AGGRO_SURROUND_SURGE.hiSurround!=null)?+AGGRO_SURROUND_SURGE.hiSurround:0.75, mid=(AGGRO_SURROUND_SURGE.midSurround!=null)?+AGGRO_SURROUND_SURGE.midSurround:0.5;
+        const raw=t>0?(+AGGRO_SURROUND_SURGE.tiers[t-1].charge||0):0, cap=Math.max(0,AGGRO_SURROUND_SURGE.aggroSurroundBountyCap|0);
+        surroundProbe={ bearings:bearings.slice(), players:P, total:N, sx, sy, surround:+S.toFixed(3), hiSurround:hi, midSurround:mid, angleBins:lut.B, weight:w, tier:t, charge:cap>0?Math.min(raw,cap):raw }; }
+      if(p.driveSurround && typeof p.driveSurround==="object"){ const pts=Array.isArray(p.driveSurround.pts)?p.driveSurround.pts:[], injected=[];   // inyecta party sintética + mobs en rumbos ⇒ S REAL
+        if(p.driveSurround.wipe) G.enemies=(G.enemies||[]).filter(e=>!e._surTest);   // test-only: limpia SÓLO los mobs de prueba previos ⇒ S refleja los inyectados de esta llamada
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const extra=Array.isArray(p.driveSurround.players)?p.driveSurround.players:[];   // party sintética: el héroe es SIEMPRE players[0]; extra = jugadores de PRUEBA (relativos al héroe, transitorios)
+        const party=G.hero?[G.hero]:[]; for(const pl of extra){ party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), hp:1, dead:false, _synthPlayer:true }); }
+        G._surParty=party;
+        for(let i=0;i<pts.length;i++){ const q=pts[i]||{}, ty2=String(q.type||"rat"), deg=(+q.deg||0), dist=(q.dist!=null?+q.dist:120), sx=hx+dist*Math.cos(deg*D2R), sy=hy+dist*Math.sin(deg*D2R), st=String(q.state||"chase"), e=ETPL[ty2]?spawnEnemy(ty2,sx,sy):null;   // surround IGNORA a QUIÉN targetea el mob ⇒ NO _surTgt necesario (sólo cuenta N + rumbos)
+          if(e){ e._surTest=true; e.dead=false; e.x=sx; e.y=sy; e.state=st; if(q.hostile) e.hostile=true;
+            injected.push({ idx:G.enemies.indexOf(e), deg, dist, type:ty2, state:st, engaged:aggroEngaged(e) }); }
+          else injected.push({ idx:-1, deg, type:ty2, state:st, valid:false }); }
+        const rr=aggroSurroundResultant(G.hero);
+        driveSurround={ injected, players:G._surParty.length, engaged:rr?rr.N:0, idx:+aggroSurroundField(G.hero).toFixed(3), score:aggroSurroundScore(G.hero) }; }
+      if(p.clearSurround){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._surTest); cleared=before-G.enemies.length; G._surParty=null; }   // remueve mobs de prueba + limpia party sintética
+      if(p.surroundProbeLive){ const h2=G.hero;   // lectura REAL server-auth: N=mobs enganchados en radio, resultante, S=field, P=jugadores en radio
+        if(h2){ const players=surLivePlayers(h2), P=players.length, rr=aggroSurroundResultant(h2);
+          surroundProbeLive={ players:P, engaged:rr?rr.N:0, sx:rr?rr.sx:0, sy:rr?rr.sy:0, field:+aggroSurroundField(h2).toFixed(3), score:aggroSurroundScore(h2) }; }
+        else surroundProbeLive={ players:0, engaged:0, sx:0, sy:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=aggroSurroundVM(h);
+    return { enabled:AGGRO_SURROUND_SURGE.enabled, channel:AGGRO_SURROUND_SURGE.channel||"aggroSurroundFind",
+      radius:vm.radius, weights:Object.assign({},AGGRO_SURROUND_SURGE.weights||{}), hiSurround:+AGGRO_SURROUND_SURGE.hiSurround||0, midSurround:+AGGRO_SURROUND_SURGE.midSurround||0, angleBins:lut.B, minMobs:minN, minPlayers:minP,
+      tiers:(AGGRO_SURROUND_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, engaged:vm.engaged, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?aggroSurroundForage(h, {aggroSurround:true}):0,   // preview: fichas forrajeadas por un remate con el pack disponible AHORA (expone el canal aggroSurroundFind; usa score EN VIVO — en single-player/un-solo-lado 0)
+      surroundProbe: surroundProbe,                            // LUT PURA (bearings,P)→N→resultante ENTERA→S=1−R→banda(R² entera)→tier→charge (byte-verifica CERCO + UMBRALES)
+      driveSurround: driveSurround,                            // inyecta party SINTÉTICA + mobs en rumbos ⇒ S=1−R REAL + idx/engaged/score server-auth
+      surroundProbeLive: surroundProbeLive,                    // lectura REAL server-auth: N=mobs enganchados en radio, resultante, S=field, P=jugadores en radio
+      cleared: cleared,                                        // nº de mobs de prueba removidos por clearSurround
+      tag: aggroSurroundTag(h),                                // glifo SERVIDO (OFF/un-solo-lado/single-player ⇒ "" / cercado ≥midSurround ⇒ ⊙)
+      precedence:"aggroSurroundFind (canal FRESCO — recompensa de fichas de CERCO por REMATAR estando RODEADO 360°): NINGUNA de las 70 flags #59-#128 lo toca. AÑADE la dimensión SPATIAL-ENCIRCLEMENT (la GEOMETRÍA ANGULAR de la amenaza, no el conteo/tendencia/reparto/tipo) a la familia COMPOSICIÓN-DE-INTENCIÓN (#118 FOCUS/nivel; #121 SPREAD/UNIFORMIDAD; #122 SWITCH/CHURN; #123 CONTEST/AMPLITUD; #124 PILE/max-share; #125 MARGIN/LEAD; #126 DENSITY/magnitud; #127 VARIETY/mob-type; #128 MOMENTUM/dN/dt). EJE = aggroSurroundField(hero)=S=1−R, R=|resultante media de rumbos hero→mob| ∈[0,1] (encirclement angular), SNAPSHOT PURO. 🔑 DETERMINISMO sev-1: rumbos CUANTIZADOS a bins ENTEROS (angleBins) + LUT ENTERO (cos/sin ×1000) + banda R² ENTERA ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. INTRÍNSECAMENTE MULTIJUGADOR (single-player ⇒ P<2 ⇒ S=0, colapso LIMPIO). CRUX (LA CRÍTICA) — GEOMETRÍA ANGULAR ⊥ TODOS los priores (conteo/tendencia/reparto/tipo): ⊥#128 MOMENTUM (dN/dt): N=6 estable en anillo (M=0, S=hi) vs N:2→6 todos a un lado (M=hi, S=0). ⊥#126 DENSITY (magnitud N): N=6 amontonados a un lado (density hi, S≈0) vs N=3 a 120° (density menor, S≈1) — S invariante a N. ⊥#124 PILE/#118 FOCUS/#121 SPREAD/#123 CONTEST/#125 MARGIN/#127 VARIETY (leen la aggro-TABLE — quién tankea o qué tipos): CERCO es ciego a QUIÉN tankea o QUÉ son; lee sólo DÓNDE están. [6 mobs en p1, pilados NE] (pile hi, S≈0) vs [6 mobs split, anillo 360°] (S≈1). ⊥ posición #107/#108/#109/#113/#114 (pos/zona/heading absolutos): CERCO es la distribución angular RELATIVA de los mobs enganchados alrededor DEL HÉROE, no ninguna posición o facing absoluto (rotation-invariant). ⊥#113 ENCIRCLE (todos los mobs vivos; SURROUND = sólo enganchados + party-gate + dispersión angular normalizada). ⊥ velocidad #110/#111/#112/#116. ⊥ atributo #115/#88/#106. ⊥#87 PACKHARVEST (geometría ⊥ conteo BRUTO por kill). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio aggroSurroundBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.aggroSurroundBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._surParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick, como #121/#123/#124/#125/#126/#127). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.aggroSurroundBounty!=null),                    // prueba byte-id: STATELESS ⇒ G.aggroSurroundBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._surParty!=null),                          // prueba byte-id: G._surParty SÓLO existe tras driveSurround (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroSurroundBounty:(h.aggroSurroundBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
