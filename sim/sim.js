@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, CO_DODGE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6962,6 +6962,50 @@ export function coCastVM(h){ h=h||G.hero; const on=!!CO_CAST_SURGE.enabled&&!!h;
     cap:Math.max(0,CO_CAST_SURGE.coCastBountyCap|0),
     tag: coCastTag(h) }; }
 
+// ===== CAS-2845: QUIEBRO (CO_DODGE_SURGE, EVO#147 DARK) — la DOCEAVA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS, #137 COHORTE=PRESENTES, #138 CUADRILLA=REMATAN, #139 SOCORRO=SOSTIENEN/heal, #140 MURALLA=ABSORBEN, #141 REPLIEGUE=SE ALEJAN/velocidad, #142 PIÑA=APIÑADOS, #143 ENVITE=EMPUJAN, #144 DIANA=CONVERGEN-el-aim/CONTEO, #145 TENAZA=GEOMETRÍA, #146 CONJURO=ACTIVAN-habilidad/cast). QUIEBRO es la sub-faceta DEFENSIVE REACTION-EVENT: ¿cuántos jugadores DISTINTOS están EN estado de esquiva/rodada/i-frame ACTIVO este frame (una esquiva-sincronizada)? D∈[0,P] ENTERO = nº de jugadores VIVOS con el flag `dodge` ACTIVO este frame. SNAPSHOT PURO (lee el flag ya replicado en UN frame, SIN buffer temporal). 🔑 DETERMINISMO (sev-1): D = tally ENTERO de banderas booleanas (CERO float/ángulo; el conteo es CONMUTATIVO ⇒ orden-independiente) vs umbrales ENTEROS {midDodge,hiDodge}; CERO float en score/decisión ⇒ 2-cliente 0-desync. 🔑 MULTIJUGADOR-NATIVO: single-player ⇒ ≤1 dodger ⇒ D colapsa ⇒ 0. =====
+// coDodgeParty(h) = el roster de dodgers-candidatos. 🔑 Single-player ⇒ SÓLO el héroe (que solo NO puede co-esquivar — ≤1 dodger ⇒ D colapsa vía minPlayers). G._coDodgeParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.coDodge driveDodge — transitoria, NUNCA serializada). Party PROPIA, INDEPENDIENTE de #136-#146.
+function coDodgeParty(h){ h=h||G.hero; if(!h) return [];
+  return (Array.isArray(G._coDodgeParty)&&G._coDodgeParty.length)?G._coDodgeParty:[h]; }   // normal: sólo el héroe (≤1 dodger ⇒ D colapsa); PRUEBA: party sintética inyectada
+// coDodgeRoster(h) = {P, D}: P = tamaño del roster candidato; D = nº de jugadores VIVOS DISTINTOS con el flag `dodge` (esquiva/rodada/i-frame) ACTIVO este frame. FILTRA muertos/hp≤0 (ANTI-cadáveres). 🔑 lee el flag `dodge` booleano YA replicado — quién ESQUIVA ⊥ quién castea #146 / apunta #144 / rodea #145 / socorre #139. PURO, 0-RNG/0-timer, 0-float. El conteo es CONMUTATIVO ⇒ ambos clientes ⇒ MISMO D, orden-independiente. O(P).
+function coDodgeRoster(h){ h=h||G.hero; if(!h) return null;
+  const party=coDodgeParty(h); let D=0;
+  for(const p of party){ if(!p) continue; if(p.dead||p.hp<=0) continue;                             // ANTI-cadáveres: sólo jugadores VIVOS (héroe incluido)
+    if(p.dodge) D++; }                                                                              // flag booleano de esquiva/rodada/i-frame YA replicado
+  return { P:party.length, D:D }; }
+// coDodgeField(h) = QUIEBRO idx COSMÉTICO ∈[0,1] = D/playerCap (SÓLO badge; NO entra a la decisión). PURO. idx≈1 ⇒ sync pleno; idx=0 ⇒ solitario/single-player.
+function coDodgeField(h){ const a=coDodgeRoster(h); if(!a) return 0; const cap=Math.max(1,CO_DODGE_SURGE.playerCap|0)||4; let g=a.D/cap; return g>1?1:(g<0?0:g); }
+// coDodgeBandFromAgg(a) = peso por la BANDA de sincronía sobre D, decidida por comparación ENTERA (0-float ⇒ 2-cliente byte-idéntico). D<minPlayers (single-player) ⇒ 0; D≥hiDodge ⇒ sync-pleno ⇒ 2; D≥midDodge ⇒ sync-parcial ⇒ 1; <midDodge ⇒ 0. Umbrales ENTEROS. LUT PURA (0 division).
+function coDodgeBandFromAgg(a){ if(!a) return 0; const cfg=CO_DODGE_SURGE, W=cfg.weights||{}, d=a.D|0, minP=Math.max(2,cfg.minPlayers|0);
+  if(d<minP) return 0;                                                        // <minPlayers dodgers (single-player) ⇒ colapso LIMPIO
+  const hi=(cfg.hiDodge!=null)?(cfg.hiDodge|0):3, mid=(cfg.midDodge!=null)?(cfg.midDodge|0):2;
+  if(d>=hi) return +W.full||0;                                               // sync-pleno
+  if(d>=mid) return +W.some||0;                                              // sync-parcial
+  return 0; }
+// coDodgeScore(h) = peso de banda de la sincronía ACREDITADA = coDodgeBandFromAgg(coDodgeRoster(h)) ∈ {0,1,2}. PURO ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minPlayers. Señal VIVA del badge/VM (el GRANT usa el snapshot _coDodgePre del TOP del kill).
+function coDodgeScore(h){ h=h||G.hero; if(!h) return 0; return coDodgeBandFromAgg(coDodgeRoster(h)); }
+// coDodgeRankTier(score) = índice del tier de recompensa vigente (0 = solitario/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más esquivas = tier ALTO. LUT determinista pura.
+function coDodgeRankTier(score){ const T=CO_DODGE_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// coDodgeBonus(score) = nº de fichas de quiebro del tier vigente, acotado por el sub-cap propio coDodgeBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta coDodgeFind.
+function coDodgeBonus(score){ if(!CO_DODGE_SURGE.enabled) return 0;
+  if((CO_DODGE_SURGE.channel||"coDodgeFind")!=="coDodgeFind") return 0;   // seguridad: CO_DODGE_SURGE SÓLO alimenta coDodgeFind
+  const t=coDodgeRankTier(score); if(t<=0) return 0;
+  const raw=+CO_DODGE_SURGE.tiers[t-1].charge||0, cap=Math.max(0,CO_DODGE_SURGE.coDodgeBountyCap|0);
+  return cap>0?Math.min(raw,cap):raw; }
+// coDodgeForage(h, tpl, preScore) = las fichas por un remate con la sincronía acreditada = coDodgeBonus(preScore). preScore = el snapshot muestreado en el TOP de killEnemy (_coDodgePre). Si preScore es undefined (VM/preview) usa coDodgeScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.coDodgeBounty vía grantCoDodgeBounty.
+function coDodgeForage(h, tpl, preScore){ if(!CO_DODGE_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?coDodgeScore(h||G.hero):(+preScore||0); return coDodgeBonus(score); }
+// coDodgeTag(h) = glifo del badge de QUIEBRO (⟿) si la sincronía acreditada está ≥sync-parcial (tier>0). PURO. "" si OFF / solitario / single-player. 🔑 en single-player SIEMPRE "" (D colapsa<minPlayers ⇒ 0).
+export function coDodgeTag(h){ h=h||G.hero; if(!CO_DODGE_SURGE.enabled||!h) return "";
+  return coDodgeRankTier(coDodgeScore(h))>0 ? "⟿" : ""; }
+// coDodgeVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/players/D/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function coDodgeVM(h){ h=h||G.hero; const on=!!CO_DODGE_SURGE.enabled&&!!h;
+  const a=on?coDodgeRoster(h):null, Dc=a?a.D:0, idx=on?coDodgeField(h):0, score=on?coDodgeScore(h):0, tier=on?coDodgeRankTier(score):0, charge=on?coDodgeBonus(score):0;
+  const P=a?a.P:0;
+  return { enabled:!!CO_DODGE_SURGE.enabled, channel:CO_DODGE_SURGE.channel||"coDodgeFind",
+    idx:+idx.toFixed(3), players:P, dodge:Dc, score, tier, tierCount:(CO_DODGE_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,CO_DODGE_SURGE.coDodgeBountyCap|0),
+    tag: coDodgeTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -8438,6 +8482,8 @@ function killEnemy(e){
   const _coFlankPre = CO_FLANK_SURGE.enabled ? coFlankScore(G.hero) : 0;
   // CAS-2840 CO_CAST_SURGE: snapshot del CONJURO/co-cast = coCastScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS estaban ACTIVANDO una habilidad EL MISMO frame (U=# banderas `cast` activas, INDEPENDIENTE de si rodean #145 o convergen #144 o socorren #139 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥sync-parcial) rematar en single-player (U colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coCastPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _coCastPre = CO_CAST_SURGE.enabled ? coCastScore(G.hero) : 0;
+  // CAS-2845 CO_DODGE_SURGE: snapshot del QUIEBRO/co-dodge = coDodgeScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS estaban EN estado de esquiva/rodada/i-frame EL MISMO frame (D=# banderas `dodge` activas, INDEPENDIENTE de si castean #146 o rodean #145 o convergen #144 o socorren #139 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥sync-parcial) rematar en single-player (D colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coDodgePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _coDodgePre = CO_DODGE_SURGE.enabled ? coDodgeScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8993,6 +9039,10 @@ function killEnemy(e){
   if(CO_CAST_SURGE.enabled && !tpl.neutral){ const ccst=coCastForage(G.hero, tpl, _coCastPre);
     if(ccst>0){ grantCoCastBounty(ccst);
       floater(e.x,e.y-1500,"+"+ccst+" Conjuro","#c8b8ec",{small:true}); } }
+  // CAS-2845 CO_DODGE_SURGE seam: QUIEBRO. Al matar un mob no-neutral mientras la sincronía estaba ACREDITADA (D=# jugadores VIVOS DISTINTOS en estado de esquiva/rodada/i-frame EL MISMO frame ≥midDodge con ≥minPlayers dodgers, score≥umbral ANTES de este kill vía `_coDodgePre`), el héroe cosecha fichas de quiebro = coDodgeForage(hero,tpl,_coDodgePre) (flat por banda de sincronía, sub-cap coDodgeBountyCap), banca a h.coDodgeBounty vía grantCoDodgeBounty (0 RNG). `_coDodgePre` se muestreó en el TOP + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥sync-parcial) ⇒ rematar en single-player (D colapsa ⇒ 0) NO forrajea; hace falta que ≥2 jugadores esquiven EN CONCIERTO. Canal FRESCO coDodgeFind (fuente ÚNICA, sub-cap coDodgeBountyCap) — NINGUNO de los 88 flags #59-#146 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantCoDodgeBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(CO_DODGE_SURGE.enabled && !tpl.neutral){ const cdst=coDodgeForage(G.hero, tpl, _coDodgePre);
+    if(cdst>0){ grantCoDodgeBounty(cdst);
+      floater(e.x,e.y-1500,"+"+cdst+" Quiebro","#8fe6d6",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -10342,6 +10392,8 @@ function grantCoFocusBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coFocusBo
 function grantCoFlankBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coFlankBounty=(h.coFlankBounty|0)+(n|0); }
 // CAS-2840: banca fichas de CONJURO al recurso TRANSITORIO h.coCastBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantCoCastBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coCastBounty=(h.coCastBounty|0)+(n|0); }
+// CAS-2845: banca fichas de QUIEBRO al recurso TRANSITORIO h.coDodgeBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantCoDodgeBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coDodgeBounty=(h.coDodgeBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -16791,6 +16843,56 @@ export const dev = {
       gExists:(G.coCastBounty!=null),                      // prueba byte-id: STATELESS ⇒ G.coCastBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._coCastParty!=null),                  // prueba byte-id: G._coCastParty SÓLO existe tras driveCast (test scaffolding); en juego normal NUNCA se crea ⇒ U colapsa
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coCastBounty:(h.coCastBounty|0) }:null }; },
+  // CAS-2845: QUIEBRO OBSERVABLE hook (DARK, CO_DODGE_SURGE — EVO#147, la DOCEAVA faceta de la sub-familia PLAYER-COORDINATION tras #136 CÓNCLAVE (ENGANCHADOS), #137 COHORTE (PRESENTES), #138 CUADRILLA (REMATAN), #139 SOCORRO (SOSTIENEN/heal), #140 MURALLA (ABSORBEN), #141 REPLIEGUE (SE ALEJAN/velocidad), #142 PIÑA (APIÑADOS), #143 ENVITE (EMPUJAN), #144 DIANA (CONVERGEN-el-aim/CONTEO), #145 TENAZA (GEOMETRÍA) y #146 CONJURO (ACTIVAN-habilidad/cast)). Es la sub-faceta DEFENSIVE REACTION-EVENT: CUÁNTOS jugadores DISTINTOS están EN estado de esquiva/rodada/i-frame EL MISMO frame (D=tally del flag `dodge`) ⊥ QUÉ ACTIVAN #146 / QUÉ apuntan #144 / DÓNDE están #145 / CÓMO se alejan #141.
+  //   coDodge()                                          → snapshot {enabled,channel,weights,hiDodge,midDodge,playerCap,minPlayers,tiers,cap,idx,players,dodge,score,tier,charge,forageChargePreview,dodgeProbe,driveDodge,dodgeProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   coDodge({enabled})                                 → flip runtime IN-MEMORY de CO_DODGE_SURGE.enabled (sin tocar disco)
+  //   coDodge({tp:{tx,ty}})                              → teleporta al héroe
+  //   coDodge({dodgeProbe:{dodgers,players}})            → LUT PURA (dodgers=nº de jugadores en esquiva, players=P)→D=clamp(dodgers,0,players)→banda(D vs {midDodge,hiDodge,minPlayers} ENTEROS)→tier→charge (byte-verifica QUIEBRO + UMBRALES; D<minPlayers ⇒ 0)
+  //   coDodge({driveDodge:{wipe,players:[{dodge,dead}]}}) → inyecta roster SINTÉTICO (G._coDodgeParty) ⇒ D REAL server-auth = # jugadores VIVOS con flag `dodge` (filtra muertos)
+  //   coDodge({dodgeProbeLive:true})                     → lectura REAL server-auth: D=# jugadores VIVOS en esquiva este frame
+  //   coDodge({clearDodge:true})                         → limpia la party sintética
+  coDodge(p){
+    let dodgeProbe=null, driveDodge=null, dodgeProbeLive=null, cleared=null;
+    const cap=Math.max(1,CO_DODGE_SURGE.playerCap|0)||4, minP=Math.max(2,CO_DODGE_SURGE.minPlayers|0);
+    if(p && typeof p==="object"){
+      if("enabled" in p) CO_DODGE_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.dodgeProbe && typeof p.dodgeProbe==="object"){ const P=(p.dodgeProbe.players!=null)?(p.dodgeProbe.players|0):minP;   // LUT PURA (dodgers,P)→D=clamp→banda(D vs umbrales ENTEROS)→tier→charge
+        let d=(p.dodgeProbe.dodgers!=null)?(p.dodgeProbe.dodgers|0):0; if(d<0) d=0; if(d>P) d=P;   // D no puede exceder el roster P
+        const Dc=d, a={ D:Dc, P:P };
+        const w=coDodgeBandFromAgg(a), t=coDodgeRankTier(w);
+        const hi=(CO_DODGE_SURGE.hiDodge!=null)?(CO_DODGE_SURGE.hiDodge|0):3, mid=(CO_DODGE_SURGE.midDodge!=null)?(CO_DODGE_SURGE.midDodge|0):2;
+        const rawC=t>0?(+CO_DODGE_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,CO_DODGE_SURGE.coDodgeBountyCap|0);
+        dodgeProbe={ dodgers:d, players:P, dodge:Dc, hiDodge:hi, midDodge:mid, minPlayers:minP, idx:+(cap>0?(Dc/cap):0).toFixed(3), weight:w, rankTier:t, charge:capB>0?Math.min(rawC,capB):rawC }; }
+      if(p.driveDodge && typeof p.driveDodge==="object"){ const injected=[];   // inyecta roster sintético (flag dodge + vivo/muerto) ⇒ D REAL (tally de banderas dodge entre VIVOS)
+        const plist=Array.isArray(p.driveDodge.players)?p.driveDodge.players:[];   // roster sintético: CADA jugador {dodge?,dead?}, transitorios
+        const party=[]; for(const pl of plist){ const dead=!!(pl&&pl.dead), ddg=!!(pl&&pl.dodge);
+          party.push({ dodge:ddg, maxHp:1000, hp:dead?0:1000, dead:dead, _synthPlayer:true });
+          injected.push({ dodge:ddg, dead:dead }); }
+        G._coDodgeParty=party;
+        const aa=coDodgeRoster(G.hero);
+        driveDodge={ injected, players:G._coDodgeParty.length, dodge:aa?aa.D:0, idx:+coDodgeField(G.hero).toFixed(3), score:coDodgeScore(G.hero) }; }
+      if(p.clearDodge){ G._coDodgeParty=null; cleared=true; }   // limpia party sintética
+      if(p.dodgeProbeLive){ const h2=G.hero;   // lectura REAL server-auth: D=# jugadores VIVOS en esquiva este frame
+        if(h2){ const aa=coDodgeRoster(h2);
+          dodgeProbeLive={ players:aa?aa.P:0, dodge:aa?aa.D:0, field:+coDodgeField(h2).toFixed(3), score:coDodgeScore(h2) }; }
+        else dodgeProbeLive={ players:0, dodge:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=coDodgeVM(h);
+    return { enabled:CO_DODGE_SURGE.enabled, channel:CO_DODGE_SURGE.channel||"coDodgeFind",
+      weights:Object.assign({},CO_DODGE_SURGE.weights||{}), hiDodge:CO_DODGE_SURGE.hiDodge|0, midDodge:CO_DODGE_SURGE.midDodge|0, playerCap:cap, minPlayers:minP,
+      tiers:(CO_DODGE_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, dodge:vm.dodge, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?coDodgeForage(h, {coDodge:true}):0,   // preview: fichas forrajeadas por un remate con la sincronía acreditada AHORA (expone el canal coDodgeFind; usa score EN VIVO — en single-player/solitario 0)
+      dodgeProbe: dodgeProbe,                               // LUT PURA (dodgers,P)→D=clamp→banda(D vs {midDodge,hiDodge,minPlayers} ENTEROS)→tier→charge (byte-verifica QUIEBRO + UMBRALES)
+      driveDodge: driveDodge,                               // inyecta roster SINTÉTICO ⇒ D REAL + idx/players/dodge/score server-auth (tally de banderas dodge entre VIVOS)
+      dodgeProbeLive: dodgeProbeLive,                       // lectura REAL server-auth: D=# jugadores VIVOS en esquiva este frame
+      cleared: cleared,                                     // limpieza de la party sintética
+      tag: coDodgeTag(h),                                  // glifo SERVIDO (OFF/solitario/single-player ⇒ "" / sync ≥midDodge ⇒ ⟿)
+      precedence:"coDodgeFind (canal FRESCO — recompensa de fichas de QUIEBRO por rematar mientras ≥2 aliados DISTINTOS están en estado de esquiva/rodada/i-frame EL MISMO frame): NINGUNO de los 88 flags #59-#146 lo toca. La DOCEAVA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS, #137 COHORTE=PRESENTES, #138 CUADRILLA=REMATAN, #139 SOCORRO=SOSTIENEN/heal, #140 MURALLA=ABSORBEN, #141 REPLIEGUE=SE ALEJAN/velocidad, #142 PIÑA=APIÑADOS, #143 ENVITE=EMPUJAN, #144 DIANA=CONVERGEN-CONTEO, #145 TENAZA=GEOMETRÍA, #146 CONJURO=ACTIVAN-habilidad/cast) y es la sub-faceta DEFENSIVE REACTION-EVENT (evento-de-reacción-defensiva). EJE = D=# jugadores VIVOS DISTINTOS con el flag `dodge` (esquiva/rodada/i-frame) ACTIVO este frame ∈[0,P] ENTERO (co-dodge/evade-sync), SNAPSHOT PURO del flag replicado. 🔑 DETERMINISMO sev-1: D = tally ENTERO de banderas booleanas (CERO float/atan2; el conteo es CONMUTATIVO ⇒ orden-independiente) vs umbrales ENTEROS {midDodge,hiDodge} ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ ≤1 dodger ⇒ D colapsa, IMPOSIBLE co-esquivar en solitario). CRUX (LA CRÍTICA) — QUIEBRO = SIMULTANEIDAD-DE-ESQUIVA (evento dodge/roll/i-frame) ⊥ TODOS los priores: (a) ⊥ #146 CONJURO (PRIMARIO — DODGE-STATE ⊥ ANY-CAST): CONJURO cuenta el flag `cast` (activar CUALQUIER habilidad); QUIEBRO cuenta el flag `dodge` (estado DEFENSIVO de esquiva/i-frame, DISTINTO del `cast`). 3 mid-cast ⇒ CONJURO U3/w2 pero QUIEBRO D0/w0 (ninguno rodando); 3 rodando un AoE ⇒ QUIEBRO D3/w2 pero CONJURO U0/w0. (b) ⊥ #141 REPLIEGUE (evento-discreto-dodge ⊥ velocidad-away): REPLIEGUE lee la MAGNITUD de velocidad-alejándose; QUIEBRO lee el flag DISCRETO de i-frame (esquivar en el sitio ⇒ D alto flee 0; back-pedal sin i-frame ⇒ flee alto D0). (c) ⊥ #140 MURALLA (esquivar EVITA/i-frame ⊥ absorber/tank — OPUESTO). (d) ⊥ #138 CUADRILLA (esquivar ⊥ rematar). (e) ⊥ #144 DIANA (esquivar ⊥ compartir-objetivo). (f) ⊥ #145 TENAZA (evento-defensivo ⊥ arreglo-geométrico). (g) ⊥ #132 PARTY_VITAL (HP-STATE float). (h) ⊥ ninguna flag dodge/roll/iframe previa (h.rolling/h.iframe/DODGE/DODGE_COUNTER/perfectDodge = mecánicas de rodada PROPIAS del héroe single-player; NINGUNA cuenta jugadores-DISTINTOS-esquivando-este-frame). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio coDodgeBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.coDodgeBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._coDodgeParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.coDodgeBounty!=null),                      // prueba byte-id: STATELESS ⇒ G.coDodgeBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._coDodgeParty!=null),                  // prueba byte-id: G._coDodgeParty SÓLO existe tras driveDodge (test scaffolding); en juego normal NUNCA se crea ⇒ D colapsa
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coDodgeBounty:(h.coDodgeBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
