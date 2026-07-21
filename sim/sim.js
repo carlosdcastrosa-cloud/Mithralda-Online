@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, CO_DODGE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, CO_DODGE_SURGE, CO_INTERRUPT_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -7006,6 +7006,50 @@ export function coDodgeVM(h){ h=h||G.hero; const on=!!CO_DODGE_SURGE.enabled&&!!
     cap:Math.max(0,CO_DODGE_SURGE.coDodgeBountyCap|0),
     tag: coDodgeTag(h) }; }
 
+// ── CAS-2849 CO_INTERRUPT_SURGE (YUGO ⛒, EVO#148 DARK — PLAYER-COORDINATION #13 / OFFENSIVE CONTROL-EFFECT REACTION-EVENT) ──
+// coInterruptParty(h) = el roster de interrupters-candidatos. 🔑 Single-player ⇒ SÓLO el héroe (que solo NO puede co-interrumpir — ≤1 interrupter ⇒ I colapsa vía minPlayers). G._coInterruptParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.coInterrupt driveInterrupt — transitoria, NUNCA serializada). Party PROPIA, INDEPENDIENTE de #136-#147.
+function coInterruptParty(h){ h=h||G.hero; if(!h) return [];
+  return (Array.isArray(G._coInterruptParty)&&G._coInterruptParty.length)?G._coInterruptParty:[h]; }   // normal: sólo el héroe (≤1 interrupter ⇒ I colapsa); PRUEBA: party sintética inyectada
+// coInterruptRoster(h) = {P, I}: P = tamaño del roster candidato; I = nº de jugadores VIVOS DISTINTOS con el flag `interrupt` (stagger/poise-break/stun LANDEADO sobre un enemigo) ACTIVO este frame. FILTRA muertos/hp≤0 (ANTI-cadáveres). 🔑 lee el flag `interrupt` booleano YA replicado — quién LANDEA CONTROL ⊥ quién castea #146 / esquiva #147 / apunta #144 / rodea #145 / socorre #139. PURO, 0-RNG/0-timer, 0-float. El conteo es CONMUTATIVO ⇒ ambos clientes ⇒ MISMO I, orden-independiente. O(P).
+function coInterruptRoster(h){ h=h||G.hero; if(!h) return null;
+  const party=coInterruptParty(h); let I=0;
+  for(const p of party){ if(!p) continue; if(p.dead||p.hp<=0) continue;                              // ANTI-cadáveres: sólo jugadores VIVOS (héroe incluido)
+    if(p.interrupt) I++; }                                                                           // flag booleano de interrupt/stagger/poise-break LANDEADO YA replicado
+  return { P:party.length, I:I }; }
+// coInterruptField(h) = YUGO idx COSMÉTICO ∈[0,1] = I/playerCap (SÓLO badge; NO entra a la decisión). PURO. idx≈1 ⇒ lockdown pleno; idx=0 ⇒ solitario/single-player.
+function coInterruptField(h){ const a=coInterruptRoster(h); if(!a) return 0; const cap=Math.max(1,CO_INTERRUPT_SURGE.playerCap|0)||4; let g=a.I/cap; return g>1?1:(g<0?0:g); }
+// coInterruptBandFromAgg(a) = peso por la BANDA de lockdown sobre I, decidida por comparación ENTERA (0-float ⇒ 2-cliente byte-idéntico). I<minPlayers (single-player) ⇒ 0; I≥hiInterrupt ⇒ lockdown-pleno ⇒ 2; I≥midInterrupt ⇒ lockdown-parcial ⇒ 1; <midInterrupt ⇒ 0. Umbrales ENTEROS. LUT PURA (0 division).
+function coInterruptBandFromAgg(a){ if(!a) return 0; const cfg=CO_INTERRUPT_SURGE, W=cfg.weights||{}, i=a.I|0, minP=Math.max(2,cfg.minPlayers|0);
+  if(i<minP) return 0;                                                       // <minPlayers interrupters (single-player) ⇒ colapso LIMPIO
+  const hi=(cfg.hiInterrupt!=null)?(cfg.hiInterrupt|0):3, mid=(cfg.midInterrupt!=null)?(cfg.midInterrupt|0):2;
+  if(i>=hi) return +W.full||0;                                              // lockdown-pleno
+  if(i>=mid) return +W.some||0;                                             // lockdown-parcial
+  return 0; }
+// coInterruptScore(h) = peso de banda del lockdown ACREDITADO = coInterruptBandFromAgg(coInterruptRoster(h)) ∈ {0,1,2}. PURO ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minPlayers. Señal VIVA del badge/VM (el GRANT usa el snapshot _coInterruptPre del TOP del kill).
+function coInterruptScore(h){ h=h||G.hero; if(!h) return 0; return coInterruptBandFromAgg(coInterruptRoster(h)); }
+// coInterruptRankTier(score) = índice del tier de recompensa vigente (0 = solitario/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más interrupts = tier ALTO. LUT determinista pura.
+function coInterruptRankTier(score){ const T=CO_INTERRUPT_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// coInterruptBonus(score) = nº de fichas de yugo del tier vigente, acotado por el sub-cap propio coInterruptBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta coInterruptFind.
+function coInterruptBonus(score){ if(!CO_INTERRUPT_SURGE.enabled) return 0;
+  if((CO_INTERRUPT_SURGE.channel||"coInterruptFind")!=="coInterruptFind") return 0;   // seguridad: CO_INTERRUPT_SURGE SÓLO alimenta coInterruptFind
+  const t=coInterruptRankTier(score); if(t<=0) return 0;
+  const raw=+CO_INTERRUPT_SURGE.tiers[t-1].charge||0, cap=Math.max(0,CO_INTERRUPT_SURGE.coInterruptBountyCap|0);
+  return cap>0?Math.min(raw,cap):raw; }
+// coInterruptForage(h, tpl, preScore) = las fichas por un remate con el lockdown acreditado = coInterruptBonus(preScore). preScore = el snapshot muestreado en el TOP de killEnemy (_coInterruptPre). Si preScore es undefined (VM/preview) usa coInterruptScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.coInterruptBounty vía grantCoInterruptBounty.
+function coInterruptForage(h, tpl, preScore){ if(!CO_INTERRUPT_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?coInterruptScore(h||G.hero):(+preScore||0); return coInterruptBonus(score); }
+// coInterruptTag(h) = glifo del badge de YUGO (⛒) si el lockdown acreditado está ≥lockdown-parcial (tier>0). PURO. "" si OFF / solitario / single-player. 🔑 en single-player SIEMPRE "" (I colapsa<minPlayers ⇒ 0).
+export function coInterruptTag(h){ h=h||G.hero; if(!CO_INTERRUPT_SURGE.enabled||!h) return "";
+  return coInterruptRankTier(coInterruptScore(h))>0 ? "⛒" : ""; }
+// coInterruptVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/players/I/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function coInterruptVM(h){ h=h||G.hero; const on=!!CO_INTERRUPT_SURGE.enabled&&!!h;
+  const a=on?coInterruptRoster(h):null, Ic=a?a.I:0, idx=on?coInterruptField(h):0, score=on?coInterruptScore(h):0, tier=on?coInterruptRankTier(score):0, charge=on?coInterruptBonus(score):0;
+  const P=a?a.P:0;
+  return { enabled:!!CO_INTERRUPT_SURGE.enabled, channel:CO_INTERRUPT_SURGE.channel||"coInterruptFind",
+    idx:+idx.toFixed(3), players:P, interrupt:Ic, score, tier, tierCount:(CO_INTERRUPT_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,CO_INTERRUPT_SURGE.coInterruptBountyCap|0),
+    tag: coInterruptTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -8484,6 +8528,8 @@ function killEnemy(e){
   const _coCastPre = CO_CAST_SURGE.enabled ? coCastScore(G.hero) : 0;
   // CAS-2845 CO_DODGE_SURGE: snapshot del QUIEBRO/co-dodge = coDodgeScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS estaban EN estado de esquiva/rodada/i-frame EL MISMO frame (D=# banderas `dodge` activas, INDEPENDIENTE de si castean #146 o rodean #145 o convergen #144 o socorren #139 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥sync-parcial) rematar en single-player (D colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coDodgePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _coDodgePre = CO_DODGE_SURGE.enabled ? coDodgeScore(G.hero) : 0;
+  // CAS-2849 CO_INTERRUPT_SURGE: snapshot del YUGO/co-interrupt = coInterruptScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS estaban LANDEANDO un interrupt/stagger/poise-break sobre un enemigo EL MISMO frame (I=# banderas `interrupt` activas, INDEPENDIENTE de si castean #146 o esquivan #147 o convergen #144 o socorren #139 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥lockdown-parcial) rematar en single-player (I colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coInterruptPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _coInterruptPre = CO_INTERRUPT_SURGE.enabled ? coInterruptScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -9043,6 +9089,10 @@ function killEnemy(e){
   if(CO_DODGE_SURGE.enabled && !tpl.neutral){ const cdst=coDodgeForage(G.hero, tpl, _coDodgePre);
     if(cdst>0){ grantCoDodgeBounty(cdst);
       floater(e.x,e.y-1500,"+"+cdst+" Quiebro","#8fe6d6",{small:true}); } }
+  // CAS-2849 CO_INTERRUPT_SURGE seam: YUGO. Al matar un mob no-neutral mientras el lockdown estaba ACREDITADO (I=# jugadores VIVOS DISTINTOS landeando un interrupt/stagger/poise-break EL MISMO frame ≥midInterrupt con ≥minPlayers interrupters, score≥umbral ANTES de este kill vía `_coInterruptPre`), el héroe cosecha fichas de yugo = coInterruptForage(hero,tpl,_coInterruptPre) (flat por banda de lockdown, sub-cap coInterruptBountyCap), banca a h.coInterruptBounty vía grantCoInterruptBounty (0 RNG). `_coInterruptPre` se muestreó en el TOP + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥lockdown-parcial) ⇒ rematar en single-player (I colapsa ⇒ 0) NO forrajea; hace falta que ≥2 jugadores interrumpan EN CONCIERTO. Canal FRESCO coInterruptFind (fuente ÚNICA, sub-cap coInterruptBountyCap) — NINGUNO de los 89 flags #59-#147 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantCoInterruptBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(CO_INTERRUPT_SURGE.enabled && !tpl.neutral){ const cist=coInterruptForage(G.hero, tpl, _coInterruptPre);
+    if(cist>0){ grantCoInterruptBounty(cist);
+      floater(e.x,e.y-1620,"+"+cist+" Yugo","#e6b84f",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -10394,6 +10444,9 @@ function grantCoFlankBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coFlankBo
 function grantCoCastBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coCastBounty=(h.coCastBounty|0)+(n|0); }
 // CAS-2845: banca fichas de QUIEBRO al recurso TRANSITORIO h.coDodgeBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantCoDodgeBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coDodgeBounty=(h.coDodgeBounty|0)+(n|0); }
+
+// CAS-2849: banca fichas de YUGO al recurso TRANSITORIO h.coInterruptBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantCoInterruptBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coInterruptBounty=(h.coInterruptBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -16893,6 +16946,56 @@ export const dev = {
       gExists:(G.coDodgeBounty!=null),                      // prueba byte-id: STATELESS ⇒ G.coDodgeBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._coDodgeParty!=null),                  // prueba byte-id: G._coDodgeParty SÓLO existe tras driveDodge (test scaffolding); en juego normal NUNCA se crea ⇒ D colapsa
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coDodgeBounty:(h.coDodgeBounty|0) }:null }; },
+  // CAS-2849: YUGO OBSERVABLE hook (DARK, CO_INTERRUPT_SURGE — EVO#148, la TRECEAVA faceta de la sub-familia PLAYER-COORDINATION tras #136 CÓNCLAVE, #137 COHORTE, #138 CUADRILLA, #139 SOCORRO, #140 MURALLA, #141 REPLIEGUE, #142 PIÑA, #143 ENVITE, #144 DIANA, #145 TENAZA, #146 CONJURO y #147 QUIEBRO). Es la sub-faceta OFFENSIVE CONTROL-EFFECT REACTION-EVENT (el ESPEJO OFENSIVO de #147 QUIEBRO): CUÁNTOS jugadores DISTINTOS están LANDEANDO un interrupt/stagger/poise-break sobre un ENEMIGO EL MISMO frame (I=tally del flag `interrupt`) ⊥ QUÉ ACTIVAN #146 (cast) / si ESQUIVAN #147 (dodge) / QUÉ apuntan #144 / DÓNDE están #145 / CÓMO se alejan #141.
+  //   coInterrupt()                                      → snapshot {enabled,channel,weights,hiInterrupt,midInterrupt,playerCap,minPlayers,tiers,cap,idx,players,interrupt,score,tier,charge,forageChargePreview,interruptProbe,driveInterrupt,interruptProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   coInterrupt({enabled})                             → flip runtime IN-MEMORY de CO_INTERRUPT_SURGE.enabled (sin tocar disco)
+  //   coInterrupt({tp:{tx,ty}})                          → teleporta al héroe
+  //   coInterrupt({interruptProbe:{interrupters,players}}) → LUT PURA (interrupters=nº de jugadores landeando control, players=P)→I=clamp(interrupters,0,players)→banda(I vs {midInterrupt,hiInterrupt,minPlayers} ENTEROS)→tier→charge (byte-verifica YUGO + UMBRALES; I<minPlayers ⇒ 0)
+  //   coInterrupt({driveInterrupt:{wipe,players:[{interrupt,dead}]}}) → inyecta roster SINTÉTICO (G._coInterruptParty) ⇒ I REAL server-auth = # jugadores VIVOS con flag `interrupt` (filtra muertos)
+  //   coInterrupt({interruptProbeLive:true})             → lectura REAL server-auth: I=# jugadores VIVOS landeando control este frame
+  //   coInterrupt({clearInterrupt:true})                 → limpia la party sintética
+  coInterrupt(p){
+    let interruptProbe=null, driveInterrupt=null, interruptProbeLive=null, cleared=null;
+    const cap=Math.max(1,CO_INTERRUPT_SURGE.playerCap|0)||4, minP=Math.max(2,CO_INTERRUPT_SURGE.minPlayers|0);
+    if(p && typeof p==="object"){
+      if("enabled" in p) CO_INTERRUPT_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.interruptProbe && typeof p.interruptProbe==="object"){ const P=(p.interruptProbe.players!=null)?(p.interruptProbe.players|0):minP;   // LUT PURA (interrupters,P)→I=clamp→banda(I vs umbrales ENTEROS)→tier→charge
+        let d=(p.interruptProbe.interrupters!=null)?(p.interruptProbe.interrupters|0):0; if(d<0) d=0; if(d>P) d=P;   // I no puede exceder el roster P
+        const Ic=d, a={ I:Ic, P:P };
+        const w=coInterruptBandFromAgg(a), t=coInterruptRankTier(w);
+        const hi=(CO_INTERRUPT_SURGE.hiInterrupt!=null)?(CO_INTERRUPT_SURGE.hiInterrupt|0):3, mid=(CO_INTERRUPT_SURGE.midInterrupt!=null)?(CO_INTERRUPT_SURGE.midInterrupt|0):2;
+        const rawC=t>0?(+CO_INTERRUPT_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,CO_INTERRUPT_SURGE.coInterruptBountyCap|0);
+        interruptProbe={ interrupters:d, players:P, interrupt:Ic, hiInterrupt:hi, midInterrupt:mid, minPlayers:minP, idx:+(cap>0?(Ic/cap):0).toFixed(3), weight:w, rankTier:t, charge:capB>0?Math.min(rawC,capB):rawC }; }
+      if(p.driveInterrupt && typeof p.driveInterrupt==="object"){ const injected=[];   // inyecta roster sintético (flag interrupt + vivo/muerto) ⇒ I REAL (tally de banderas interrupt entre VIVOS)
+        const plist=Array.isArray(p.driveInterrupt.players)?p.driveInterrupt.players:[];   // roster sintético: CADA jugador {interrupt?,dead?}, transitorios
+        const party=[]; for(const pl of plist){ const dead=!!(pl&&pl.dead), itr=!!(pl&&pl.interrupt);
+          party.push({ interrupt:itr, maxHp:1000, hp:dead?0:1000, dead:dead, _synthPlayer:true });
+          injected.push({ interrupt:itr, dead:dead }); }
+        G._coInterruptParty=party;
+        const aa=coInterruptRoster(G.hero);
+        driveInterrupt={ injected, players:G._coInterruptParty.length, interrupt:aa?aa.I:0, idx:+coInterruptField(G.hero).toFixed(3), score:coInterruptScore(G.hero) }; }
+      if(p.clearInterrupt){ G._coInterruptParty=null; cleared=true; }   // limpia party sintética
+      if(p.interruptProbeLive){ const h2=G.hero;   // lectura REAL server-auth: I=# jugadores VIVOS landeando control este frame
+        if(h2){ const aa=coInterruptRoster(h2);
+          interruptProbeLive={ players:aa?aa.P:0, interrupt:aa?aa.I:0, field:+coInterruptField(h2).toFixed(3), score:coInterruptScore(h2) }; }
+        else interruptProbeLive={ players:0, interrupt:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=coInterruptVM(h);
+    return { enabled:CO_INTERRUPT_SURGE.enabled, channel:CO_INTERRUPT_SURGE.channel||"coInterruptFind",
+      weights:Object.assign({},CO_INTERRUPT_SURGE.weights||{}), hiInterrupt:CO_INTERRUPT_SURGE.hiInterrupt|0, midInterrupt:CO_INTERRUPT_SURGE.midInterrupt|0, playerCap:cap, minPlayers:minP,
+      tiers:(CO_INTERRUPT_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, interrupt:vm.interrupt, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?coInterruptForage(h, {coInterrupt:true}):0,   // preview: fichas forrajeadas por un remate con el lockdown acreditado AHORA (expone el canal coInterruptFind; usa score EN VIVO — en single-player/solitario 0)
+      interruptProbe: interruptProbe,                      // LUT PURA (interrupters,P)→I=clamp→banda(I vs {midInterrupt,hiInterrupt,minPlayers} ENTEROS)→tier→charge (byte-verifica YUGO + UMBRALES)
+      driveInterrupt: driveInterrupt,                      // inyecta roster SINTÉTICO ⇒ I REAL + idx/players/interrupt/score server-auth (tally de banderas interrupt entre VIVOS)
+      interruptProbeLive: interruptProbeLive,              // lectura REAL server-auth: I=# jugadores VIVOS landeando control este frame
+      cleared: cleared,                                    // limpieza de la party sintética
+      tag: coInterruptTag(h),                              // glifo SERVIDO (OFF/solitario/single-player ⇒ "" / lockdown ≥midInterrupt ⇒ ⛒)
+      precedence:"coInterruptFind (canal FRESCO — recompensa de fichas de YUGO por rematar mientras ≥2 aliados DISTINTOS están LANDEANDO un interrupt/stagger/poise-break sobre un enemigo EL MISMO frame): NINGUNO de los 89 flags #59-#147 lo toca. La TRECEAVA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS, #137 COHORTE=PRESENTES, #138 CUADRILLA=REMATAN, #139 SOCORRO=SOSTIENEN/heal, #140 MURALLA=ABSORBEN, #141 REPLIEGUE=SE ALEJAN/velocidad, #142 PIÑA=APIÑADOS, #143 ENVITE=EMPUJAN, #144 DIANA=CONVERGEN-CONTEO, #145 TENAZA=GEOMETRÍA, #146 CONJURO=ACTIVAN-habilidad/cast, #147 QUIEBRO=ESQUIVAN/dodge) y es la sub-faceta OFFENSIVE CONTROL-EFFECT REACTION-EVENT (el ESPEJO OFENSIVO de #147 QUIEBRO). EJE = I=# jugadores VIVOS DISTINTOS con el flag `interrupt` (stagger/poise-break/stun LANDEADO sobre un enemigo) ACTIVO este frame ∈[0,P] ENTERO (co-interrupt/lockdown-sync), SNAPSHOT PURO del flag replicado. 🔑 DETERMINISMO sev-1: I = tally ENTERO de banderas booleanas (CERO float/atan2; el conteo es CONMUTATIVO ⇒ orden-independiente) vs umbrales ENTEROS {midInterrupt,hiInterrupt} ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ ≤1 interrupter ⇒ I colapsa, IMPOSIBLE co-interrumpir en solitario). CRUX (LA CRÍTICA) — YUGO = SIMULTANEIDAD-DE-CONTROL-LANDEADO (evento interrupt/stagger/poise-break sobre ENEMIGO) ⊥ TODOS los priores: (a) ⊥ #146 CONJURO (PRIMARIO — LANDED-CONTROL-EFFECT ⊥ ANY-CAST): CONJURO cuenta el flag `cast` (ACTIVAR cualquier habilidad); YUGO cuenta el flag `interrupt` (el EFECTO DE CONTROL LANDEADO — stagger/poise-break/stun APLICADO al enemigo, DISTINTO del `cast`). 3 mid-cast ⇒ CONJURO U3/w2 pero YUGO I0/w0 (castear ≠ romper postura); 3 poise-breakeando un jefe ⇒ YUGO I3/w2 pero CONJURO U0/w0 (el poise-break puede venir de un swing MELEE pesado). (b) ⊥ #147 QUIEBRO (interrupt-EVENTO-OFENSIVO ⊥ dodge-STATE-DEFENSIVO): QUIEBRO cuenta el flag `dodge` (estado DEFENSIVO que EVITA daño/i-frame); YUGO cuenta el flag `interrupt` (evento OFENSIVO que LOCKEA al enemigo). OPUESTOS: esquivar sin interrumpir D-alto/I0 vs poise-breakear sin esquivar I-alto/D0. (c) ⊥ #138 CUADRILLA (staggerear ⊥ rematar). (d) ⊥ #143 ENVITE (evento-de-control ⊥ desplazamiento/push por velocidad-toward). (e) ⊥ INTERRUPT_SURGE #89 (mob-side interruptFind/estado-del-mob-al-kill ⊥ player-side coInterruptFind/CONTEO-de-jugadores-DISTINTOS-que-landean — mismo par que FLANK_SURGE #108 vs CO_FLANK #145). (f) ⊥ #144 DIANA (interrumpir ⊥ compartir-objetivo). (g) ⊥ #145 TENAZA (evento ⊥ geometría). (h) ⊥ #132 PARTY_VITAL (HP-STATE float). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio coInterruptBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.coInterruptBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._coInterruptParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.coInterruptBounty!=null),                 // prueba byte-id: STATELESS ⇒ G.coInterruptBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._coInterruptParty!=null),             // prueba byte-id: G._coInterruptParty SÓLO existe tras driveInterrupt (test scaffolding); en juego normal NUNCA se crea ⇒ I colapsa
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coInterruptBounty:(h.coInterruptBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
