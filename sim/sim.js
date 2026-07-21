@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6344,6 +6344,54 @@ export function mobTierVM(h){ h=h||G.hero; const on=!!MOB_TIER_SURGE.enabled&&!!
     cap:Math.max(0,MOB_TIER_SURGE.mobTierBountyCap|0), radius:+MOB_TIER_SURGE.radius||0,
     tag: mobTierTag(h) }; }
 
+// ===== CAS-2775: CASTA (ELITE_SHARE_SURGE, EVO#134 DARK) — dimensión MOB-POWER-RATING (2º eje de la sub-familia, tras #133 RETO). S∈[0,1] = FRACCIÓN del pack ENGANCHADO que es genuinamente peligrosa = count(mobs VIVOS enganchados con mobTierRank ≥ eliteRank) / N. PROPORCIÓN-CON-UMBRAL, NO media (⊥#133 RETO que lee mean(rank)/cap). Requiere P≥minPlayers y N≥minMobs. SNAPSHOT PURO (lee el rango replicado del mob directo, SIN buffer temporal — como #129/…/#133; reusa la MISMA escalera mobTierRank server-auth). 🔑 DETERMINISMO (sev-1): decisión 100% ENTERA (count(rank≥eliteRank) vs umbrales ENTEROS ⌈k·N⌉ — share·N con k∈{0.5,0.75} es producto EXACTO IEEE-754 + Math.ceil devuelve ENTERO exacto ⇒ ambos operandos enteros); 0-float DIVISION en el score/decisión ⇒ 2-cliente 0-desync. 🔑 MULTIJUGADOR-NATIVO: single-player / P<2 ⇒ S=0 (colapso LIMPIO). =====
+// eliteShareLivePlayers(h) = la party de JUGADORES VIVOS en radio del héroe (gate P≥minPlayers). 🔑 Single-player ⇒ SÓLO el héroe. G._eliteShareParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.eliteShare driveShare — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. O(P). Party PROPIA, INDEPENDIENTE de la de #133 (G._tierParty).
+function eliteShareLivePlayers(h){ h=h||G.hero; if(!h) return [];
+  const R=+ELITE_SHARE_SURGE.radius||0, R2=R*R;
+  const party=(Array.isArray(G._eliteShareParty)&&G._eliteShareParty.length)?G._eliteShareParty:[h];   // normal (juego): sólo el héroe (P=1<minP ⇒ colapso); PRUEBA: party sintética inyectada
+  const out=[]; for(const p of party){ if(!p) continue; if(p.dead||(p.hp!=null&&p.hp<=0)) continue; const dx=(+p.x||0)-h.x, dy=(+p.y||0)-h.y; if(dx*dx+dy*dy>R2) continue; out.push(p); } return out; }
+// eliteShareAgg(h) = {N, elite} = N mobs ENGANCHADOS VIVOS en radio + count de los que tienen mobTierRank ≥ eliteRank (élite+). Requiere P≥minPlayers (con <2 ⇒ single-player ⇒ null LIMPIO) y N≥minMobs (con <minMobs ⇒ null). FILTRA muertos/hp≤0 ⇒ ANTI-AUTO-CONTEO. PURO (lee hero+mob rank replicados vía mobTierRank, la MISMA escalera server-auth de #133), 0-RNG/0-timer. 🔑 count ENTERO ⇒ decisión 100% entera (ambos clientes replican el MISMO rango ⇒ MISMO count). O(n+P).
+function eliteShareAgg(h){ h=h||G.hero; if(!h) return null;
+  const R=+ELITE_SHARE_SURGE.radius||0, R2=R*R, minN=Math.max(3,ELITE_SHARE_SURGE.minMobs|0), minP=Math.max(2,ELITE_SHARE_SURGE.minPlayers|0), eR=Math.max(1,ELITE_SHARE_SURGE.eliteRank|0)||2;
+  const players=eliteShareLivePlayers(h), P=players.length; if(P<minP) return null;         // <minPlayers (single-player) ⇒ composición indefinida ⇒ null
+  let elite=0, n=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(dx*dx+dy*dy>R2) continue; if(!aggroEngaged(e)) continue; n++; if(mobTierRank(e)>=eR) elite++; }   // N=# enganchados vivos en radio; count(rank≥eliteRank) ENTERO
+  if(n<minN) return null;                                                                    // <minMobs enganchados ⇒ composición indefinida ⇒ null
+  return { N:n, elite }; }
+// eliteShareField(h) = CASTA S∈[0,1] = elite/N = fracción del pack que es élite+. INTENSIVO (invariante a N). PURO/determinista (0 division en la decisión; esto es cosmético para el VM). S≈1 ⇒ pack mayoría-élite; S=0 ⇒ poca-élite/single-player/<minMobs.
+function eliteShareField(h){ const a=eliteShareAgg(h); if(!a) return 0; if(a.N<=0) return 0; let S=a.elite/a.N; return S>1?1:(S<0?0:S); }
+// eliteShareBandFromAgg(a) = peso por la BANDA de fracción-élite sobre S, decidida por comparación ENTERA (0-float division ⇒ 2-cliente byte-idéntico). S≥hiShare ⟺ elite≥⌈hiShare·N⌉ ⇒ mayoría-élite ⇒ 2; S≥midShare ⟺ elite≥⌈midShare·N⌉ ⇒ casta-parcial ⇒ 1; <midShare (poca-élite) ⇒ 0. share·N (0.5·N, 0.75·N) es producto EXACTO IEEE-754 + Math.ceil ⇒ umbral ENTERO ⇒ comparación exacta. LUT PURA ESTÁTICA.
+function eliteShareBandFromAgg(a){ if(!a) return 0; const cfg=ELITE_SHARE_SURGE, W=cfg.weights||{}, N=a.N, elite=a.elite;
+  const hi=(cfg.hiShare!=null)?+cfg.hiShare:0.75, mid=(cfg.midShare!=null)?+cfg.midShare:0.5;
+  const hiNeed=Math.ceil(hi*N), midNeed=Math.ceil(mid*N);   // ⌈share·N⌉ ENTERO (producto exacto + ceil) ⇒ decisión entera pura
+  if(elite>=hiNeed) return +W.elite||0;
+  if(elite>=midNeed) return +W.some||0;
+  return 0; }
+// eliteShareScore(h) = peso de banda del PACK VIVO en radio = eliteShareBandFromAgg(eliteShareAgg(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minMobs / <minPlayers / poca-élite. Señal VIVA del badge/VM (el GRANT usa el snapshot _eliteSharePre del TOP del kill).
+function eliteShareScore(h){ h=h||G.hero; if(!h) return 0; return eliteShareBandFromAgg(eliteShareAgg(h)); }
+// eliteShareRankTier(score) = índice del tier de recompensa vigente (0 = poca-élite/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Mayor fracción-élite = tier ALTO. LUT determinista pura.
+function eliteShareRankTier(score){ const T=ELITE_SHARE_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// eliteShareBonus(score) = nº de fichas de casta del tier vigente, acotado por el sub-cap propio eliteShareBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta eliteShareFind.
+function eliteShareBonus(score){ if(!ELITE_SHARE_SURGE.enabled) return 0;
+  if((ELITE_SHARE_SURGE.channel||"eliteShareFind")!=="eliteShareFind") return 0;   // seguridad: ELITE_SHARE_SURGE SÓLO alimenta eliteShareFind
+  const t=eliteShareRankTier(score); if(t<=0) return 0;
+  const raw=+ELITE_SHARE_SURGE.tiers[t-1].charge||0, cap=Math.max(0,ELITE_SHARE_SURGE.eliteShareBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// eliteShareForage(h, tpl, preScore) = las fichas por un remate contra un pack MAYORÍA-ÉLITE = eliteShareBonus(preScore). preScore = el snapshot de casta muestreado en el TOP de killEnemy (_eliteSharePre). Si preScore es undefined (VM/preview) usa eliteShareScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.eliteShareBounty vía grantEliteShareBounty.
+function eliteShareForage(h, tpl, preScore){ if(!ELITE_SHARE_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?eliteShareScore(h||G.hero):(+preScore||0); return eliteShareBonus(score); }
+// eliteShareTag(h) = glifo del badge de CASTA (✹) si el pack enganchado está ≥casta-parcial en radio (tier>0). PURO. "" si OFF / poca-élite / single-player. 🔑 en single-player SIEMPRE "" (P<minPlayers ⇒ S=0).
+export function eliteShareTag(h){ h=h||G.hero; if(!ELITE_SHARE_SURGE.enabled||!h) return "";
+  return eliteShareRankTier(eliteShareScore(h))>0 ? "✹" : ""; }
+// eliteShareVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/engaged/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function eliteShareVM(h){ h=h||G.hero; const on=!!ELITE_SHARE_SURGE.enabled&&!!h;
+  const a=on?eliteShareAgg(h):null, N=a?a.N:0, elite=a?a.elite:0, idx=on?eliteShareField(h):0, score=on?eliteShareScore(h):0, tier=on?eliteShareRankTier(score):0, charge=on?eliteShareBonus(score):0;
+  const P=on?eliteShareLivePlayers(h).length:0;
+  return { enabled:!!ELITE_SHARE_SURGE.enabled, channel:ELITE_SHARE_SURGE.channel||"eliteShareFind",
+    idx:+idx.toFixed(3), players:P, engaged:N, elite, score, tier, tierCount:(ELITE_SHARE_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,ELITE_SHARE_SURGE.eliteShareBountyCap|0), radius:+ELITE_SHARE_SURGE.radius||0,
+    tag: eliteShareTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -7794,6 +7842,8 @@ function killEnemy(e){
   const _partyVitalPre = PARTY_VITAL_SURGE.enabled ? partyVitalScore(G.hero) : 0;
   // CAS-2767 MOB_TIER_SURGE: snapshot del RETO/tier-de-poder del pack ENGANCHADO = mobTierScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuán de ALTO TIER era el pack (T=rango-de-poder medio) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ ≥reto-medio) rematar en single-player (P<minPlayers ⇒ T=0) o contra un pack basura (T<midTier ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_mobTierPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _mobTierPre = MOB_TIER_SURGE.enabled ? mobTierScore(G.hero) : 0;
+  // CAS-2775 ELITE_SHARE_SURGE: snapshot de la CASTA/fracción-élite del pack ENGANCHADO = eliteShareScore(hero) muestreado AQUÍ, en el TOP. El score refleja qué FRACCIÓN del pack era élite+ (S=count(rank≥eliteRank)/N) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ ≥casta-parcial) rematar en single-player (P<minPlayers ⇒ S=0) o contra un pack poca-élite (S<midShare ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_eliteSharePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _eliteSharePre = ELITE_SHARE_SURGE.enabled ? eliteShareScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8297,6 +8347,10 @@ function killEnemy(e){
   if(MOB_TIER_SURGE.enabled && !tpl.neutral){ const mtf=mobTierForage(G.hero, tpl, _mobTierPre);
     if(mtf>0){ grantMobTierBounty(mtf);
       floater(e.x,e.y-1164,"+"+mtf+" Reto","#d8b0e8",{small:true}); } }
+  // CAS-2775 ELITE_SHARE_SURGE seam: CASTA. Al matar un mob no-neutral mientras el pack ENGANCHADO era MAYORÍA-ÉLITE por COMPOSICIÓN (S=fracción-élite ≥midShare con ≥minMobs enganchados y ≥minPlayers jugadores en radio, score≥umbral ANTES de este kill vía `_eliteSharePre`), el héroe cosecha fichas de casta = eliteShareForage(hero,tpl,_eliteSharePre) (flat por banda de fracción-élite, sub-cap eliteShareBountyCap), banca a h.eliteShareBounty vía grantEliteShareBounty (0 RNG). `_eliteSharePre` se muestreó en el TOP + minMobs≥3 + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥casta-parcial) ⇒ rematar en single-player (P<minPlayers ⇒ S=0) o contra un pack poca-élite (S<midShare ⇒ 0) NO forrajea; hace falta comprometerse contra un pack GENUINAMENTE mayoría-élite. Canal FRESCO eliteShareFind (fuente ÚNICA, sub-cap eliteShareBountyCap) — NINGUNA de las 75 flags #59-#133 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantEliteShareBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(ELITE_SHARE_SURGE.enabled && !tpl.neutral){ const esf=eliteShareForage(G.hero, tpl, _eliteSharePre);
+    if(esf>0){ grantEliteShareBounty(esf);
+      floater(e.x,e.y-1180,"+"+esf+" Casta","#e8c0d8",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9620,6 +9674,8 @@ function grantAggroVigorBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroV
 function grantPartyVitalBounty(n){ const h=G.hero; if(!h||n<=0) return; h.partyVitalBounty=(h.partyVitalBounty|0)+(n|0); }
 // CAS-2767: banca fichas de RETO al recurso TRANSITORIO h.mobTierBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantMobTierBounty(n){ const h=G.hero; if(!h||n<=0) return; h.mobTierBounty=(h.mobTierBounty|0)+(n|0); }
+// CAS-2775: banca fichas de CASTA al recurso TRANSITORIO h.eliteShareBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantEliteShareBounty(n){ const h=G.hero; if(!h||n<=0) return; h.eliteShareBounty=(h.eliteShareBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -15381,6 +15437,69 @@ export const dev = {
       gExists:(G.mobTierBounty!=null),                          // prueba byte-id: STATELESS ⇒ G.mobTierBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._tierParty!=null),                         // prueba byte-id: G._tierParty SÓLO existe tras driveTier (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), mobTierBounty:(h.mobTierBounty|0) }:null }; },
+  // CAS-2775: CASTA OBSERVABLE hook (DARK, ELITE_SHARE_SURGE — EVO#134, AÑADE la dimensión COMPOSICIÓN-PROPORCIÓN (qué FRACCIÓN del pack enganchado es genuinamente peligrosa/élite+ — la MAYORÍA-ÉLITE por composición, un DATO distinto de #133 RETO que lee la MEDIA del rango) a la sub-familia MOB-POWER-RATING). Canal FRESCO eliteShareFind + eje = eliteShareField(hero)=S=count(rank≥eliteRank)/N sobre los mobs enganchados ∈[0,1]. SNAPSHOT PURO (reusa la MISMA escalera mobTierRank server-auth de #133, SIN buffer temporal; DETERMINISMO sev-1 vía count ENTERO vs umbrales ⌈k·N⌉ ENTEROS, 0 division en decisión). GATED enabled:false ⇒ byte-neutral OFF. 🔑 MULTIJUGADOR-NATIVO: single-player ⇒ P<2 ⇒ S=0 (colapso LIMPIO); la métrica se prueba vía shareProbe (LUT pura de rangos→count→S) + ladderProbe (escalera→rango, reusa mobTierRank) + driveShare (party SINTÉTICA + mobs con rango inyectado).
+  //   eliteShare()                                       → snapshot {enabled,channel,radius,weights,hiShare,midShare,eliteRank,tierCap,minMobs,minPlayers,tiers,cap,idx,players,engaged,elite,score,tier,charge,forageChargePreview,shareProbe,ladderProbe,driveShare,shareProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   eliteShare({enabled})                              → flip runtime IN-MEMORY de ELITE_SHARE_SURGE.enabled (sin tocar disco)
+  //   eliteShare({tp:{tx,ty}})                           → teleporta al héroe
+  //   eliteShare({shareProbe:{ranks:[0..cap…],players}}) → LUT PURA (ranks=rango por mob,P=players)→N=len(ranks)→elite=count(rank≥eliteRank)→S=elite/N→banda(count vs ⌈k·N⌉ ENTEROS)→tier→charge (byte-verifica CASTA + UMBRALES; P<2 / N<minMobs ⇒ degenerado ⇒ 0). 🔑 ranks = rango-de-poder por MOB (CASTA cuenta cuántos ≥ eliteRank, IGNORA HP/posición/tipo)
+  //   eliteShare({ladderProbe:{isBoss,capstone,champion,champElite,elite,affix,tierRank}}) → escalera→rango ENTERO (reusa mobTierRank: boss/capstone=4>champion/champElite=3>elite=2>afijo=1>normal=0; tierRank = override directo)
+  //   eliteShare({driveShare:{wipe,players:[{dx,dy}],pts:[{deg,dist,type,rank,state}]}}) → inyecta party SINTÉTICA (G._eliteShareParty) + mobs enganchados con rango (e._tierRank) ⇒ S REAL server-auth (P=#party, elite=count(rank≥eliteRank), N=#mobs)
+  //   eliteShare({shareProbeLive:true})                  → lectura REAL server-auth: P=jugadores en radio, elite, S=field, N=mobs enganchados
+  //   eliteShare({clearShare:true})                      → remueve los mobs de prueba (_eliteShareTest) + limpia la party sintética
+  eliteShare(p){
+    let shareProbe=null, ladderProbe=null, driveShare=null, shareProbeLive=null, cleared=null;
+    const cap=Math.max(1,ELITE_SHARE_SURGE.tierCap|0)||4, minN=Math.max(3,ELITE_SHARE_SURGE.minMobs|0), minP=Math.max(2,ELITE_SHARE_SURGE.minPlayers|0), eR=Math.max(1,ELITE_SHARE_SURGE.eliteRank|0)||2;
+    const D2R=Math.PI/180;
+    if(p && typeof p==="object"){
+      if("enabled" in p) ELITE_SHARE_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.shareProbe && typeof p.shareProbe==="object"){ const ranks=Array.isArray(p.shareProbe.ranks)?p.shareProbe.ranks.map(x=>{ const r=x|0; return r<0?0:(r>cap?cap:r); }):[];   // LUT PURA (ranks=rango por mob,P)→N=len→elite=count(rank≥eliteRank)→S=elite/N→banda(count vs ⌈k·N⌉ ENTEROS)→tier→charge
+        const N=ranks.length, P=(p.shareProbe.players!=null)?(p.shareProbe.players|0):minP;
+        let elite=0; for(const r of ranks) if(r>=eR) elite++;
+        const gated=(P>=minP && N>=minN);                                            // P<minPlayers (single-player) ó N<minMobs ⇒ degenerado ⇒ 0
+        const a=gated?{N,elite}:null;
+        let Ss=(gated&&N>0)?(elite/N):0; if(Ss>1)Ss=1; if(Ss<0)Ss=0;
+        const w=eliteShareBandFromAgg(a), t=eliteShareRankTier(w);
+        const hi=(ELITE_SHARE_SURGE.hiShare!=null)?+ELITE_SHARE_SURGE.hiShare:0.75, mid=(ELITE_SHARE_SURGE.midShare!=null)?+ELITE_SHARE_SURGE.midShare:0.5;
+        const raw=t>0?(+ELITE_SHARE_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,ELITE_SHARE_SURGE.eliteShareBountyCap|0);
+        shareProbe={ ranks:ranks.slice(), players:P, mobs:N, total:N, elite, eliteRank:eR, share:+Ss.toFixed(3), hiShare:hi, midShare:mid, hiNeed:Math.ceil(hi*N), midNeed:Math.ceil(mid*N), weight:w, rankTier:t, charge:capB>0?Math.min(raw,capB):raw }; }
+      if(p.ladderProbe && typeof p.ladderProbe==="object"){ const q=p.ladderProbe; const fake={ isBoss:!!q.isBoss, capstone:!!q.capstone, champion:!!q.champion, champElite:!!q.champElite, elite:!!q.elite, affix:q.affix||null };   // escalera boolean→rango ENTERO (reusa mobTierRank de #133)
+        if(q.tierRank!=null) fake._tierRank=q.tierRank|0;
+        ladderProbe={ isBoss:fake.isBoss, capstone:fake.capstone, champion:fake.champion, champElite:fake.champElite, elite:fake.elite, affix:!!fake.affix, tierRank:(q.tierRank!=null?q.tierRank|0:null), rank:mobTierRank(fake), isElite:(mobTierRank(fake)>=eR) }; }
+      if(p.driveShare && typeof p.driveShare==="object"){ const pts=Array.isArray(p.driveShare.pts)?p.driveShare.pts:[], injected=[];   // inyecta party sintética + mobs con rango dado ⇒ S REAL
+        if(p.driveShare.wipe) G.enemies=(G.enemies||[]).filter(e=>!e._eliteShareTest);   // test-only: limpia SÓLO los mobs de prueba previos
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const plist=Array.isArray(p.driveShare.players)?p.driveShare.players:[];   // party sintética: CADA jugador {dx,dy} (posición sólo; CASTA IGNORA el HP del jugador), relativos al héroe, transitorios
+        const party=[]; for(const pl of plist){ party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), maxHp:1000, hp:1000, dead:false, _synthPlayer:true }); }
+        G._eliteShareParty=party;
+        for(let i=0;i<pts.length;i++){ const q=pts[i]||{}, ty2=String(q.type||"rat"), deg=(+q.deg||0), dist=(q.dist!=null?+q.dist:120), sx=hx+dist*Math.cos(deg*D2R), sy=hy+dist*Math.sin(deg*D2R), st=String(q.state||"chase"), e=ETPL[ty2]?spawnEnemy(ty2,sx,sy):null;   // CASTA lee el RANGO del mob ⇒ inyecto e._tierRank directo (full-HP, vivos, enganchados)
+          if(e){ e._eliteShareTest=true; e.dead=false; e.x=sx; e.y=sy; e.state=st; e.hp=e.maxHp=Math.max(1,e.maxHp|0); if(q.rank!=null) e._tierRank=(q.rank|0); if(q.hostile) e.hostile=true;
+            injected.push({ idx:G.enemies.indexOf(e), deg, dist, type:ty2, state:st, rank:mobTierRank(e), isElite:(mobTierRank(e)>=eR), engaged:aggroEngaged(e) }); }
+          else injected.push({ idx:-1, deg, dist, type:ty2, state:st, valid:false }); }
+        const aa=eliteShareAgg(G.hero);
+        driveShare={ injected, players:G._eliteShareParty.length, engaged:aa?aa.N:0, elite:aa?aa.elite:0, idx:+eliteShareField(G.hero).toFixed(3), score:eliteShareScore(G.hero) }; }
+      if(p.clearShare){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._eliteShareTest); cleared=before-G.enemies.length; G._eliteShareParty=null; }   // remueve mobs de prueba + limpia party sintética
+      if(p.shareProbeLive){ const h2=G.hero;   // lectura REAL server-auth: P=jugadores en radio, elite, S=field, N=mobs enganchados
+        if(h2){ const players=eliteShareLivePlayers(h2), P=players.length, aa=eliteShareAgg(h2);
+          shareProbeLive={ players:P, engaged:aa?aa.N:0, elite:aa?aa.elite:0, field:+eliteShareField(h2).toFixed(3), score:eliteShareScore(h2) }; }
+        else shareProbeLive={ players:0, engaged:0, elite:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=eliteShareVM(h);
+    return { enabled:ELITE_SHARE_SURGE.enabled, channel:ELITE_SHARE_SURGE.channel||"eliteShareFind",
+      radius:vm.radius, weights:Object.assign({},ELITE_SHARE_SURGE.weights||{}), hiShare:+ELITE_SHARE_SURGE.hiShare||0, midShare:+ELITE_SHARE_SURGE.midShare||0, eliteRank:eR, tierCap:cap, minMobs:minN, minPlayers:minP,
+      tiers:(ELITE_SHARE_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, engaged:vm.engaged, elite:vm.elite, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?eliteShareForage(h, {eliteShare:true}):0,   // preview: fichas forrajeadas por un remate contra el pack disponible AHORA (expone el canal eliteShareFind; usa score EN VIVO — en single-player/poca-élite 0)
+      shareProbe: shareProbe,                                  // LUT PURA (ranks=rango por mob,P)→N→elite=count(rank≥eliteRank)→S→banda(count vs ⌈k·N⌉ ENTEROS)→tier→charge (byte-verifica CASTA + UMBRALES)
+      ladderProbe: ladderProbe,                                // escalera boolean→rango ENTERO (reusa mobTierRank; isElite=rank≥eliteRank)
+      driveShare: driveShare,                                  // inyecta party SINTÉTICA + mobs con rango dado ⇒ S REAL + idx/players/engaged/elite/score server-auth
+      shareProbeLive: shareProbeLive,                          // lectura REAL server-auth: P=jugadores en radio, elite, S=field, N=mobs enganchados
+      cleared: cleared,                                        // nº de mobs de prueba removidos por clearShare
+      tag: eliteShareTag(h),                                   // glifo SERVIDO (OFF/poca-élite/single-player ⇒ "" / mayoría-élite ≥midShare ⇒ ✹)
+      precedence:"eliteShareFind (canal FRESCO — recompensa de fichas de CASTA por comprometer/rematar contra un pack MAYORÍA-ÉLITE por composición): NINGUNA de las 75 flags #59-#133 lo toca. AÑADE la dimensión COMPOSICIÓN-PROPORCIÓN (qué FRACCIÓN del pack es genuinamente peligrosa/élite+) a la sub-familia MOB-POWER-RATING. EJE = eliteShareField(hero)=S=count(mobTierRank≥eliteRank)/N sobre los mobs enganchados ∈[0,1], SNAPSHOT PURO. 🔑 DETERMINISMO sev-1: count(rank≥eliteRank) es ENTERO ⇒ decisión 100% entera (count vs umbrales ⌈k·N⌉ ENTEROS; share·N con k∈{0.5,0.75} producto EXACTO IEEE-754 + Math.ceil ENTERO) ⇒ 0-float division en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ P<2 ⇒ S=0, colapso LIMPIO). CRUX (LA CRÍTICA) — CASTA ⊥ TODOS los priores: ⊥#133 RETO (MEDIA de tier): RETO lee mean(rank)/cap; CASTA lee la FRACCIÓN por encima del umbral élite — {boss(4),normal(0),normal(0)} ⇒ RETO mean=1.33 (T≈0.33, peso 0) pero elite-share=1/3; {elite(2),elite(2),normal(0)} ⇒ MISMA media 1.33 (RETO 0) pero elite-share=2/3 (peso 1): un ápice vs dos élites = misma media, share OPUESTO. ⊥#131 VIGOR / ⊥#132 TEMPLE (rango intrínseco, no HP). ⊥#127 VARIETY (ciego al tipo). ⊥#126 DENSITY (fracción normalizada, invariante a N). ⊥#129/#130 (ciego a la posición). ⊥#128 MOMENTUM (snapshot, no tendencia). ⊥#91 ZONE-TIER (rango POR-MOB, no de la ZONA). ⊥#73 APEX (booleano de proximidad de UN apex vs FRACCIÓN del pack). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio eliteShareBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.eliteShareBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._eliteShareParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick, como #121/…/#133). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.eliteShareBounty!=null),                       // prueba byte-id: STATELESS ⇒ G.eliteShareBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._eliteShareParty!=null),                   // prueba byte-id: G._eliteShareParty SÓLO existe tras driveShare (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), eliteShareBounty:(h.eliteShareBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
