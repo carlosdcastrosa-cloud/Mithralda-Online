@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6290,6 +6290,60 @@ export function partyVitalVM(h){ h=h||G.hero; const on=!!PARTY_VITAL_SURGE.enabl
     cap:Math.max(0,PARTY_VITAL_SURGE.partyVitalBountyCap|0), radius:+PARTY_VITAL_SURGE.radius||0,
     tag: partyVitalTag(h) }; }
 
+// ===== CAS-2767: RETO (MOB_TIER_SURGE, EVO#133 DARK) — dimensión MOB-POWER-RATING (cuán PELIGROSO POR DISEÑO es el pack ENGANCHADO — su TIER/RANGO-DE-RETO, NO su HP restante #131/#132, NO la posición #129/#130, NO el conteo #126, NO el tipo #127). ABRE la sub-familia MOB-POWER-RATING. T∈[0,1] = tier-de-reto MEDIO normalizado de los mobs VIVOS ENGANCHADOS en radio: por mob tier=mobTierRank(e) (la ESCALERA intrínseca boss/capstone=4 > champion/champElite=3 > elite=2 > afijo=1 > normal=0); T=mean(tier)/tierCap. Requiere P≥minPlayers y N≥minMobs. SNAPSHOT PURO (lee el rango replicado del mob directo, SIN buffer temporal — como #129/#130/#131/#132). 🔑 DETERMINISMO (sev-1): rangos ENTEROS pequeños ⇒ decisión 100% entera (Σ rangos vs umbrales ENTEROS k·tierCap·N/4); 0-float division en el score/decisión ⇒ 2-cliente 0-desync. 🔑 MULTIJUGADOR-NATIVO: single-player / P<2 ⇒ T=0 (colapso LIMPIO). =====
+// tierLivePlayers(h) = la party de JUGADORES VIVOS en radio del héroe (gate P≥minPlayers). 🔑 Single-player ⇒ SÓLO el héroe. G._tierParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.mobTier driveTier — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. O(P). Helper INDEPENDIENTE de #121..#132 — party separada.
+function tierLivePlayers(h){ h=h||G.hero; if(!h) return [];
+  const R=+MOB_TIER_SURGE.radius||0, R2=R*R;
+  const party=(Array.isArray(G._tierParty)&&G._tierParty.length)?G._tierParty:[h];   // normal (juego): sólo el héroe (P=1<minP ⇒ colapso); PRUEBA: party sintética inyectada
+  const out=[]; for(const p of party){ if(!p) continue; if(p.dead||(p.hp!=null&&p.hp<=0)) continue; const dx=(+p.x||0)-h.x, dy=(+p.y||0)-h.y; if(dx*dx+dy*dy>R2) continue; out.push(p); } return out; }
+// mobTierRank(e) = RANGO-DE-PODER intrínseco ENTERO ∈[0,tierCap] del mob (challenge rating). ESCALERA server-auth: boss/capstone=4 > champion/champElite=3 > elite=2 > afijo(mobAffixes)=1 > normal=0. Es el ÚNICO tier-de-poder intrínseco que carga un mob (los mobs planos no llevan `.level` numérico). 🔑 e._tierRank = OVERRIDE de PRUEBA (poblado SÓLO por driveTier/probes; jamás en juego normal) ⇒ ejercita la matemática de campo con rangos exactos. PURO, 0-RNG. Clamp a [0,tierCap].
+function mobTierRank(e){ if(!e) return 0; const cap=Math.max(1,MOB_TIER_SURGE.tierCap|0)||4;
+  let r; if(e._tierRank!=null){ r=e._tierRank|0; }
+  else if(e.isBoss||e.capstone) r=4; else if(e.champion||e.champElite) r=3; else if(e.elite) r=2; else if(mobAffixes(e).length>0) r=1; else r=0;
+  return r<0?0:(r>cap?cap:r); }
+// mobTierAgg(h) = {N, sum, cap} = N mobs ENGANCHADOS VIVOS en radio + Σ de sus RANGOS-DE-PODER ENTEROS (cada ∈[0,tierCap]). Requiere P≥minPlayers (con <2 ⇒ single-player ⇒ null LIMPIO) y N≥minMobs (pack presente; con <minMobs ⇒ null). FILTRA muertos/hp≤0 ⇒ ANTI-AUTO-CONTEO. PURO (lee hero+mob rank replicados), 0-RNG/0-timer. 🔑 rangos ENTEROS ⇒ decisión 100% entera (ambos clientes replican el MISMO rango ⇒ MISMA suma). O(n+P).
+function mobTierAgg(h){ h=h||G.hero; if(!h) return null;
+  const R=+MOB_TIER_SURGE.radius||0, R2=R*R, cap=Math.max(1,MOB_TIER_SURGE.tierCap|0)||4, minN=Math.max(3,MOB_TIER_SURGE.minMobs|0), minP=Math.max(2,MOB_TIER_SURGE.minPlayers|0);
+  const players=tierLivePlayers(h), P=players.length; if(P<minP) return null;               // <minPlayers (single-player) ⇒ reto de pack indefinido ⇒ null
+  let sum=0, n=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(dx*dx+dy*dy>R2) continue; if(!aggroEngaged(e)) continue; n++; sum+=mobTierRank(e); }   // N=# enganchados vivos en radio; Σ rango-de-poder ENTERO
+  if(n<minN) return null;                                                                    // <minMobs enganchados ⇒ reto indefinido ⇒ null
+  return { N:n, sum, cap }; }
+// mobTierField(h) = RETO T∈[0,1] = sum/(N·tierCap) = tier-de-poder medio normalizado. INTENSIVO (invariante a N). PURO/determinista (0 division en la decisión; esto es cosmético para el VM). T≈1 ⇒ pack élite/alto-tier; T=0 ⇒ basura/single-player/<minMobs.
+function mobTierField(h){ const a=mobTierAgg(h); if(!a) return 0; const denom=a.N*a.cap; if(denom<=0) return 0; let T=a.sum/denom; return T>1?1:(T<0?0:T); }
+// mobTierBandFromAgg(a) = peso por la BANDA de tier-de-poder sobre T, decidida por comparación ENTERA (0-float division ⇒ 2-cliente byte-idéntico). T≥hiTier ⟺ sum≥hi·N·cap ⇒ élite ⇒ 2; T≥midTier ⟺ sum≥mid·N·cap ⇒ reto-medio ⇒ 1; <mid (basura) ⇒ 0. Con tierCap múltiplo de 4 y hi/mid=k/4, los límites hi·N·cap (=3N) y mid·N·cap (=2N) son ENTEROS ⇒ comparación exacta. LUT PURA ESTÁTICA.
+function mobTierBandFromAgg(a){ if(!a) return 0; const cfg=MOB_TIER_SURGE, W=cfg.weights||{};
+  const NC=a.N*a.cap, sum=a.sum;
+  const hi=(cfg.hiTier!=null)?+cfg.hiTier:0.75, mid=(cfg.midTier!=null)?+cfg.midTier:0.5;
+  const hiLim=hi*NC, midLim=mid*NC;                       // tierCap múlt. de 4 + hi/mid=k/4 ⇒ hiLim/midLim ENTEROS ⇒ comparación exacta
+  if(sum>=hiLim) return +W.elite||0;
+  if(sum>=midLim) return +W.some||0;
+  return 0; }
+// mobTierScore(h) = peso de banda del PACK VIVO en radio = mobTierBandFromAgg(mobTierAgg(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minMobs / <minPlayers / basura. Señal VIVA del badge/VM (el GRANT usa el snapshot _mobTierPre del TOP del kill).
+function mobTierScore(h){ h=h||G.hero; if(!h) return 0; return mobTierBandFromAgg(mobTierAgg(h)); }
+// mobTierRankTier(score) = índice del tier de recompensa vigente (0 = basura/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Mayor tier de pack = tier ALTO. LUT determinista pura.
+function mobTierRankTier(score){ const T=MOB_TIER_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// mobTierBonus(score) = nº de fichas de reto del tier vigente, acotado por el sub-cap propio mobTierBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta mobTierFind.
+function mobTierBonus(score){ if(!MOB_TIER_SURGE.enabled) return 0;
+  if((MOB_TIER_SURGE.channel||"mobTierFind")!=="mobTierFind") return 0;   // seguridad: MOB_TIER_SURGE SÓLO alimenta mobTierFind
+  const t=mobTierRankTier(score); if(t<=0) return 0;
+  const raw=+MOB_TIER_SURGE.tiers[t-1].charge||0, cap=Math.max(0,MOB_TIER_SURGE.mobTierBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// mobTierForage(h, tpl, preScore) = las fichas por un remate contra un pack de ALTO TIER = mobTierBonus(preScore). preScore = el snapshot de reto muestreado en el TOP de killEnemy (_mobTierPre). Si preScore es undefined (VM/preview) usa mobTierScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.mobTierBounty vía grantMobTierBounty.
+function mobTierForage(h, tpl, preScore){ if(!MOB_TIER_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?mobTierScore(h||G.hero):(+preScore||0); return mobTierBonus(score); }
+// mobTierTag(h) = glifo del badge de RETO (⧫) si el pack enganchado está ≥reto-medio en radio (tier>0). PURO. "" si OFF / basura / single-player. 🔑 en single-player SIEMPRE "" (P<minPlayers ⇒ T=0).
+export function mobTierTag(h){ h=h||G.hero; if(!MOB_TIER_SURGE.enabled||!h) return "";
+  return mobTierRankTier(mobTierScore(h))>0 ? "⧫" : ""; }
+// mobTierVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/engaged/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function mobTierVM(h){ h=h||G.hero; const on=!!MOB_TIER_SURGE.enabled&&!!h;
+  const a=on?mobTierAgg(h):null, N=a?a.N:0, idx=on?mobTierField(h):0, score=on?mobTierScore(h):0, tier=on?mobTierRankTier(score):0, charge=on?mobTierBonus(score):0;
+  const P=on?tierLivePlayers(h).length:0;
+  return { enabled:!!MOB_TIER_SURGE.enabled, channel:MOB_TIER_SURGE.channel||"mobTierFind",
+    idx:+idx.toFixed(3), players:P, engaged:N, score, tier, tierCount:(MOB_TIER_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,MOB_TIER_SURGE.mobTierBountyCap|0), radius:+MOB_TIER_SURGE.radius||0,
+    tag: mobTierTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -7738,6 +7792,8 @@ function killEnemy(e){
   const _aggroVigorPre = AGGRO_VIGOR_SURGE.enabled ? aggroVigorScore(G.hero) : 0;
   // CAS-2763 PARTY_VITAL_SURGE: snapshot del TEMPLE/HP-state de la PARTY ALIADA = partyVitalScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuán SANA estaba la party (W=fracción-de-HP media de los jugadores) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ ≥media-sana) rematar en single-player (P<minPlayers ⇒ W=0) o con la party ya maltrecha (W<midVital ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_partyVitalPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _partyVitalPre = PARTY_VITAL_SURGE.enabled ? partyVitalScore(G.hero) : 0;
+  // CAS-2767 MOB_TIER_SURGE: snapshot del RETO/tier-de-poder del pack ENGANCHADO = mobTierScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuán de ALTO TIER era el pack (T=rango-de-poder medio) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ ≥reto-medio) rematar en single-player (P<minPlayers ⇒ T=0) o contra un pack basura (T<midTier ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_mobTierPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _mobTierPre = MOB_TIER_SURGE.enabled ? mobTierScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8237,6 +8293,10 @@ function killEnemy(e){
   if(PARTY_VITAL_SURGE.enabled && !tpl.neutral){ const pvf=partyVitalForage(G.hero, tpl, _partyVitalPre);
     if(pvf>0){ grantPartyVitalBounty(pvf);
       floater(e.x,e.y-1148,"+"+pvf+" Temple","#a8e0d0",{small:true}); } }
+  // CAS-2767 MOB_TIER_SURGE seam: RETO. Al matar un mob no-neutral mientras el pack ENGANCHADO era de ALTO TIER (T=rango-de-poder medio ≥midTier con ≥minMobs enganchados y ≥minPlayers jugadores en radio, score≥umbral ANTES de este kill vía `_mobTierPre`), el héroe cosecha fichas de reto = mobTierForage(hero,tpl,_mobTierPre) (flat por banda de tier-de-poder, sub-cap mobTierBountyCap), banca a h.mobTierBounty vía grantMobTierBounty (0 RNG). `_mobTierPre` se muestreó en el TOP + minMobs≥3 + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥reto-medio) ⇒ rematar en single-player (P<minPlayers ⇒ T=0) o contra un pack basura (T<midTier ⇒ 0) NO forrajea; hace falta comprometerse contra un pack GENUINAMENTE de alto tier. Canal FRESCO mobTierFind (fuente ÚNICA, sub-cap mobTierBountyCap) — NINGUNA de las 74 flags #59-#132 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantMobTierBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(MOB_TIER_SURGE.enabled && !tpl.neutral){ const mtf=mobTierForage(G.hero, tpl, _mobTierPre);
+    if(mtf>0){ grantMobTierBounty(mtf);
+      floater(e.x,e.y-1164,"+"+mtf+" Reto","#d8b0e8",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9558,6 +9618,8 @@ function grantAggroPressureBounty(n){ const h=G.hero; if(!h||n<=0) return; h.agg
 function grantAggroVigorBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroVigorBounty=(h.aggroVigorBounty|0)+(n|0); }
 // CAS-2763: banca fichas de TEMPLE al recurso TRANSITORIO h.partyVitalBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantPartyVitalBounty(n){ const h=G.hero; if(!h||n<=0) return; h.partyVitalBounty=(h.partyVitalBounty|0)+(n|0); }
+// CAS-2767: banca fichas de RETO al recurso TRANSITORIO h.mobTierBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantMobTierBounty(n){ const h=G.hero; if(!h||n<=0) return; h.mobTierBounty=(h.mobTierBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -15256,6 +15318,69 @@ export const dev = {
       gExists:(G.partyVitalBounty!=null),                       // prueba byte-id: STATELESS ⇒ G.partyVitalBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._vitParty!=null),                          // prueba byte-id: G._vitParty SÓLO existe tras driveVital (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), partyVitalBounty:(h.partyVitalBounty|0) }:null }; },
+  // CAS-2767: RETO OBSERVABLE hook (DARK, MOB_TIER_SURGE — EVO#133, AÑADE la dimensión MOB-POWER-RATING (cuán PELIGROSO POR DISEÑO es el pack ENGANCHADO — su TIER/RANGO-DE-RETO, un DATO NUEVO que ningún flag #59-#132 lee — no el HP del mob #131, no el HP del aliado #132, no DÓNDE está #129/#130, no CUÁNTOS #126, no de qué TIPO #127, no el tier de la ZONA #91) a la familia COMPOSICIÓN-DE-INTENCIÓN, ABRIENDO la sub-familia MOB-POWER-RATING). Canal FRESCO mobTierFind + eje = mobTierField(hero)=T=rango-de-poder medio normalizado de los mobs enganchados ∈[0,1] (cuán de alto tier es el pack). SNAPSHOT PURO (lee el rango replicado del mob directo, SIN buffer temporal, como #129/#130/#131/#132; DETERMINISMO sev-1 vía rangos ENTEROS + banda de sumas ENTERA, 0 division en decisión). GATED enabled:false ⇒ byte-neutral OFF. 🔑 MULTIJUGADOR-NATIVO: single-player ⇒ P<2 ⇒ T=0 (colapso LIMPIO); la métrica se prueba vía tierProbe (LUT pura de rangos) + ladderProbe (escalera boolean→rango) + driveTier (party SINTÉTICA + mobs con rango inyectado).
+  //   mobTier()                                        → snapshot {enabled,channel,radius,weights,hiTier,midTier,tierCap,minMobs,minPlayers,tiers,cap,idx,players,engaged,score,tier,charge,forageChargePreview,tierProbe,ladderProbe,driveTier,tierProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   mobTier({enabled})                               → flip runtime IN-MEMORY de MOB_TIER_SURGE.enabled (sin tocar disco)
+  //   mobTier({tp:{tx,ty}})                            → teleporta al héroe
+  //   mobTier({tierProbe:{ranks:[0..cap…],players}})   → LUT PURA (ranks=rango por mob,P=players)→N=len(ranks)→Σ rango ENTERO→T=sum/(N·cap)→banda(sumas ENTERAS)→tier→charge (byte-verifica RETO + UMBRALES; P<2 / N<minMobs ⇒ degenerado ⇒ 0). 🔑 ranks = rango-de-poder por MOB (reto IGNORA HP/posición/tipo — sólo el TIER intrínseco del pack)
+  //   mobTier({ladderProbe:{isBoss,capstone,champion,champElite,elite,affix,tierRank}}) → escalera→rango ENTERO (byte-verifica mobTierRank: boss/capstone=4>champion/champElite=3>elite=2>afijo=1>normal=0; tierRank = override directo)
+  //   mobTier({driveTier:{wipe,players:[{dx,dy}],pts:[{deg,dist,type,rank,state}]}}) → inyecta party SINTÉTICA (G._tierParty) + mobs enganchados con rango (e._tierRank) ⇒ T REAL server-auth (P=#party, Σ rango de mobs, N=#mobs)
+  //   mobTier({tierProbeLive:true})                    → lectura REAL server-auth: P=jugadores en radio, suma, T=field, N=mobs enganchados
+  //   mobTier({clearTier:true})                        → remueve los mobs de prueba (_tierTest) + limpia la party sintética
+  mobTier(p){
+    let tierProbe=null, ladderProbe=null, driveTier=null, tierProbeLive=null, cleared=null;
+    const cap=Math.max(1,MOB_TIER_SURGE.tierCap|0)||4, minN=Math.max(3,MOB_TIER_SURGE.minMobs|0), minP=Math.max(2,MOB_TIER_SURGE.minPlayers|0);
+    const D2R=Math.PI/180;
+    if(p && typeof p==="object"){
+      if("enabled" in p) MOB_TIER_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.tierProbe && typeof p.tierProbe==="object"){ const ranks=Array.isArray(p.tierProbe.ranks)?p.tierProbe.ranks.map(x=>{ const r=x|0; return r<0?0:(r>cap?cap:r); }):[];   // LUT PURA (ranks=rango por mob,P)→N=len→Σ rango ENTERO→T=sum/(N·cap)→banda(sumas ENTERAS)→tier→charge
+        const N=ranks.length, P=(p.tierProbe.players!=null)?(p.tierProbe.players|0):minP;
+        let sum=0; for(const r of ranks) sum+=r;
+        const gated=(P>=minP && N>=minN);                                            // P<minPlayers (single-player) ó N<minMobs ⇒ degenerado ⇒ 0
+        const a=gated?{N,sum,cap}:null; const denom=N*cap;
+        let Tt=(gated&&denom>0)?(sum/denom):0; if(Tt>1)Tt=1; if(Tt<0)Tt=0;
+        const w=mobTierBandFromAgg(a), t=mobTierRankTier(w);
+        const hi=(MOB_TIER_SURGE.hiTier!=null)?+MOB_TIER_SURGE.hiTier:0.75, mid=(MOB_TIER_SURGE.midTier!=null)?+MOB_TIER_SURGE.midTier:0.5;
+        const raw=t>0?(+MOB_TIER_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,MOB_TIER_SURGE.mobTierBountyCap|0);
+        tierProbe={ ranks:ranks.slice(), players:P, mobs:N, total:N, sum, tierCap:cap, tier:+Tt.toFixed(3), hiTier:hi, midTier:mid, weight:w, rankTier:t, charge:capB>0?Math.min(raw,capB):raw }; }
+      if(p.ladderProbe && typeof p.ladderProbe==="object"){ const q=p.ladderProbe; const fake={ isBoss:!!q.isBoss, capstone:!!q.capstone, champion:!!q.champion, champElite:!!q.champElite, elite:!!q.elite, affix:q.affix||null };   // escalera boolean→rango ENTERO
+        if(q.tierRank!=null) fake._tierRank=q.tierRank|0;
+        ladderProbe={ isBoss:fake.isBoss, capstone:fake.capstone, champion:fake.champion, champElite:fake.champElite, elite:fake.elite, affix:!!fake.affix, tierRank:(q.tierRank!=null?q.tierRank|0:null), rank:mobTierRank(fake) }; }
+      if(p.driveTier && typeof p.driveTier==="object"){ const pts=Array.isArray(p.driveTier.pts)?p.driveTier.pts:[], injected=[];   // inyecta party sintética + mobs con rango dado ⇒ T REAL
+        if(p.driveTier.wipe) G.enemies=(G.enemies||[]).filter(e=>!e._tierTest);   // test-only: limpia SÓLO los mobs de prueba previos
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const plist=Array.isArray(p.driveTier.players)?p.driveTier.players:[];   // party sintética: CADA jugador {dx,dy} (posición sólo; reto IGNORA el HP del jugador), relativos al héroe, transitorios
+        const party=[]; for(const pl of plist){ party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), maxHp:1000, hp:1000, dead:false, _synthPlayer:true }); }
+        G._tierParty=party;
+        for(let i=0;i<pts.length;i++){ const q=pts[i]||{}, ty2=String(q.type||"rat"), deg=(+q.deg||0), dist=(q.dist!=null?+q.dist:120), sx=hx+dist*Math.cos(deg*D2R), sy=hy+dist*Math.sin(deg*D2R), st=String(q.state||"chase"), e=ETPL[ty2]?spawnEnemy(ty2,sx,sy):null;   // reto lee el RANGO del mob ⇒ inyecto e._tierRank directo (full-HP, vivos, enganchados)
+          if(e){ e._tierTest=true; e.dead=false; e.x=sx; e.y=sy; e.state=st; e.hp=e.maxHp=Math.max(1,e.maxHp|0); if(q.rank!=null) e._tierRank=(q.rank|0); if(q.hostile) e.hostile=true;
+            injected.push({ idx:G.enemies.indexOf(e), deg, dist, type:ty2, state:st, rank:mobTierRank(e), engaged:aggroEngaged(e) }); }
+          else injected.push({ idx:-1, deg, dist, type:ty2, state:st, valid:false }); }
+        const aa=mobTierAgg(G.hero);
+        driveTier={ injected, players:G._tierParty.length, engaged:aa?aa.N:0, sum:aa?aa.sum:0, idx:+mobTierField(G.hero).toFixed(3), score:mobTierScore(G.hero) }; }
+      if(p.clearTier){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._tierTest); cleared=before-G.enemies.length; G._tierParty=null; }   // remueve mobs de prueba + limpia party sintética
+      if(p.tierProbeLive){ const h2=G.hero;   // lectura REAL server-auth: P=jugadores en radio, suma, T=field, N=mobs enganchados
+        if(h2){ const players=tierLivePlayers(h2), P=players.length, aa=mobTierAgg(h2);
+          tierProbeLive={ players:P, engaged:aa?aa.N:0, sum:aa?aa.sum:0, field:+mobTierField(h2).toFixed(3), score:mobTierScore(h2) }; }
+        else tierProbeLive={ players:0, engaged:0, sum:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=mobTierVM(h);
+    return { enabled:MOB_TIER_SURGE.enabled, channel:MOB_TIER_SURGE.channel||"mobTierFind",
+      radius:vm.radius, weights:Object.assign({},MOB_TIER_SURGE.weights||{}), hiTier:+MOB_TIER_SURGE.hiTier||0, midTier:+MOB_TIER_SURGE.midTier||0, tierCap:cap, minMobs:minN, minPlayers:minP,
+      tiers:(MOB_TIER_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, engaged:vm.engaged, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?mobTierForage(h, {mobTier:true}):0,   // preview: fichas forrajeadas por un remate contra el pack disponible AHORA (expone el canal mobTierFind; usa score EN VIVO — en single-player/basura 0)
+      tierProbe: tierProbe,                                    // LUT PURA (ranks=rango por mob,P)→N→Σ rango ENTERA→T→banda(sumas ENTERAS)→tier→charge (byte-verifica RETO + UMBRALES)
+      ladderProbe: ladderProbe,                                // escalera boolean→rango ENTERO (byte-verifica mobTierRank)
+      driveTier: driveTier,                                    // inyecta party SINTÉTICA + mobs con rango dado ⇒ T REAL + idx/players/engaged/score server-auth
+      tierProbeLive: tierProbeLive,                            // lectura REAL server-auth: P=jugadores en radio, suma, T=field, N=mobs enganchados
+      cleared: cleared,                                        // nº de mobs de prueba removidos por clearTier
+      tag: mobTierTag(h),                                      // glifo SERVIDO (OFF/basura/single-player ⇒ "" / alto-tier ≥midTier ⇒ ⧫)
+      precedence:"mobTierFind (canal FRESCO — recompensa de fichas de RETO por comprometer/rematar contra un pack de ALTO TIER): NINGUNA de las 74 flags #59-#132 lo toca. AÑADE la dimensión MOB-POWER-RATING (cuán PELIGROSO POR DISEÑO es el pack — su TIER/RANGO-DE-RETO intrínseco, un DATO NUEVO que ningún prior lee) a la familia COMPOSICIÓN-DE-INTENCIÓN, ABRIENDO la sub-familia MOB-POWER-RATING. EJE = mobTierField(hero)=T=mean(mobTierRank)/tierCap sobre los mobs enganchados ∈[0,1], SNAPSHOT PURO. 🔑 DETERMINISMO sev-1: rango-de-poder por mob es un ENTERO pequeño (ESCALERA server-auth boss/capstone=4>champion/champElite=3>elite=2>afijo=1>normal=0) ⇒ Σ rangos ENTEROS vs umbrales ENTEROS k·tierCap·N/4 ⇒ 0-float division en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ P<2 ⇒ T=0, colapso LIMPIO). CRUX (LA CRÍTICA) — MOB-POWER-RATING ⊥ TODOS los priores: ⊥#131 VIGOR (MOB-HP-STATE): VIGOR lee la FRACCIÓN-DE-HP restante, RETO lee el TIER intrínseco — pack élite al 20% HP (T hi, V lo) vs pack basura a full-HP (T lo, V hi), MISMO pack poder/HP OPUESTO. ⊥#132 TEMPLE (HP del aliado): lee el poder del mob, no el HP del jugador. ⊥#127 VARIETY (tipo): 3 élites idénticos de alto tier (T hi, variety lo) vs 3 de tipo mixto de bajo tier (T lo, variety hi). ⊥#126 DENSITY (conteo): media normalizada, invariante a N y P. ⊥#130 PRESSURE/#129 SURROUND (posición): tier-de-poder ciego a la posición. ⊥#128 MOMENTUM/#122 SWITCH: snapshot del tier ACTUAL, no una tendencia. ⊥#91 ZONE-TIER: rango POR-MOB del pack, no el tier de la ZONA. ⊥#73 APEX: APEX lee el contenedor boss/champion/elite SÓLO como booleano de proximidad de UN apex; RETO lee la MEDIA del rango del pack (aggregate/composición). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio mobTierBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.mobTierBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._tierParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick, como #121/…/#132). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.mobTierBounty!=null),                          // prueba byte-id: STATELESS ⇒ G.mobTierBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._tierParty!=null),                         // prueba byte-id: G._tierParty SÓLO existe tras driveTier (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), mobTierBounty:(h.mobTierBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
