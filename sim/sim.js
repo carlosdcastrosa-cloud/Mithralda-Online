@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6918,6 +6918,50 @@ export function coFlankVM(h){ h=h||G.hero; const on=!!CO_FLANK_SURGE.enabled&&!!
     cap:Math.max(0,CO_FLANK_SURGE.coFlankBountyCap|0), radius:+CO_FLANK_SURGE.radius||0,
     tag: coFlankTag(h) }; }
 
+// ===== CAS-2840: CONJURO (CO_CAST_SURGE, EVO#146 DARK) — la ONCEAVA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS, #137 COHORTE=PRESENTES, #138 CUADRILLA=REMATAN, #139 SOCORRO=SOSTIENEN/heal, #140 MURALLA=ABSORBEN, #141 REPLIEGUE=SE ALEJAN, #142 PIÑA=APIÑADOS, #143 ENVITE=EMPUJAN, #144 DIANA=CONVERGEN-el-aim/CONTEO, #145 TENAZA=GEOMETRÍA). CONJURO es la sub-faceta ACTION-EVENT: ¿cuántos jugadores DISTINTOS ACTIVAN una habilidad EL MISMO frame (cualquier cast/skill/canalización)? U∈[0,P] ENTERO = nº de jugadores VIVOS con el flag `cast` ACTIVO este frame. SNAPSHOT PURO (lee el flag ya replicado en UN frame, SIN buffer temporal). 🔑 DETERMINISMO (sev-1): U = tally ENTERO de banderas booleanas (CERO float/ángulo; el conteo es CONMUTATIVO ⇒ orden-independiente) vs umbrales ENTEROS {midCast,hiCast}; CERO float en score/decisión ⇒ 2-cliente 0-desync. 🔑 MULTIJUGADOR-NATIVO: single-player ⇒ ≤1 caster ⇒ U colapsa ⇒ 0. =====
+// coCastParty(h) = el roster de casters-candidatos. 🔑 Single-player ⇒ SÓLO el héroe (que solo NO puede co-castear — ≤1 caster ⇒ U colapsa vía minPlayers). G._coCastParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.coCast driveCast — transitoria, NUNCA serializada). Party PROPIA, INDEPENDIENTE de #136-#145.
+function coCastParty(h){ h=h||G.hero; if(!h) return [];
+  return (Array.isArray(G._coCastParty)&&G._coCastParty.length)?G._coCastParty:[h]; }   // normal: sólo el héroe (≤1 caster ⇒ U colapsa); PRUEBA: party sintética inyectada
+// coCastRoster(h) = {P, U}: P = tamaño del roster candidato; U = nº de jugadores VIVOS DISTINTOS con el flag `cast` (activación-de-habilidad) ACTIVO este frame. FILTRA muertos/hp≤0 (ANTI-cadáveres). 🔑 lee el flag `cast` booleano YA replicado — quién ACTIVA-UNA-HABILIDAD ⊥ quién apunta #144 / rodea #145 / socorre #139. PURO, 0-RNG/0-timer, 0-float. El conteo es CONMUTATIVO ⇒ ambos clientes ⇒ MISMO U, orden-independiente. O(P).
+function coCastRoster(h){ h=h||G.hero; if(!h) return null;
+  const party=coCastParty(h); let U=0;
+  for(const p of party){ if(!p) continue; if(p.dead||p.hp<=0) continue;                             // ANTI-cadáveres: sólo jugadores VIVOS (héroe incluido)
+    if(p.cast) U++; }                                                                               // flag booleano de activación-de-habilidad (cast/skill/canalización) YA replicado
+  return { P:party.length, U:U }; }
+// coCastField(h) = CONJURO idx COSMÉTICO ∈[0,1] = U/playerCap (SÓLO badge; NO entra a la decisión). PURO. idx≈1 ⇒ sync pleno; idx=0 ⇒ solitario/single-player.
+function coCastField(h){ const a=coCastRoster(h); if(!a) return 0; const cap=Math.max(1,CO_CAST_SURGE.playerCap|0)||4; let g=a.U/cap; return g>1?1:(g<0?0:g); }
+// coCastBandFromAgg(a) = peso por la BANDA de sincronía sobre U, decidida por comparación ENTERA (0-float ⇒ 2-cliente byte-idéntico). U<minPlayers (single-player) ⇒ 0; U≥hiCast ⇒ sync-pleno ⇒ 2; U≥midCast ⇒ sync-parcial ⇒ 1; <midCast ⇒ 0. Umbrales ENTEROS. LUT PURA (0 division).
+function coCastBandFromAgg(a){ if(!a) return 0; const cfg=CO_CAST_SURGE, W=cfg.weights||{}, u=a.U|0, minP=Math.max(2,cfg.minPlayers|0);
+  if(u<minP) return 0;                                                        // <minPlayers casters (single-player) ⇒ colapso LIMPIO
+  const hi=(cfg.hiCast!=null)?(cfg.hiCast|0):3, mid=(cfg.midCast!=null)?(cfg.midCast|0):2;
+  if(u>=hi) return +W.full||0;                                               // sync-pleno
+  if(u>=mid) return +W.some||0;                                              // sync-parcial
+  return 0; }
+// coCastScore(h) = peso de banda de la sincronía ACREDITADA = coCastBandFromAgg(coCastRoster(h)) ∈ {0,1,2}. PURO ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minPlayers. Señal VIVA del badge/VM (el GRANT usa el snapshot _coCastPre del TOP del kill).
+function coCastScore(h){ h=h||G.hero; if(!h) return 0; return coCastBandFromAgg(coCastRoster(h)); }
+// coCastRankTier(score) = índice del tier de recompensa vigente (0 = solitario/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más casters = tier ALTO. LUT determinista pura.
+function coCastRankTier(score){ const T=CO_CAST_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// coCastBonus(score) = nº de fichas de conjuro del tier vigente, acotado por el sub-cap propio coCastBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta coCastFind.
+function coCastBonus(score){ if(!CO_CAST_SURGE.enabled) return 0;
+  if((CO_CAST_SURGE.channel||"coCastFind")!=="coCastFind") return 0;   // seguridad: CO_CAST_SURGE SÓLO alimenta coCastFind
+  const t=coCastRankTier(score); if(t<=0) return 0;
+  const raw=+CO_CAST_SURGE.tiers[t-1].charge||0, cap=Math.max(0,CO_CAST_SURGE.coCastBountyCap|0);
+  return cap>0?Math.min(raw,cap):raw; }
+// coCastForage(h, tpl, preScore) = las fichas por un remate con la sincronía acreditada = coCastBonus(preScore). preScore = el snapshot muestreado en el TOP de killEnemy (_coCastPre). Si preScore es undefined (VM/preview) usa coCastScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.coCastBounty vía grantCoCastBounty.
+function coCastForage(h, tpl, preScore){ if(!CO_CAST_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?coCastScore(h||G.hero):(+preScore||0); return coCastBonus(score); }
+// coCastTag(h) = glifo del badge de CONJURO (✷) si la sincronía acreditada está ≥sync-parcial (tier>0). PURO. "" si OFF / solitario / single-player. 🔑 en single-player SIEMPRE "" (U colapsa<minPlayers ⇒ 0).
+export function coCastTag(h){ h=h||G.hero; if(!CO_CAST_SURGE.enabled||!h) return "";
+  return coCastRankTier(coCastScore(h))>0 ? "✷" : ""; }
+// coCastVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/players/U/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function coCastVM(h){ h=h||G.hero; const on=!!CO_CAST_SURGE.enabled&&!!h;
+  const a=on?coCastRoster(h):null, Uc=a?a.U:0, idx=on?coCastField(h):0, score=on?coCastScore(h):0, tier=on?coCastRankTier(score):0, charge=on?coCastBonus(score):0;
+  const P=a?a.P:0;
+  return { enabled:!!CO_CAST_SURGE.enabled, channel:CO_CAST_SURGE.channel||"coCastFind",
+    idx:+idx.toFixed(3), players:P, cast:Uc, score, tier, tierCount:(CO_CAST_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,CO_CAST_SURGE.coCastBountyCap|0),
+    tag: coCastTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -8392,6 +8436,8 @@ function killEnemy(e){
   const _coFocusPre = CO_FOCUS_SURGE.enabled ? coFocusScore(G.hero) : 0;
   // CAS-2835 CO_FLANK_SURGE: snapshot de la TENAZA/co-flank = coFlankScore(hero) muestreado AQUÍ, en el TOP. El score refleja desde CUÁNTOS SECTORES angulares DISTINTOS estaban los jugadores VIVOS pinzando/rodeando el MISMO mob (F=max popcount de sectores por targetId, INDEPENDIENTE de CUÁNTOS convergen #144 o si empujan #143 o están apiñados #142 o de la concentración angular de los MOBS #108) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥pinza-parcial) rematar en single-player (F colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coFlankPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _coFlankPre = CO_FLANK_SURGE.enabled ? coFlankScore(G.hero) : 0;
+  // CAS-2840 CO_CAST_SURGE: snapshot del CONJURO/co-cast = coCastScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS estaban ACTIVANDO una habilidad EL MISMO frame (U=# banderas `cast` activas, INDEPENDIENTE de si rodean #145 o convergen #144 o socorren #139 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥sync-parcial) rematar en single-player (U colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coCastPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _coCastPre = CO_CAST_SURGE.enabled ? coCastScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8943,6 +8989,10 @@ function killEnemy(e){
   if(CO_FLANK_SURGE.enabled && !tpl.neutral){ const cflk=coFlankForage(G.hero, tpl, _coFlankPre);
     if(cflk>0){ grantCoFlankBounty(cflk);
       floater(e.x,e.y-1480,"+"+cflk+" Tenaza","#c0e0d8",{small:true}); } }
+  // CAS-2840 CO_CAST_SURGE seam: CONJURO. Al matar un mob no-neutral mientras la sincronía estaba ACREDITADA (U=# jugadores VIVOS DISTINTOS activando una habilidad EL MISMO frame ≥midCast con ≥minPlayers casters, score≥umbral ANTES de este kill vía `_coCastPre`), el héroe cosecha fichas de conjuro = coCastForage(hero,tpl,_coCastPre) (flat por banda de sincronía, sub-cap coCastBountyCap), banca a h.coCastBounty vía grantCoCastBounty (0 RNG). `_coCastPre` se muestreó en el TOP + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥sync-parcial) ⇒ rematar en single-player (U colapsa ⇒ 0) NO forrajea; hace falta que ≥2 jugadores activen habilidades EN CONCIERTO. Canal FRESCO coCastFind (fuente ÚNICA, sub-cap coCastBountyCap) — NINGUNO de los 87 flags #59-#145 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantCoCastBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(CO_CAST_SURGE.enabled && !tpl.neutral){ const ccst=coCastForage(G.hero, tpl, _coCastPre);
+    if(ccst>0){ grantCoCastBounty(ccst);
+      floater(e.x,e.y-1500,"+"+ccst+" Conjuro","#c8b8ec",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -10290,6 +10340,8 @@ function grantCoAdvanceBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coAdvan
 function grantCoFocusBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coFocusBounty=(h.coFocusBounty|0)+(n|0); }
 // CAS-2835: banca fichas de TENAZA al recurso TRANSITORIO h.coFlankBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantCoFlankBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coFlankBounty=(h.coFlankBounty|0)+(n|0); }
+// CAS-2840: banca fichas de CONJURO al recurso TRANSITORIO h.coCastBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantCoCastBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coCastBounty=(h.coCastBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -16689,6 +16741,56 @@ export const dev = {
       gExists:(G.coFlankBounty!=null),                     // prueba byte-id: STATELESS ⇒ G.coFlankBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._coFlankParty!=null),                 // prueba byte-id: G._coFlankParty SÓLO existe tras driveFlank (test scaffolding); en juego normal NUNCA se crea ⇒ F colapsa
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coFlankBounty:(h.coFlankBounty|0) }:null }; },
+  // CAS-2840: CONJURO OBSERVABLE hook (DARK, CO_CAST_SURGE — EVO#146, la ONCEAVA faceta de la sub-familia PLAYER-COORDINATION tras #136 CÓNCLAVE (ENGANCHADOS), #137 COHORTE (PRESENTES), #138 CUADRILLA (REMATAN), #139 SOCORRO (SOSTIENEN/heal), #140 MURALLA (ABSORBEN), #141 REPLIEGUE (SE ALEJAN), #142 PIÑA (APIÑADOS), #143 ENVITE (EMPUJAN), #144 DIANA (CONVERGEN-el-aim/CONTEO), #145 TENAZA (GEOMETRÍA)). Canal FRESCO coCastFind. Es la sub-faceta ACTION-EVENT: CUÁNTOS jugadores DISTINTOS ACTIVAN una habilidad EL MISMO frame (U=tally del flag `cast`) ⊥ QUÉ apuntan #144 / DÓNDE están #145 / QUÉ TIPO de soporte aplican #139.
+  //   coCast()                                           → snapshot {enabled,channel,weights,hiCast,midCast,playerCap,minPlayers,tiers,cap,idx,players,cast,score,tier,charge,forageChargePreview,castProbe,driveCast,castProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   coCast({enabled})                                  → flip runtime IN-MEMORY de CO_CAST_SURGE.enabled (sin tocar disco)
+  //   coCast({tp:{tx,ty}})                               → teleporta al héroe
+  //   coCast({castProbe:{casters,players}})              → LUT PURA (casters=nº de jugadores activando una habilidad, players=P)→U=clamp(casters,0,players)→banda(U vs {midCast,hiCast,minPlayers} ENTEROS)→tier→charge (byte-verifica CONJURO + UMBRALES; U<minPlayers ⇒ 0)
+  //   coCast({driveCast:{wipe,players:[{cast,dead}]}})   → inyecta roster SINTÉTICO (G._coCastParty) ⇒ U REAL server-auth = # jugadores VIVOS con flag `cast` (filtra muertos)
+  //   coCast({castProbeLive:true})                       → lectura REAL server-auth: U=# jugadores VIVOS activando una habilidad este frame
+  //   coCast({clearCast:true})                           → limpia la party sintética
+  coCast(p){
+    let castProbe=null, driveCast=null, castProbeLive=null, cleared=null;
+    const cap=Math.max(1,CO_CAST_SURGE.playerCap|0)||4, minP=Math.max(2,CO_CAST_SURGE.minPlayers|0);
+    if(p && typeof p==="object"){
+      if("enabled" in p) CO_CAST_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.castProbe && typeof p.castProbe==="object"){ const P=(p.castProbe.players!=null)?(p.castProbe.players|0):minP;   // LUT PURA (casters,P)→U=clamp→banda(U vs umbrales ENTEROS)→tier→charge
+        let u=(p.castProbe.casters!=null)?(p.castProbe.casters|0):0; if(u<0) u=0; if(u>P) u=P;   // U no puede exceder el roster P
+        const Uc=u, a={ U:Uc, P:P };
+        const w=coCastBandFromAgg(a), t=coCastRankTier(w);
+        const hi=(CO_CAST_SURGE.hiCast!=null)?(CO_CAST_SURGE.hiCast|0):3, mid=(CO_CAST_SURGE.midCast!=null)?(CO_CAST_SURGE.midCast|0):2;
+        const rawC=t>0?(+CO_CAST_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,CO_CAST_SURGE.coCastBountyCap|0);
+        castProbe={ casters:u, players:P, cast:Uc, hiCast:hi, midCast:mid, minPlayers:minP, idx:+(cap>0?(Uc/cap):0).toFixed(3), weight:w, rankTier:t, charge:capB>0?Math.min(rawC,capB):rawC }; }
+      if(p.driveCast && typeof p.driveCast==="object"){ const injected=[];   // inyecta roster sintético (flag cast + vivo/muerto) ⇒ U REAL (tally de banderas cast entre VIVOS)
+        const plist=Array.isArray(p.driveCast.players)?p.driveCast.players:[];   // roster sintético: CADA jugador {cast?,dead?}, transitorios
+        const party=[]; for(const pl of plist){ const dead=!!(pl&&pl.dead), cst=!!(pl&&pl.cast);
+          party.push({ cast:cst, maxHp:1000, hp:dead?0:1000, dead:dead, _synthPlayer:true });
+          injected.push({ cast:cst, dead:dead }); }
+        G._coCastParty=party;
+        const aa=coCastRoster(G.hero);
+        driveCast={ injected, players:G._coCastParty.length, cast:aa?aa.U:0, idx:+coCastField(G.hero).toFixed(3), score:coCastScore(G.hero) }; }
+      if(p.clearCast){ G._coCastParty=null; cleared=true; }   // limpia party sintética
+      if(p.castProbeLive){ const h2=G.hero;   // lectura REAL server-auth: U=# jugadores VIVOS activando una habilidad este frame
+        if(h2){ const aa=coCastRoster(h2);
+          castProbeLive={ players:aa?aa.P:0, cast:aa?aa.U:0, field:+coCastField(h2).toFixed(3), score:coCastScore(h2) }; }
+        else castProbeLive={ players:0, cast:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=coCastVM(h);
+    return { enabled:CO_CAST_SURGE.enabled, channel:CO_CAST_SURGE.channel||"coCastFind",
+      weights:Object.assign({},CO_CAST_SURGE.weights||{}), hiCast:CO_CAST_SURGE.hiCast|0, midCast:CO_CAST_SURGE.midCast|0, playerCap:cap, minPlayers:minP,
+      tiers:(CO_CAST_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, cast:vm.cast, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?coCastForage(h, {coCast:true}):0,   // preview: fichas forrajeadas por un remate con la sincronía acreditada AHORA (expone el canal coCastFind; usa score EN VIVO — en single-player/solitario 0)
+      castProbe: castProbe,                                // LUT PURA (casters,P)→U=clamp→banda(U vs {midCast,hiCast,minPlayers} ENTEROS)→tier→charge (byte-verifica CONJURO + UMBRALES)
+      driveCast: driveCast,                                // inyecta roster SINTÉTICO ⇒ U REAL + idx/players/cast/score server-auth (tally de banderas cast entre VIVOS)
+      castProbeLive: castProbeLive,                        // lectura REAL server-auth: U=# jugadores VIVOS activando una habilidad este frame
+      cleared: cleared,                                    // limpieza de la party sintética
+      tag: coCastTag(h),                                   // glifo SERVIDO (OFF/solitario/single-player ⇒ "" / sync ≥midCast ⇒ ✷)
+      precedence:"coCastFind (canal FRESCO — recompensa de fichas de CONJURO por rematar mientras ≥2 aliados DISTINTOS activan una habilidad EL MISMO frame): NINGUNO de los 87 flags #59-#145 lo toca. La ONCEAVA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS, #137 COHORTE=PRESENTES, #138 CUADRILLA=REMATAN, #139 SOCORRO=SOSTIENEN/heal, #140 MURALLA=ABSORBEN, #141 REPLIEGUE=SE ALEJAN, #142 PIÑA=APIÑADOS, #143 ENVITE=EMPUJAN, #144 DIANA=CONVERGEN-CONTEO, #145 TENAZA=GEOMETRÍA) y es la sub-faceta ACTION-EVENT (evento-de-activación). EJE = U=# jugadores VIVOS DISTINTOS con el flag `cast` (activación-de-habilidad) ACTIVO este frame ∈[0,P] ENTERO (co-cast/ability-sync), SNAPSHOT PURO del flag replicado. 🔑 DETERMINISMO sev-1: U = tally ENTERO de banderas booleanas (CERO float/atan2; el conteo es CONMUTATIVO ⇒ orden-independiente) vs umbrales ENTEROS {midCast,hiCast} ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ ≤1 caster ⇒ U colapsa, IMPOSIBLE co-castear en solitario). CRUX (LA CRÍTICA) — CONJURO = SIMULTANEIDAD-DE-ACTIVACIÓN (evento cast/skill) ⊥ TODOS los priores: (a) ⊥ #139 SOCORRO (PRIMARIO — ANY-ABILITY ⊥ SUPPORT-ONLY): SOCORRO cuenta la APLICACIÓN de soporte/heal/escudo/buff/revive (una CLASE de habilidad); CONJURO cuenta CUALQUIER activación (ofensiva+defensiva+utilidad). 3 lanzando DPS ⇒ CONJURO U3/w2 pero SOCORRO S0/w0; 1 sanando+2 quietos ⇒ SOCORRO S1 pero CONJURO U1/w0. (b) ⊥ #138 CUADRILLA (casting ⊥ killing): una canalización que NO remata cuenta para CONJURO, NO para CUADRILLA. (c) ⊥ #144 DIANA (activar-habilidad ⊥ compartir-objetivo: 2 lanzando a mobs DISTINTOS ⇒ CONJURO U2 pero DIANA G1). (d) ⊥ #145 TENAZA (evento-de-acción ⊥ arreglo-geométrico). (e) ⊥ #140 MURALLA (activar ⊥ absorber daño) / #143 ENVITE / #141 REPLIEGUE / #137 COHORTE / #136 CÓNCLAVE (qué EVENTO ⊥ qué otra acción). (f) ⊥ #132 PARTY_VITAL (HP-STATE float). (g) ⊥ ninguna flag de cast/ability/skill/cooldown previa (castAbility/castSpell/ABILITY_RANKS = sistema de cast PROPIO del héroe; INTERRUPT_SURGE = mob-side; NINGUNA cuenta jugadores-DISTINTOS-casteando-este-frame). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio coCastBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.coCastBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._coCastParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.coCastBounty!=null),                      // prueba byte-id: STATELESS ⇒ G.coCastBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._coCastParty!=null),                  // prueba byte-id: G._coCastParty SÓLO existe tras driveCast (test scaffolding); en juego normal NUNCA se crea ⇒ U colapsa
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coCastBounty:(h.coCastBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
