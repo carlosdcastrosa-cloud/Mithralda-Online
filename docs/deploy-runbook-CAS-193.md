@@ -8,6 +8,25 @@ depend on `deploy_game` recovering.
 - The old Higgsfield URL (`tender-bridge-504`) is **retired** — board directive, CAS-412. Do not deploy to it or cite it.
 - **Internals / one-time activation:** see `docs/backup-static-host-CAS-177.md`.
 
+> ⚠️ **LIVE host is a PROJECT Pages site, not an org site.** The canonical host is
+> `carlosdcastrosa-cloud.github.io/Mithralda-Online/` (repo `carlosdcastrosa-cloud/Mithralda-Online`,
+> Pages source = `gh-pages` branch, root `/`). We do **NOT** own `mithralda-online.github.io`
+> (that org repo does not exist — probing it always 404s and is not an outage). Any outage
+> check MUST use the project URL above. Two path gotchas: the game config is served at
+> **`sim/config.js`**, not `/config.js` (root `/config.js` 404 is expected); and `/favicon.ico`
+> 404 is a cosmetic browser default, not a game-asset regression. (CAS-2798 — false-alarm P0
+> was filed against the wrong host.)
+
+### LIVE health check (correct probe — use this for any "is LIVE down?" question)
+```bash
+B=https://carlosdcastrosa-cloud.github.io/Mithralda-Online
+curl -sS -o /dev/null -w "root %{http_code}\n"        "$B/"
+curl -sS "$B/version.json"; echo                       # expect {"build":"<HEAD build>","files":NNN}
+curl -sS "$B/sim/config.js" | grep -A6 "CO_STRIKE_SURGE = {" | grep enabled   # active-flag state
+# GitHub Pages settings health (needs the repo's x-access-token):
+# curl -H "Authorization: token $TOK" https://api.github.com/repos/carlosdcastrosa-cloud/Mithralda-Online/pages  -> status:"built", source.branch:"gh-pages"
+```
+
 ## The repeatable recipe — ship a new QA-green build
 
 Run these from a **clean working tree at the commit you want live** (the gate
