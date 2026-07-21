@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6677,6 +6677,53 @@ export function coTankVM(h){ h=h||G.hero; const on=!!CO_TANK_SURGE.enabled&&!!h;
     cap:Math.max(0,CO_TANK_SURGE.coTankBountyCap|0), radius:+CO_TANK_SURGE.radius||0,
     tag: coTankTag(h) }; }
 
+// ===== CAS-2815: REPLIEGUE (CO_FLEE_SURGE, EVO#141 DARK) — la SEXTA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS por mobs, #137 COHORTE=PRESENTES en radio, #138 CUADRILLA=quién REMATA/kill-output, #139 SOCORRO=quién SOSTIENE/support-enabler, #140 MURALLA=quién ABSORBE/damage-intake). D∈[0,P] ENTERO = nº de JUGADORES DISTINTOS VIVOS que ROMPIERON contacto / se REPOSICIONARON ALEJÁNDOSE de su amenaza más cercana (disengage-reposition) DENTRO DEL RADIO COMPARTIDO del cluster (co-flee/kite coordinado — quién SE ALEJA de la amenaza, ⊥ ABSORBEN #140 / ENGANCHADOS #136 / SOSTIENEN #139 / REMATAN #138 / PRESENTES #137 / ally-HP-STATE #132 PARTY_VITAL). CONTEO CRUDO de kiters, NO fracción. SNAPSHOT PURO (lee la pos/vel ya replicada — quién se movió alejándose de su mob-amenaza más cercano este frame —, SIN buffer temporal; la pos/vel del jugador YA es server-auth por diseño MMO, MISMA clase de estado replicado que lee #129/#130; el disengage se computa server-side una vez y se replica como un flag booleano por frame). 🔑 DETERMINISMO (sev-1): D = cuenta ENTERA de kiters vs umbrales ENTEROS {midFlee,hiFlee}; CERO float, CERO division en el score/decisión ⇒ 2-cliente 0-desync. 🔑 MULTIJUGADOR-NATIVO: single-player ⇒ el héroe solo NO co-kitea con nadie ⇒ D colapsa ⇒ 0 (colapso LIMPIO). =====
+// coFleeParty(h) = el roster de kiters candidatos en el mundo. 🔑 Single-player (juego normal) ⇒ SÓLO el héroe (que NO co-kitea ⇒ D colapsa). G._coFleeParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.coFlee driveFlee — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. Party PROPIA, INDEPENDIENTE de #121/#123/#124/#136/#137/#138/#139/#140.
+function coFleeParty(h){ h=h||G.hero; if(!h) return [];
+  return (Array.isArray(G._coFleeParty)&&G._coFleeParty.length)?G._coFleeParty:[h]; }   // normal (juego): sólo el héroe (flee=false ⇒ D colapsa); PRUEBA: party sintética inyectada
+// coFleeRoster(h) = {P, D}: P = tamaño del roster candidato; D = nº de jugadores VIVOS que se REPLEGARON/repositionaron alejándose de su amenaza (flee=true) DENTRO DEL RADIO del héroe = el co-flee/kite cluster. FILTRA muertos/hp≤0 (ANTI-conteo-de-cadáveres), fuera-de-radio y NO-kiters (sin disengage). 🔑 sólo cuenta si rompió contacto (flee=true) — quién SE ALEJA-de-la-amenaza ⊥ quién absorbe/socorre/remata/está presente/enganchado. PURO (lee la pos/vel replicada), 0-RNG/0-timer. 🔑 D ENTERO ⇒ decisión 100% entera (ambos clientes replican la MISMA pos/vel ⇒ MISMO conteo de kiters). O(P).
+function coFleeRoster(h){ h=h||G.hero; if(!h) return null;
+  const R2=(+CO_FLEE_SURGE.radius||0)*(+CO_FLEE_SURGE.radius||0);
+  const party=coFleeParty(h); let D=0;
+  for(const p of party){ if(!p) continue; if(p!==h && (p.dead||p.hp<=0)) continue;              // el héroe siempre vivo (ancla); los aliados sintéticos han de estar VIVOS
+    if(!p.flee) continue;                                                                        // SÓLO jugadores que ROMPIERON contacto / se repositionaron alejándose de la amenaza este frame (disengage) — quién SE ALEJA ⊥ quién absorbe/socorre/remata/está presente/enganchado
+    const px=(p.x!=null?p.x:h.x), py=(p.y!=null?p.y:h.y), dx=px-h.x, dy=py-h.y; if(dx*dx+dy*dy>R2) continue;   // sólo DENTRO del radio compartido del cluster de co-flee
+    D++; }
+  return { P:party.length, D:D }; }
+// coFleeField(h) = REPLIEGUE idx COSMÉTICO ∈[0,1] = D/playerCap (SÓLO para el badge; NO entra a la decisión). PURO/determinista. idx≈1 ⇒ repliegue plenamente coordinado; idx=0 ⇒ solitario/single-player.
+function coFleeField(h){ const a=coFleeRoster(h); if(!a) return 0; const cap=Math.max(1,CO_FLEE_SURGE.playerCap|0)||4; let D=a.D/cap; return D>1?1:(D<0?0:D); }
+// coFleeBandFromAgg(a) = peso por la BANDA de co-flee sobre D, decidida por comparación ENTERA (0-float ⇒ 2-cliente byte-idéntico). D<minPlayers (single-player) ⇒ 0; D≥hiFlee ⇒ repliegue-pleno ⇒ 2; D≥midFlee ⇒ repliegue-parcial ⇒ 1; <midFlee ⇒ 0. Umbrales {midFlee,hiFlee,minPlayers} ENTEROS ⇒ comparación exacta. LUT PURA ESTÁTICA (0 division en NINGÚN punto).
+function coFleeBandFromAgg(a){ if(!a) return 0; const cfg=CO_FLEE_SURGE, W=cfg.weights||{}, D=a.D|0, minP=Math.max(2,cfg.minPlayers|0);
+  if(D<minP) return 0;                                                        // <minPlayers kiters (single-player) ⇒ colapso LIMPIO
+  const hi=(cfg.hiFlee!=null)?(cfg.hiFlee|0):3, mid=(cfg.midFlee!=null)?(cfg.midFlee|0):2;
+  if(D>=hi) return +W.full||0;                                               // repliegue-pleno
+  if(D>=mid) return +W.some||0;                                             // repliegue-parcial
+  return 0; }
+// coFleeScore(h) = peso de banda del co-flee ACREDITADO en radio = coFleeBandFromAgg(coFleeRoster(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minPlayers / solitario. Señal VIVA del badge/VM (el GRANT usa el snapshot _coFleePre del TOP del kill).
+function coFleeScore(h){ h=h||G.hero; if(!h) return 0; return coFleeBandFromAgg(coFleeRoster(h)); }
+// coFleeRankTier(score) = índice del tier de recompensa vigente (0 = solitario/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más kiters = tier ALTO. LUT determinista pura.
+function coFleeRankTier(score){ const T=CO_FLEE_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// coFleeBonus(score) = nº de fichas de repliegue del tier vigente, acotado por el sub-cap propio coFleeBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta coFleeFind.
+function coFleeBonus(score){ if(!CO_FLEE_SURGE.enabled) return 0;
+  if((CO_FLEE_SURGE.channel||"coFleeFind")!=="coFleeFind") return 0;   // seguridad: CO_FLEE_SURGE SÓLO alimenta coFleeFind
+  const t=coFleeRankTier(score); if(t<=0) return 0;
+  const raw=+CO_FLEE_SURGE.tiers[t-1].charge||0, cap=Math.max(0,CO_FLEE_SURGE.coFleeBountyCap|0);
+  return cap>0?Math.min(raw,cap):raw; }
+// coFleeForage(h, tpl, preScore) = las fichas por un remate con el co-flee acreditado = coFleeBonus(preScore). preScore = el snapshot de co-flee muestreado en el TOP de killEnemy (_coFleePre). Si preScore es undefined (VM/preview) usa coFleeScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.coFleeBounty vía grantCoFleeBounty.
+function coFleeForage(h, tpl, preScore){ if(!CO_FLEE_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?coFleeScore(h||G.hero):(+preScore||0); return coFleeBonus(score); }
+// coFleeTag(h) = glifo del badge de REPLIEGUE (💨) si el co-flee acreditado está ≥repliegue-parcial en radio (tier>0). PURO. "" si OFF / solitario / single-player. 🔑 en single-player SIEMPRE "" (D colapsa<minPlayers ⇒ 0).
+export function coFleeTag(h){ h=h||G.hero; if(!CO_FLEE_SURGE.enabled||!h) return "";
+  return coFleeRankTier(coFleeScore(h))>0 ? "💨" : ""; }
+// coFleeVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/players/D/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function coFleeVM(h){ h=h||G.hero; const on=!!CO_FLEE_SURGE.enabled&&!!h;
+  const a=on?coFleeRoster(h):null, D=a?a.D:0, idx=on?coFleeField(h):0, score=on?coFleeScore(h):0, tier=on?coFleeRankTier(score):0, charge=on?coFleeBonus(score):0;
+  const P=a?a.P:0;
+  return { enabled:!!CO_FLEE_SURGE.enabled, channel:CO_FLEE_SURGE.channel||"coFleeFind",
+    idx:+idx.toFixed(3), players:P, flee:D, score, tier, tierCount:(CO_FLEE_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,CO_FLEE_SURGE.coFleeBountyCap|0), radius:+CO_FLEE_SURGE.radius||0,
+    tag: coFleeTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -8141,6 +8188,8 @@ function killEnemy(e){
   const _coSupportPre = CO_SUPPORT_SURGE.enabled ? coSupportScore(G.hero) : 0;
   // CAS-2812 CO_TANK_SURGE: snapshot de la MURALLA/co-tank = coTankScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuántos JUGADORES DISTINTOS estaban ABSORBIENDO/TOMANDO daño de mob en el radio compartido (T=# absorbedores acreditados, INDEPENDIENTE de si están socorriendo #139 o rematando #138 o presentes-sin-golpe #137 o enganchados-sin-golpe #136 o de la fracción-de-HP de la party #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥carga-parcial) rematar en single-player (T colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coTankPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _coTankPre = CO_TANK_SURGE.enabled ? coTankScore(G.hero) : 0;
+  // CAS-2815 CO_FLEE_SURGE: snapshot del REPLIEGUE/co-flee = coFleeScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuántos JUGADORES DISTINTOS estaban ROMPIENDO contacto / repositionándose alejándose de su amenaza en el radio compartido (D=# kiters, INDEPENDIENTE de si están absorbiendo #140 o socorriendo #139 o rematando #138 o presentes-sin-moverse #137 o enganchados #136 o de la fracción-de-HP de la party #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥repliegue-parcial) rematar en single-player (D colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coFleePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _coFleePre = CO_FLEE_SURGE.enabled ? coFleeScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8672,6 +8721,10 @@ function killEnemy(e){
   if(CO_TANK_SURGE.enabled && !tpl.neutral){ const ctf=coTankForage(G.hero, tpl, _coTankPre);
     if(ctf>0){ grantCoTankBounty(ctf);
       floater(e.x,e.y-1332,"+"+ctf+" Muralla","#c8d0e0",{small:true}); } }
+  // CAS-2815 CO_FLEE_SURGE seam: REPLIEGUE. Al matar un mob no-neutral mientras el co-flee estaba ACREDITADO (D=#jugadores DISTINTOS que ROMPIERON contacto / se repositionaron alejándose de su amenaza en el radio compartido ≥midFlee con ≥minPlayers kiters, score≥umbral ANTES de este kill vía `_coFleePre`), el héroe cosecha fichas de repliegue = coFleeForage(hero,tpl,_coFleePre) (flat por banda de co-flee, sub-cap coFleeBountyCap), banca a h.coFleeBounty vía grantCoFleeBounty (0 RNG). `_coFleePre` se muestreó en el TOP + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥repliegue-parcial) ⇒ rematar en single-player (D colapsa ⇒ 0) NO forrajea; hace falta que ≥2 jugadores estén GENUINAMENTE replegándose de la amenaza en el mismo cluster. Canal FRESCO coFleeFind (fuente ÚNICA, sub-cap coFleeBountyCap) — NINGUNO de los 82 flags #59-#140 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantCoFleeBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(CO_FLEE_SURGE.enabled && !tpl.neutral){ const cff=coFleeForage(G.hero, tpl, _coFleePre);
+    if(cff>0){ grantCoFleeBounty(cff);
+      floater(e.x,e.y-1376,"+"+cff+" Repliegue","#b0e0d8",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -10009,6 +10062,8 @@ function grantCoKillBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coKillBoun
 function grantCoSupportBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coSupportBounty=(h.coSupportBounty|0)+(n|0); }
 // CAS-2812: banca fichas de MURALLA al recurso TRANSITORIO h.coTankBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantCoTankBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coTankBounty=(h.coTankBounty|0)+(n|0); }
+// CAS-2815: banca fichas de REPLIEGUE al recurso TRANSITORIO h.coFleeBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantCoFleeBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coFleeBounty=(h.coFleeBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -16155,6 +16210,56 @@ export const dev = {
       gExists:(G.coTankBounty!=null),                       // prueba byte-id: STATELESS ⇒ G.coTankBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._coTankParty!=null),                  // prueba byte-id: G._coTankParty SÓLO existe tras driveBrunt (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coTankBounty:(h.coTankBounty|0) }:null }; },
+  // CAS-2815: REPLIEGUE OBSERVABLE hook (DARK, CO_FLEE_SURGE — EVO#141, la SEXTA faceta de la sub-familia PLAYER-COORDINATION tras #136 CÓNCLAVE (ENGANCHADOS), #137 COHORTE (PRESENTES), #138 CUADRILLA (REMATAN), #139 SOCORRO (SOSTIENEN), #140 MURALLA (ABSORBEN)). Canal FRESCO coFleeFind.
+  //   coFlee()                                           → snapshot {enabled,channel,radius,weights,hiFlee,midFlee,playerCap,minPlayers,tiers,cap,idx,players,flee,score,tier,charge,forageChargePreview,fleeProbe,driveFlee,fleeProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   coFlee({enabled})                                  → flip runtime IN-MEMORY de CO_FLEE_SURGE.enabled (sin tocar disco)
+  //   coFlee({tp:{tx,ty}})                               → teleporta al héroe
+  //   coFlee({fleeProbe:{breaking,players}})             → LUT PURA (breaking=nº kiters replegándose en radio, players=P)→D=clamp(breaking,0,players)→banda(D vs {midFlee,hiFlee,minPlayers} ENTEROS)→tier→charge (byte-verifica REPLIEGUE + UMBRALES; D<minPlayers ⇒ 0)
+  //   coFlee({driveFlee:{wipe,players:[{dx,dy,dead,flee}]}}) → inyecta roster SINTÉTICO (G._coFleeParty) ⇒ D REAL server-auth (filtra fuera-de-radio + muertos + NO-kiters)
+  //   coFlee({fleeProbeLive:true})                       → lectura REAL server-auth: D=kiters acreditados en radio
+  //   coFlee({clearFlee:true})                           → limpia la party sintética
+  coFlee(p){
+    let fleeProbe=null, driveFlee=null, fleeProbeLive=null, cleared=null;
+    const cap=Math.max(1,CO_FLEE_SURGE.playerCap|0)||4, minP=Math.max(2,CO_FLEE_SURGE.minPlayers|0);
+    if(p && typeof p==="object"){
+      if("enabled" in p) CO_FLEE_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.fleeProbe && typeof p.fleeProbe==="object"){ const P=(p.fleeProbe.players!=null)?(p.fleeProbe.players|0):minP;   // LUT PURA (breaking,P)→D=clamp→banda(D vs umbrales ENTEROS)→tier→charge
+        let breaking=(p.fleeProbe.breaking!=null)?(p.fleeProbe.breaking|0):0; if(breaking<0) breaking=0; if(breaking>P) breaking=P;   // D no puede exceder el roster P
+        const D=breaking, a={ D:D, P:P };
+        const w=coFleeBandFromAgg(a), t=coFleeRankTier(w);
+        const hi=(CO_FLEE_SURGE.hiFlee!=null)?(CO_FLEE_SURGE.hiFlee|0):3, mid=(CO_FLEE_SURGE.midFlee!=null)?(CO_FLEE_SURGE.midFlee|0):2;
+        const rawC=t>0?(+CO_FLEE_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,CO_FLEE_SURGE.coFleeBountyCap|0);
+        fleeProbe={ breaking:breaking, players:P, flee:D, hiFlee:hi, midFlee:mid, minPlayers:minP, idx:+(cap>0?(D/cap):0).toFixed(3), weight:w, rankTier:t, charge:capB>0?Math.min(rawC,capB):rawC }; }
+      if(p.driveFlee && typeof p.driveFlee==="object"){ const injected=[];   // inyecta roster sintético (posiciones + vivo/muerto + rompió-contacto) ⇒ D REAL (filtra radio + muertos + NO-kiters)
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const plist=Array.isArray(p.driveFlee.players)?p.driveFlee.players:[];   // roster sintético: CADA jugador {dx,dy,dead?,flee?} (posición relativa al héroe + si se repliegó), transitorios
+        const party=[]; for(const pl of plist){ const dead=!!(pl&&pl.dead), flee=!!(pl&&pl.flee); party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), maxHp:1000, hp:dead?0:1000, dead:dead, flee:flee, _synthPlayer:true });
+          injected.push({ dx:+(pl&&pl.dx)||0, dy:+(pl&&pl.dy)||0, dead:dead, flee:flee }); }
+        G._coFleeParty=party;
+        const aa=coFleeRoster(G.hero);
+        driveFlee={ injected, players:G._coFleeParty.length, flee:aa?aa.D:0, idx:+coFleeField(G.hero).toFixed(3), score:coFleeScore(G.hero) }; }
+      if(p.clearFlee){ G._coFleeParty=null; cleared=true; }   // limpia party sintética
+      if(p.fleeProbeLive){ const h2=G.hero;   // lectura REAL server-auth: D=kiters acreditados en radio
+        if(h2){ const aa=coFleeRoster(h2);
+          fleeProbeLive={ players:aa?aa.P:0, flee:aa?aa.D:0, field:+coFleeField(h2).toFixed(3), score:coFleeScore(h2) }; }
+        else fleeProbeLive={ players:0, flee:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=coFleeVM(h);
+    return { enabled:CO_FLEE_SURGE.enabled, channel:CO_FLEE_SURGE.channel||"coFleeFind",
+      radius:vm.radius, weights:Object.assign({},CO_FLEE_SURGE.weights||{}), hiFlee:CO_FLEE_SURGE.hiFlee|0, midFlee:CO_FLEE_SURGE.midFlee|0, playerCap:cap, minPlayers:minP,
+      tiers:(CO_FLEE_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, flee:vm.flee, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?coFleeForage(h, {coFlee:true}):0,   // preview: fichas forrajeadas por un remate con el co-flee acreditado AHORA (expone el canal coFleeFind; usa score EN VIVO — en single-player/solitario 0)
+      fleeProbe: fleeProbe,                                 // LUT PURA (breaking,P)→D=clamp→banda(D vs {midFlee,hiFlee,minPlayers} ENTEROS)→tier→charge (byte-verifica REPLIEGUE + UMBRALES)
+      driveFlee: driveFlee,                                // inyecta roster SINTÉTICO ⇒ D REAL + idx/players/flee/score server-auth (filtra radio + muertos + NO-kiters)
+      fleeProbeLive: fleeProbeLive,                        // lectura REAL server-auth: D=kiters acreditados en radio
+      cleared: cleared,                                    // limpieza de la party sintética
+      tag: coFleeTag(h),                                  // glifo SERVIDO (OFF/solitario/single-player ⇒ "" / co-flee ≥midFlee ⇒ 💨)
+      precedence:"coFleeFind (canal FRESCO — recompensa de fichas de REPLIEGUE por rematar mientras ≥2 aliados están ROMPIENDO contacto / repositionándose ALEJÁNDOSE de una amenaza en el radio compartido): NINGUNO de los 82 flags #59-#140 lo toca. La SEXTA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS, #137 COHORTE=PRESENTES, #138 CUADRILLA=REMATAN, #139 SOCORRO=SOSTIENEN, #140 MURALLA=ABSORBEN). EJE = D=#jugadores DISTINTOS VIVOS que ROMPIERON contacto / se repositionaron alejándose de su amenaza en radio ∈[0,P] ENTERO (co-flee/kite coordinado — quién SE ALEJA de la amenaza), SNAPSHOT PURO de la pos/vel replicada. 🔑 DETERMINISMO sev-1: D = CONTEO ENTERO de kiters vs umbrales ENTEROS {midFlee,hiFlee} ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ D colapsa, IMPOSIBLE co-kitear en solitario). CRUX (LA CRÍTICA) — REPLIEGUE = KITE/DISENGAGE-REPOSITION (quién SE ALEJA de la amenaza) ⊥ las OTRAS CINCO facetas Y ⊥ PARTY_VITAL #132: (a) ⊥ #140 MURALLA (damage-intake, el vecino MÁS cercano): ABSORBER un golpe (plantarse, comer el tick) ⊥ REPLEGARSE (moverse para evitar el SIGUIENTE) — tank absorbe (T)/se reposiciona 0 (D0); kiter se aleja ileso (D)/0 golpes (T0). TOMAR-el-golpe ⊥ EVITAR-el-golpe. (b) ⊥ #136 CÓNCLAVE (ENGANCHADOS/aggro'd): aggro'd y plantado (F/D0) vs aggro'd y kiteando (D cuenta). (c) ⊥ #139 SOCORRO (support): replegarse ⊥ aplicar heals. (d) ⊥ #138 CUADRILLA (kill-OUTPUT): replegarse ⊥ rematar. (e) ⊥ #137 COHORTE (PRESENTES): replegarse ⊥ estar presente. (f) ⊥ #132 PARTY_VITAL TEMPLE (ally-HP-STATE): TEMPLE = FRACCIÓN-de-HP MEDIA (float, cómo de SANA ESTÁ la party = ESTADO) vs REPLIEGUE = CONTEO ENTERO de quién se repliegó ESTE frame (ACCIÓN); party a full-HP con 3 kiteando ⇒ TEMPLE W≈1/REPLIEGUE D3, party maltrecha plantada ⇒ TEMPLE W bajo/REPLIEGUE D0 — ESTADO ⊥ ACCIÓN. ⊥#128 MOMENTUM/#122 SWITCH (snapshot de UN frame, no derivada temporal). ⊥#123 CONTEST (cov/P FRACCIÓN — REPLIEGUE = conteo CRUDO). ⊥#124 PILE (mobs-por-jugador). ⊥#121 SPREAD (entropía). ⊥#126 DENSITY (conteo de MOBS). ⊥#129/#130 (esos leen la GEOMETRÍA del MOB; REPLIEGUE lee el CONTEO de la ACCIÓN-de-disengage del JUGADOR). ⊥#133/#134/#135 (poder del mob). ⊥ CONGREGATION (headcount ZONAL → restedMult passive vs RADIO-LOCAL → find). ⊥ FELLOWSHIP/KINSHIP/RALLY (banda por reloj/rally de combate, no disengage-action LIVE). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio coFleeBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.coFleeBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._coFleeParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.coFleeBounty!=null),                       // prueba byte-id: STATELESS ⇒ G.coFleeBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._coFleeParty!=null),                  // prueba byte-id: G._coFleeParty SÓLO existe tras driveFlee (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coFleeBounty:(h.coFleeBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
