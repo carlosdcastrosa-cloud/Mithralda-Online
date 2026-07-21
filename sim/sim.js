@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6536,6 +6536,53 @@ export function coPresenceVM(h){ h=h||G.hero; const on=!!CO_PRESENCE_SURGE.enabl
     cap:Math.max(0,CO_PRESENCE_SURGE.coPresenceBountyCap|0), radius:+CO_PRESENCE_SURGE.radius||0,
     tag: coPresenceTag(h) }; }
 
+// ===== CAS-2802: CUADRILLA (CO_KILL_SURGE, EVO#138 DARK) — la TERCERA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS por mobs, #137 COHORTE=PRESENTES en radio). K∈[1,P] ENTERO = nº de JUGADORES DISTINTOS VIVOS ACREDITADOS con un golpe-de-gracia/remate (kill-credit) DENTRO DEL RADIO COMPARTIDO del cluster de kill (co-kill/assist-cluster — quién REMATA, ⊥ PRESENTES #137 / ENGANCHADOS #136 / APUNTA-al-mismo-objetivo #62 FOCUS_FIRE). CONTEO CRUDO de killers acreditados, NO fracción. SNAPSHOT PURO (lee el kill-credit ya replicado — quién landeó un golpe en el cluster —, SIN buffer temporal; el crédito de daño/kill YA es server-auth por diseño MMO). 🔑 DETERMINISMO (sev-1): K = cuenta ENTERA de killers acreditados vs umbrales ENTEROS {midAssist,hiAssist}; CERO float, CERO division en el score/decisión ⇒ 2-cliente 0-desync. 🔑 MULTIJUGADOR-NATIVO: single-player ⇒ SÓLO el héroe acreditado ⇒ K=1<midAssist ⇒ 0 (colapso LIMPIO). =====
+// coKillParty(h) = el roster de KILLERS candidatos en el mundo. 🔑 Single-player (juego normal) ⇒ SÓLO el héroe (el rematador). G._coKillParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.coKill driveHits — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. Party PROPIA, INDEPENDIENTE de #121/#123/#124/#136/#137.
+function coKillParty(h){ h=h||G.hero; if(!h) return [];
+  return (Array.isArray(G._coKillParty)&&G._coKillParty.length)?G._coKillParty:[h]; }   // normal (juego): sólo el héroe (K=1<minP ⇒ colapso); PRUEBA: party sintética inyectada
+// coKillRoster(h) = {P, K}: P = tamaño del roster candidato; K = nº de jugadores VIVOS ACREDITADOS con un remate (kill=true) DENTRO DEL RADIO del héroe = el co-kill/assist-cluster. FILTRA muertos/hp≤0 (ANTI-conteo-de-cadáveres), fuera-de-radio y NO-acreditados (sin kill-credit). El héroe SIEMPRE cuenta (es el rematador del seam). PURO (lee el kill-credit replicado), 0-RNG/0-timer. 🔑 K ENTERO ⇒ decisión 100% entera (ambos clientes replican el MISMO kill-credit ⇒ MISMO conteo de killers). O(P).
+function coKillRoster(h){ h=h||G.hero; if(!h) return null;
+  const R2=(+CO_KILL_SURGE.radius||0)*(+CO_KILL_SURGE.radius||0);
+  const party=coKillParty(h); let K=0;
+  for(const p of party){ if(!p) continue; if(p!==h && (p.dead||p.hp<=0)) continue;             // el héroe siempre vivo (rematador); los aliados sintéticos han de estar VIVOS
+    const credited=(p===h)||!!p.kill; if(!credited) continue;                                    // SÓLO jugadores ACREDITADOS con un golpe-de-gracia (co-kill) — quién REMATA ⊥ quién está presente/enganchado/apunta
+    const px=(p.x!=null?p.x:h.x), py=(p.y!=null?p.y:h.y), dx=px-h.x, dy=py-h.y; if(dx*dx+dy*dy>R2) continue;   // sólo DENTRO del radio compartido del cluster de kill
+    K++; }
+  return { P:party.length, K:K }; }
+// coKillField(h) = CUADRILLA idx COSMÉTICO ∈[0,1] = K/playerCap (SÓLO para el badge; NO entra a la decisión). PURO/determinista. idx≈1 ⇒ cuadrilla plenamente acreditada; idx=0 ⇒ solitario/single-player.
+function coKillField(h){ const a=coKillRoster(h); if(!a) return 0; const cap=Math.max(1,CO_KILL_SURGE.playerCap|0)||4; let D=a.K/cap; return D>1?1:(D<0?0:D); }
+// coKillBandFromAgg(a) = peso por la BANDA de assist sobre K, decidida por comparación ENTERA (0-float ⇒ 2-cliente byte-idéntico). K<minPlayers (single-player) ⇒ 0; K≥hiAssist ⇒ assist-pleno ⇒ 2; K≥midAssist ⇒ assist-parcial ⇒ 1; <midAssist ⇒ 0. Umbrales {midAssist,hiAssist,minPlayers} ENTEROS ⇒ comparación exacta. LUT PURA ESTÁTICA (0 division en NINGÚN punto).
+function coKillBandFromAgg(a){ if(!a) return 0; const cfg=CO_KILL_SURGE, W=cfg.weights||{}, K=a.K|0, minP=Math.max(2,cfg.minPlayers|0);
+  if(K<minP) return 0;                                                        // <minPlayers killers acreditados (single-player) ⇒ colapso LIMPIO
+  const hi=(cfg.hiAssist!=null)?(cfg.hiAssist|0):3, mid=(cfg.midAssist!=null)?(cfg.midAssist|0):2;
+  if(K>=hi) return +W.full||0;                                               // assist-pleno
+  if(K>=mid) return +W.some||0;                                             // assist-parcial
+  return 0; }
+// coKillScore(h) = peso de banda de la cuadrilla ACREDITADA en radio = coKillBandFromAgg(coKillRoster(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minPlayers / solitario. Señal VIVA del badge/VM (el GRANT usa el snapshot _coKillPre del TOP del kill).
+function coKillScore(h){ h=h||G.hero; if(!h) return 0; return coKillBandFromAgg(coKillRoster(h)); }
+// coKillRankTier(score) = índice del tier de recompensa vigente (0 = solitario/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más killers acreditados = tier ALTO. LUT determinista pura.
+function coKillRankTier(score){ const T=CO_KILL_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// coKillBonus(score) = nº de fichas de cuadrilla del tier vigente, acotado por el sub-cap propio coKillBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta coKillFind.
+function coKillBonus(score){ if(!CO_KILL_SURGE.enabled) return 0;
+  if((CO_KILL_SURGE.channel||"coKillFind")!=="coKillFind") return 0;   // seguridad: CO_KILL_SURGE SÓLO alimenta coKillFind
+  const t=coKillRankTier(score); if(t<=0) return 0;
+  const raw=+CO_KILL_SURGE.tiers[t-1].charge||0, cap=Math.max(0,CO_KILL_SURGE.coKillBountyCap|0);
+  return cap>0?Math.min(raw,cap):raw; }
+// coKillForage(h, tpl, preScore) = las fichas por un remate con la cuadrilla acreditada = coKillBonus(preScore). preScore = el snapshot de assist muestreado en el TOP de killEnemy (_coKillPre). Si preScore es undefined (VM/preview) usa coKillScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.coKillBounty vía grantCoKillBounty.
+function coKillForage(h, tpl, preScore){ if(!CO_KILL_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?coKillScore(h||G.hero):(+preScore||0); return coKillBonus(score); }
+// coKillTag(h) = glifo del badge de CUADRILLA (⨂) si la cuadrilla acreditada está ≥assist-parcial en radio (tier>0). PURO. "" si OFF / solitario / single-player. 🔑 en single-player SIEMPRE "" (K=1<minPlayers ⇒ 0).
+export function coKillTag(h){ h=h||G.hero; if(!CO_KILL_SURGE.enabled||!h) return "";
+  return coKillRankTier(coKillScore(h))>0 ? "⨂" : ""; }
+// coKillVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/players/K/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function coKillVM(h){ h=h||G.hero; const on=!!CO_KILL_SURGE.enabled&&!!h;
+  const a=on?coKillRoster(h):null, K=a?a.K:0, idx=on?coKillField(h):0, score=on?coKillScore(h):0, tier=on?coKillRankTier(score):0, charge=on?coKillBonus(score):0;
+  const P=a?a.P:0;
+  return { enabled:!!CO_KILL_SURGE.enabled, channel:CO_KILL_SURGE.channel||"coKillFind",
+    idx:+idx.toFixed(3), players:P, assist:K, score, tier, tierCount:(CO_KILL_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,CO_KILL_SURGE.coKillBountyCap|0), radius:+CO_KILL_SURGE.radius||0,
+    tag: coKillTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -7994,6 +8041,8 @@ function killEnemy(e){
   const _coStrikePre = CO_STRIKE_SURGE.enabled ? coStrikeScore(G.hero) : 0;
   // CAS-2797 CO_PRESENCE_SURGE: snapshot de la COHORTE/co-presencia = coPresenceScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuántos JUGADORES DISTINTOS estaban PRESENTES en el radio del héroe (R=# jugadores vivos en radio, INDEPENDIENTE de si un mob los engancha) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥rally-parcial) rematar en single-player (R=1<midRally ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coPresencePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _coPresencePre = CO_PRESENCE_SURGE.enabled ? coPresenceScore(G.hero) : 0;
+  // CAS-2802 CO_KILL_SURGE: snapshot de la CUADRILLA/co-kill = coKillScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuántos JUGADORES DISTINTOS estaban ACREDITADOS con un golpe-de-gracia/remate en el radio compartido (K=# killers acreditados, INDEPENDIENTE de si están presentes-sin-rematar #137 o enganchados #136 o apuntando al mismo objetivo #62) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥assist-parcial) rematar en single-player (K=1<midAssist ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coKillPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _coKillPre = CO_KILL_SURGE.enabled ? coKillScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8513,6 +8562,10 @@ function killEnemy(e){
   if(CO_PRESENCE_SURGE.enabled && !tpl.neutral){ const cpf=coPresenceForage(G.hero, tpl, _coPresencePre);
     if(cpf>0){ grantCoPresenceBounty(cpf);
       floater(e.x,e.y-1228,"+"+cpf+" Cohorte","#b8e0d0",{small:true}); } }
+  // CAS-2802 CO_KILL_SURGE seam: CUADRILLA. Al matar un mob no-neutral mientras la cuadrilla estaba ACREDITADA por CO-KILL (K=#jugadores DISTINTOS acreditados con un golpe-de-gracia en el radio compartido ≥midAssist con ≥minPlayers killers, score≥umbral ANTES de este kill vía `_coKillPre`), el héroe cosecha fichas de cuadrilla = coKillForage(hero,tpl,_coKillPre) (flat por banda de assist, sub-cap coKillBountyCap), banca a h.coKillBounty vía grantCoKillBounty (0 RNG). `_coKillPre` se muestreó en el TOP + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥assist-parcial) ⇒ rematar en single-player (K=1<midAssist ⇒ 0) NO forrajea; hace falta que ≥2 jugadores estén GENUINAMENTE acreditados con remates en el mismo cluster. Canal FRESCO coKillFind (fuente ÚNICA, sub-cap coKillBountyCap) — NINGUNO de los 79 flags #59-#137 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantCoKillBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(CO_KILL_SURGE.enabled && !tpl.neutral){ const ckf=coKillForage(G.hero, tpl, _coKillPre);
+    if(ckf>0){ grantCoKillBounty(ckf);
+      floater(e.x,e.y-1244,"+"+ckf+" Cuadrilla","#e0d0b8",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9844,6 +9897,8 @@ function grantRankSpreadBounty(n){ const h=G.hero; if(!h||n<=0) return; h.rankSp
 function grantCoStrikeBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coStrikeBounty=(h.coStrikeBounty|0)+(n|0); }
 // CAS-2797: banca fichas de COHORTE al recurso TRANSITORIO h.coPresenceBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantCoPresenceBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coPresenceBounty=(h.coPresenceBounty|0)+(n|0); }
+// CAS-2802: banca fichas de CUADRILLA al recurso TRANSITORIO h.coKillBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantCoKillBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coKillBounty=(h.coKillBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -15840,6 +15895,56 @@ export const dev = {
       gExists:(G.coPresenceBounty!=null),                   // prueba byte-id: STATELESS ⇒ G.coPresenceBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._coPresenceParty!=null),              // prueba byte-id: G._coPresenceParty SÓLO existe tras driveRoster (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coPresenceBounty:(h.coPresenceBounty|0) }:null }; },
+  // CAS-2802: CUADRILLA OBSERVABLE hook (DARK, CO_KILL_SURGE — EVO#138, la TERCERA faceta de la sub-familia PLAYER-COORDINATION). K = nº de JUGADORES DISTINTOS VIVOS ACREDITADOS con un golpe-de-gracia/remate DENTRO DEL RADIO COMPARTIDO (co-kill/assist-cluster, ⊥ PRESENTES #137 / ENGANCHADOS #136 / APUNTA-al-mismo-objetivo #62). Sólo lectura + drivers de PRUEBA gateados. PURO/determinista.
+  //   coKill()                                           → snapshot {enabled,channel,radius,weights,hiAssist,midAssist,playerCap,minPlayers,tiers,cap,idx,players,assist,score,tier,charge,forageChargePreview,hitProbe,driveHits,hitProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   coKill({enabled})                                  → flip runtime IN-MEMORY de CO_KILL_SURGE.enabled (sin tocar disco)
+  //   coKill({tp:{tx,ty}})                               → teleporta al héroe
+  //   coKill({hitProbe:{credited,players}})              → LUT PURA (credited=nº killers acreditados en radio, players=P)→K=clamp(credited,0,players)→banda(K vs {midAssist,hiAssist,minPlayers} ENTEROS)→tier→charge (byte-verifica CUADRILLA + UMBRALES; K<minPlayers ⇒ 0)
+  //   coKill({driveHits:{wipe,players:[{dx,dy,dead,kill}]}}) → inyecta roster SINTÉTICO (G._coKillParty) ⇒ K REAL server-auth (filtra fuera-de-radio + muertos + NO-acreditados)
+  //   coKill({hitProbeLive:true})                        → lectura REAL server-auth: K=killers acreditados en radio
+  //   coKill({clearHits:true})                           → limpia la party sintética
+  coKill(p){
+    let hitProbe=null, driveHits=null, hitProbeLive=null, cleared=null;
+    const cap=Math.max(1,CO_KILL_SURGE.playerCap|0)||4, minP=Math.max(2,CO_KILL_SURGE.minPlayers|0);
+    if(p && typeof p==="object"){
+      if("enabled" in p) CO_KILL_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.hitProbe && typeof p.hitProbe==="object"){ const P=(p.hitProbe.players!=null)?(p.hitProbe.players|0):minP;   // LUT PURA (credited,P)→K=clamp→banda(K vs umbrales ENTEROS)→tier→charge
+        let credited=(p.hitProbe.credited!=null)?(p.hitProbe.credited|0):0; if(credited<0) credited=0; if(credited>P) credited=P;   // K no puede exceder el roster P
+        const K=credited, a={ K:K, P:P };
+        const w=coKillBandFromAgg(a), t=coKillRankTier(w);
+        const hi=(CO_KILL_SURGE.hiAssist!=null)?(CO_KILL_SURGE.hiAssist|0):3, mid=(CO_KILL_SURGE.midAssist!=null)?(CO_KILL_SURGE.midAssist|0):2;
+        const rawC=t>0?(+CO_KILL_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,CO_KILL_SURGE.coKillBountyCap|0);
+        hitProbe={ credited:credited, players:P, assist:K, hiAssist:hi, midAssist:mid, minPlayers:minP, idx:+(cap>0?(K/cap):0).toFixed(3), weight:w, rankTier:t, charge:capB>0?Math.min(rawC,capB):rawC }; }
+      if(p.driveHits && typeof p.driveHits==="object"){ const injected=[];   // inyecta roster sintético (posiciones + vivo/muerto + acreditado) ⇒ K REAL (filtra radio + muertos + NO-acreditados)
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const plist=Array.isArray(p.driveHits.players)?p.driveHits.players:[];   // roster sintético: CADA jugador {dx,dy,dead?,kill?} (posición relativa al héroe + si landeó un remate), transitorios
+        const party=[]; for(const pl of plist){ const dead=!!(pl&&pl.dead), kill=!!(pl&&pl.kill); party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), maxHp:1000, hp:dead?0:1000, dead:dead, kill:kill, _synthPlayer:true });
+          injected.push({ dx:+(pl&&pl.dx)||0, dy:+(pl&&pl.dy)||0, dead:dead, kill:kill }); }
+        G._coKillParty=party;
+        const aa=coKillRoster(G.hero);
+        driveHits={ injected, players:G._coKillParty.length, assist:aa?aa.K:0, idx:+coKillField(G.hero).toFixed(3), score:coKillScore(G.hero) }; }
+      if(p.clearHits){ G._coKillParty=null; cleared=true; }   // limpia party sintética
+      if(p.hitProbeLive){ const h2=G.hero;   // lectura REAL server-auth: K=killers acreditados en radio
+        if(h2){ const aa=coKillRoster(h2);
+          hitProbeLive={ players:aa?aa.P:0, assist:aa?aa.K:0, field:+coKillField(h2).toFixed(3), score:coKillScore(h2) }; }
+        else hitProbeLive={ players:0, assist:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=coKillVM(h);
+    return { enabled:CO_KILL_SURGE.enabled, channel:CO_KILL_SURGE.channel||"coKillFind",
+      radius:vm.radius, weights:Object.assign({},CO_KILL_SURGE.weights||{}), hiAssist:CO_KILL_SURGE.hiAssist|0, midAssist:CO_KILL_SURGE.midAssist|0, playerCap:cap, minPlayers:minP,
+      tiers:(CO_KILL_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, assist:vm.assist, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?coKillForage(h, {coKill:true}):0,   // preview: fichas forrajeadas por un remate con la cuadrilla acreditada AHORA (expone el canal coKillFind; usa score EN VIVO — en single-player/solitario 0)
+      hitProbe: hitProbe,                                    // LUT PURA (credited,P)→K=clamp→banda(K vs {midAssist,hiAssist,minPlayers} ENTEROS)→tier→charge (byte-verifica CUADRILLA + UMBRALES)
+      driveHits: driveHits,                                  // inyecta roster SINTÉTICO ⇒ K REAL + idx/players/assist/score server-auth (filtra radio + muertos + NO-acreditados)
+      hitProbeLive: hitProbeLive,                            // lectura REAL server-auth: K=killers acreditados en radio
+      cleared: cleared,                                      // limpieza de la party sintética
+      tag: coKillTag(h),                                     // glifo SERVIDO (OFF/solitario/single-player ⇒ "" / cuadrilla ≥midAssist ⇒ ⨂)
+      precedence:"coKillFind (canal FRESCO — recompensa de fichas de CUADRILLA por rematar mientras ≥2 aliados están ACREDITADOS con un golpe-de-gracia en el radio compartido): NINGUNO de los 79 flags #59-#137 lo toca. La TERCERA faceta de la sub-familia PLAYER-COORDINATION (#136 CÓNCLAVE=ENGANCHADOS, #137 COHORTE=PRESENTES). EJE = K=#jugadores DISTINTOS VIVOS ACREDITADOS con remate en radio ∈[1,P] ENTERO (co-kill/assist-cluster — OUTPUT, quién REMATA), SNAPSHOT PURO del kill-credit replicado. 🔑 DETERMINISMO sev-1: K = CONTEO ENTERO de killers acreditados vs umbrales ENTEROS {midAssist,hiAssist} ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ K=1<midAssist ⇒ 0, IMPOSIBLE en solitario). CRUX (LA CRÍTICA) — CUADRILLA = OUTPUT/CO-KILL (quién REMATA) ⊥ las OTRAS DOS facetas Y ⊥ FOCUS_FIRE #62: (a) ⊥ #137 COHORTE (PRESENTES): {4 presentes,1 rematando} ⇒ COHORTE R4/w2 pero CUADRILLA K1/0; {2 dispersos rematando} ⇒ CUADRILLA K2/w1 sin co-presencia — presente ⊥ contribuir. (b) ⊥ #136 CÓNCLAVE (ENGANCHADOS): un tank enganchado que landea 0 kills ⇒ CÓNCLAVE lo cuenta, CUADRILLA no; un ranged no-enganchado que landea el golpe ⇒ CUADRILLA sí, CÓNCLAVE no — enganchado ⊥ contribuir. (c) ⊥ FOCUS_FIRE #62 (APUNTAR al mismo objetivo VIVO, passive goldFind): boss focus-fireado por 3 sin morir ⇒ FOCUS_FIRE 3/CUADRILLA 0; 3 soleando mobs distintos ⇒ CUADRILLA K3/FOCUS_FIRE bajo — aim-in-progreso-objetivo-ÚNICO ⊥ output-kills-COMPLETADOS-killers-DISTINTOS; passive-oro ⊥ find-por-kill. ⊥#123 CONTEST (cov/P FRACCIÓN — CUADRILLA = conteo CRUDO). ⊥#124 PILE (mobs-por-jugador). ⊥#121 SPREAD (entropía). ⊥#126 DENSITY (conteo de MOBS). ⊥#133/#134/#135 (poder del mob). ⊥#128 MOMENTUM (snapshot, no tendencia). ⊥#129/#130 (geometría del MOB). ⊥ CONGREGATION (headcount ZONAL → restedMult passive vs RADIO-LOCAL → find). ⊥ FELLOWSHIP/KINSHIP (banda por reloj, no output LIVE). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio coKillBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.coKillBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._coKillParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.coKillBounty!=null),                        // prueba byte-id: STATELESS ⇒ G.coKillBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._coKillParty!=null),                   // prueba byte-id: G._coKillParty SÓLO existe tras driveHits (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coKillBounty:(h.coKillBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
