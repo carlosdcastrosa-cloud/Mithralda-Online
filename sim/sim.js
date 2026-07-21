@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6490,6 +6490,52 @@ export function coStrikeVM(h){ h=h||G.hero; const on=!!CO_STRIKE_SURGE.enabled&&
     cap:Math.max(0,CO_STRIKE_SURGE.coStrikeBountyCap|0), radius:+CO_STRIKE_SURGE.radius||0,
     tag: coStrikeTag(h) }; }
 
+// ===== CAS-2797: COHORTE (CO_PRESENCE_SURGE, EVO#137 DARK) — la SEGUNDA faceta de la sub-familia PLAYER-COORDINATION que abrió #136 CÓNCLAVE. R∈[1,P] ENTERO = nº de JUGADORES DISTINTOS VIVOS DENTRO DEL RADIO del héroe, PRESENTES (co-presencia/RALLY), INDEPENDIENTE de si un mob los engancha. CONTEO CRUDO de jugadores presentes, NO fracción (⊥#123 CONTEST cov/P) NI muster de combate (⊥#136 CÓNCLAVE, que cuenta ENGANCHADOS). SNAPSHOT PURO (lee el roster de jugadores replicado directo, SIN buffer temporal — el MISMO roster que #136 usa como gate). 🔑 DETERMINISMO (sev-1): R = cuenta ENTERA de jugadores presentes vs umbrales ENTEROS {midRally,hiRally}; CERO float, CERO division en el score/decisión ⇒ 2-cliente 0-desync. 🔑 MULTIJUGADOR-NATIVO: single-player ⇒ SÓLO el héroe presente ⇒ R=1<midRally ⇒ 0 (colapso LIMPIO). =====
+// coPresenceParty(h) = el roster de JUGADORES VIVOS candidatos en el mundo. 🔑 Single-player (juego normal) ⇒ SÓLO el héroe. G._coPresenceParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.coPresence driveRoster — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. Party PROPIA, INDEPENDIENTE de #121/#123/#124/#136.
+function coPresenceParty(h){ h=h||G.hero; if(!h) return [];
+  return (Array.isArray(G._coPresenceParty)&&G._coPresenceParty.length)?G._coPresenceParty:[h]; }   // normal (juego): sólo el héroe (R=1<minP ⇒ colapso); PRUEBA: party sintética inyectada
+// coPresenceRoster(h) = {P, R}: P = tamaño del roster candidato; R = nº de jugadores VIVOS DENTRO DEL RADIO del héroe = la CO-PRESENCIA (rally). FILTRA muertos/hp≤0 (ANTI-conteo-de-cadáveres) y fuera-de-radio. PURO (lee posiciones replicadas), 0-RNG/0-timer. 🔑 R ENTERO ⇒ decisión 100% entera (ambos clientes replican el MISMO roster+posiciones ⇒ MISMO conteo de presentes). O(P).
+function coPresenceRoster(h){ h=h||G.hero; if(!h) return null;
+  const R2=(+CO_PRESENCE_SURGE.radius||0)*(+CO_PRESENCE_SURGE.radius||0);
+  const party=coPresenceParty(h); let R=0;
+  for(const p of party){ if(!p) continue; if(p!==h && (p.dead||p.hp<=0)) continue;             // el héroe siempre cuenta (presente por definición); los aliados sintéticos han de estar VIVOS
+    const px=(p.x!=null?p.x:h.x), py=(p.y!=null?p.y:h.y), dx=px-h.x, dy=py-h.y; if(dx*dx+dy*dy>R2) continue;   // sólo DENTRO del radio de rally
+    R++; }
+  return { P:party.length, R:R }; }
+// coPresenceField(h) = COHORTE idx COSMÉTICO ∈[0,1] = R/playerCap (SÓLO para el badge; NO entra a la decisión). PURO/determinista. idx≈1 ⇒ party plenamente rallevada; idx=0 ⇒ solitario/single-player.
+function coPresenceField(h){ const a=coPresenceRoster(h); if(!a) return 0; const cap=Math.max(1,CO_PRESENCE_SURGE.playerCap|0)||4; let D=a.R/cap; return D>1?1:(D<0?0:D); }
+// coPresenceBandFromAgg(a) = peso por la BANDA de rally sobre R, decidida por comparación ENTERA (0-float ⇒ 2-cliente byte-idéntico). R<minPlayers (single-player) ⇒ 0; R≥hiRally ⇒ rally-pleno ⇒ 2; R≥midRally ⇒ rally-parcial ⇒ 1; <midRally ⇒ 0. Umbrales {midRally,hiRally,minPlayers} ENTEROS ⇒ comparación exacta. LUT PURA ESTÁTICA (0 division en NINGÚN punto).
+function coPresenceBandFromAgg(a){ if(!a) return 0; const cfg=CO_PRESENCE_SURGE, W=cfg.weights||{}, R=a.R|0, minP=Math.max(2,cfg.minPlayers|0);
+  if(R<minP) return 0;                                                        // <minPlayers presentes (single-player) ⇒ colapso LIMPIO
+  const hi=(cfg.hiRally!=null)?(cfg.hiRally|0):3, mid=(cfg.midRally!=null)?(cfg.midRally|0):2;
+  if(R>=hi) return +W.full||0;                                               // rally-pleno
+  if(R>=mid) return +W.some||0;                                             // rally-parcial
+  return 0; }
+// coPresenceScore(h) = peso de banda del roster PRESENTE en radio = coPresenceBandFromAgg(coPresenceRoster(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minPlayers / solitario. Señal VIVA del badge/VM (el GRANT usa el snapshot _coPresencePre del TOP del kill).
+function coPresenceScore(h){ h=h||G.hero; if(!h) return 0; return coPresenceBandFromAgg(coPresenceRoster(h)); }
+// coPresenceRankTier(score) = índice del tier de recompensa vigente (0 = solitario/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más aliados presentes = tier ALTO. LUT determinista pura.
+function coPresenceRankTier(score){ const T=CO_PRESENCE_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// coPresenceBonus(score) = nº de fichas de cohorte del tier vigente, acotado por el sub-cap propio coPresenceBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta coPresenceFind.
+function coPresenceBonus(score){ if(!CO_PRESENCE_SURGE.enabled) return 0;
+  if((CO_PRESENCE_SURGE.channel||"coPresenceFind")!=="coPresenceFind") return 0;   // seguridad: CO_PRESENCE_SURGE SÓLO alimenta coPresenceFind
+  const t=coPresenceRankTier(score); if(t<=0) return 0;
+  const raw=+CO_PRESENCE_SURGE.tiers[t-1].charge||0, cap=Math.max(0,CO_PRESENCE_SURGE.coPresenceBountyCap|0);
+  return cap>0?Math.min(raw,cap):raw; }
+// coPresenceForage(h, tpl, preScore) = las fichas por un remate con la party rallevada = coPresenceBonus(preScore). preScore = el snapshot de rally muestreado en el TOP de killEnemy (_coPresencePre). Si preScore es undefined (VM/preview) usa coPresenceScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.coPresenceBounty vía grantCoPresenceBounty.
+function coPresenceForage(h, tpl, preScore){ if(!CO_PRESENCE_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?coPresenceScore(h||G.hero):(+preScore||0); return coPresenceBonus(score); }
+// coPresenceTag(h) = glifo del badge de COHORTE (⬡) si la party presente está ≥rally-parcial en radio (tier>0). PURO. "" si OFF / solitario / single-player. 🔑 en single-player SIEMPRE "" (R=1<minPlayers ⇒ 0).
+export function coPresenceTag(h){ h=h||G.hero; if(!CO_PRESENCE_SURGE.enabled||!h) return "";
+  return coPresenceRankTier(coPresenceScore(h))>0 ? "⬡" : ""; }
+// coPresenceVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/players/R/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function coPresenceVM(h){ h=h||G.hero; const on=!!CO_PRESENCE_SURGE.enabled&&!!h;
+  const a=on?coPresenceRoster(h):null, R=a?a.R:0, idx=on?coPresenceField(h):0, score=on?coPresenceScore(h):0, tier=on?coPresenceRankTier(score):0, charge=on?coPresenceBonus(score):0;
+  const P=a?a.P:0;
+  return { enabled:!!CO_PRESENCE_SURGE.enabled, channel:CO_PRESENCE_SURGE.channel||"coPresenceFind",
+    idx:+idx.toFixed(3), players:P, rally:R, score, tier, tierCount:(CO_PRESENCE_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,CO_PRESENCE_SURGE.coPresenceBountyCap|0), radius:+CO_PRESENCE_SURGE.radius||0,
+    tag: coPresenceTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -7946,6 +7992,8 @@ function killEnemy(e){
   const _rankSpreadPre = RANK_SPREAD_SURGE.enabled ? rankSpreadScore(G.hero) : 0;
   // CAS-2792 CO_STRIKE_SURGE: snapshot de la MUSTER/cónclave = coStrikeScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuántos JUGADORES DISTINTOS estaban ENGANCHADOS en la misma refriega (F=# jugadores targeteados por ≥1 mob) EN EL MOMENTO del kill; con minMobs≥2 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ ≥cónclave-parcial) rematar en single-player (P<minPlayers ⇒ F=0) o en solitario efectivo (F<midMuster ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coStrikePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _coStrikePre = CO_STRIKE_SURGE.enabled ? coStrikeScore(G.hero) : 0;
+  // CAS-2797 CO_PRESENCE_SURGE: snapshot de la COHORTE/co-presencia = coPresenceScore(hero) muestreado AQUÍ, en el TOP. El score refleja cuántos JUGADORES DISTINTOS estaban PRESENTES en el radio del héroe (R=# jugadores vivos en radio, INDEPENDIENTE de si un mob los engancha) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥rally-parcial) rematar en single-player (R=1<midRally ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coPresencePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _coPresencePre = CO_PRESENCE_SURGE.enabled ? coPresenceScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8461,6 +8509,10 @@ function killEnemy(e){
   if(CO_STRIKE_SURGE.enabled && !tpl.neutral){ const csf=coStrikeForage(G.hero, tpl, _coStrikePre);
     if(csf>0){ grantCoStrikeBounty(csf);
       floater(e.x,e.y-1212,"+"+csf+" Cónclave","#c8d0f0",{small:true}); } }
+  // CAS-2797 CO_PRESENCE_SURGE seam: COHORTE. Al matar un mob no-neutral mientras la party estaba RALLEVADA por CO-PRESENCIA (R=#jugadores DISTINTOS presentes en radio ≥midRally con ≥minPlayers jugadores, score≥umbral ANTES de este kill vía `_coPresencePre`), el héroe cosecha fichas de cohorte = coPresenceForage(hero,tpl,_coPresencePre) (flat por banda de rally, sub-cap coPresenceBountyCap), banca a h.coPresenceBounty vía grantCoPresenceBounty (0 RNG). `_coPresencePre` se muestreó en el TOP + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥rally-parcial) ⇒ rematar en single-player (R=1<midRally ⇒ 0) NO forrajea; hace falta que ≥2 aliados estén GENUINAMENTE presentes/agrupados. Canal FRESCO coPresenceFind (fuente ÚNICA, sub-cap coPresenceBountyCap) — NINGUNO de los 78 flags #59-#136 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantCoPresenceBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(CO_PRESENCE_SURGE.enabled && !tpl.neutral){ const cpf=coPresenceForage(G.hero, tpl, _coPresencePre);
+    if(cpf>0){ grantCoPresenceBounty(cpf);
+      floater(e.x,e.y-1228,"+"+cpf+" Cohorte","#b8e0d0",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9790,6 +9842,8 @@ function grantEliteShareBounty(n){ const h=G.hero; if(!h||n<=0) return; h.eliteS
 function grantRankSpreadBounty(n){ const h=G.hero; if(!h||n<=0) return; h.rankSpreadBounty=(h.rankSpreadBounty|0)+(n|0); }
 // CAS-2792: banca fichas de CÓNCLAVE al recurso TRANSITORIO h.coStrikeBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantCoStrikeBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coStrikeBounty=(h.coStrikeBounty|0)+(n|0); }
+// CAS-2797: banca fichas de COHORTE al recurso TRANSITORIO h.coPresenceBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantCoPresenceBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coPresenceBounty=(h.coPresenceBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -15736,6 +15790,56 @@ export const dev = {
       gExists:(G.coStrikeBounty!=null),                      // prueba byte-id: STATELESS ⇒ G.coStrikeBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._coStrikeParty!=null),                 // prueba byte-id: G._coStrikeParty SÓLO existe tras driveMuster (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coStrikeBounty:(h.coStrikeBounty|0) }:null }; },
+  // CAS-2797: COHORTE OBSERVABLE hook (DARK, CO_PRESENCE_SURGE — EVO#137, la SEGUNDA faceta de la sub-familia PLAYER-COORDINATION). R = nº de JUGADORES DISTINTOS VIVOS DENTRO DEL RADIO del héroe (PRESENTES, ⊥ ENGANCHADOS de #136). Sólo lectura + drivers de PRUEBA gateados. PURO/determinista.
+  //   coPresence()                                       → snapshot {enabled,channel,radius,weights,hiRally,midRally,playerCap,minPlayers,tiers,cap,idx,players,rally,score,tier,charge,forageChargePreview,rosterProbe,driveRoster,rosterProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   coPresence({enabled})                              → flip runtime IN-MEMORY de CO_PRESENCE_SURGE.enabled (sin tocar disco)
+  //   coPresence({tp:{tx,ty}})                           → teleporta al héroe
+  //   coPresence({rosterProbe:{present,players}})        → LUT PURA (present=nº presentes en radio, players=P)→R=clamp(present,0,players)→banda(R vs {midRally,hiRally,minPlayers} ENTEROS)→tier→charge (byte-verifica COHORTE + UMBRALES; R<minPlayers ⇒ 0)
+  //   coPresence({driveRoster:{wipe,players:[{dx,dy,dead}]}}) → inyecta roster SINTÉTICO (G._coPresenceParty) ⇒ R REAL server-auth (filtra fuera-de-radio + muertos)
+  //   coPresence({rosterProbeLive:true})                 → lectura REAL server-auth: R=jugadores presentes en radio
+  //   coPresence({clearRoster:true})                     → limpia la party sintética
+  coPresence(p){
+    let rosterProbe=null, driveRoster=null, rosterProbeLive=null, cleared=null;
+    const cap=Math.max(1,CO_PRESENCE_SURGE.playerCap|0)||4, minP=Math.max(2,CO_PRESENCE_SURGE.minPlayers|0);
+    if(p && typeof p==="object"){
+      if("enabled" in p) CO_PRESENCE_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.rosterProbe && typeof p.rosterProbe==="object"){ const P=(p.rosterProbe.players!=null)?(p.rosterProbe.players|0):minP;   // LUT PURA (present,P)→R=clamp→banda(R vs umbrales ENTEROS)→tier→charge
+        let present=(p.rosterProbe.present!=null)?(p.rosterProbe.present|0):0; if(present<0) present=0; if(present>P) present=P;   // R no puede exceder el roster P
+        const R=present, a={ R:R, P:P };
+        const w=coPresenceBandFromAgg(a), t=coPresenceRankTier(w);
+        const hi=(CO_PRESENCE_SURGE.hiRally!=null)?(CO_PRESENCE_SURGE.hiRally|0):3, mid=(CO_PRESENCE_SURGE.midRally!=null)?(CO_PRESENCE_SURGE.midRally|0):2;
+        const rawC=t>0?(+CO_PRESENCE_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,CO_PRESENCE_SURGE.coPresenceBountyCap|0);
+        rosterProbe={ present:present, players:P, rally:R, hiRally:hi, midRally:mid, minPlayers:minP, idx:+(cap>0?(R/cap):0).toFixed(3), weight:w, rankTier:t, charge:capB>0?Math.min(rawC,capB):rawC }; }
+      if(p.driveRoster && typeof p.driveRoster==="object"){ const injected=[];   // inyecta roster sintético (posiciones + vivo/muerto) ⇒ R REAL (filtra radio + muertos)
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const plist=Array.isArray(p.driveRoster.players)?p.driveRoster.players:[];   // roster sintético: CADA jugador {dx,dy,dead?} (posición relativa al héroe), transitorios
+        const party=[]; for(const pl of plist){ const dead=!!(pl&&pl.dead); party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), maxHp:1000, hp:dead?0:1000, dead:dead, _synthPlayer:true });
+          injected.push({ dx:+(pl&&pl.dx)||0, dy:+(pl&&pl.dy)||0, dead:dead }); }
+        G._coPresenceParty=party;
+        const aa=coPresenceRoster(G.hero);
+        driveRoster={ injected, players:G._coPresenceParty.length, rally:aa?aa.R:0, idx:+coPresenceField(G.hero).toFixed(3), score:coPresenceScore(G.hero) }; }
+      if(p.clearRoster){ G._coPresenceParty=null; cleared=true; }   // limpia party sintética
+      if(p.rosterProbeLive){ const h2=G.hero;   // lectura REAL server-auth: R=jugadores presentes en radio
+        if(h2){ const aa=coPresenceRoster(h2);
+          rosterProbeLive={ players:aa?aa.P:0, rally:aa?aa.R:0, field:+coPresenceField(h2).toFixed(3), score:coPresenceScore(h2) }; }
+        else rosterProbeLive={ players:0, rally:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=coPresenceVM(h);
+    return { enabled:CO_PRESENCE_SURGE.enabled, channel:CO_PRESENCE_SURGE.channel||"coPresenceFind",
+      radius:vm.radius, weights:Object.assign({},CO_PRESENCE_SURGE.weights||{}), hiRally:CO_PRESENCE_SURGE.hiRally|0, midRally:CO_PRESENCE_SURGE.midRally|0, playerCap:cap, minPlayers:minP,
+      tiers:(CO_PRESENCE_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, rally:vm.rally, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?coPresenceForage(h, {coPresence:true}):0,   // preview: fichas forrajeadas por un remate con la party disponible AHORA (expone el canal coPresenceFind; usa score EN VIVO — en single-player/solitario 0)
+      rosterProbe: rosterProbe,                             // LUT PURA (present,P)→R=clamp→banda(R vs {midRally,hiRally,minPlayers} ENTEROS)→tier→charge (byte-verifica COHORTE + UMBRALES)
+      driveRoster: driveRoster,                             // inyecta roster SINTÉTICO ⇒ R REAL + idx/players/rally/score server-auth (filtra radio + muertos)
+      rosterProbeLive: rosterProbeLive,                     // lectura REAL server-auth: R=jugadores presentes en radio
+      cleared: cleared,                                     // limpieza de la party sintética
+      tag: coPresenceTag(h),                                // glifo SERVIDO (OFF/solitario/single-player ⇒ "" / cohorte ≥midRally ⇒ ⬡)
+      precedence:"coPresenceFind (canal FRESCO — recompensa de fichas de COHORTE por rematar mientras ≥2 aliados están PRESENTES/rallevados en el radio del héroe): NINGUNO de los 78 flags #59-#136 lo toca. La SEGUNDA faceta de la sub-familia PLAYER-COORDINATION que abrió #136 CÓNCLAVE. EJE = R=#jugadores DISTINTOS VIVOS en radio ∈[1,P] ENTERO (co-presencia/RALLY — PRESENTES, ⊥ ENGANCHADOS), SNAPSHOT PURO del roster de jugadores replicado. 🔑 DETERMINISMO sev-1: R = CONTEO ENTERO de jugadores presentes vs umbrales ENTEROS {midRally,hiRally} ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ R=1<midRally ⇒ 0, IMPOSIBLE en solitario). CRUX (LA CRÍTICA) — COHORTE = CO-PRESENCIA (roster presente) ⊥ #136 CÓNCLAVE (muster ENGANCHADA en combate): {3 presentes,1 enganchado} ⇒ COHORTE R3/w2 pero CÓNCLAVE F1/0; {2 presentes,2 enganchados} ⇒ COHORTE R2/w1 y CÓNCLAVE F2/1 — PRESENTE ⊥ ENGANCHADO. ⊥#123 CONTEST (cov/P FRACCIÓN — COHORTE = conteo CRUDO de presentes). ⊥#124 PILE (mobs-por-jugador). ⊥#121 SPREAD (entropía). ⊥#126 DENSITY (conteo de MOBS, no de JUGADORES). ⊥#133/#134/#135 (distribución de PODER del mob). ⊥#128 MOMENTUM (snapshot, no tendencia). ⊥#129/#130 (posición/geometría del MOB — COHORTE cuenta JUGADORES en radio). ⊥ CONGREGATION (headcount ZONAL-COMPLETO → pasivo restedMult: COHORTE es RADIO-LOCAL (300px) → canal find de fichas-por-kill; {8 jugadores dispersos por la zona} ⇒ CONGREGATION T3/COHORTE R1 vs {3 pegados al héroe} ⇒ COHORTE R3/CONGREGATION T1 — LOCAL ⊥ ZONAL). ⊥ FELLOWSHIP/KINSHIP (banda rotativa por reloj, no presencia LIVE). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio coPresenceBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.coPresenceBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._coPresenceParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick, como #121/…/#136). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.coPresenceBounty!=null),                   // prueba byte-id: STATELESS ⇒ G.coPresenceBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._coPresenceParty!=null),              // prueba byte-id: G._coPresenceParty SÓLO existe tras driveRoster (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coPresenceBounty:(h.coPresenceBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
