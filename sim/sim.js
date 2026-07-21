@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -6187,6 +6187,56 @@ export function aggroPressureVM(h){ h=h||G.hero; const on=!!AGGRO_PRESSURE_SURGE
     cap:Math.max(0,AGGRO_PRESSURE_SURGE.aggroPressureBountyCap|0), radius:+AGGRO_PRESSURE_SURGE.radius||0,
     tag: aggroPressureTag(h) }; }
 
+// ===== CAS-2757: BRÍO (AGGRO_VIGOR_SURGE, EVO#131 DARK) — dimensión MOB-HP-STATE (cuánta pelea LE QUEDA al pack ENGANCHADO — no DÓNDE está #129 ANGULAR/#130 RADIAL, no CUÁNTOS #126, no de qué TIPO #127, no a QUIÉN targetean) de la familia COMPOSICIÓN-DE-INTENCIÓN. V∈[0,1] = fracción-de-HP MEDIA de los mobs ALIVE ENGANCHADOS en radio: por mob hpFrac=hp/hpMax (1 a full, 0 casi-muerto); V=mean(hpFrac) sobre N. SNAPSHOT PURO (lee hero+mob hp directo, SIN buffer temporal — como #129/#130). 🔑 DETERMINISMO (sev-1): hp/hpMax ENTEROS ⇒ nivel-de-HP CUANTIZADO a niveles ENTEROS (vigBins Q) vía comparación ENTERA hp·Q ≥ L·hpMax; banda por comparación de sumas ENTERAS ⇒ 0-float division en el score/decisión ⇒ 2-cliente 0-desync. =====
+// vigLivePlayers(h) = la party de JUGADORES VIVOS en radio del héroe (gate P≥minPlayers). 🔑 Single-player ⇒ SÓLO el héroe. G._vigParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.aggroVigor driveVigor — transitoria, NUNCA serializada, jamás creada en juego normal). PURO/determinista. O(P). Helper INDEPENDIENTE de #121..#130 — party separada.
+function vigLivePlayers(h){ h=h||G.hero; if(!h) return [];
+  const R=+AGGRO_VIGOR_SURGE.radius||0, R2=R*R;
+  const party=(Array.isArray(G._vigParty)&&G._vigParty.length)?G._vigParty:[h];   // normal (juego): sólo el héroe; PRUEBA: party sintética inyectada
+  const out=[]; for(const p of party){ if(!p) continue; if(p.dead||(p.hp!=null&&p.hp<=0)) continue; const dx=(+p.x||0)-h.x, dy=(+p.y||0)-h.y; if(dx*dx+dy*dy>R2) continue; out.push(p); } return out; }
+// vigHpLevel(hp,hpMax,Q) = nivel ENTERO de HP ∈[0,Q] = el MAYOR L con hp·Q ≥ L·hpMax (0-float division; comparación 100% entera para hp,hpMax,Q enteros). hp=hpMax (full) ⇒ L=Q (brío máximo); hp≈0 (casi-muerto) ⇒ L≈0. Monótona en L (k·hpMax creciente) ⇒ break al primer fallo. Determinista.
+function vigHpLevel(hp,hpMax,Q){ if(hpMax<=0) return 0; const hq=hp*Q; let L=0; for(let k=1;k<=Q;k++){ if(hq>=k*hpMax) L=k; else break; } return L; }
+// aggroVigorAgg(h) = {N, sum, Q} = N mobs ENGANCHADOS VIVOS en radio + Σ de sus niveles-de-HP ENTEROS (cada ∈[0,Q]). Requiere P≥minPlayers (con <2 ⇒ single-player ⇒ null LIMPIO) y N≥minMobs (pack significativo; con <minMobs ⇒ null). FILTRA muertos/hp≤0 ⇒ ANTI-AUTO-CONTEO. PURO (lee hero+mob hp replicados), 0-RNG/0-timer. 🔑 hp/hpMax truncados a ENTEROS (|0) ⇒ decisión 100% entera (ambos clientes replican el MISMO e.hp ⇒ MISMO nivel). O(n·Q+P).
+function aggroVigorAgg(h){ h=h||G.hero; if(!h) return null;
+  const R=+AGGRO_VIGOR_SURGE.radius||0, R2=R*R, Q=Math.max(2,AGGRO_VIGOR_SURGE.vigBins|0)||64, minN=Math.max(3,AGGRO_VIGOR_SURGE.minMobs|0), minP=Math.max(2,AGGRO_VIGOR_SURGE.minPlayers|0);
+  const players=vigLivePlayers(h), P=players.length; if(P<minP) return null;               // <minPlayers (single-player) ⇒ brío compartido indefinido ⇒ null
+  let sum=0, n=0;
+  for(const e of (G.enemies||[])){ if(!e||e.dead||e.hp<=0) continue; const dx=e.x-h.x, dy=e.y-h.y; if(dx*dx+dy*dy>R2) continue; if(!aggroEngaged(e)) continue; n++; const hm=Math.max(1,e.maxHp|0), hp=Math.max(0,Math.min(hm,e.hp|0)); sum+=vigHpLevel(hp,hm,Q); }   // N=# enganchados vivos en radio; Σ nivel-de-HP ENTERO
+  if(n<minN) return null;                                                                    // <minMobs enganchados ⇒ brío indefinido ⇒ null
+  return { N:n, sum, Q }; }
+// aggroVigorField(h) = BRÍO V∈[0,1] = sum/(N·Q) = fracción-de-HP media cuantizada. INTENSIVO (invariante a N). PURO/determinista (0 division en la decisión; esto es cosmético para el VM). V≈1 ⇒ fresco/full-HP; V=0 ⇒ maltrecho/single-player/<minMobs.
+function aggroVigorField(h){ const a=aggroVigorAgg(h); if(!a) return 0; const denom=a.N*a.Q; if(denom<=0) return 0; let V=a.sum/denom; return V>1?1:(V<0?0:V); }
+// aggroVigorBandFromAgg(a) = peso por la BANDA de brío sobre V, decidida por comparación ENTERA (0-float division ⇒ 2-cliente byte-idéntico). V≥hiVigor ⟺ sum≥hi·N·Q ⇒ fresco ⇒ 2; V≥midVigor ⟺ sum≥mid·N·Q ⇒ medio-fresco ⇒ 1; <mid (maltrecho) ⇒ 0. Con Q múltiplo de 4 y hi/mid=k/4, los límites hi·N·Q (=3·N·Q/4) y mid·N·Q (=N·Q/2) son ENTEROS ⇒ comparación exacta. LUT PURA ESTÁTICA.
+function aggroVigorBandFromAgg(a){ if(!a) return 0; const cfg=AGGRO_VIGOR_SURGE, W=cfg.weights||{};
+  const NQ=a.N*a.Q, sum=a.sum;
+  const hi=(cfg.hiVigor!=null)?+cfg.hiVigor:0.75, mid=(cfg.midVigor!=null)?+cfg.midVigor:0.5;
+  const hiLim=hi*NQ, midLim=mid*NQ;                       // Q múlt. de 4 + hi/mid=k/4 ⇒ hiLim/midLim ENTEROS ⇒ comparación exacta
+  if(sum>=hiLim) return +W.fresh||0;
+  if(sum>=midLim) return +W.some||0;
+  return 0; }
+// aggroVigorScore(h) = peso de banda del PACK VIVO en radio = aggroVigorBandFromAgg(aggroVigorAgg(h)) ∈ {0,1,2}. PURO/determinista ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minMobs / <minPlayers / maltrecho. Señal VIVA del badge/VM (el GRANT usa el snapshot _aggroVigorPre del TOP del kill tras e.dead=true ⇒ ANTI-AUTO-CONTEO).
+function aggroVigorScore(h){ h=h||G.hero; if(!h) return 0; return aggroVigorBandFromAgg(aggroVigorAgg(h)); }
+// aggroVigorRank(score) = índice del tier de brío vigente (0 = maltrecho/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más fresco = tier ALTO. LUT determinista pura.
+function aggroVigorRank(score){ const T=AGGRO_VIGOR_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// aggroVigorBonus(score) = nº de fichas de brío del tier vigente, acotado por el sub-cap propio aggroVigorBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta aggroVigorFind.
+function aggroVigorBonus(score){ if(!AGGRO_VIGOR_SURGE.enabled) return 0;
+  if((AGGRO_VIGOR_SURGE.channel||"aggroVigorFind")!=="aggroVigorFind") return 0;   // seguridad: AGGRO_VIGOR_SURGE SÓLO alimenta aggroVigorFind
+  const t=aggroVigorRank(score); if(t<=0) return 0;
+  const raw=+AGGRO_VIGOR_SURGE.tiers[t-1].charge||0, cap=Math.max(0,AGGRO_VIGOR_SURGE.aggroVigorBountyCap|0);
+  return (cap>0?Math.min(cap,raw):raw)|0; }
+// aggroVigorForage(h, tpl, preScore) = las fichas por un remate sobre un pack FRESCO = aggroVigorBonus(preScore). preScore = el snapshot de brío muestreado en el TOP de killEnemy (_aggroVigorPre, tras e.dead=true ⇒ ANTI-AUTO-CONTEO). Si preScore es undefined (VM/preview) usa aggroVigorScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.aggroVigorBounty vía grantAggroVigorBounty.
+function aggroVigorForage(h, tpl, preScore){ if(!AGGRO_VIGOR_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?aggroVigorScore(h||G.hero):(+preScore||0); return aggroVigorBonus(score); }
+// aggroVigorTag(h) = glifo del badge de BRÍO (◉) si el pack enganchado está ≥medio-fresco en radio (tier>0). PURO. "" si OFF / maltrecho / single-player. 🔑 en single-player SIEMPRE "" (P<minPlayers ⇒ V=0).
+export function aggroVigorTag(h){ h=h||G.hero; if(!AGGRO_VIGOR_SURGE.enabled||!h) return "";
+  return aggroVigorRank(aggroVigorScore(h))>0 ? "◉" : ""; }
+// aggroVigorVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/engaged/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function aggroVigorVM(h){ h=h||G.hero; const on=!!AGGRO_VIGOR_SURGE.enabled&&!!h;
+  const a=on?aggroVigorAgg(h):null, N=a?a.N:0, idx=on?aggroVigorField(h):0, score=on?aggroVigorScore(h):0, tier=on?aggroVigorRank(score):0, charge=on?aggroVigorBonus(score):0;
+  return { enabled:!!AGGRO_VIGOR_SURGE.enabled, channel:AGGRO_VIGOR_SURGE.channel||"aggroVigorFind",
+    idx:+idx.toFixed(3), engaged:N, score, tier, tierCount:(AGGRO_VIGOR_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,AGGRO_VIGOR_SURGE.aggroVigorBountyCap|0), radius:+AGGRO_VIGOR_SURGE.radius||0,
+    tag: aggroVigorTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -7631,6 +7681,8 @@ function killEnemy(e){
   const _aggroSurroundPre = AGGRO_SURROUND_SURGE.enabled ? aggroSurroundScore(G.hero) : 0;
   // CAS-2753 AGGRO_PRESSURE_SURGE: snapshot del ACOSO/cercanía radial del pack ENGANCHADO = aggroPressureScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ NO cuenta en N ni en la suma de cercanía (aggroPressureAgg filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja cuán APRETADO estaba el héroe (P=cercanía radial media) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ ≥medio-apretado) rematar en single-player (P<minPlayers ⇒ P=0) o con el pack en el borde (P<midPress ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroPressurePre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _aggroPressurePre = AGGRO_PRESSURE_SURGE.enabled ? aggroPressureScore(G.hero) : 0;
+  // CAS-2757 AGGRO_VIGOR_SURGE: snapshot del BRÍO/HP-state del pack ENGANCHADO = aggroVigorScore(hero) muestreado AQUÍ, en el TOP, tras fijarse `e.dead=true` del mob a rematar ⇒ NO cuenta en N ni en la suma de HP (aggroVigorAgg filtra !e.dead && e.hp>0). ANTI-AUTO-CONTEO ⇒ el score refleja cuán FRESCO estaba el pack (V=fracción-de-HP media) EN EL MOMENTO del kill; con minMobs≥3 (enganchados), minPlayers≥2 y la TABLA (score≥1 ⇒ ≥medio-fresco) rematar en single-player (P<minPlayers ⇒ V=0) o sobre un pack ya maltrecho (V<midVigor ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_aggroVigorPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _aggroVigorPre = AGGRO_VIGOR_SURGE.enabled ? aggroVigorScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -8120,6 +8172,12 @@ function killEnemy(e){
   if(AGGRO_PRESSURE_SURGE.enabled && !tpl.neutral){ const apf=aggroPressureForage(G.hero, tpl, _aggroPressurePre);
     if(apf>0){ grantAggroPressureBounty(apf);
       floater(e.x,e.y-1128,"+"+apf+" Apremio","#e8b0c8",{small:true}); } }
+  // CAS-2757 AGGRO_VIGOR_SURGE seam: BRÍO. Al matar un mob no-neutral mientras el héroe tenía enganchado un pack FRESCO (V=fracción-de-HP media ≥midVigor con ≥minMobs enganchados y ≥minPlayers jugadores en radio, score≥umbral ANTES de este kill vía `_aggroVigorPre`), el héroe
+  // cosecha fichas de brío = aggroVigorForage(hero,tpl,_aggroVigorPre) (flat por banda de HP-state, sub-cap aggroVigorBountyCap), banca a h.aggroVigorBounty vía grantAggroVigorBounty (0 RNG). `_aggroVigorPre` se muestreó en el TOP tras e.dead=true (aggroVigorAgg filtra !e.dead ⇒ la víctima NO cuenta en N/suma) + minMobs≥3 + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥medio-fresco) ⇒ rematar en single-player (P<minPlayers ⇒ V=0) o sobre un pack ya maltrecho (V<midVigor ⇒ 0) NO forrajea; hace falta enganchar un pack GENUINAMENTE fresco sobre una party GENUINA.
+  // Canal FRESCO aggroVigorFind (fuente ÚNICA, sub-cap aggroVigorBountyCap) — NINGUNA de las 72 flags #59-#130 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantAggroVigorBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(AGGRO_VIGOR_SURGE.enabled && !tpl.neutral){ const avf=aggroVigorForage(G.hero, tpl, _aggroVigorPre);
+    if(avf>0){ grantAggroVigorBounty(avf);
+      floater(e.x,e.y-1132,"+"+avf+" Brío","#b0e0c8",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -9437,6 +9495,8 @@ function grantAggroMomentumBounty(n){ const h=G.hero; if(!h||n<=0) return; h.agg
 function grantAggroSurroundBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroSurroundBounty=(h.aggroSurroundBounty|0)+(n|0); }
 // CAS-2753: banca fichas de ACOSO al recurso TRANSITORIO h.aggroPressureBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantAggroPressureBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroPressureBounty=(h.aggroPressureBounty|0)+(n|0); }
+// CAS-2757: banca fichas de BRÍO al recurso TRANSITORIO h.aggroVigorBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantAggroVigorBounty(n){ const h=G.hero; if(!h||n<=0) return; h.aggroVigorBounty=(h.aggroVigorBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -15019,6 +15079,64 @@ export const dev = {
       gExists:(G.aggroPressureBounty!=null),                    // prueba byte-id: STATELESS ⇒ G.aggroPressureBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._prsParty!=null),                          // prueba byte-id: G._prsParty SÓLO existe tras drivePressure (test scaffolding); en juego normal NUNCA se crea
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroPressureBounty:(h.aggroPressureBounty|0) }:null }; },
+  // CAS-2757: BRÍO OBSERVABLE hook (DARK, AGGRO_VIGOR_SURGE — EVO#131, AÑADE la dimensión MOB-HP-STATE (cuánta pelea LE QUEDA al pack enganchado — no DÓNDE está #129/#130, no CUÁNTOS #126, no de qué TIPO #127, no a QUIÉN targetean) a la familia COMPOSICIÓN-DE-INTENCIÓN). Canal FRESCO aggroVigorFind + eje = aggroVigorField(hero)=V=fracción-de-HP media de los enganchados ∈[0,1] (cuán fresco/full-HP está el pack). SNAPSHOT PURO (lee hero+mob hp directo, SIN buffer temporal, como #129/#130; DETERMINISMO sev-1 vía niveles ENTEROS de HP + banda de sumas ENTERA, 0 division en decisión). GATED enabled:false ⇒ byte-neutral OFF. 🔑 INTRÍNSECAMENTE MULTIJUGADOR: single-player ⇒ P<2 ⇒ V=0 (colapso LIMPIO); la métrica se prueba vía vigorProbe (LUT pura de fracciones) + driveVigor (party SINTÉTICA + mobs con HP inyectado).
+  //   aggroVigor()                                     → snapshot {enabled,channel,radius,weights,hiVigor,midVigor,vigBins,minMobs,minPlayers,tiers,cap,idx,engaged,score,tier,charge,forageChargePreview,vigorProbe,driveVigor,vigorProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   aggroVigor({enabled})                            → flip runtime IN-MEMORY de AGGRO_VIGOR_SURGE.enabled (sin tocar disco)
+  //   aggroVigor({tp:{tx,ty}})                         → teleporta al héroe
+  //   aggroVigor({vigorProbe:{fracs:[0..1…],players,hpMax}}) → LUT PURA (fracs,P)→N=len→Σ nivel-HP ENTERO (hp=round(frac·HM))→V=sum/(N·Q)→banda(sumas ENTERAS)→tier→charge (byte-verifica BRÍO + UMBRALES; P<2 / N<minMobs ⇒ degenerado ⇒ 0). 🔑 fracs = hpFrac por mob (vigor IGNORA posición/ángulo/tipo/reparto — sólo el ESTADO-DE-HP)
+  //   aggroVigor({driveVigor:{wipe,players:[{dx,dy}],pts:[{deg,dist,type,state,frac}]}}) → inyecta party SINTÉTICA (G._vigParty, héroe=índice0) + mobs enganchados con HP dado (e.maxHp=HM, e.hp=round(frac·HM)) ⇒ V REAL server-auth (N=#mobs, Σ nivel-HP, P=#party)
+  //   aggroVigor({vigorProbeLive:true})                → lectura REAL server-auth: N=mobs enganchados en radio, suma, V=field, players en radio
+  //   aggroVigor({clearVigor:true})                    → remueve los mobs de prueba (_vigTest) + limpia la party sintética
+  aggroVigor(p){
+    let vigorProbe=null, driveVigor=null, vigorProbeLive=null, cleared=null;
+    const Q=Math.max(2,AGGRO_VIGOR_SURGE.vigBins|0)||64, minN=Math.max(3,AGGRO_VIGOR_SURGE.minMobs|0), minP=Math.max(2,AGGRO_VIGOR_SURGE.minPlayers|0);
+    const D2R=Math.PI/180;
+    if(p && typeof p==="object"){
+      if("enabled" in p) AGGRO_VIGOR_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.vigorProbe && typeof p.vigorProbe==="object"){ const HM=Math.max(1,(p.vigorProbe.hpMax!=null?p.vigorProbe.hpMax|0:1000)); const fracs=Array.isArray(p.vigorProbe.fracs)?p.vigorProbe.fracs.map(x=>+x||0):[];   // LUT PURA (fracs,P)→N→Σ nivel-HP ENTERO→V=sum/(N·Q)→banda(sumas ENTERAS)→tier→charge
+        const P=(p.vigorProbe.players!=null)?(p.vigorProbe.players|0):2; const N=fracs.length;
+        let sum=0; for(const f of fracs){ const ff=(f>1?1:(f<0?0:f)); const hp=Math.max(0,Math.min(HM,Math.round(ff*HM))); sum+=vigHpLevel(hp,HM,Q); }   // 🔑 hp=round(frac·HM) ENTERO, clamp [0,HM]
+        const gated=(P>=minP && N>=minN);                                            // P<minPlayers (single-player) ó N<minMobs ⇒ degenerado ⇒ 0
+        const a=gated?{N,sum,Q}:null; const denom=N*Q;
+        let Vv=(gated&&denom>0)?(sum/denom):0; if(Vv>1)Vv=1; if(Vv<0)Vv=0;
+        const w=aggroVigorBandFromAgg(a), t=aggroVigorRank(w);
+        const hi=(AGGRO_VIGOR_SURGE.hiVigor!=null)?+AGGRO_VIGOR_SURGE.hiVigor:0.75, mid=(AGGRO_VIGOR_SURGE.midVigor!=null)?+AGGRO_VIGOR_SURGE.midVigor:0.5;
+        const raw=t>0?(+AGGRO_VIGOR_SURGE.tiers[t-1].charge||0):0, cap=Math.max(0,AGGRO_VIGOR_SURGE.aggroVigorBountyCap|0);
+        vigorProbe={ fracs:fracs.slice(), players:P, total:N, sum, hpMax:HM, vigBins:Q, vigor:+Vv.toFixed(3), hiVigor:hi, midVigor:mid, weight:w, tier:t, charge:cap>0?Math.min(raw,cap):raw }; }
+      if(p.driveVigor && typeof p.driveVigor==="object"){ const HM=Math.max(1,(p.driveVigor.hpMax!=null?p.driveVigor.hpMax|0:1000)); const pts=Array.isArray(p.driveVigor.pts)?p.driveVigor.pts:[], injected=[];   // inyecta party sintética + mobs con HP dado ⇒ V REAL
+        if(p.driveVigor.wipe) G.enemies=(G.enemies||[]).filter(e=>!e._vigTest);   // test-only: limpia SÓLO los mobs de prueba previos ⇒ V refleja los inyectados de esta llamada
+        const hx=G.hero?G.hero.x:0, hy=G.hero?G.hero.y:0;
+        const extra=Array.isArray(p.driveVigor.players)?p.driveVigor.players:[];   // party sintética: el héroe es SIEMPRE players[0]; extra = jugadores de PRUEBA (relativos al héroe, transitorios)
+        const party=G.hero?[G.hero]:[]; for(const pl of extra){ party.push({ x:hx+(+(pl&&pl.dx)||0), y:hy+(+(pl&&pl.dy)||0), hp:1, dead:false, _synthPlayer:true }); }
+        G._vigParty=party;
+        for(let i=0;i<pts.length;i++){ const q=pts[i]||{}, ty2=String(q.type||"rat"), deg=(+q.deg||0), dist=(q.dist!=null?+q.dist:120), sx=hx+dist*Math.cos(deg*D2R), sy=hy+dist*Math.sin(deg*D2R), st=String(q.state||"chase"), frac=(q.frac!=null?+q.frac:1), e=ETPL[ty2]?spawnEnemy(ty2,sx,sy):null;   // vigor IGNORA posición/tipo ⇒ deg/dist/type sólo posicionan; N + HP cuentan
+          if(e){ e._vigTest=true; e.dead=false; e.x=sx; e.y=sy; e.state=st; const ff=(frac>1?1:(frac<0?0:frac)); e.maxHp=HM; e.hp=Math.max(1,Math.min(HM,Math.round(ff*HM))); if(q.hostile) e.hostile=true;
+            injected.push({ idx:G.enemies.indexOf(e), deg, dist, type:ty2, state:st, frac:ff, hp:e.hp, maxHp:e.maxHp, engaged:aggroEngaged(e) }); }
+          else injected.push({ idx:-1, deg, dist, type:ty2, state:st, valid:false }); }
+        const aa=aggroVigorAgg(G.hero);
+        driveVigor={ injected, players:G._vigParty.length, engaged:aa?aa.N:0, sum:aa?aa.sum:0, idx:+aggroVigorField(G.hero).toFixed(3), score:aggroVigorScore(G.hero) }; }
+      if(p.clearVigor){ const before=(G.enemies||[]).length; G.enemies=(G.enemies||[]).filter(e=>!e._vigTest); cleared=before-G.enemies.length; G._vigParty=null; }   // remueve mobs de prueba + limpia party sintética
+      if(p.vigorProbeLive){ const h2=G.hero;   // lectura REAL server-auth: N=mobs enganchados en radio, suma, V=field, players en radio
+        if(h2){ const players=vigLivePlayers(h2), P=players.length, aa=aggroVigorAgg(h2);
+          vigorProbeLive={ players:P, engaged:aa?aa.N:0, sum:aa?aa.sum:0, field:+aggroVigorField(h2).toFixed(3), score:aggroVigorScore(h2) }; }
+        else vigorProbeLive={ players:0, engaged:0, sum:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=aggroVigorVM(h);
+    return { enabled:AGGRO_VIGOR_SURGE.enabled, channel:AGGRO_VIGOR_SURGE.channel||"aggroVigorFind",
+      radius:vm.radius, weights:Object.assign({},AGGRO_VIGOR_SURGE.weights||{}), hiVigor:+AGGRO_VIGOR_SURGE.hiVigor||0, midVigor:+AGGRO_VIGOR_SURGE.midVigor||0, vigBins:Q, minMobs:minN, minPlayers:minP,
+      tiers:(AGGRO_VIGOR_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, engaged:vm.engaged, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?aggroVigorForage(h, {aggroVigor:true}):0,   // preview: fichas forrajeadas por un remate con el pack disponible AHORA (expone el canal aggroVigorFind; usa score EN VIVO — en single-player/maltrecho 0)
+      vigorProbe: vigorProbe,                                  // LUT PURA (fracs,P)→N→Σ HP ENTERA→V→banda(sumas ENTERAS)→tier→charge (byte-verifica BRÍO + UMBRALES)
+      driveVigor: driveVigor,                                  // inyecta party SINTÉTICA + mobs con HP dado ⇒ V REAL + idx/engaged/score server-auth
+      vigorProbeLive: vigorProbeLive,                          // lectura REAL server-auth: N=mobs enganchados en radio, suma, V=field, players en radio
+      cleared: cleared,                                        // nº de mobs de prueba removidos por clearVigor
+      tag: aggroVigorTag(h),                                   // glifo SERVIDO (OFF/maltrecho/single-player ⇒ "" / fresco ≥midVigor ⇒ ◉)
+      precedence:"aggroVigorFind (canal FRESCO — recompensa de fichas de BRÍO por enganchar/rematar un pack FRESCO a full-HP): NINGUNA de las 72 flags #59-#130 lo toca. AÑADE la dimensión MOB-HP-STATE (cuánta pelea LE QUEDA al pack — la SALUD RESTANTE del pack enganchado, un DATO NUEVO que ningún prior lee) a la familia COMPOSICIÓN-DE-INTENCIÓN (#118 FOCUS; #121 SPREAD; #122 SWITCH; #123 CONTEST; #124 PILE; #125 MARGIN; #126 DENSITY; #127 VARIETY; #128 MOMENTUM; #129 SURROUND/ANGULAR; #130 PRESSURE/RADIAL). Los dos últimos ejes cerraron la GEOMETRÍA PURA (ANGULAR #129 + RADIAL #130 = la POSICIÓN del pack). BRÍO abre la sub-familia ESTADO-DE-HP. EJE = aggroVigorField(hero)=V=mean(hp/hpMax) sobre los enganchados ∈[0,1], SNAPSHOT PURO. 🔑 DETERMINISMO sev-1: nivel-de-HP por mob CUANTIZADO a niveles ENTEROS (vigBins Q) vía comparación ENTERA hp·Q≥L·hpMax + banda por sumas ENTERAS ⇒ 0-float division en el score/decisión ⇒ 2-cliente 0-desync. INTRÍNSECAMENTE MULTIJUGADOR (single-player ⇒ P<2 ⇒ V=0, colapso LIMPIO). CRUX (LA CRÍTICA) — HP-STATE ⊥ TODOS los priores: ⊥#130 PRESSURE (RADIAL) & ⊥#129 SURROUND (ANGULAR): VIGOR es CIEGO a la posición: N=3 a quemarropa a full-HP (P=hi,V=hi) vs N=3 a quemarropa casi-muertos (P=hi,V=lo) — misma geometría, brío opuesto. ⊥#126 DENSITY (magnitud N): V invariante a N: N=6 casi-muertos (density hi, V lo) vs N=3 frescos (density menor, V hi). ⊥#112 convergeFind (VELOCIDAD radial): V es lectura HP ESTÁTICA, 0 dependencia del movimiento. ⊥#128 MOMENTUM (dN/dt)/#122 SWITCH (churn): V es snapshot del HP actual, no una tendencia. ⊥#127 VARIETY (tipo): V es CIEGO a QUÉ son los mobs; 3 idénticos al 20% (variety lo, V lo) vs 3 tipos a full (variety hi, V hi). ⊥ aggro-TABLE (#118/#121/#123/#124/#125): V es CIEGO a quién sostiene el aggro; lee el HP del mob. Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio aggroVigorBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.aggroVigorBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._vigParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick, como #121/#123/#124/#125/#126/#127/#129/#130). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.aggroVigorBounty!=null),                       // prueba byte-id: STATELESS ⇒ G.aggroVigorBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._vigParty!=null),                          // prueba byte-id: G._vigParty SÓLO existe tras driveVigor (test scaffolding); en juego normal NUNCA se crea
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), aggroVigorBounty:(h.aggroVigorBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
