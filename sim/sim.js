@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, CO_DODGE_SURGE, CO_INTERRUPT_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, CO_DODGE_SURGE, CO_INTERRUPT_SURGE, CO_BUFF_UPTIME_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -7050,6 +7050,50 @@ export function coInterruptVM(h){ h=h||G.hero; const on=!!CO_INTERRUPT_SURGE.ena
     cap:Math.max(0,CO_INTERRUPT_SURGE.coInterruptBountyCap|0),
     tag: coInterruptTag(h) }; }
 
+// ── CAS-2853 CO_BUFF_UPTIME_SURGE (ÉGIDA ❖, EVO#149 DARK — PLAYER-COORDINATION #14 / SUSTAINED-STATE SHARED-EMPOWERMENT) ──
+// coBuffParty(h) = el roster de buffeados-candidatos. 🔑 Single-player ⇒ SÓLO el héroe (que solo NO puede compartir una égida — ≤1 buffeado ⇒ B colapsa vía minPlayers). G._coBuffParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.coBuff driveBuff — transitoria, NUNCA serializada). Party PROPIA, INDEPENDIENTE de #136-#148.
+function coBuffParty(h){ h=h||G.hero; if(!h) return [];
+  return (Array.isArray(G._coBuffParty)&&G._coBuffParty.length)?G._coBuffParty:[h]; }   // normal: sólo el héroe (≤1 buffeado ⇒ B colapsa); PRUEBA: party sintética inyectada
+// coBuffRoster(h) = {P, B}: P = tamaño del roster candidato; B = nº de jugadores VIVOS DISTINTOS con el flag `buff` (buff/aura/shield/haste/might/regen ACTIVO — uptime) este frame. FILTRA muertos/hp≤0 (ANTI-cadáveres). 🔑 lee el flag `buff` booleano YA replicado — quién PORTA un buff SOSTENIDO ⊥ quién APLICA socorro #139 / castea #146 / esquiva #147 / interrumpe #148. PURO, 0-RNG/0-timer, 0-float. El conteo es CONMUTATIVO ⇒ ambos clientes ⇒ MISMO B, orden-independiente. O(P).
+function coBuffRoster(h){ h=h||G.hero; if(!h) return null;
+  const party=coBuffParty(h); let B=0;
+  for(const p of party){ if(!p) continue; if(p.dead||p.hp<=0) continue;                              // ANTI-cadáveres: sólo jugadores VIVOS (héroe incluido)
+    if(p.buff) B++; }                                                                                // flag booleano de buff/aura activo (uptime) YA replicado
+  return { P:party.length, B:B }; }
+// coBuffField(h) = ÉGIDA idx COSMÉTICO ∈[0,1] = B/playerCap (SÓLO badge; NO entra a la decisión). PURO. idx≈1 ⇒ égida plena; idx=0 ⇒ solitario/single-player.
+function coBuffField(h){ const a=coBuffRoster(h); if(!a) return 0; const cap=Math.max(1,CO_BUFF_UPTIME_SURGE.playerCap|0)||4; let g=a.B/cap; return g>1?1:(g<0?0:g); }
+// coBuffBandFromAgg(a) = peso por la BANDA de égida sobre B, decidida por comparación ENTERA (0-float ⇒ 2-cliente byte-idéntico). B<minPlayers (single-player) ⇒ 0; B≥hiBuff ⇒ égida-plena ⇒ 2; B≥midBuff ⇒ égida-parcial ⇒ 1; <midBuff ⇒ 0. Umbrales ENTEROS. LUT PURA (0 division).
+function coBuffBandFromAgg(a){ if(!a) return 0; const cfg=CO_BUFF_UPTIME_SURGE, W=cfg.weights||{}, b=a.B|0, minP=Math.max(2,cfg.minPlayers|0);
+  if(b<minP) return 0;                                                       // <minPlayers buffeados (single-player) ⇒ colapso LIMPIO
+  const hi=(cfg.hiBuff!=null)?(cfg.hiBuff|0):3, mid=(cfg.midBuff!=null)?(cfg.midBuff|0):2;
+  if(b>=hi) return +W.full||0;                                              // égida-plena
+  if(b>=mid) return +W.some||0;                                            // égida-parcial
+  return 0; }
+// coBuffScore(h) = peso de banda de la égida ACREDITADA = coBuffBandFromAgg(coBuffRoster(h)) ∈ {0,1,2}. PURO ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minPlayers. Señal VIVA del badge/VM (el GRANT usa el snapshot _coBuffPre del TOP del kill).
+function coBuffScore(h){ h=h||G.hero; if(!h) return 0; return coBuffBandFromAgg(coBuffRoster(h)); }
+// coBuffRankTier(score) = índice del tier de recompensa vigente (0 = solitario/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más auras activos = tier ALTO. LUT determinista pura.
+function coBuffRankTier(score){ const T=CO_BUFF_UPTIME_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// coBuffBonus(score) = nº de fichas de égida del tier vigente, acotado por el sub-cap propio coBuffBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta coBuffFind.
+function coBuffBonus(score){ if(!CO_BUFF_UPTIME_SURGE.enabled) return 0;
+  if((CO_BUFF_UPTIME_SURGE.channel||"coBuffFind")!=="coBuffFind") return 0;   // seguridad: CO_BUFF_UPTIME_SURGE SÓLO alimenta coBuffFind
+  const t=coBuffRankTier(score); if(t<=0) return 0;
+  const raw=+CO_BUFF_UPTIME_SURGE.tiers[t-1].charge||0, cap=Math.max(0,CO_BUFF_UPTIME_SURGE.coBuffBountyCap|0);
+  return cap>0?Math.min(raw,cap):raw; }
+// coBuffForage(h, tpl, preScore) = las fichas por un remate con la égida acreditada = coBuffBonus(preScore). preScore = el snapshot muestreado en el TOP de killEnemy (_coBuffPre). Si preScore es undefined (VM/preview) usa coBuffScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.coBuffBounty vía grantCoBuffBounty.
+function coBuffForage(h, tpl, preScore){ if(!CO_BUFF_UPTIME_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?coBuffScore(h||G.hero):(+preScore||0); return coBuffBonus(score); }
+// coBuffTag(h) = glifo del badge de ÉGIDA (❖) si la égida acreditada está ≥parcial (tier>0). PURO. "" si OFF / solitario / single-player. 🔑 en single-player SIEMPRE "" (B colapsa<minPlayers ⇒ 0).
+export function coBuffTag(h){ h=h||G.hero; if(!CO_BUFF_UPTIME_SURGE.enabled||!h) return "";
+  return coBuffRankTier(coBuffScore(h))>0 ? "❖" : ""; }
+// coBuffVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/players/B/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function coBuffVM(h){ h=h||G.hero; const on=!!CO_BUFF_UPTIME_SURGE.enabled&&!!h;
+  const a=on?coBuffRoster(h):null, Bc=a?a.B:0, idx=on?coBuffField(h):0, score=on?coBuffScore(h):0, tier=on?coBuffRankTier(score):0, charge=on?coBuffBonus(score):0;
+  const P=a?a.P:0;
+  return { enabled:!!CO_BUFF_UPTIME_SURGE.enabled, channel:CO_BUFF_UPTIME_SURGE.channel||"coBuffFind",
+    idx:+idx.toFixed(3), players:P, buff:Bc, score, tier, tierCount:(CO_BUFF_UPTIME_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,CO_BUFF_UPTIME_SURGE.coBuffBountyCap|0),
+    tag: coBuffTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -8530,6 +8574,8 @@ function killEnemy(e){
   const _coDodgePre = CO_DODGE_SURGE.enabled ? coDodgeScore(G.hero) : 0;
   // CAS-2849 CO_INTERRUPT_SURGE: snapshot del YUGO/co-interrupt = coInterruptScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS estaban LANDEANDO un interrupt/stagger/poise-break sobre un enemigo EL MISMO frame (I=# banderas `interrupt` activas, INDEPENDIENTE de si castean #146 o esquivan #147 o convergen #144 o socorren #139 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥lockdown-parcial) rematar en single-player (I colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coInterruptPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _coInterruptPre = CO_INTERRUPT_SURGE.enabled ? coInterruptScore(G.hero) : 0;
+  // CAS-2853 CO_BUFF_UPTIME_SURGE: snapshot de la ÉGIDA/co-buff = coBuffScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS PORTABAN un buff/aura ACTIVO (uptime) EL MISMO frame (B=# banderas `buff` activas, INDEPENDIENTE de si aplican socorro #139 o castean #146 o esquivan #147 o interrumpen #148 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥égida-parcial) rematar en single-player (B colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coBuffPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _coBuffPre = CO_BUFF_UPTIME_SURGE.enabled ? coBuffScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -9093,6 +9139,10 @@ function killEnemy(e){
   if(CO_INTERRUPT_SURGE.enabled && !tpl.neutral){ const cist=coInterruptForage(G.hero, tpl, _coInterruptPre);
     if(cist>0){ grantCoInterruptBounty(cist);
       floater(e.x,e.y-1620,"+"+cist+" Yugo","#e6b84f",{small:true}); } }
+  // CAS-2853 CO_BUFF_UPTIME_SURGE seam: ÉGIDA. Al matar un mob no-neutral mientras la égida estaba ACREDITADA (B=# jugadores VIVOS DISTINTOS portando un buff/aura ACTIVO EL MISMO frame ≥midBuff con ≥minPlayers buffeados, score≥umbral ANTES de este kill vía `_coBuffPre`), el héroe cosecha fichas de égida = coBuffForage(hero,tpl,_coBuffPre) (flat por banda de égida, sub-cap coBuffBountyCap), banca a h.coBuffBounty vía grantCoBuffBounty (0 RNG). `_coBuffPre` se muestreó en el TOP + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥égida-parcial) ⇒ rematar en single-player (B colapsa ⇒ 0) NO forrajea; hace falta que ≥2 jugadores PORTEN un buff EN CONJUNTO. Canal FRESCO coBuffFind (fuente ÚNICA, sub-cap coBuffBountyCap) — NINGUNO de los 90 flags #59-#148 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantCoBuffBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(CO_BUFF_UPTIME_SURGE.enabled && !tpl.neutral){ const cbst=coBuffForage(G.hero, tpl, _coBuffPre);
+    if(cbst>0){ grantCoBuffBounty(cbst);
+      floater(e.x,e.y-1642,"+"+cbst+" Égida","#7fd8c8",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -10447,6 +10497,9 @@ function grantCoDodgeBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coDodgeBo
 
 // CAS-2849: banca fichas de YUGO al recurso TRANSITORIO h.coInterruptBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantCoInterruptBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coInterruptBounty=(h.coInterruptBounty|0)+(n|0); }
+
+// CAS-2853: banca fichas de ÉGIDA al recurso TRANSITORIO h.coBuffBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantCoBuffBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coBuffBounty=(h.coBuffBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -16996,6 +17049,56 @@ export const dev = {
       gExists:(G.coInterruptBounty!=null),                 // prueba byte-id: STATELESS ⇒ G.coInterruptBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._coInterruptParty!=null),             // prueba byte-id: G._coInterruptParty SÓLO existe tras driveInterrupt (test scaffolding); en juego normal NUNCA se crea ⇒ I colapsa
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coInterruptBounty:(h.coInterruptBounty|0) }:null }; },
+  // CAS-2853: ÉGIDA OBSERVABLE hook (DARK, CO_BUFF_UPTIME_SURGE — EVO#149, la CATORCEAVA faceta de la sub-familia PLAYER-COORDINATION tras #136 CÓNCLAVE, #137 COHORTE, #138 CUADRILLA, #139 SOCORRO, #140 MURALLA, #141 REPLIEGUE, #142 PIÑA, #143 ENVITE, #144 DIANA, #145 TENAZA, #146 CONJURO, #147 QUIEBRO y #148 YUGO). Es la sub-faceta SUSTAINED-STATE / SHARED-EMPOWERMENT (el CONTRAPUNTO SOSTENIDO de las tres sub-facetas EVENTO #146 cast / #147 dodge / #148 interrupt): CUÁNTOS jugadores DISTINTOS PORTAN un buff/aura ACTIVO (shield/haste/might/regen/resina) EL MISMO frame (B=tally del flag `buff`, la UPTIME) ⊥ QUIÉN lo APLICÓ #139 (support) / QUÉ ACTIVAN #146 (cast) / si ESQUIVAN #147 (dodge) / si INTERRUMPEN #148 (interrupt).
+  //   coBuff()                                      → snapshot {enabled,channel,weights,hiBuff,midBuff,playerCap,minPlayers,tiers,cap,idx,players,buff,score,tier,charge,forageChargePreview,buffProbe,driveBuff,buffProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   coBuff({enabled})                             → flip runtime IN-MEMORY de CO_BUFF_UPTIME_SURGE.enabled (sin tocar disco)
+  //   coBuff({tp:{tx,ty}})                          → teleporta al héroe
+  //   coBuff({buffProbe:{buffers,players}})         → LUT PURA (buffers=nº de jugadores portando un buff activo, players=P)→B=clamp(buffers,0,players)→banda(B vs {midBuff,hiBuff,minPlayers} ENTEROS)→tier→charge (byte-verifica ÉGIDA + UMBRALES; B<minPlayers ⇒ 0)
+  //   coBuff({driveBuff:{wipe,players:[{buff,dead}]}}) → inyecta roster SINTÉTICO (G._coBuffParty) ⇒ B REAL server-auth = # jugadores VIVOS con flag `buff` (filtra muertos)
+  //   coBuff({buffProbeLive:true})                  → lectura REAL server-auth: B=# jugadores VIVOS portando un buff activo este frame
+  //   coBuff({clearBuff:true})                      → limpia la party sintética
+  coBuff(p){
+    let buffProbe=null, driveBuff=null, buffProbeLive=null, cleared=null;
+    const cap=Math.max(1,CO_BUFF_UPTIME_SURGE.playerCap|0)||4, minP=Math.max(2,CO_BUFF_UPTIME_SURGE.minPlayers|0);
+    if(p && typeof p==="object"){
+      if("enabled" in p) CO_BUFF_UPTIME_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.buffProbe && typeof p.buffProbe==="object"){ const P=(p.buffProbe.players!=null)?(p.buffProbe.players|0):minP;   // LUT PURA (buffers,P)→B=clamp→banda(B vs umbrales ENTEROS)→tier→charge
+        let d=(p.buffProbe.buffers!=null)?(p.buffProbe.buffers|0):0; if(d<0) d=0; if(d>P) d=P;   // B no puede exceder el roster P
+        const Bc=d, a={ B:Bc, P:P };
+        const w=coBuffBandFromAgg(a), t=coBuffRankTier(w);
+        const hi=(CO_BUFF_UPTIME_SURGE.hiBuff!=null)?(CO_BUFF_UPTIME_SURGE.hiBuff|0):3, mid=(CO_BUFF_UPTIME_SURGE.midBuff!=null)?(CO_BUFF_UPTIME_SURGE.midBuff|0):2;
+        const rawC=t>0?(+CO_BUFF_UPTIME_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,CO_BUFF_UPTIME_SURGE.coBuffBountyCap|0);
+        buffProbe={ buffers:d, players:P, buff:Bc, hiBuff:hi, midBuff:mid, minPlayers:minP, idx:+(cap>0?(Bc/cap):0).toFixed(3), weight:w, rankTier:t, charge:capB>0?Math.min(rawC,capB):rawC }; }
+      if(p.driveBuff && typeof p.driveBuff==="object"){ const injected=[];   // inyecta roster sintético (flag buff + vivo/muerto) ⇒ B REAL (tally de banderas buff entre VIVOS)
+        const plist=Array.isArray(p.driveBuff.players)?p.driveBuff.players:[];   // roster sintético: CADA jugador {buff?,dead?}, transitorios
+        const party=[]; for(const pl of plist){ const dead=!!(pl&&pl.dead), bf=!!(pl&&pl.buff);
+          party.push({ buff:bf, maxHp:1000, hp:dead?0:1000, dead:dead, _synthPlayer:true });
+          injected.push({ buff:bf, dead:dead }); }
+        G._coBuffParty=party;
+        const aa=coBuffRoster(G.hero);
+        driveBuff={ injected, players:G._coBuffParty.length, buff:aa?aa.B:0, idx:+coBuffField(G.hero).toFixed(3), score:coBuffScore(G.hero) }; }
+      if(p.clearBuff){ G._coBuffParty=null; cleared=true; }   // limpia party sintética
+      if(p.buffProbeLive){ const h2=G.hero;   // lectura REAL server-auth: B=# jugadores VIVOS portando un buff activo este frame
+        if(h2){ const aa=coBuffRoster(h2);
+          buffProbeLive={ players:aa?aa.P:0, buff:aa?aa.B:0, field:+coBuffField(h2).toFixed(3), score:coBuffScore(h2) }; }
+        else buffProbeLive={ players:0, buff:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=coBuffVM(h);
+    return { enabled:CO_BUFF_UPTIME_SURGE.enabled, channel:CO_BUFF_UPTIME_SURGE.channel||"coBuffFind",
+      weights:Object.assign({},CO_BUFF_UPTIME_SURGE.weights||{}), hiBuff:CO_BUFF_UPTIME_SURGE.hiBuff|0, midBuff:CO_BUFF_UPTIME_SURGE.midBuff|0, playerCap:cap, minPlayers:minP,
+      tiers:(CO_BUFF_UPTIME_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, buff:vm.buff, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?coBuffForage(h, {coBuff:true}):0,   // preview: fichas forrajeadas por un remate con la égida acreditada AHORA (expone el canal coBuffFind; usa score EN VIVO — en single-player/solitario 0)
+      buffProbe: buffProbe,                      // LUT PURA (buffers,P)→B=clamp→banda(B vs {midBuff,hiBuff,minPlayers} ENTEROS)→tier→charge (byte-verifica ÉGIDA + UMBRALES)
+      driveBuff: driveBuff,                      // inyecta roster SINTÉTICO ⇒ B REAL + idx/players/buff/score server-auth (tally de banderas buff entre VIVOS)
+      buffProbeLive: buffProbeLive,              // lectura REAL server-auth: B=# jugadores VIVOS portando un buff activo este frame
+      cleared: cleared,                          // limpieza de la party sintética
+      tag: coBuffTag(h),                         // glifo SERVIDO (OFF/solitario/single-player ⇒ "" / égida ≥midBuff ⇒ ❖)
+      precedence:"coBuffFind (canal FRESCO — recompensa de fichas de ÉGIDA por rematar mientras ≥2 aliados DISTINTOS PORTAN un buff/aura activo EL MISMO frame — el co-buff/shared-aegis/uptime): NINGUNO de los 90 flags #59-#148 lo toca. La CATORCEAVA faceta de la sub-familia PLAYER-COORDINATION y la sub-faceta SUSTAINED-STATE / SHARED-EMPOWERMENT (el CONTRAPUNTO SOSTENIDO de las tres sub-facetas EVENTO #146 cast / #147 dodge / #148 interrupt). EJE = B=# jugadores VIVOS DISTINTOS con el flag `buff` (buff/aura/shield/haste/might/regen ACTIVO — uptime) este frame ∈[0,P] ENTERO, SNAPSHOT PURO del flag replicado. 🔑 DETERMINISMO sev-1: B = tally ENTERO de banderas booleanas (CERO float/atan2; el conteo es CONMUTATIVO ⇒ orden-independiente) vs umbrales ENTEROS {midBuff,hiBuff} ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ ≤1 buffeado ⇒ B colapsa, IMPOSIBLE compartir una égida en solitario). CRUX (LA CRÍTICA) — ÉGIDA = SIMULTANEIDAD-DE-ESTADO-SOSTENIDO-DE-BUFF (uptime de aura/shield/might/regen ACTIVO) ⊥ TODOS los priores: (a) ⊥ #139 SOCORRO (PRIMARIO — SUSTAINED-STATE ⊥ APPLICATION-EVENT): SOCORRO cuenta el crédito de APLICAR un heal/shield/buff a aliados ESTE frame (flag `support`, un EVENTO); ÉGIDA cuenta el flag `buff` (el ESTADO SOSTENIDO de PORTAR un aura activo — la uptime — SIN importar quién lo aplicó ni si alguien aplicó uno este frame). 3 mid-support-cast ⇒ SOCORRO S3/w2 pero ÉGIDA B0/w0 (aplicando pero nadie buffeado AÚN); 3 portando un aura de hace rato ⇒ ÉGIDA B3/w2 pero SOCORRO S0/w0 (0 aplicaciones este frame). (b) ⊥ #146 CONJURO (STATE-DE-BUFF ⊥ ANY-CAST-EVENTO): castear un buff (flag `cast`) ≠ tenerlo ya activo. 3 mid-cast ⇒ CONJURO U3 pero ÉGIDA B0; 3 portando un aura pasivo ⇒ ÉGIDA B3 pero CONJURO U0. (c) ⊥ #132 PARTY_VITAL (buff-uptime BOOLEANA-ENTERA ⊥ HP-fracción-media float). (d) ⊥ #140 MURALLA (portar-un-buff ⊥ ABSORBER-un-golpe). (e) ⊥ #138 CUADRILLA (portar-un-buff ⊥ landear-el-REMATE). (f) ⊥ #147 QUIEBRO / #148 YUGO (estado-de-buff SOSTENIDO ⊥ dodge-EVENTO / interrupt-EVENTO). (g) ⊥ #144 DIANA (buff ⊥ compartir-objetivo). (h) ⊥ #145 TENAZA (estado ⊥ geometría). Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio coBuffBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.coBuffBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._coBuffParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.coBuffBounty!=null),                 // prueba byte-id: STATELESS ⇒ G.coBuffBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._coBuffParty!=null),             // prueba byte-id: G._coBuffParty SÓLO existe tras driveBuff (test scaffolding); en juego normal NUNCA se crea ⇒ B colapsa
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coBuffBounty:(h.coBuffBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
