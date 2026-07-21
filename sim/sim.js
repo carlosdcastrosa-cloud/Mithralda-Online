@@ -14,7 +14,7 @@
 // in buildWorld, so a fixed seed + identical intent stream => identical sim.
 // ===========================================================================
 import { STR } from "../strings.js";
-import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, CO_DODGE_SURGE, CO_INTERRUPT_SURGE, CO_BUFF_UPTIME_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
+import { TS, MAP_W, MAP_H, T_WATER, T_CALDERA, CFG, ATK, ETPL, SPELLS, ACTIVE_ABILITIES, ABILITY_MAP, DEFAULT_LOADOUT, ULTIMATES, ULTIMATE_MAP, ULT_CHARGE_PER_DMG, ULT_CHARGE_PER_KILL, ULT_OFFER_N, ABILITY_RANKS, ABILITY_RANK_MAP, ABILITY_UNLOCKS, CLASS_STATS, HUNTS, ZONE_TIER, ABYSS_POWER_REQ, FROST_POWER_REQ, TRIAL_POWER_REQ, STAGE1_GOAL, STATUS, CONSUMABLES, ATKSPD_TOTAL_CAP, AMBUSH, MOB_AFFIX, MOB_AFFIX_IDS, MOB_AFFIX_RATE, MOB_AFFIX_ESSENCE, CHAMPION, CHAMPION_RATE, LEGENDARY, MASTERY, CUSTOMIZE, BOONS, BOON_MAP, BOON_RARITY, BOON_DRAFT_N, SYNERGIES, boonRarityWeight, ZONE_MODIFIERS, ZONE_MOD_MAP, CURSE_DEPTH_BONUS, CONQUEST_ZONES, WORLD_TIER, ARENA, ZONE_EVENTS, SOCKETS, NEW_MOBS, CODEX, TITLES, PACTS, WEAPON_AFFIXES, FRENZY, PARRY, TELEGRAPH, DODGE, ENEMY_ABILITIES, POISE, COMBO, BACKSTAB, STAMINA, LOCK_ON, FLASK, BLOODSTAIN, SHIELD_BLOCK, GUARD_COUNTER, DODGE_COUNTER, RALLY, RIPOSTE, CHARGED_ATTACK, GUARD_BREAK, DEFLECT, LUNGE, SECOND_WIND, BONFIRE, EQUIP_LOAD, TWO_HAND, HYPERARMOR, WEAPON_ARCHETYPES, WEAPON_ARTS, THROWABLES, WEAPON_BUFFS, STATUS_BUILDUP, ZONE5, CALDERA_POWER_REQ, ZONE5_MOD, SIGNATURE_BOSS, SUMMON, BOSS_RUSH, SEEDED_CHALLENGE, ENCOUNTER_VARIANTS, ARENA_HAZARDS, COMBAT_CODEX, COMBAT_CODEX_ENTRIES, JUICE, ONBOARDING, NG_PLUS, DOORS_INTERIORS, SAFEZONE, TEMPLE_RESPAWN, RESTED_XP, RECALL, BOUNTY_BOARD, SANCTUARY_REP, SANCTUARY_REWARDS, WORLD_EVENT, SANCTUARY_EMISSARY, SANCTUARY_OATH, SANCTUARY_LEDGER, ORDER_STANDINGS, ORDER_TERRITORY, ORDER_CONTEST, FELLOWSHIP_BOND, MENTOR_BOND, SOUL_RECOVERY, WORLD_PULSE, CONGREGATION, WAYFARER_TRAIL, DIVERSE_COMPANY, LONG_WATCH, FRONTIER_SPREAD, INFLUX_SURGE, BATTLE_SYNC, CONVOY_MARCH, WARDING_RING, KINSHIP_BOND, WAYFARER_ROAM, FOCUS_FIRE, TRAILCRAFT, DELVE, ERUDITION, NOCTURNE_HUNT, CADENCE_RUSH, TEMPEST_SURGE, LAST_STAND, FIRM_FOOTING, SHADOW_STALK, SCARCITY_EDGE, APEX_PROXIMITY, MOB_AFFIX_DANGER, ZONE_EVENT_SURGE, ENCOUNTER_VARIANT_SURGE, ARENA_HAZARD_SURGE, BOSS_ENRAGE_SURGE, SPOILS_FIELD_SURGE, CARNAGE_FIELD_SURGE, CROSSFIRE_FRAY_SURGE, MAELSTROM_FIELD_SURGE, BLIGHT_HARVEST_SURGE, SKIRMISH_LINE_SURGE, CONTROL_HARVEST_SURGE, BLOODHARVEST_SURGE, PACKHARVEST_SURGE, LONGSHOT_SURGE, INTERRUPT_SURGE, HEADING_SURGE, ZONETIER_SURGE, BULK_SURGE, ROLE_SURGE, SWIFT_SURGE, MENACE_SURGE, TOUGH_SURGE, SENTINEL_SURGE, RAM_SURGE, WINDUP_SURGE, RECOVER_SURGE, LUNGE_SURGE, GEARCHANCE_SURGE, GOLD_SURGE, SPLASH_SURGE, BANE_SURGE, MOTLEY_SURGE, DISPERSE_SURGE, FLANK_SURGE, COLUMN_SURGE, ORIENT_SURGE, SPEED_SURGE, CONVERGE_SURGE, ENCIRCLE_SURGE, DEPTH_SURGE, SIZECLASS_SURGE, ORBIT_SURGE, ACCEL_SURGE, AGGRO_FOCUS_SURGE, JERK_DIR_SURGE, STRIKE_COMMIT_SURGE, TARGET_SPREAD_SURGE, AGGRO_SWITCH_SURGE, AGGRO_CONTEST_SURGE, AGGRO_PILE_SURGE, AGGRO_MARGIN_SURGE, AGGRO_DENSITY_SURGE, AGGRO_VARIETY_SURGE, AGGRO_MOMENTUM_SURGE, AGGRO_SURROUND_SURGE, AGGRO_PRESSURE_SURGE, AGGRO_VIGOR_SURGE, PARTY_VITAL_SURGE, MOB_TIER_SURGE, ELITE_SHARE_SURGE, RANK_SPREAD_SURGE, CO_STRIKE_SURGE, CO_PRESENCE_SURGE, CO_KILL_SURGE, CO_SUPPORT_SURGE, CO_TANK_SURGE, CO_FLEE_SURGE, CO_COHESION_SURGE, CO_ADVANCE_SURGE, CO_FOCUS_SURGE, CO_FLANK_SURGE, CO_CAST_SURGE, CO_DODGE_SURGE, CO_INTERRUPT_SURGE, CO_BUFF_UPTIME_SURGE, CO_GUARD_SURGE, T_GRASS, T_DIRT, T_STONE, T_COBBLE, T_STREET } from "./config.js";
 import { clamp, lerp, dist2, norm, angDiff } from "./math.js";
 import { createRNG } from "./rng.js";
 import { buildWorld, buildTiledWorld, zoneOf } from "./world.js";
@@ -7094,6 +7094,50 @@ export function coBuffVM(h){ h=h||G.hero; const on=!!CO_BUFF_UPTIME_SURGE.enable
     cap:Math.max(0,CO_BUFF_UPTIME_SURGE.coBuffBountyCap|0),
     tag: coBuffTag(h) }; }
 
+// ── CAS-2857 CO_GUARD_SURGE (BROQUEL ⊓, EVO#150 DARK — PLAYER-COORDINATION #15 / DEFENSIVE REACTION-EVENT, co-block/co-parry) ──
+// coGuardParty(h) = el roster de en-guardia-candidatos. 🔑 Single-player ⇒ SÓLO el héroe (que solo NO puede co-bloquear — ≤1 en guardia ⇒ G colapsa vía minPlayers). G._coGuardParty = party SINTÉTICA de PRUEBA (poblada SÓLO por __dev.coGuard driveGuard — transitoria, NUNCA serializada). Party PROPIA, INDEPENDIENTE de #136-#149.
+function coGuardParty(h){ h=h||G.hero; if(!h) return [];
+  return (Array.isArray(G._coGuardParty)&&G._coGuardParty.length)?G._coGuardParty:[h]; }   // normal: sólo el héroe (≤1 en guardia ⇒ G colapsa); PRUEBA: party sintética inyectada
+// coGuardRoster(h) = {P, G}: P = tamaño del roster candidato; Gc = nº de jugadores VIVOS DISTINTOS con el flag `guard` (block/parry/guard-up ACTIVO) este frame. FILTRA muertos/hp≤0 (ANTI-cadáveres). 🔑 lee el flag `guard` booleano YA replicado — quién está en GUARDIA ACTIVA ⊥ quién ESQUIVA #147 (dodge/i-frame, evadir) / porta buff #149 / absorbe #140 / interrumpe #148. PURO, 0-RNG/0-timer, 0-float. El conteo es CONMUTATIVO ⇒ ambos clientes ⇒ MISMO G, orden-independiente. O(P).
+function coGuardRoster(h){ h=h||G.hero; if(!h) return null;
+  const party=coGuardParty(h); let Gc=0;
+  for(const p of party){ if(!p) continue; if(p.dead||p.hp<=0) continue;                              // ANTI-cadáveres: sólo jugadores VIVOS (héroe incluido)
+    if(p.guard) Gc++; }                                                                              // flag booleano de guardia-activa (block/parry) YA replicado
+  return { P:party.length, G:Gc }; }
+// coGuardField(h) = BROQUEL idx COSMÉTICO ∈[0,1] = G/playerCap (SÓLO badge; NO entra a la decisión). PURO. idx≈1 ⇒ broquel pleno; idx=0 ⇒ solitario/single-player.
+function coGuardField(h){ const a=coGuardRoster(h); if(!a) return 0; const cap=Math.max(1,CO_GUARD_SURGE.playerCap|0)||4; let g=a.G/cap; return g>1?1:(g<0?0:g); }
+// coGuardBandFromAgg(a) = peso por la BANDA de broquel sobre G, decidida por comparación ENTERA (0-float ⇒ 2-cliente byte-idéntico). G<minPlayers (single-player) ⇒ 0; G≥hiGuard ⇒ broquel-pleno ⇒ 2; G≥midGuard ⇒ broquel-parcial ⇒ 1; <midGuard ⇒ 0. Umbrales ENTEROS. LUT PURA (0 division).
+function coGuardBandFromAgg(a){ if(!a) return 0; const cfg=CO_GUARD_SURGE, W=cfg.weights||{}, g=a.G|0, minP=Math.max(2,cfg.minPlayers|0);
+  if(g<minP) return 0;                                                       // <minPlayers en guardia (single-player) ⇒ colapso LIMPIO
+  const hi=(cfg.hiGuard!=null)?(cfg.hiGuard|0):3, mid=(cfg.midGuard!=null)?(cfg.midGuard|0):2;
+  if(g>=hi) return +W.full||0;                                              // broquel-pleno
+  if(g>=mid) return +W.some||0;                                            // broquel-parcial
+  return 0; }
+// coGuardScore(h) = peso de banda del broquel ACREDITADO = coGuardBandFromAgg(coGuardRoster(h)) ∈ {0,1,2}. PURO ⇒ MISMO valor para todo observador del mismo snapshot. 0 si <minPlayers. Señal VIVA del badge/VM (el GRANT usa el snapshot _coGuardPre del TOP del kill).
+function coGuardScore(h){ h=h||G.hero; if(!h) return 0; return coGuardBandFromAgg(coGuardRoster(h)); }
+// coGuardRankTier(score) = índice del tier de recompensa vigente (0 = solitario/single-player) = el MÁS INTENSO (mayor `min`) cuyo score se satisface. Más guardias activas = tier ALTO. LUT determinista pura.
+function coGuardRankTier(score){ const T=CO_GUARD_SURGE.tiers||[]; let t=0; for(let i=0;i<T.length;i++){ if(score>=(+T[i].min||0)) t=i+1; } return t; }
+// coGuardBonus(score) = nº de fichas de broquel del tier vigente, acotado por el sub-cap propio coGuardBountyCap. Gated ⇒ OFF ⇒ 0 EXACTO (byte-neutral). PURO. Seguridad de canal: sólo alimenta coGuardFind.
+function coGuardBonus(score){ if(!CO_GUARD_SURGE.enabled) return 0;
+  if((CO_GUARD_SURGE.channel||"coGuardFind")!=="coGuardFind") return 0;   // seguridad: CO_GUARD_SURGE SÓLO alimenta coGuardFind
+  const t=coGuardRankTier(score); if(t<=0) return 0;
+  const raw=+CO_GUARD_SURGE.tiers[t-1].charge||0, cap=Math.max(0,CO_GUARD_SURGE.coGuardBountyCap|0);
+  return cap>0?Math.min(raw,cap):raw; }
+// coGuardForage(h, tpl, preScore) = las fichas por un remate con el broquel acreditado = coGuardBonus(preScore). preScore = el snapshot muestreado en el TOP de killEnemy (_coGuardPre). Si preScore es undefined (VM/preview) usa coGuardScore(h) EN VIVO. 0 si OFF / sin tpl. PURO — el seam decide banca a h.coGuardBounty vía grantCoGuardBounty.
+function coGuardForage(h, tpl, preScore){ if(!CO_GUARD_SURGE.enabled||!tpl) return 0;
+  const score=(preScore==null)?coGuardScore(h||G.hero):(+preScore||0); return coGuardBonus(score); }
+// coGuardTag(h) = glifo del badge de BROQUEL (⊓) si el broquel acreditado está ≥parcial (tier>0). PURO. "" si OFF / solitario / single-player. 🔑 en single-player SIEMPRE "" (G colapsa<minPlayers ⇒ 0).
+export function coGuardTag(h){ h=h||G.hero; if(!CO_GUARD_SURGE.enabled||!h) return "";
+  return coGuardRankTier(coGuardScore(h))>0 ? "⊓" : ""; }
+// coGuardVM(h) = view-model PURO para el badge/HUD (autoridad en sim ⇒ MISMO idx/players/G/score/tier/fichas para todos los clientes del mismo estado). 0 sim/RNG/side-effect.
+export function coGuardVM(h){ h=h||G.hero; const on=!!CO_GUARD_SURGE.enabled&&!!h;
+  const a=on?coGuardRoster(h):null, Gc=a?a.G:0, idx=on?coGuardField(h):0, score=on?coGuardScore(h):0, tier=on?coGuardRankTier(score):0, charge=on?coGuardBonus(score):0;
+  const P=a?a.P:0;
+  return { enabled:!!CO_GUARD_SURGE.enabled, channel:CO_GUARD_SURGE.channel||"coGuardFind",
+    idx:+idx.toFixed(3), players:P, guard:Gc, score, tier, tierCount:(CO_GUARD_SURGE.tiers||[]).length, charge,
+    cap:Math.max(0,CO_GUARD_SURGE.coGuardBountyCap|0),
+    tag: coGuardTag(h) }; }
+
 
 // CAS-2361: CAMARADERÍA / KINSHIP BOND (DARK, KINSHIP_BOND) — EVO mecánica #60. Canal FRESCO goldFind (bono de oro, ⊥ restedMult/wardRegen) + eje FRESCO PERSISTENCIA DE VÍNCULO (proximidad
 // pareada SOSTENIDA). server-authoritative: el server toma las posiciones de los presentes, las asigna a celdas coarse (cellSize) y cuenta los PARES (i<j) cuyas celdas distan Chebyshev≤1
@@ -8576,6 +8620,8 @@ function killEnemy(e){
   const _coInterruptPre = CO_INTERRUPT_SURGE.enabled ? coInterruptScore(G.hero) : 0;
   // CAS-2853 CO_BUFF_UPTIME_SURGE: snapshot de la ÉGIDA/co-buff = coBuffScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS PORTABAN un buff/aura ACTIVO (uptime) EL MISMO frame (B=# banderas `buff` activas, INDEPENDIENTE de si aplican socorro #139 o castean #146 o esquivan #147 o interrumpen #148 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥égida-parcial) rematar en single-player (B colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coBuffPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
   const _coBuffPre = CO_BUFF_UPTIME_SURGE.enabled ? coBuffScore(G.hero) : 0;
+  // CAS-2857 CO_GUARD_SURGE: snapshot del BROQUEL/co-block = coGuardScore(hero) muestreado AQUÍ, en el TOP. El score refleja CUÁNTOS jugadores VIVOS DISTINTOS estaban en GUARDIA ACTIVA (block/parry — flag `guard`) EL MISMO frame (G=# banderas `guard` activas, INDEPENDIENTE de si esquivan #147 o portan buff #149 o absorben #140 o interrumpen #148 o rematan #138 o de la fracción-de-HP #132) EN EL MOMENTO del kill; con minPlayers≥2 y la TABLA (score≥1 ⇒ ≥broquel-parcial) rematar en single-player (G colapsa ⇒ 0) NO forrajea. GATED ⇒ enabled:false ⇒ `_coGuardPre`=0 (const inerte, 0 side-effect) ⇒ byte-idéntico al HEAD.
+  const _coGuardPre = CO_GUARD_SURGE.enabled ? coGuardScore(G.hero) : 0;
   // CAS-1773: MEDIDOR DE FRENESÍ — a real (non-neutral) kill adds a stack if within the window,
   // else re-arms at 1 (first kill after a full decay). Pure arithmetic, 0 RNG, gated on FRENZY.enabled.
   if(FRENZY.enabled && G.hero && !tpl.neutral && !G.hero.dead){
@@ -9143,6 +9189,10 @@ function killEnemy(e){
   if(CO_BUFF_UPTIME_SURGE.enabled && !tpl.neutral){ const cbst=coBuffForage(G.hero, tpl, _coBuffPre);
     if(cbst>0){ grantCoBuffBounty(cbst);
       floater(e.x,e.y-1642,"+"+cbst+" Égida","#7fd8c8",{small:true}); } }
+  // CAS-2857 CO_GUARD_SURGE seam: BROQUEL. Al matar un mob no-neutral mientras el broquel estaba ACREDITADO (G=# jugadores VIVOS DISTINTOS en GUARDIA ACTIVA/block/parry EL MISMO frame ≥midGuard con ≥minPlayers en guardia, score≥umbral ANTES de este kill vía `_coGuardPre`), el héroe cosecha fichas de broquel = coGuardForage(hero,tpl,_coGuardPre) (flat por banda de broquel, sub-cap coGuardBountyCap), banca a h.coGuardBounty vía grantCoGuardBounty (0 RNG). `_coGuardPre` se muestreó en el TOP + minPlayers≥2 + la TABLA exige score≥1 (⇒ ≥broquel-parcial) ⇒ rematar en single-player (G colapsa ⇒ 0) NO forrajea; hace falta que ≥2 jugadores estén en GUARDIA EN CONJUNTO. Canal FRESCO coGuardFind (fuente ÚNICA, sub-cap coGuardBountyCap) — NINGUNO de los 91 flags #59-#149 lo toca; fichas transitorias ⇒ fuera del save + fingerprint. GATED ⇒ enabled:false ⇒ rama muerta: 0 fichas, 0 floater, 0 grantCoGuardBounty ⇒ killEnemy byte-idéntico al HEAD.
+  if(CO_GUARD_SURGE.enabled && !tpl.neutral){ const cgst=coGuardForage(G.hero, tpl, _coGuardPre);
+    if(cgst>0){ grantCoGuardBounty(cgst);
+      floater(e.x,e.y-1664,"+"+cgst+" Broquel","#9fb8d6",{small:true}); } }
   G.enemies.splice(G.enemies.indexOf(e),1);
 }
 
@@ -10500,6 +10550,8 @@ function grantCoInterruptBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coInt
 
 // CAS-2853: banca fichas de ÉGIDA al recurso TRANSITORIO h.coBuffBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
 function grantCoBuffBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coBuffBounty=(h.coBuffBounty|0)+(n|0); }
+// CAS-2857: banca fichas de BROQUEL al recurso TRANSITORIO h.coGuardBounty (STATELESS — fuera del save allowlist + worldFingerprint). 0 RNG. Sólo llamado desde el seam GATED.
+function grantCoGuardBounty(n){ const h=G.hero; if(!h||n<=0) return; h.coGuardBounty=(h.coGuardBounty|0)+(n|0); }
 
 // CAS-1889: CARGA DE EQUIPO — helper DERIVADO puro. Suma el peso de las 3 piezas equipadas (slotWeight·rarityWeight)
 // y lo divide por la capacidad ⇒ ratio ⇒ banda (fast/mid/fat/over). Aritmética 100% sobre {slot,rarity} ya en save.v1
@@ -17099,6 +17151,56 @@ export const dev = {
       gExists:(G.coBuffBounty!=null),                 // prueba byte-id: STATELESS ⇒ G.coBuffBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
       partyExists:(G._coBuffParty!=null),             // prueba byte-id: G._coBuffParty SÓLO existe tras driveBuff (test scaffolding); en juego normal NUNCA se crea ⇒ B colapsa
       hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coBuffBounty:(h.coBuffBounty|0) }:null }; },
+  // CAS-2857: BROQUEL OBSERVABLE hook (DARK, CO_GUARD_SURGE — EVO#150, la QUINCEAVA faceta de la sub-familia PLAYER-COORDINATION tras #136 CÓNCLAVE … #149 ÉGIDA). Es la SEGUNDA sub-faceta DEFENSIVE REACTION-EVENT (par con #147 QUIEBRO, pero OPUESTA): QUIEBRO=ESQUIVAR/EVADIR (rodada/i-frame, apartarse); BROQUEL=GUARDIA-ACTIVA/INTERCEPTAR (block/parry, plantarse — flag `guard`, sistemas REALES SHIELD_BLOCK/PARRY/GUARD_COUNTER/DEFLECT/RIPOSTE). CONTEXTO: co-revive COLAPSA (grep: NO existe estado downed/bleedout/incap — muerte INSTANTÁNEA; #139 SOCORRO ya cuenta `revive` en support-credit) ⇒ fallback autorizado a co-block/co-parry.
+  //   coGuard()                                     → snapshot {enabled,channel,weights,hiGuard,midGuard,playerCap,minPlayers,tiers,cap,idx,players,guard,score,tier,charge,forageChargePreview,guardProbe,driveGuard,guardProbeLive,cleared,tag,precedence,gExists,partyExists,hero}
+  //   coGuard({enabled})                            → flip runtime IN-MEMORY de CO_GUARD_SURGE.enabled (sin tocar disco)
+  //   coGuard({tp:{tx,ty}})                         → teleporta al héroe
+  //   coGuard({guardProbe:{guarders,players}})      → LUT PURA (guarders=nº de jugadores en guardia activa, players=P)→G=clamp(guarders,0,players)→banda(G vs {midGuard,hiGuard,minPlayers} ENTEROS)→tier→charge (byte-verifica BROQUEL + UMBRALES; G<minPlayers ⇒ 0)
+  //   coGuard({driveGuard:{wipe,players:[{guard,dead}]}}) → inyecta roster SINTÉTICO (G._coGuardParty) ⇒ G REAL server-auth = # jugadores VIVOS con flag `guard` (filtra muertos)
+  //   coGuard({guardProbeLive:true})                → lectura REAL server-auth: G=# jugadores VIVOS en guardia activa este frame
+  //   coGuard({clearGuard:true})                    → limpia la party sintética
+  coGuard(p){
+    let guardProbe=null, driveGuard=null, guardProbeLive=null, cleared=null;
+    const cap=Math.max(1,CO_GUARD_SURGE.playerCap|0)||4, minP=Math.max(2,CO_GUARD_SURGE.minPlayers|0);
+    if(p && typeof p==="object"){
+      if("enabled" in p) CO_GUARD_SURGE.enabled=!!p.enabled;
+      if(p.tp && G.hero){ G.hero.x=(p.tp.tx|0)*TS+TS/2; G.hero.y=(p.tp.ty|0)*TS+TS/2; }
+      if(p.guardProbe && typeof p.guardProbe==="object"){ const P=(p.guardProbe.players!=null)?(p.guardProbe.players|0):minP;   // LUT PURA (guarders,P)→G=clamp→banda(G vs umbrales ENTEROS)→tier→charge
+        let d=(p.guardProbe.guarders!=null)?(p.guardProbe.guarders|0):0; if(d<0) d=0; if(d>P) d=P;   // G no puede exceder el roster P
+        const Gc=d, a={ G:Gc, P:P };
+        const w=coGuardBandFromAgg(a), t=coGuardRankTier(w);
+        const hi=(CO_GUARD_SURGE.hiGuard!=null)?(CO_GUARD_SURGE.hiGuard|0):3, mid=(CO_GUARD_SURGE.midGuard!=null)?(CO_GUARD_SURGE.midGuard|0):2;
+        const rawC=t>0?(+CO_GUARD_SURGE.tiers[t-1].charge||0):0, capB=Math.max(0,CO_GUARD_SURGE.coGuardBountyCap|0);
+        guardProbe={ guarders:d, players:P, guard:Gc, hiGuard:hi, midGuard:mid, minPlayers:minP, idx:+(cap>0?(Gc/cap):0).toFixed(3), weight:w, rankTier:t, charge:capB>0?Math.min(rawC,capB):rawC }; }
+      if(p.driveGuard && typeof p.driveGuard==="object"){ const injected=[];   // inyecta roster sintético (flag guard + vivo/muerto) ⇒ G REAL (tally de banderas guard entre VIVOS)
+        const plist=Array.isArray(p.driveGuard.players)?p.driveGuard.players:[];   // roster sintético: CADA jugador {guard?,dead?}, transitorios
+        const party=[]; for(const pl of plist){ const dead=!!(pl&&pl.dead), gf=!!(pl&&pl.guard);
+          party.push({ guard:gf, maxHp:1000, hp:dead?0:1000, dead:dead, _synthPlayer:true });
+          injected.push({ guard:gf, dead:dead }); }
+        G._coGuardParty=party;
+        const aa=coGuardRoster(G.hero);
+        driveGuard={ injected, players:G._coGuardParty.length, guard:aa?aa.G:0, idx:+coGuardField(G.hero).toFixed(3), score:coGuardScore(G.hero) }; }
+      if(p.clearGuard){ G._coGuardParty=null; cleared=true; }   // limpia party sintética
+      if(p.guardProbeLive){ const h2=G.hero;   // lectura REAL server-auth: G=# jugadores VIVOS en guardia activa este frame
+        if(h2){ const aa=coGuardRoster(h2);
+          guardProbeLive={ players:aa?aa.P:0, guard:aa?aa.G:0, field:+coGuardField(h2).toFixed(3), score:coGuardScore(h2) }; }
+        else guardProbeLive={ players:0, guard:0, field:0, score:0 }; }
+    }
+    const h=G.hero, vm=coGuardVM(h);
+    return { enabled:CO_GUARD_SURGE.enabled, channel:CO_GUARD_SURGE.channel||"coGuardFind",
+      weights:Object.assign({},CO_GUARD_SURGE.weights||{}), hiGuard:CO_GUARD_SURGE.hiGuard|0, midGuard:CO_GUARD_SURGE.midGuard|0, playerCap:cap, minPlayers:minP,
+      tiers:(CO_GUARD_SURGE.tiers||[]).map(t=>({min:+t.min||0,charge:+t.charge||0})), cap:vm.cap,
+      idx:vm.idx, players:vm.players, guard:vm.guard, score:vm.score, tier:vm.tier, charge:vm.charge,
+      forageChargePreview: h?coGuardForage(h, {coGuard:true}):0,   // preview: fichas forrajeadas por un remate con el broquel acreditado AHORA (expone el canal coGuardFind; usa score EN VIVO — en single-player/solitario 0)
+      guardProbe: guardProbe,                    // LUT PURA (guarders,P)→G=clamp→banda(G vs {midGuard,hiGuard,minPlayers} ENTEROS)→tier→charge (byte-verifica BROQUEL + UMBRALES)
+      driveGuard: driveGuard,                    // inyecta roster SINTÉTICO ⇒ G REAL + idx/players/guard/score server-auth (tally de banderas guard entre VIVOS)
+      guardProbeLive: guardProbeLive,            // lectura REAL server-auth: G=# jugadores VIVOS en guardia activa este frame
+      cleared: cleared,                          // limpieza de la party sintética
+      tag: coGuardTag(h),                        // glifo SERVIDO (OFF/solitario/single-player ⇒ "" / broquel ≥midGuard ⇒ ⊓)
+      precedence:"coGuardFind (canal FRESCO — recompensa de fichas de BROQUEL por rematar mientras ≥2 aliados DISTINTOS están en GUARDIA ACTIVA/block/parry EL MISMO frame — el co-block/co-parry): NINGUNO de los 91 flags #59-#149 lo toca. La QUINCEAVA faceta de la sub-familia PLAYER-COORDINATION y la SEGUNDA sub-faceta DEFENSIVE REACTION-EVENT (par con #147 QUIEBRO pero OPUESTA: QUIEBRO=EVADIR/dodge, BROQUEL=INTERCEPTAR/block-parry). EJE = G=# jugadores VIVOS DISTINTOS con el flag `guard` (block/parry/guard-up ACTIVO) este frame ∈[0,P] ENTERO, SNAPSHOT PURO del flag replicado. 🔑 DETERMINISMO sev-1: G = tally ENTERO de banderas booleanas (CERO float/atan2; el conteo es CONMUTATIVO ⇒ orden-independiente) vs umbrales ENTEROS {midGuard,hiGuard} ⇒ 0-float en el score/decisión ⇒ 2-cliente 0-desync. MULTIJUGADOR-NATIVO (single-player ⇒ ≤1 en guardia ⇒ G colapsa, IMPOSIBLE co-bloquear en solitario). CRUX (LA CRÍTICA) — BROQUEL = SIMULTANEIDAD-DE-GUARDIA-ACTIVA (block/parry-up): (a) ⊥ #147 QUIEBRO (PRIMARIO — INTERCEPTAR ⊥ EVADIR, reacciones defensivas OPUESTAS: 3 rodando D3 pero G0; 3 bloqueando G3 pero D0 — verificado por grep h.blocking/h.parryT ⊥ h.rolling/h.iframe); (b) ⊥ #140 MURALLA (GUARDIA-ACCIÓN ⊥ ABSORBER-daño-intake: 3 en guardia sin golpe G3/T0; 3 tanqueando a pecho descubierto T3/G0); (c) ⊥ #148 YUGO (defensivo ⊥ interrupt-ofensivo); (d) ⊥ #146 CONJURO (bloquear ⊥ castear); (e) ⊥ #149 ÉGIDA (guardia-ACCIÓN ⊥ portar-buff-uptime-STATE); (f) ⊥ #139 SOCORRO (bloquear ⊥ aplicar-socorro); (g) ⊥ #138 CUADRILLA (bloquear ⊥ rematar); (h) ⊥ #132 PARTY_VITAL (guardia ENTERA ⊥ HP-media float); (i) ⊥ #144 DIANA / #145 TENAZA. Fuente ÚNICA (seam de kill) ⇒ máximo-único trivial, sub-cap propio coGuardBountyCap, 0 doble-dip. Recurso TRANSITORIO NUEVO h.coGuardBounty STATELESS (fuera del save allowlist + worldFingerprint); party sintética G._coGuardParty TRANSITORIA (nunca serializada, sólo test scaffolding). SNAPSHOT PURO (sin estado per-tick). ORTOGONAL a toda la familia find (seams distintos).",
+      gExists:(G.coGuardBounty!=null),                 // prueba byte-id: STATELESS ⇒ G.coGuardBounty NUNCA se crea (0 estado nuevo, 0 clave serializada)
+      partyExists:(G._coGuardParty!=null),             // prueba byte-id: G._coGuardParty SÓLO existe tras driveGuard (test scaffolding); en juego normal NUNCA se crea ⇒ G colapsa
+      hero:h?{ cls:h.cls, x:+(+h.x).toFixed(2), y:+(+h.y).toFixed(2), dead:!!h.dead, hp:+(+h.hp).toFixed(2), tx:Math.floor(h.x/TS), ty:Math.floor(h.y/TS), coGuardBounty:(h.coGuardBounty|0) }:null }; },
   // CAS-2380: DELVE / DESCENSO OBSERVABLE hook (DARK, DELVE — eje PROFUNDIDAD/DESCENSO VERTICAL + canal FRESCO critChance/precisión con CAP DURO). Sólo lectura + drivers de PRUEBA gateados (0 hotkey —
   // passive AMBIENTAL emerge del descenso, sin input.js). Convergencia byte-a-byte: MISMO snapshot+reloj ⇒ MISMO delve/bands/tier/crit en N clientes. INDIVIDUAL (per-pid, mirror trailcraft).
   //   delve()                                           → snapshot {enabled,channel,zones,tiers,...,self,zone,band,delve,bands,tier,critPct,critCapPct,critBonusPct,peer muls ⊥,tag,delveMap,bandsMap,gExists,nowMs,probe,critPicked,hero}
