@@ -26,3 +26,15 @@ deploy/
 
 # Headless QA screenshot artifacts (regenerable via npm run smoke / atlas-qa)
 tools/*.png
+
+# Secrets — never commit (preventive: repo may be public)
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.json
+credentials.json
+serviceaccount*.json
+.netrc
